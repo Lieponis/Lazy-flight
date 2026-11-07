@@ -1,0 +1,18 @@
+# Downloaded software (recreated by "npm install")
+node_modules/
+
+# Built website (recreated by "npm run build")
+dist/
+
+# Logs and temporary files
+*.log
+.vite/
+coverage/
+
+# Computer-specific files
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.env
+.env.*
