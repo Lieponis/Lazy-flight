@@ -142,7 +142,12 @@ export class FlightScreen implements Screen {
     if (this.dest) this.scene.add(this.dest.group);
   }
 
-  /** The system the flight is going to (so the app can show it afterwards). */
+  /** The dock the flight is going to (the app parks the ship there afterwards). */
+  destinationDockId(): string | null {
+    return this.info ? this.info.destinationDockId : null;
+  }
+
+  /** The system the flight is going to. */
   destinationSystemId(): string | null {
     return this.info ? (parseDockId(this.info.destinationDockId)?.systemId ?? null) : null;
   }

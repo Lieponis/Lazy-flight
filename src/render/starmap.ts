@@ -24,6 +24,8 @@ export interface StarMapOptions {
   state: StateStore;
   current: StarSystem;
   onOpenSystem: (systemId: string) => void;
+  /** The temporary "Back to dock" button. */
+  onBackToDock: () => void;
 }
 
 function makeRing(radius: number, color: number, axis: "x" | "y" | "z"): THREE.LineLoop {
@@ -160,6 +162,7 @@ export class StarMapScreen implements Screen {
       hud.setLabel("Tap a star to select it.\nDrag to turn the map, scroll or pinch to zoom.");
     }
     hud.setButtons([
+      { text: "Back to dock", onClick: this.opts.onBackToDock },
       {
         text: "Open system",
         disabled: !system,

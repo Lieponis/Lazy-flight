@@ -53,3 +53,22 @@ export const FLIGHT_LINE_SECONDS = 25;
 export const TUNNEL_STREAKS = 140; // number of streaking stars (fewer = faster on phones)
 export const TUNNEL_RINGS = 12; // number of rings flying past
 export const TUNNEL_SPEED = 70; // how fast it flies, in units per second
+
+// ---------------------------------------------------------------- the docked view (part 3c)
+
+/** How steeply the camera looks down at the ship, in degrees (0 = level with the ground, 90 = straight down). */
+export const DOCKED_CAMERA_ANGLE_DEG = 28;
+
+/** How far the camera is from the ship. The height above the ground follows from this and the angle. */
+export const DOCKED_CAMERA_DISTANCE = 14;
+
+/** How close and how far you can zoom. */
+export const DOCKED_ZOOM_MIN = 6;
+export const DOCKED_ZOOM_MAX = 40;
+
+/** Lowest and highest camera angle you can drag to, in degrees. */
+export const DOCKED_ANGLE_MIN_DEG = 8;
+export const DOCKED_ANGLE_MAX_DEG = 80;
+
+/** How fast the camera drifts around the ship by itself, in radians per second (0.04 = one full circle in about 2.5 minutes). 0 = no drift. */
+export const DOCKED_DRIFT_SPEED = 0.04;

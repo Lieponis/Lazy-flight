@@ -31,6 +31,8 @@ export interface SystemViewOptions {
   hud: Hud;
   state: StateStore;
   onBack: () => void;
+  /** The temporary "Back to dock" button. */
+  onBackToDock: () => void;
 }
 
 interface PlanetEntry {
@@ -53,8 +55,8 @@ export function disposeAll(root: THREE.Object3D): void {
 }
 
 /** A planet is a low-poly ball. Its patches are colored once (two colors + 4 flat brightness steps), no lights needed. */
-export function makePlanetMesh(planet: Planet, radius: number, toStar: THREE.Vector3): THREE.Mesh {
-  const geometry = new THREE.IcosahedronGeometry(radius, 1); // not indexed: every triangle has its own 3 corners
+export function makePlanetMesh(planet: Planet, radius: number, toStar: THREE.Vector3, detail = 1): THREE.Mesh {
+  const geometry = new THREE.IcosahedronGeometry(radius, detail); // not indexed: every triangle has its own 3 corners
   const position = geometry.getAttribute("position");
   const colors = new Float32Array(position.count * 3);
   const main = new THREE.Color(hexToNumber(planet.colors.primary));
@@ -246,7 +248,7 @@ export class SystemViewScreen implements Screen {
   }
 
   private refreshHud(): void {
-    const { hud, onBack } = this.opts;
+    const { hud, onBack, onBackToDock } = this.opts;
     const chosen = this.entries[this.selected];
     if (chosen) {
       const { planet, dock } = chosen;
@@ -254,6 +256,9 @@ export class SystemViewScreen implements Screen {
     } else {
       hud.setLabel("Tap a planet to see its name and dock.\nDrag to turn the view, scroll or pinch to zoom.");
     }
-    hud.setButtons([{ text: "Back to map", onClick: onBack }]);
+    hud.setButtons([
+      { text: "Back to dock", onClick: onBackToDock },
+      { text: "Back to map", onClick: onBack },
+    ]);
   }
 }

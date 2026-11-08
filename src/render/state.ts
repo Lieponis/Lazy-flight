@@ -1,11 +1,13 @@
 // What is selected right now. Agent 4 and Agent 5 can READ this (and listen for changes)
 // without knowing anything about drawing.
 
-export type ScreenName = "starmap" | "system" | "flight";
+export type ScreenName = "docked" | "starmap" | "system" | "flight";
 
 export interface RenderState {
   /** Which screen is showing. */
   screen: ScreenName;
+  /** The dock shown in the docked view (the ship is parked there), e.g. "3:-2:5:0/2", or null. */
+  dockedDockId: string | null;
   /** The system the player is in, e.g. "3:-2:5:0". */
   currentSystemId: string;
   /** Star selected on the starmap, or null. */
@@ -24,7 +26,8 @@ export class StateStore {
 
   constructor(currentSystemId: string) {
     this.state = {
-      screen: "starmap",
+      screen: "docked",
+      dockedDockId: null,
       currentSystemId,
       selectedSystemId: null,
       viewedSystemId: null,

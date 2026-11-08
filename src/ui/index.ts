@@ -1,5 +1,5 @@
 // Starts the temporary game panel and connects it to the render layer.
-// Called once from src/main.ts after the starmap is running.
+// Called once from src/main.ts after the render layer is running.
 
 import { Game, createClock, parseSpeedParam } from "../game";
 import { getDock, getPlanetsOfSystem } from "../universe";
@@ -43,6 +43,7 @@ export function startUi(api: RenderApi, parent: HTMLElement): Game {
     panel.rebuild();
     syncFlight();
   });
+  api.showDocked(game.state.currentDockId); // the home screen: the ship parked at its dock
   syncFlight(); // the page was opened in the middle of a flight
 
   // Check the clock a few times a second, and the moment the tab wakes up.

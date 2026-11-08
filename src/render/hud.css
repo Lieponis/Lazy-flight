@@ -64,3 +64,14 @@
   border-color: #2a3170;
   cursor: default;
 }
+
+/* Narrow screens (phones held upright): stack the buttons so the text box keeps its room. */
+@media (max-width: 600px) {
+  .hud-buttons {
+    flex-direction: column;
+  }
+  .hud-buttons button {
+    padding: 10px 12px;
+    font-size: 15px;
+  }
+}

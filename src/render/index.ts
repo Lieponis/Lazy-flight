@@ -1,4 +1,4 @@
-// Front door of the render layer. Starts the two screens (starmap and system view) and the frame loop.
+// Front door of the render layer. Starts the screens (docked view, starmap, system view, flight) and the frame loop.
 //
 //   import { startRender } from "./render";
 //   const api = startRender(renderer, document.getElementById("app"));
@@ -7,7 +7,7 @@
 //   api.state.subscribe((s) => ...)    // be told when something changes
 
 import type * as THREE from "three";
-import { getSystem, type StarSystem } from "../universe";
+import { getPlanetsOfSystem, getSystem, parseDockId, type StarSystem } from "../universe";
 import type { FlightInfo } from "./flightplan";
 import { Hud } from "./hud";
 import { cameraFov, parseSeedParam, renderSizeFor } from "./helpers";
@@ -16,6 +16,7 @@ import type { Screen } from "./screen";
 import { START_SEED } from "./settings";
 import { findStartSystem } from "./start";
 import { StateStore } from "./state";
+import { DockedScreen } from "./docked";
 import { FlightScreen } from "./flight";
 import { StarMapScreen } from "./starmap";
 import { SystemViewScreen } from "./systemview";
@@ -26,13 +27,15 @@ export type { FlightInfo, FlightProgress } from "./flightplan";
 
 export interface RenderApi {
   state: StateStore;
+  /** The home screen: the camera above the ship, parked at this dock (a planet id like "3:-2:5:0/2"). */
+  showDocked(dockId: string): void;
   showStarmap(): void;
   showSystem(systemId: string): void;
   /** Move the "you are here" system (the starmap ring and label follow). Used by the game on arrival. */
   setCurrentSystem(systemId: string): void;
   /** Show the flight screen (launch, warp, approach) for a trip the game has started. */
   startFlight(info: FlightInfo): void;
-  /** The game says the trip is over: finish the animation, then show the system view of the destination. */
+  /** The game says the trip is over: finish the animation, then show the docked view at the destination dock. */
   endFlight(): void;
   /** True while the flight screen is showing. */
   isFlying(): boolean;
@@ -62,21 +65,42 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
       state,
       current: here,
       onOpenSystem: (id) => api.showSystem(id),
+      onBackToDock: () => api.showDocked(lastDockId),
     });
   }
   let starmap = makeStarmap(current);
+  // The dock the ship is parked at. The maps return here with "Back to dock".
+  let lastDockId = getPlanetsOfSystem(seed, current.id)[0]?.id ?? "";
+  const docked = new DockedScreen({
+    seed,
+    host: canvas,
+    hud,
+    onMap: (systemId) => api.showSystem(systemId),
+  });
   const systemView = new SystemViewScreen({
     seed,
     host: canvas,
     hud,
     state,
     onBack: () => api.showStarmap(),
+    onBackToDock: () => api.showDocked(lastDockId),
   });
 
   const flight = new FlightScreen({ seed, host: canvas, hud, parent });
 
   const api: RenderApi = {
     state,
+    showDocked(dockId: string): void {
+      if (!docked.open(dockId)) {
+        api.showStarmap(); // unknown dock: fall back to the map rather than a blank screen
+        return;
+      }
+      lastDockId = dockId;
+      const systemId = parseDockId(dockId)?.systemId ?? null;
+      state.set({ screen: "docked", dockedDockId: dockId, viewedSystemId: null, selectedPlanetId: null });
+      show(docked);
+      if (systemId && systemId !== state.get().currentSystemId) api.setCurrentSystem(systemId);
+    },
     showStarmap(): void {
       state.set({ screen: "starmap", viewedSystemId: null, selectedPlanetId: null });
       show(starmap);
@@ -101,9 +125,9 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
     },
     endFlight(): void {
       if (active !== flight) return;
-      const destination = flight.destinationSystemId();
+      const destination = flight.destinationDockId();
       flight.finish(() => {
-        if (destination) api.showSystem(destination);
+        if (destination) api.showDocked(destination);
         else api.showStarmap();
       });
     },
@@ -122,7 +146,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
     const aspect = window.innerWidth / Math.max(1, window.innerHeight);
     const size = renderSizeFor(aspect, RENDER_WIDTH, RENDER_HEIGHT);
     renderer.setSize(size.width, size.height, false);
-    for (const screen of [starmap, systemView, flight]) {
+    for (const screen of [docked, starmap, systemView, flight]) {
       screen.camera.aspect = size.width / size.height;
       screen.camera.fov = cameraFov(size.width / size.height, 50);
       screen.camera.updateProjectionMatrix();
@@ -131,7 +155,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
   resize();
   window.addEventListener("resize", resize);
 
-  api.showStarmap();
+  api.showDocked(lastDockId); // the game starts in the docked view
 
   let last = performance.now();
   function frame(now: number): void {

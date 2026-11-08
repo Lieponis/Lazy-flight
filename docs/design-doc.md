@@ -1,21 +1,21 @@
-# Lazy Freight (working title): Design Doc v3 (APPROVED by Andy, 2026-11-06)
+# Lazy Freight (working title): Design Doc v4 (v3 approved 2026-11-06; screen flow changed by Andy 2026-11-08)
 
 ## Vision
 A relaxing, funny, PS1-style space game. You run a small ship through an endless generated galaxy, taking jobs from inside a chunky low-poly cockpit. Long trips run in the background, so you can leave the tab and come back to your pay.
 
 ## Core loop (every 5 minutes)
-1. Open the mission board at a station or outpost.
-2. Pick a job and press **Fly**. The ship leaves the dock.
-3. Warp loop, lasting as long as the trip. Player can switch **Orbit / Cockpit** view.
-4. If the tab is open near the end: approach animation to planet and dock.
-5. Funny debrief, get paid, spend credits, pick the next job.
+1. You are docked. The camera is above your ship at its dock. Open **Jobs**.
+2. Pick a job and press **Accept**. The ship leaves the dock.
+3. Flight: launch, warp loop (as long as the trip), approach. During flight only, switch **Orbit / Cockpit** view.
+4. Arrive docked at the destination. A funny debrief appears and you get paid.
+5. Spend credits and rank up, then open **Jobs** again. **Map** can be opened any time you are docked.
 
-## Main screens
-1. **Cockpit Home**: system view through the window; panels for credits, fuel, current job.
-2. **Mission Board**: reward, distance, load, funny blurb.
-3. **Starmap**: nearby stars only, limited by fuel range.
-4. **Flight View**: warp loop, progress bar, ETA, Orbit/Cockpit switch, approach animation.
-5. **Shipyard & Ranks**: ships, upgrades, ranks, outposts.
+## Screens and navigation (v4)
+1. **Docked view (home).** Camera above the ship, sitting at its dock (a surface outpost pad or a station bay). No cockpit and no Orbit/Cockpit button here. Status strip always visible: credits, fuel, location. Two buttons: **Jobs** and **Map**.
+2. **Jobs menu.** Opens over the docked view. The job board for this dock (reward, distance, load, trip time, fuel needed, blurb; blocked jobs show a reason), plus Refuel. Accepting a job closes it and starts the flight.
+3. **Map.** A separate button. Opens the current star system as a map (star, planets, orbit lines, outposts and stations). A switch opens the galaxy starmap (nearby stars). Close returns to the docked view.
+4. **Flight view.** Launch, warp loop with progress bar and ETA, approach. **Orbit / Cockpit** button lives only here. Jobs and Map are hidden during flight.
+5. **Shipyard & Ranks** (later phase): ships, upgrades, ranks, outposts.
 
 ## Procedural universe rules
 One seed + coordinates computes everything. Nothing is stored except player progress.
@@ -66,7 +66,7 @@ Starmap: pick a destination, accept a trade job, watch the ship leave and warp, 
 - **Agent 2 (Universe):** deterministic generator with tests (systems, planets, outpost-or-station per planet, goods, prices, jobs, names, joke tables).
 - **Agent 3 (Rendering):** cockpit frame, system view, starmap, launch, warp loop, Orbit/Cockpit switch, approach animation. Keep light for phones.
 - **Agent 4 (Gameplay):** one job engine, fuel, timestamp travel (4h max), credits, ranks, outpost purchase and perks.
-- **Agent 5 (UI):** the five screens, retro font, touch + mouse controls, readable at small sizes.
+- **Agent 5 (UI):** the screens above (docked buttons, Jobs menu, Map, status strip), retro font, touch + mouse controls, readable at small sizes.
 
 ## Appendix: Andy's confirmed answers
 Cockpit is the menu at stations/outposts. After launch, switch Orbit/Cockpit. Player can stay or close the tab during flight. Approach animation near the end if the tab is open. Tone: relaxing, idle, funny.
