@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Universe debug view</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 16px; max-width: 1100px; line-height: 1.4; color: #111; background: #fafafa; }
+      h1 { font-size: 1.4rem; margin-bottom: 4px; }
+      h2 { font-size: 1.1rem; margin-top: 28px; border-bottom: 2px solid #ccc; padding-bottom: 4px; }
+      .box { background: #fff; border: 1px solid #ccc; border-radius: 6px; padding: 10px 12px; margin: 8px 0; }
+      label { display: inline-block; margin: 4px 12px 4px 0; }
+      input { padding: 4px; font-size: 1rem; }
+      input[type="number"] { width: 90px; }
+      #seed { width: 160px; }
+      #systemId { width: 130px; }
+      table { border-collapse: collapse; width: 100%; background: #fff; margin: 8px 0; font-size: 0.92rem; }
+      th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; }
+      th { background: #eee; }
+      .swatch { display: inline-block; width: 14px; height: 14px; border: 1px solid #555; vertical-align: middle; margin-right: 2px; }
+      .cheap { color: #0a7a2f; font-weight: bold; }
+      .dear { color: #b3261e; font-weight: bold; }
+      .note { color: #555; font-size: 0.9rem; }
+      button { padding: 4px 10px; font-size: 0.95rem; cursor: pointer; }
+      .pick { background: none; border: none; color: #0645ad; text-decoration: underline; padding: 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Universe debug view</h1>
+    <p class="note">
+      Plain text and tables, no graphics. Type a seed, then press <b>Show</b>. The same seed always shows the same universe.
+      Click a blue system name or planet number to look closer. <a href="./">Back to the cube page</a>.
+    </p>
+
+    <div class="box">
+      <label>Seed <input id="seed" type="text" value="12345" /></label>
+      <label>Time slot (1 = one hour) <input id="slot" type="number" value="0" step="1" /></label><br />
+      <label>Look around x <input id="cx" type="number" value="0" step="1" /></label>
+      <label>y <input id="cy" type="number" value="0" step="1" /></label>
+      <label>z <input id="cz" type="number" value="0" step="1" /></label>
+      <label>Radius (light years) <input id="radius" type="number" value="25" step="1" min="1" max="60" /></label>
+      <button id="show" type="button">Show</button>
+    </div>
+
+    <h2>1. Nearby systems</h2>
+    <div id="nearby"></div>
+
+    <h2>2. One system and its planets</h2>
+    <div class="box">
+      <label>System id <input id="systemId" type="text" placeholder="e.g. 0:0:0:0" /></label>
+      <label>Planet number <input id="planetIndex" type="number" value="0" step="1" min="0" max="7" /></label>
+      <button id="showSystem" type="button">Show this system</button>
+    </div>
+    <div id="system"></div>
+
+    <h2>3. One dock: goods and prices</h2>
+    <div id="dock"></div>
+
+    <h2>4. Job board of that dock</h2>
+    <div id="jobs"></div>
+
+    <script type="module" src="/src/debug.ts"></script>
+  </body>
+</html>
