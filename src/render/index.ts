@@ -11,6 +11,7 @@ import { getPlanetsOfSystem, getSystem, parseDockId, type StarSystem } from "../
 import type { FlightInfo } from "./flightplan";
 import { Hud } from "./hud";
 import { cameraFov, parseSeedParam, renderSizeFor } from "./helpers";
+import { parseShipParam, resolveShipId } from "./integration";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import type { Screen } from "./screen";
 import { START_SEED } from "./settings";
@@ -39,6 +40,11 @@ export interface RenderApi {
   endFlight(): void;
   /** True while the flight screen is showing. */
   isFlying(): boolean;
+  /**
+   * Which ship design to draw (an id like "scout"). The docked view and the flight use it from now on.
+   * Unknown ids give the Cargo Hauler. The ?ship=NAME testing aid in the web address overrides it (looks only).
+   */
+  setShip(shipId: string): void;
 }
 
 export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement): RenderApi {
@@ -49,6 +55,10 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
   const canvas = renderer.domElement;
   const state = new StateStore(current.id);
   const hud = new Hud(parent);
+
+  // Testing aid: ?ship=passenger-liner or ?ship=scout forces that model everywhere (looks only, the game does not change).
+  const forcedShip = parseShipParam(window.location.search);
+  let shipId = resolveShipId(null, forcedShip);
 
   let active: Screen | null = null;
   function show(screen: Screen): void {
@@ -83,6 +93,8 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
   });
 
   const flight = new FlightScreen({ seed, host: canvas, hud, parent });
+  docked.setShip(shipId);
+  flight.setShip(shipId);
 
   const api: RenderApi = {
     state,
@@ -114,7 +126,13 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
       state.set({ currentSystemId: here.id, selectedSystemId: null });
       if (wasShowing) show(starmap);
     },
+    setShip(id: string): void {
+      shipId = resolveShipId(id, forcedShip);
+      docked.setShip(shipId);
+      flight.setShip(shipId);
+    },
     startFlight(info: FlightInfo): void {
+      if (info.shipId) api.setShip(info.shipId);
       flight.begin(info);
       state.set({ screen: "flight", selectedPlanetId: null });
       show(flight);

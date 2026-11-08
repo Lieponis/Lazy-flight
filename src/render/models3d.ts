@@ -1,0 +1,34 @@
+// Builds Agent 8's designs for the screens. Every call builds a FRESH model: the screen that asks owns it
+// and must throw it away with disposeAll() when it is done (so memory does not grow).
+
+import * as THREE from "three";
+import type { Planet } from "../universe";
+import { getAsset, type AssetModel } from "./assets";
+import { hexToNumber } from "./helpers";
+import { outpostModelFor, resolveShipId, stationModelFor, type DockKind } from "./integration";
+
+/** The ship design for a ship id (unknown ids give the Cargo Hauler). Flames start short (parked). */
+export function buildShipModel(shipId: string): AssetModel {
+  return getAsset(resolveShipId(shipId)).build();
+}
+
+export interface DockModel {
+  id: string;
+  kind: DockKind;
+  model: AssetModel;
+  /** The model's own `parking` anchor position (where the ship rests). */
+  parking: THREE.Vector3;
+}
+
+/** The outpost or station design picked for this dock. Outposts get the planet's main colour on their ground and dust. */
+export function buildDockModel(kind: DockKind, dockId: string, planet: Planet): DockModel {
+  const id = kind === "OUTPOST" ? outpostModelFor(dockId, planet.type) : stationModelFor(dockId);
+  const model = getAsset(id).build({ tint: hexToNumber(planet.colors.primary) });
+  const parking = model.anchors.parking?.pos.clone() ?? new THREE.Vector3();
+  return { id, kind, model, parking };
+}
+
+/** Moves the model so that its parking anchor sits at the origin of its parent. */
+export function parkAtOrigin(dock: DockModel): void {
+  dock.model.group.position.copy(dock.parking).negate();
+}

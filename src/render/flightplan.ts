@@ -16,6 +16,8 @@ export interface FlightInfo {
   originDockId: string;
   destinationDockId: string;
   destinationName: string;
+  /** The ship the player flies (an id like "scout"). The render layer draws that ship's design; unknown or missing = the Cargo Hauler. */
+  shipId?: string;
   /** Game seconds per real second (the ?speed=NUMBER setting). */
   speed: number;
   /** Returns the current progress, or null if no flight is running any more. */

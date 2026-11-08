@@ -22,6 +22,7 @@ export function startUi(api: RenderApi, parent: HTMLElement): Game {
   if (!firstDock) throw new Error("The start system has no dock.");
 
   const game = new Game(seed, firstDock.id, createClock(parseSpeedParam(window.location.search)));
+  api.setShip(game.state.shipId); // the render layer draws the ship the player owns
 
   // ------------------------------------------------------------ names
   const dockName = (dockId: string): string => getDock(seed, dockId)?.name ?? "Unknown dock";
@@ -110,6 +111,7 @@ export function startUi(api: RenderApi, parent: HTMLElement): Game {
         originDockId: game.state.currentDockId,
         destinationDockId: job.destinationDockId,
         destinationName: dockName(job.destinationDockId),
+        shipId: game.state.shipId,
         speed: game.clock.speed,
         getProgress: () => game.progress(),
       });
@@ -120,6 +122,7 @@ export function startUi(api: RenderApi, parent: HTMLElement): Game {
   };
 
   game.subscribe(() => {
+    api.setShip(game.state.shipId); // follows ship purchases
     api.setCurrentSystem(game.currentSystemId()); // the starmap ring and "you are here" follow the player
     if (game.lastArrival && game.lastArrival !== seenArrival) {
       seenArrival = game.lastArrival;

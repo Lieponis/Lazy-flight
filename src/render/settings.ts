@@ -72,3 +72,39 @@ export const DOCKED_ANGLE_MAX_DEG = 80;
 
 /** How fast the camera drifts around the ship by itself, in radians per second (0.04 = one full circle in about 2.5 minutes). 0 = no drift. */
 export const DOCKED_DRIFT_SPEED = 0.04;
+
+// ---------------------------------------------------------------- Agent 8's designs in the screens (part 3d)
+
+/** Docked at an OUTPOST: the planet surface under the pad. A big ball, so it looks nearly flat; the detail number is how many facets it has. */
+export const DOCKED_GROUND_RADIUS = 150;
+export const DOCKED_GROUND_DETAIL = 12;
+
+/** Docked at a STATION: the camera is inside the bay. */
+export const DOCKED_BAY_MARGIN = 0.7; // the camera never gets closer than this to a wall, floor or ceiling
+export const DOCKED_BAY_ZOOM_MIN = 4.5; // how close you can zoom to the ship in the bay
+export const DOCKED_BAY_ANGLE_MIN_DEG = 18; // lowest camera angle in the bay (so it never sinks into the hull)
+export const DOCKED_BAY_ANGLE_MAX_DEG = 65;
+export const DOCKED_BAY_SWAY = 0.14; // how far (radians) the camera slowly sways left and right by itself in the bay; 0 = still
+
+/** Docked at a STATION: the planet seen through the slot. Radius, and where it is relative to the slot mouth. */
+export const DOCKED_STATION_PLANET_RADIUS = 70;
+export const DOCKED_STATION_PLANET_AT = { x: 25, y: -45, z: -110 };
+
+/** System view: how big the dock models are drawn, as a fraction of the planet's drawn radius (clamped to the min and max). */
+export const SYSTEM_OUTPOST_SCALE = 0.05;
+export const SYSTEM_OUTPOST_SCALE_MIN = 0.04;
+export const SYSTEM_OUTPOST_SCALE_MAX = 0.12;
+export const SYSTEM_STATION_SCALE = 0.045;
+
+/** Flight view: the orbit camera around the ship (distance and height) while docking/launching and in warp. */
+export const FLIGHT_ORBIT_RADIUS = 13;
+export const FLIGHT_ORBIT_HEIGHT_DOCK = 7;
+export const FLIGHT_ORBIT_HEIGHT_WARP = 3;
+
+/** Flight view: how far the origin dock slides away during the launch, and how far ahead the destination dock starts. */
+export const FLIGHT_LAUNCH_FAR = { y: 240, z: 260 };
+export const FLIGHT_APPROACH_FROM_OUTPOST = { y: 60, z: 200 };
+export const FLIGHT_APPROACH_FROM_STATION = { y: 6, z: 260 };
+
+/** Flight view: where the camera sits inside a station bay while you leave or arrive, relative to the ship (right, up, behind). */
+export const FLIGHT_BAY_CAMERA = { x: 3.2, y: 3.4, z: 4.8 };

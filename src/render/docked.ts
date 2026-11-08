@@ -1,14 +1,15 @@
-// SCREEN: the docked view (the home screen). The camera is above the player's ship, which rests at its dock.
-//   OUTPOST: the ship stands on a landing pad on the curved planet surface, next to the outpost building.
-//   STATION: the ship is parked on a bay platform beside the station, with the planet big in the background.
-// All shapes are built in code. Colors, dock kind and names come from the universe.
+// SCREEN: the docked view (the home screen). Shows Agent 8's designs.
+//   OUTPOST: the ship stands on the outpost's landing pad. The outpost design is picked from the dock id and takes the
+//            planet's colour on its ground. Below it is the planet surface (a very big ball, so it looks almost flat).
+//   STATION: the ship rests on the bay floor INSIDE the station. The camera is inside the bay too (it can never go
+//            through a wall) and the planet is seen through the docking slot.
+// Colors, dock kind and names come from the universe.
 
 import * as THREE from "three";
 import { generateDock, getPlanet, getSystem, type Seed } from "../universe";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import {
   camPosition,
-  defaultDockedCam,
   degToRad,
   driftCam,
   pinchFactor,
@@ -18,23 +19,42 @@ import {
   type CamLimits,
   type OrbitCam,
 } from "./dockedcam";
-import { dockKindLabel, hexToNumber, planetTypeLabel, starfieldPositions } from "./helpers";
+import { clamp, dockKindLabel, hexToNumber, planetTypeLabel, starfieldPositions } from "./helpers";
 import type { Hud } from "./hud";
+import {
+  FALLBACK_SHIP_ID,
+  bayBoxWorld,
+  camFromPoint,
+  clampToBox,
+  outpostFraming,
+  relativeToParking,
+  resolveShipId,
+  type Box,
+} from "./integration";
+import { buildDockModel, buildShipModel, parkAtOrigin, type DockModel } from "./models3d";
+import type { AssetModel } from "./assets";
 import type { Screen } from "./screen";
 import {
   DOCKED_ANGLE_MAX_DEG,
   DOCKED_ANGLE_MIN_DEG,
+  DOCKED_BAY_ANGLE_MAX_DEG,
+  DOCKED_BAY_ANGLE_MIN_DEG,
+  DOCKED_BAY_MARGIN,
+  DOCKED_BAY_SWAY,
+  DOCKED_BAY_ZOOM_MIN,
   DOCKED_CAMERA_ANGLE_DEG,
-  DOCKED_CAMERA_DISTANCE,
   DOCKED_DRIFT_SPEED,
+  DOCKED_GROUND_DETAIL,
+  DOCKED_GROUND_RADIUS,
+  DOCKED_STATION_PLANET_AT,
+  DOCKED_STATION_PLANET_RADIUS,
   DOCKED_ZOOM_MAX,
   DOCKED_ZOOM_MIN,
   STARFIELD_COUNT,
 } from "./settings";
-import { buildCargoHauler, shadedGeometry } from "./ship";
-import { disposeAll, makeOutpost, makePlanetMesh, makeStation } from "./systemview";
+import { disposeAll, makePlanetMesh } from "./systemview";
 
-const LIMITS: CamLimits = {
+const OUTPOST_LIMITS: CamLimits = {
   minDist: DOCKED_ZOOM_MIN,
   maxDist: DOCKED_ZOOM_MAX,
   minPitch: degToRad(DOCKED_ANGLE_MIN_DEG),
@@ -42,8 +62,8 @@ const LIMITS: CamLimits = {
 };
 
 const LIGHT = new THREE.Vector3(0.3, 0.85, -0.4).normalize(); // where the sun is, same as in the flight view
-const OUTPOST_GROUND_RADIUS = 30; // small enough that you can see the planet curve away to the horizon
-const STATION_PLANET_RADIUS = 70;
+const STATION_LIGHT = new THREE.Vector3(0.45, 0.5, 0.75).normalize(); // lights the planet seen through the slot
+const SHIP_LOOK_AT = new THREE.Vector3(0, 1, 0); // the camera in the bay looks at the middle of the ship
 
 export interface DockedOptions {
   seed: Seed;
@@ -51,13 +71,22 @@ export interface DockedOptions {
   hud: Hud;
 }
 
-/** Drag to turn, scroll or pinch to zoom. Between touches the camera drifts slowly by itself. */
+/** Drag to turn, scroll or pinch to zoom. Between touches the camera drifts slowly by itself (outposts only). */
 class DockedControls {
-  cam: OrbitCam = defaultDockedCam(DOCKED_CAMERA_ANGLE_DEG, DOCKED_CAMERA_DISTANCE, LIMITS);
+  cam: OrbitCam = { yaw: -2.3, pitch: degToRad(DOCKED_CAMERA_ANGLE_DEG), dist: 14 };
+  limits: CamLimits = OUTPOST_LIMITS;
+  driftSpeed = DOCKED_DRIFT_SPEED;
   private pointers = new Map<number, { x: number; y: number }>();
   private lastPinch = 0;
 
   constructor(private el: HTMLElement) {}
+
+  /** Starts a new view: where the camera is, how far it may go, and how fast it drifts. */
+  reset(cam: OrbitCam, limits: CamLimits, driftSpeed: number): void {
+    this.limits = limits;
+    this.cam = { yaw: cam.yaw, pitch: clamp(cam.pitch, limits.minPitch, limits.maxPitch), dist: clamp(cam.dist, limits.minDist, limits.maxDist) };
+    this.driftSpeed = driftSpeed;
+  }
 
   attach(): void {
     this.el.style.touchAction = "none";
@@ -78,7 +107,7 @@ class DockedControls {
   }
 
   update(seconds: number): void {
-    if (this.pointers.size === 0) this.cam = driftCam(this.cam, seconds, DOCKED_DRIFT_SPEED);
+    if (this.pointers.size === 0 && this.driftSpeed !== 0) this.cam = driftCam(this.cam, seconds, this.driftSpeed);
   }
 
   private fingerDistance(): number {
@@ -106,10 +135,10 @@ class DockedControls {
     p.x = e.clientX;
     p.y = e.clientY;
     if (this.pointers.size === 1) {
-      this.cam = rotateCam(this.cam, dx, dy, LIMITS);
+      this.cam = rotateCam(this.cam, dx, dy, this.limits);
     } else if (this.pointers.size === 2) {
       const d = this.fingerDistance();
-      this.cam = zoomCam(this.cam, pinchFactor(this.lastPinch, d), LIMITS);
+      this.cam = zoomCam(this.cam, pinchFactor(this.lastPinch, d), this.limits);
       this.lastPinch = d;
     }
   };
@@ -121,12 +150,8 @@ class DockedControls {
 
   private onWheel = (e: WheelEvent): void => {
     e.preventDefault();
-    this.cam = zoomCam(this.cam, wheelFactor(e.deltaY), LIMITS);
+    this.cam = zoomCam(this.cam, wheelFactor(e.deltaY), this.limits);
   };
-}
-
-function solid(geometry: THREE.BufferGeometry, hex: number): THREE.Mesh {
-  return new THREE.Mesh(shadedGeometry(geometry, hex), new THREE.MeshBasicMaterial({ vertexColors: true }));
 }
 
 export class DockedScreen implements Screen {
@@ -135,11 +160,16 @@ export class DockedScreen implements Screen {
 
   private controls: DockedControls;
   private content = new THREE.Group();
-  private target = new THREE.Vector3(0, 0.8, 0);
-  private lights: { material: THREE.MeshBasicMaterial; offset: number; onHex: number }[] = [];
+  private target = new THREE.Vector3(0, 1.4, 0);
+  private ship: AssetModel | null = null;
+  private dock: DockModel | null = null;
+  private bay: Box | null = null; // set only at stations: the camera is kept inside this box
+  private dockId: string | null = null;
+  private shipId = FALLBACK_SHIP_ID;
   private clockT = 0;
   private titleText = "";
   private labelText = "";
+  private tmp = new THREE.Vector3();
 
   constructor(private opts: DockedOptions) {
     const bg = new THREE.BufferGeometry();
@@ -147,6 +177,14 @@ export class DockedScreen implements Screen {
     this.scene.add(new THREE.Points(bg, new THREE.PointsMaterial({ color: 0x8890c8, size: 1, sizeAttenuation: false })));
     this.scene.add(this.content);
     this.controls = new DockedControls(opts.host);
+  }
+
+  /** Which ship rests in the dock. Changing it swaps the model at once if a dock is showing. */
+  setShip(shipId: string): void {
+    const id = resolveShipId(shipId);
+    if (id === this.shipId) return;
+    this.shipId = id;
+    if (this.dockId) this.placeShip();
   }
 
   /** Builds the scene for one dock. Call before enter(). Returns false if the dock does not exist. */
@@ -157,109 +195,90 @@ export class DockedScreen implements Screen {
     const dock = generateDock(seed, planet);
     const system = getSystem(seed, planet.systemId);
 
+    // Throw away the previous dock completely (no memory growth).
     disposeAll(this.content);
     this.content.clear();
-    this.lights = [];
+    this.ship = null;
+    this.bay = null;
+    this.dockId = dockId;
 
-    // The sun, far away, in the direction the light comes from.
-    if (system) {
-      const sun = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(6 + system.star.radius * 4, 1),
-        new THREE.MeshBasicMaterial({ color: hexToNumber(system.star.color) }),
-      );
-      sun.position.copy(LIGHT).multiplyScalar(500);
-      this.content.add(sun);
-    }
+    const model = buildDockModel(dock.kind, dockId, planet);
+    parkAtOrigin(model); // the ship's spot is the middle of the scene
+    this.dock = model;
+    this.content.add(model.model.group);
 
-    // The ship, resting.
-    const ship = buildCargoHauler();
-    for (const flame of ship.flames) flame.scale.z = 0.15;
-    ship.group.position.set(0, 0.5, 0);
-    this.content.add(ship.group);
-
-    if (dock.kind === "OUTPOST") this.buildOutpost(planet, ship.group);
-    else this.buildStation(planet);
+    if (dock.kind === "OUTPOST") this.buildOutpostScene(planet, system?.star.color, system?.star.radius ?? 1, model);
+    else this.buildStationScene(planet, model);
+    this.placeShip();
 
     this.titleText = `DOCKED - ${system?.name ?? "?"}`;
     this.labelText = `${dockKindLabel(dock.kind)}: ${dock.name}\n${planet.name} - ${planetTypeLabel(planet.type)}`;
     return true;
   }
 
-  private buildOutpost(planet: NonNullable<ReturnType<typeof getPlanet>>, shipGroup: THREE.Group): void {
-    this.target.set(1.5, 0.8, 0);
-    shipGroup.position.x = 0;
-
-    // The ground: a small planet, so the surface curves away to a horizon. Its top point is at (0, 0, 0).
-    const ground = makePlanetMesh(planet, OUTPOST_GROUND_RADIUS, LIGHT, 5);
-    ground.position.y = -OUTPOST_GROUND_RADIUS;
-    this.content.add(ground);
-
-    // Landing pad: a flat octagon with a lighter inner octagon and four blinking corner lights.
-    const padBase = new THREE.CylinderGeometry(3.6, 3.6, 0.5, 8);
-    padBase.translate(0, -0.15, 0); // top at 0.1, sunk into the ground so the curve never shows a gap
-    const pad = solid(padBase, 0x3a3f66);
-    const padTop = new THREE.CylinderGeometry(2.6, 2.6, 0.5, 8);
-    padTop.translate(0, -0.13, 0);
-    this.content.add(pad, solid(padTop, 0x59608f));
-    const accent = hexToNumber(planet.colors.accent);
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-      const material = new THREE.MeshBasicMaterial({ color: accent });
-      const light = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.28), material);
-      light.position.set(Math.cos(a) * 3.1, 0.22, Math.sin(a) * 3.1);
-      this.content.add(light);
-      this.lights.push({ material, offset: i * 0.5, onHex: accent });
+  private placeShip(): void {
+    if (this.ship) {
+      this.content.remove(this.ship.group);
+      disposeAll(this.ship.group);
     }
-
-    // The outpost building next to the pad, plus a mast and two crates.
-    const building = makeOutpost(planet, 1.3, new THREE.Vector3(1, 0, 0));
-    building.quaternion.identity();
-    building.position.set(7, 0, -2);
-    building.scale.setScalar(3.2);
-    building.rotation.y = planet.orbitPhase * Math.PI * 2;
-    this.content.add(building);
-    const mast = solid(new THREE.BoxGeometry(0.14, 3.4, 0.14), 0x8d99c9);
-    mast.position.set(9, 1.6, -3.6);
-    const mastLight = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshBasicMaterial({ color: 0xff5a3c }));
-    mastLight.position.set(9, 3.5, -3.6);
-    const crateA = solid(new THREE.BoxGeometry(0.9, 0.9, 0.9), 0xff8a3d);
-    crateA.position.set(4.6, 0.4, 3.4);
-    const crateB = solid(new THREE.BoxGeometry(0.7, 0.7, 0.7), 0x3dd6c6);
-    crateB.position.set(5.6, 0.3, 4.2);
-    this.content.add(mast, mastLight, crateA, crateB);
+    const ship = buildShipModel(this.shipId);
+    for (const flame of ship.animation.flames) flame.scale.z = 0.15; // parked: short flames
+    ship.group.position.set(0, 0, 0); // its parking point is the scene's middle
+    this.content.add(ship.group);
+    this.ship = ship;
   }
 
-  private buildStation(planet: NonNullable<ReturnType<typeof getPlanet>>): void {
-    this.target.set(-3, 0.8, 0);
+  private buildOutpostScene(
+    planet: NonNullable<ReturnType<typeof getPlanet>>,
+    starColor: string | undefined,
+    starRadius: number,
+    model: DockModel,
+  ): void {
+    // The sun, far away, in the direction the light comes from.
+    if (starColor) {
+      const sun = new THREE.Mesh(new THREE.IcosahedronGeometry(6 + starRadius * 4, 1), new THREE.MeshBasicMaterial({ color: hexToNumber(starColor) }));
+      sun.position.copy(LIGHT).multiplyScalar(500);
+      this.content.add(sun);
+    }
+    // The ground: a very big ball whose top is just under the outpost's ground plate.
+    const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, LIGHT, DOCKED_GROUND_DETAIL);
+    ground.position.y = -DOCKED_GROUND_RADIUS - model.parking.y - 0.12;
+    this.content.add(ground);
 
-    // The planet, large and below. Seen from any side you look down onto it.
-    const world = makePlanetMesh(planet, STATION_PLANET_RADIUS, LIGHT, 3);
-    world.position.set(10, -STATION_PLANET_RADIUS - 22, -12);
+    // Frame the ship and the buildings together.
+    const box = new THREE.Box3().setFromObject(model.model.group);
+    const f = outpostFraming(box.min, box.max, DOCKED_ZOOM_MIN, DOCKED_ZOOM_MAX);
+    this.target.set(f.target.x, f.target.y, f.target.z);
+    this.controls.reset(
+      { yaw: -2.3, pitch: degToRad(DOCKED_CAMERA_ANGLE_DEG), dist: f.dist },
+      { ...OUTPOST_LIMITS, maxDist: f.maxDist },
+      DOCKED_DRIFT_SPEED,
+    );
+  }
+
+  private buildStationScene(planet: NonNullable<ReturnType<typeof getPlanet>>, model: DockModel): void {
+    const anchors = model.model.anchors;
+    const entrance = anchors.dockEntrance?.pos;
+    const bayCam = anchors.bayCamera?.pos;
+    if (!entrance || !bayCam) throw new Error(`${model.id} has no dockEntrance or bayCamera anchor`);
+    this.bay = bayBoxWorld(entrance, model.parking);
+
+    // The planet, seen through the slot (ahead of the mouth, a little below and to the side).
+    const mouth = relativeToParking(entrance, model.parking);
+    const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, 3);
+    world.position.set(mouth.x + DOCKED_STATION_PLANET_AT.x, mouth.y + DOCKED_STATION_PLANET_AT.y, mouth.z + DOCKED_STATION_PLANET_AT.z);
     this.content.add(world);
 
-    // Bay platform under the ship, with four corner lights.
-    const platform = solid(new THREE.BoxGeometry(8, 0.4, 7), 0x4a4f78);
-    platform.position.set(0, -0.1, 0);
-    const stripe = solid(new THREE.BoxGeometry(5, 0.1, 4), 0x6b77b5);
-    stripe.position.set(0, 0.14, 0);
-    this.content.add(platform, stripe);
-    const accent = hexToNumber(planet.colors.accent);
-    [[-3.7, -3.2], [3.7, -3.2], [-3.7, 3.2], [3.7, 3.2]].forEach(([x, z], i) => {
-      const material = new THREE.MeshBasicMaterial({ color: accent });
-      const light = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), material);
-      light.position.set(x ?? 0, 0.2, z ?? 0);
-      this.content.add(light);
-      this.lights.push({ material, offset: i * 0.5, onHex: accent });
-    });
-
-    // The station itself: body with solar wings, joined to the platform by a short corridor.
-    const station = makeStation();
-    station.scale.setScalar(3.5);
-    station.position.set(-9.5, 0.6, -1);
-    station.rotation.y = planet.orbitPhase * 0.6;
-    const corridor = solid(new THREE.BoxGeometry(5, 0.9, 1.1), 0x6b77b5);
-    corridor.position.set(-5.9, 0.1, -1);
-    this.content.add(station, corridor);
+    // The camera starts at the design's suggested spot in the back corner and may move around the ship, but only inside the bay.
+    this.target.copy(SHIP_LOOK_AT);
+    const start = camFromPoint(relativeToParking(bayCam, model.parking), this.target);
+    const limits: CamLimits = {
+      minDist: DOCKED_BAY_ZOOM_MIN,
+      maxDist: Math.max(start.dist, DOCKED_BAY_ZOOM_MIN + 2) + 0.5,
+      minPitch: degToRad(DOCKED_BAY_ANGLE_MIN_DEG),
+      maxPitch: degToRad(DOCKED_BAY_ANGLE_MAX_DEG),
+    };
+    this.controls.reset(start, limits, 0);
   }
 
   enter(): void {
@@ -276,14 +295,15 @@ export class DockedScreen implements Screen {
   update(seconds: number): void {
     this.clockT += seconds;
     this.controls.update(seconds);
-    const p = camPosition(this.controls.cam, this.target);
-    this.camera.position.set(p.x, p.y, p.z);
-    this.camera.lookAt(this.target);
+    this.ship?.update(this.clockT);
+    this.dock?.model.update(this.clockT);
+
+    let cam = this.controls.cam;
+    if (this.bay) cam = { ...cam, yaw: cam.yaw + Math.sin(this.clockT * 0.35) * DOCKED_BAY_SWAY }; // a slow sway, so the bay feels alive
+    const p = camPosition(cam, this.target);
+    const spot = this.bay ? clampToBox(p, this.bay, DOCKED_BAY_MARGIN) : p;
+    this.camera.position.set(spot.x, spot.y, spot.z);
+    this.camera.lookAt(this.tmp.copy(this.target));
     this.camera.updateMatrixWorld();
-    // Pad lights blink in turn.
-    for (const l of this.lights) {
-      const on = (this.clockT * 1.2 + l.offset) % 2 < 1.2;
-      l.material.color.setHex(on ? l.onHex : 0x3a3f66);
-    }
   }
 }

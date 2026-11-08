@@ -2,7 +2,9 @@
 // What you see is decided ONLY by the real travel times (see flightplan.ts), so opening the page or returning to the tab
 // in the middle of a flight shows the right phase straight away.
 //
-// The ship never moves: it sits at the middle of the scene pointing forward (-Z). Planets and the tunnel move past it.
+// The ship never moves: it sits at the middle of the scene pointing forward (-Z). The docks and the tunnel move past it.
+// The ship is Agent 8's design for the ship the player owns. The docks are Agent 8's outpost and station designs,
+// placed so that the dock's parking spot is exactly where the ship is (so the launch starts, and the approach ends, in the dock).
 
 import * as THREE from "three";
 import { generateDock, getPlanet, hashString, parseDockId, type Seed } from "../universe";
@@ -20,19 +22,45 @@ import {
   type PhaseSettings,
 } from "./flightplan";
 import { buildCockpit } from "./cockpit";
-import { planetDisplayRadius, starfieldPositions } from "./helpers";
+import { starfieldPositions } from "./helpers";
 import type { Hud } from "./hud";
 import type { Screen } from "./screen";
+import type { AssetModel } from "./assets";
 import {
+  FALLBACK_SHIP_ID,
+  approachCameraBlend,
+  approachOffset,
+  flameLength,
+  launchCameraBlend,
+  launchOffset,
+  lerp3,
+  orbitPosition,
+  relativeToParking,
+  resolveShipId,
+  rotateY,
+  type Vec3,
+} from "./integration";
+import { buildDockModel, buildShipModel, parkAtOrigin } from "./models3d";
+import {
+  DOCKED_GROUND_DETAIL,
+  DOCKED_GROUND_RADIUS,
+  DOCKED_STATION_PLANET_AT,
+  DOCKED_STATION_PLANET_RADIUS,
+  FLIGHT_APPROACH_FROM_OUTPOST,
+  FLIGHT_APPROACH_FROM_STATION,
   FLIGHT_APPROACH_SECONDS,
+  FLIGHT_BAY_CAMERA,
   FLIGHT_DOCKED_HOLD_SECONDS,
+  FLIGHT_LAUNCH_FAR,
   FLIGHT_LAUNCH_SECONDS,
   FLIGHT_LINE_SECONDS,
   FLIGHT_MIN_WARP_SECONDS,
+  FLIGHT_ORBIT_HEIGHT_DOCK,
+  FLIGHT_ORBIT_HEIGHT_WARP,
+  FLIGHT_ORBIT_RADIUS,
   STARFIELD_COUNT,
 } from "./settings";
-import { buildCargoHauler } from "./ship";
-import { disposeAll, makeOutpost, makePlanetMesh, makeStation } from "./systemview";
+import { disposeAll, makePlanetMesh } from "./systemview";
 import { buildTunnel } from "./tunnel";
 import "./flight.css";
 
@@ -42,11 +70,9 @@ const PHASES: PhaseSettings = {
   minWarpSeconds: FLIGHT_MIN_WARP_SECONDS,
 };
 
-const PLANET_SCALE = 7; // planets in the flight view are this much bigger than in the system view
-const UP = new THREE.Vector3(0, 1, 0);
 const WORLD_LIGHT = new THREE.Vector3(0.3, 0.85, -0.4).normalize();
-const DOCK_AT_START = new THREE.Vector3(0, -1.4, 0); // the origin dock sits just under the ship
-const DOCK_AT_END = new THREE.Vector3(0, -1.6, -7); // the ship stops a little in front of the destination dock
+const STATION_LIGHT = new THREE.Vector3(0.45, 0.5, 0.75).normalize(); // lights the planet next to a station
+const ORBIT_START_ANGLE = 2.0; // the orbit camera starts in front-right of the ship, so it is never behind a station wall while leaving
 
 const PHASE_NAMES: Record<FlightPhase, string> = {
   LAUNCH: "Launching",
@@ -58,9 +84,12 @@ const PHASE_NAMES: Record<FlightPhase, string> = {
 type ViewMode = "orbit" | "cockpit";
 
 interface Body {
+  /** The dock model with its parking spot at the group's origin, plus the planet surface or planet. Moves; the ship does not. */
   group: THREE.Group;
-  /** From the planet's center to its dock, in the flight view. */
-  dockOffset: THREE.Vector3;
+  model: AssetModel;
+  isStation: boolean;
+  /** Stations only: where the camera sits inside the bay, relative to the ship. */
+  bayCamera: Vec3 | null;
 }
 
 export interface FlightScreenOptions {
@@ -74,7 +103,8 @@ export class FlightScreen implements Screen {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(50, RENDER_WIDTH / RENDER_HEIGHT, 0.05, 700);
 
-  private ship = buildCargoHauler();
+  private ship: AssetModel = buildShipModel(FALLBACK_SHIP_ID);
+  private shipId = FALLBACK_SHIP_ID;
   private cockpit = buildCockpit();
   private tunnel = buildTunnel();
   private origin: Body | null = null;
@@ -127,6 +157,19 @@ export class FlightScreen implements Screen {
 
   // ------------------------------------------------------------ starting and ending
 
+  /** Which ship model flies. Unknown ids give the Cargo Hauler. Swaps the model at once. */
+  setShip(shipId: string): void {
+    const id = resolveShipId(shipId);
+    if (id === this.shipId) return;
+    this.shipId = id;
+    const visible = this.ship.group.visible;
+    this.scene.remove(this.ship.group);
+    disposeAll(this.ship.group);
+    this.ship = buildShipModel(id);
+    this.ship.group.visible = visible;
+    this.scene.add(this.ship.group);
+  }
+
   /** Gets a new flight ready. Call before enter(). */
   begin(info: FlightInfo): void {
     this.clearBodies();
@@ -136,8 +179,8 @@ export class FlightScreen implements Screen {
     this.clockT = 0;
     this.hudTimer = 0;
     this.lastFrameMs = performance.now();
-    this.origin = this.makeBody(info.originDockId);
-    this.dest = this.makeBody(info.destinationDockId);
+    this.origin = this.makeBody(info.originDockId, false);
+    this.dest = this.makeBody(info.destinationDockId, true);
     if (this.origin) this.scene.add(this.origin.group);
     if (this.dest) this.scene.add(this.dest.group);
   }
@@ -159,11 +202,15 @@ export class FlightScreen implements Screen {
   finish(onDone: () => void): void {
     const hidden = document.hidden || performance.now() - this.lastFrameMs > 1000;
     const plan = this.lastPlan;
-    if (hidden || !plan || (plan.phase !== "APPROACH" && plan.phase !== "DONE")) {
+    const leave = (): void => {
       onDone();
+      this.clearBodies(); // the docks of this flight are not needed any more: free the memory
+    };
+    if (hidden || !plan || (plan.phase !== "APPROACH" && plan.phase !== "DONE")) {
+      leave();
       return;
     }
-    this.finishing = { from: plan.phase === "DONE" ? 1 : plan.progress, t: 0, onDone };
+    this.finishing = { from: plan.phase === "DONE" ? 1 : plan.progress, t: 0, onDone: leave };
   }
 
   enter(): void {
@@ -229,20 +276,25 @@ export class FlightScreen implements Screen {
     if (this.dest) this.dest.group.visible = phase === "APPROACH" || phase === "DONE";
     this.tunnel.group.visible = phase === "WARP";
 
-    // Planets slide past the ship.
+    // The docks slide past the ship. The ship's parking spot and the dock's parking spot are the same point at the two ends.
     if (phase === "LAUNCH" && this.origin) {
-      const e = p * p; // speeds up
-      this.origin.group.position.copy(DOCK_AT_START).sub(this.origin.dockOffset).add(new THREE.Vector3(0, -60 * e, 90 * e));
+      const o = launchOffset(p, FLIGHT_LAUNCH_FAR);
+      this.origin.group.position.set(o.x, o.y, o.z);
     } else if ((phase === "APPROACH" || phase === "DONE") && this.dest) {
-      const e = 1 - Math.pow(1 - p, 3); // slows down
-      this.dest.group.position.copy(DOCK_AT_END).sub(this.dest.dockOffset).add(new THREE.Vector3(0, -30 * (1 - e), -150 * (1 - e)));
+      const o = approachOffset(phase === "DONE" ? 1 : p, this.dest.isStation ? FLIGHT_APPROACH_FROM_STATION : FLIGHT_APPROACH_FROM_OUTPOST);
+      this.dest.group.position.set(o.x, o.y, o.z);
     }
     if (phase === "WARP") this.tunnel.update(this.clockT);
 
-    // Engine flames: short at the dock, long in warp.
-    const flame = phase === "WARP" ? 2.6 + Math.sin(this.clockT * 20) * 0.3 : phase === "LAUNCH" ? 0.6 + 1.6 * p : 1.8 * (1 - p) + 0.3;
-    for (const f of this.ship.flames) f.scale.z = flame;
-    this.ship.group.position.y = Math.sin(this.clockT * 1.3) * 0.05;
+    // Only what is on screen is updated: blinking lights and the spinning ring.
+    this.ship.update(this.clockT);
+    if (phase === "LAUNCH") this.origin?.model.update(this.clockT);
+    else if (phase === "APPROACH" || phase === "DONE") this.dest?.model.update(this.clockT);
+
+    // Engine flames (the design's own flame parts): short at the dock, 1 flying, 3 in warp.
+    const flame = flameLength(phase, p, this.clockT);
+    for (const f of this.ship.animation.flames) f.scale.z = flame;
+    this.ship.group.position.y = 0.05 + Math.sin(this.clockT * 1.3) * 0.05;
 
     this.placeCamera(phase, p);
     this.flash.style.opacity = String(flashAmount(plan));
@@ -256,18 +308,28 @@ export class FlightScreen implements Screen {
       this.lastFov = camera.fov;
       this.cockpit.layout(camera.aspect, camera.fov);
     }
+    const shipY = this.ship.group.position.y;
     if (this.mode === "orbit") {
       this.ship.group.visible = true;
       this.cockpit.group.visible = false;
-      const a = this.clockT * 0.35 + 0.8;
-      camera.position.set(Math.cos(a) * 8, 2.2 + Math.sin(this.clockT * 0.4) * 0.6, Math.sin(a) * 8);
-      camera.lookAt(0, 0, 0.5);
+      const height = (phase === "WARP" ? FLIGHT_ORBIT_HEIGHT_WARP : FLIGHT_ORBIT_HEIGHT_DOCK) + Math.sin(this.clockT * 0.4) * 0.6;
+      let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * 0.35, FLIGHT_ORBIT_RADIUS, height);
+      // Leaving or entering a station: the camera stays inside the bay while the walls are around the ship.
+      const station = phase === "LAUNCH" ? this.origin : phase === "APPROACH" || phase === "DONE" ? this.dest : null;
+      if (station && station.bayCamera) {
+        const bay = rotateY(station.bayCamera, Math.sin(this.clockT * 0.35) * 0.14);
+        if (phase === "LAUNCH") rel = lerp3(bay, rel, launchCameraBlend(station.group.position.z));
+        else rel = lerp3(rel, bay, approachCameraBlend(-station.group.position.z));
+      }
+      camera.position.set(rel.x, rel.y + shipY, rel.z);
+      camera.lookAt(0, shipY + 0.8, 0);
     } else {
       this.ship.group.visible = false;
       this.cockpit.group.visible = true;
-      // Look a bit downwards while leaving a dock (to see the planet fall away) and while approaching one.
+      // The camera sits at the design's eye spot and looks forward. A bit downwards while leaving a dock (to see it fall away) and while approaching one.
       const pitch = phase === "LAUNCH" ? -0.25 + 0.19 * p : phase === "WARP" ? -0.06 : -0.1;
-      camera.position.set(0, 0.45, -0.4);
+      const eye = this.ship.anchors.eye?.pos;
+      camera.position.set(eye?.x ?? 0, (eye?.y ?? 0.45) + shipY, eye?.z ?? -0.4);
       camera.rotation.set(pitch, 0, 0);
     }
     camera.updateMatrixWorld();
@@ -303,34 +365,40 @@ export class FlightScreen implements Screen {
 
   // ------------------------------------------------------------ the planets at each end
 
-  /** A big planet with its dock (outpost on the surface, or station above it), turned so the dock faces UP. */
-  private makeBody(dockId: string): Body | null {
+  /**
+   * One end of the trip: the dock design picked for this dock, with its parking spot at the group's origin,
+   * plus the planet under it (outposts) or beside it (stations you leave).
+   * `arriving` = this is the destination: a station is turned round so its slot faces the incoming ship.
+   */
+  private makeBody(dockId: string, arriving: boolean): Body | null {
     const planet = getPlanet(this.opts.seed, dockId);
     if (!planet) return null;
     const dock = generateDock(this.opts.seed, planet);
-    const radius = planetDisplayRadius(planet.type, planet.radius);
-
-    const dockLocal = new THREE.Vector3();
-    const dockObject = dock.kind === "OUTPOST" ? makeOutpost(planet, radius, new THREE.Vector3(1, 0, 0)) : makeStation();
-    if (dock.kind === "OUTPOST") {
-      dockLocal.copy(dockObject.position);
-      dockObject.scale.setScalar(0.5);
-    } else {
-      dockLocal.set(0, radius * 1.18 + 0.35, 0);
-      dockObject.position.copy(dockLocal);
-      dockObject.scale.setScalar(0.35);
-    }
-    const dockDirection = dockLocal.clone().normalize();
-    const turn = new THREE.Quaternion().setFromAxisAngle(UP, planet.orbitPhase * Math.PI * 2);
-    const q = turn.multiply(new THREE.Quaternion().setFromUnitVectors(dockDirection, UP));
-    const lightInPlanetSpace = WORLD_LIGHT.clone().applyQuaternion(q.clone().invert());
+    const built = buildDockModel(dock.kind, dockId, planet);
+    parkAtOrigin(built);
 
     const group = new THREE.Group();
-    group.add(makePlanetMesh(planet, radius, lightInPlanetSpace), dockObject);
-    group.scale.setScalar(PLANET_SCALE);
-    group.quaternion.copy(q);
+    group.add(built.model.group);
+    const isStation = dock.kind === "STATION";
+    let bayCamera: Vec3 | null = null;
+    if (!isStation) {
+      const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, WORLD_LIGHT, DOCKED_GROUND_DETAIL);
+      ground.position.y = -DOCKED_GROUND_RADIUS - built.parking.y - 0.12;
+      group.add(ground);
+    } else {
+      const entrance = built.model.anchors.dockEntrance?.pos;
+      if (entrance && !arriving) {
+        const mouth = relativeToParking(entrance, built.parking);
+        const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, 3);
+        world.position.set(mouth.x + DOCKED_STATION_PLANET_AT.x, mouth.y + DOCKED_STATION_PLANET_AT.y, mouth.z + DOCKED_STATION_PLANET_AT.z);
+        group.add(world);
+      }
+      const turn = arriving ? Math.PI : 0;
+      group.rotation.y = turn;
+      bayCamera = rotateY(FLIGHT_BAY_CAMERA, turn);
+    }
     group.visible = false;
-    return { group, dockOffset: UP.clone().multiplyScalar(dockLocal.length() * PLANET_SCALE) };
+    return { group, model: built.model, isStation, bayCamera };
   }
 
   private clearBodies(): void {

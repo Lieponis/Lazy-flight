@@ -19,10 +19,19 @@ import {
   starfieldPositions,
   type ScreenPoint,
 } from "./helpers";
+import type { AssetModel } from "./assets";
 import type { Hud } from "./hud";
 import { OrbitView } from "./input";
+import { buildDockModel } from "./models3d";
 import type { Screen } from "./screen";
-import { STARFIELD_COUNT, TAP_RADIUS_PX } from "./settings";
+import {
+  STARFIELD_COUNT,
+  SYSTEM_OUTPOST_SCALE,
+  SYSTEM_OUTPOST_SCALE_MAX,
+  SYSTEM_OUTPOST_SCALE_MIN,
+  SYSTEM_STATION_SCALE,
+  TAP_RADIUS_PX,
+} from "./settings";
 import type { StateStore } from "./state";
 
 export interface SystemViewOptions {
@@ -37,6 +46,8 @@ interface PlanetEntry {
   dock: Dock;
   group: THREE.Group;
   radius: number;
+  /** The dock design drawn small next to the planet (blinking lights, the station ring turning). */
+  model: AssetModel;
   /** Set only for stations: they slowly circle their planet. */
   station: { object: THREE.Object3D; orbit: number; angle: number } | null;
 }
@@ -77,6 +88,7 @@ export function makePlanetMesh(planet: Planet, radius: number, toStar: THREE.Vec
   return new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ vertexColors: true }));
 }
 
+// Kept for the viewer's "compare with old shape" (models.html). The game screens use Agent 8's designs now.
 /** OUTPOST: a little building (box + pointed roof) standing on the planet surface, on the side facing outwards. */
 export function makeOutpost(planet: Planet, radius: number, outward: THREE.Vector3): THREE.Group {
   const s = clamp(radius * 0.8, 0.6, 1.1);
@@ -98,6 +110,7 @@ export function makeOutpost(planet: Planet, radius: number, outward: THREE.Vecto
   return group;
 }
 
+// Kept for the viewer's "compare with old shape" (models.html). The game screens use Agent 8's designs now.
 /** STATION: a small boxy body with two flat solar wings. */
 export function makeStation(): THREE.Group {
   const group = new THREE.Group();
@@ -120,6 +133,7 @@ export class SystemViewScreen implements Screen {
   private systemName = "";
   private starLabel = "";
   private temp = new THREE.Vector3();
+  private clockT = 0;
 
   constructor(private opts: SystemViewOptions) {
     const bg = new THREE.BufferGeometry();
@@ -182,18 +196,28 @@ export class SystemViewScreen implements Screen {
       const toStar = outward.clone().negate();
       group.add(makePlanetMesh(planet, radius, toStar));
 
+      // The dock: the design picked for it, drawn small. (Its own `parking` spot is at the model's origin.)
+      const built = buildDockModel(dock.kind, planet.id, planet);
+      const model = built.model;
       let station: PlanetEntry["station"] = null;
       if (dock.kind === "OUTPOST") {
-        group.add(makeOutpost(planet, radius, outward));
+        const scale = clamp(radius * SYSTEM_OUTPOST_SCALE, SYSTEM_OUTPOST_SCALE_MIN, SYSTEM_OUTPOST_SCALE_MAX);
+        const up = new THREE.Vector3(0, 1, 0);
+        const dir = outward.clone().multiplyScalar(0.6).add(up.clone().multiplyScalar(0.8)).normalize();
+        model.group.scale.setScalar(scale);
+        model.group.position.copy(dir).multiplyScalar(radius * 0.985);
+        model.group.quaternion.setFromUnitVectors(up, dir);
+        group.add(model.group);
       } else {
-        const object = makeStation();
+        const object = model.group;
         const orbitAroundPlanet = radius * 1.7 + 0.9;
+        object.scale.setScalar(SYSTEM_STATION_SCALE);
         group.add(object);
         station = { object, orbit: orbitAroundPlanet, angle: planet.index * 1.7 };
         object.position.set(Math.cos(station.angle) * orbitAroundPlanet, Math.sin(station.angle) * orbitAroundPlanet * 0.3, Math.sin(station.angle) * orbitAroundPlanet);
       }
       this.content.add(group);
-      this.entries.push({ planet, dock, group, radius, station });
+      this.entries.push({ planet, dock, group, radius, model, station });
     }
 
     this.view.maxDist = clamp(outermost * 3, 30, 120);
@@ -215,7 +239,9 @@ export class SystemViewScreen implements Screen {
 
   update(seconds: number): void {
     this.view.apply();
+    this.clockT += seconds;
     for (const entry of this.entries) {
+      entry.model.update(this.clockT); // blinking lights, the ring habitat turning
       const st = entry.station;
       if (!st) continue;
       st.angle += seconds * 0.6;

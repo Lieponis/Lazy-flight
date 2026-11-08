@@ -45,6 +45,7 @@ export interface ShipModel {
   flames: THREE.Mesh[];
 }
 
+// Kept for the viewer's "compare with old shape" (models.html). The game screens use Agent 8's ship designs now.
 /** The ship points towards -Z (forward). It is about 4.7 units long. */
 export function buildCargoHauler(): ShipModel {
   const group = new THREE.Group();
