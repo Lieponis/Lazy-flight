@@ -1,0 +1,286 @@
+// THE MODEL KIT: builds a model from simple shapes and merges them into a few meshes.
+//
+// How a builder uses it:
+//   const kit = new ModelKit({ tint });
+//   kit.box("body", 2, 1, 4, "hullLight", { at: [0, 0.8, 0] });
+//   kit.box("window", 0.6, 0.3, 0.1, "window", { at: [0, 1.2, -2], layer: "glow" });
+//   kit.anchor("parking", [0, 0, 0]);
+//   return kit.finish();
+//
+// Every shape is baked with the game's four brightness steps (flat shading, no lights needed).
+// Shapes on the same layer become ONE mesh. Layers:
+//   body   = everything solid (shaded)
+//   glow   = windows, lights that stay on (never shaded), merged into the body mesh
+//   blinkA, blinkB = lights that blink in turn (two small meshes)
+//   flame  = engine flames (one mesh, grows backwards along +Z)
+//   ring   = a part that spins (one mesh, turns around its own origin)
+
+import * as THREE from "three";
+import { faceShade } from "../helpers";
+import { PAL, safeTint, safeTintDark, type PalKey } from "./palette";
+import { BLINK_ON, BLINK_PERIOD, FLAME_PARKED, LIGHT_DIR } from "./style";
+import type { Anchors, AssetAnimation, AssetModel } from "./types";
+
+export type ColorName = PalKey | "tint" | "tintDark";
+export type Layer = "body" | "glow" | "blinkA" | "blinkB" | "flame" | "ring";
+
+export interface PartOptions {
+  at?: readonly [number, number, number];
+  /** Turn in radians around x, y, z (applied in that order). */
+  rot?: readonly [number, number, number];
+  layer?: Layer;
+}
+
+/** A record of where each named part lives inside a merged mesh (the checker uses it). */
+export interface PartInfo {
+  name: string;
+  /** First triangle of this part in the mesh. */
+  start: number;
+  count: number;
+}
+
+const LIGHT = new THREE.Vector3(...LIGHT_DIR).normalize();
+
+/** The shared material: every mesh uses vertex colours, so one material is enough. */
+export function makeAssetMaterial(): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({ vertexColors: true });
+}
+
+/** Brightness of one face from its direction (the same four steps as the game). */
+export function shadeFor(normal: THREE.Vector3): number {
+  return 0.4 + 0.6 * faceShade(normal.dot(LIGHT));
+}
+
+interface PendingPart {
+  name: string;
+  geometry: THREE.BufferGeometry; // non-indexed, already moved into place
+  hex: number;
+  shaded: boolean;
+}
+
+export class ModelKit {
+  private parts: Record<Layer, PendingPart[]> = { body: [], glow: [], blinkA: [], blinkB: [], flame: [], ring: [] };
+  private origins: Partial<Record<Layer, THREE.Vector3>> = {};
+  private anchors: Anchors = {};
+  private spinSpeed = 0;
+  private spinAxis = new THREE.Vector3(0, 1, 0);
+  private tint: number;
+
+  constructor(options: { tint?: number } = {}) {
+    this.tint = options.tint ?? 0xb5653a;
+  }
+
+  /** The colour number for a palette name or "tint" / "tintDark". */
+  color(name: ColorName): number {
+    if (name === "tint") return safeTint(this.tint);
+    if (name === "tintDark") return safeTintDark(this.tint);
+    return PAL[name];
+  }
+
+  // ------------------------------------------------------------ shapes
+
+  box(name: string, w: number, h: number, d: number, color: ColorName, o: PartOptions = {}): this {
+    return this.add(name, new THREE.BoxGeometry(w, h, d), color, o);
+  }
+
+  /** A cylinder standing up (along Y). `sides` = 6 or 8 keeps it chunky. */
+  cyl(name: string, rTop: number, rBottom: number, h: number, sides: number, color: ColorName, o: PartOptions = {}): this {
+    return this.add(name, new THREE.CylinderGeometry(rTop, rBottom, h, sides), color, o);
+  }
+
+  /** A cone pointing up (+Y). */
+  cone(name: string, r: number, h: number, sides: number, color: ColorName, o: PartOptions = {}): this {
+    return this.add(name, new THREE.ConeGeometry(r, h, sides), color, o);
+  }
+
+  /** A low-poly ball (detail 0 = 20 faces, 1 = 80 faces). */
+  ball(name: string, r: number, detail: 0 | 1, color: ColorName, o: PartOptions = {}): this {
+    return this.add(name, new THREE.IcosahedronGeometry(r, detail), color, o);
+  }
+
+  /** A half ball (dome), flat side down. */
+  dome(name: string, r: number, sides: number, color: ColorName, o: PartOptions = {}): this {
+    return this.add(name, new THREE.SphereGeometry(r, sides, 3, 0, Math.PI * 2, 0, Math.PI / 2), color, o);
+  }
+
+  /** A ring lying flat (around Y). Tube = thickness. */
+  ring(name: string, radius: number, tube: number, sides: number, color: ColorName, o: PartOptions = {}): this {
+    const g = new THREE.TorusGeometry(radius, tube, 4, sides);
+    g.rotateX(Math.PI / 2);
+    return this.add(name, g, color, o);
+  }
+
+  /**
+   * A wedge: a box whose top face is narrower and/or shorter. Good for noses and sloped roofs.
+   * w, h, d = bottom width, height, depth. topW, topD = top width and depth. topShiftZ moves the top forward (-) or back (+).
+   */
+  wedge(
+    name: string,
+    w: number,
+    h: number,
+    d: number,
+    topW: number,
+    topD: number,
+    color: ColorName,
+    o: PartOptions & { topShiftZ?: number } = {},
+  ): this {
+    const shift = o.topShiftZ ?? 0;
+    const b = [w / 2, d / 2];
+    const t = [topW / 2, topD / 2];
+    // 8 corners: bottom 0-3, top 4-7 (x-, x+ / z-, z+)
+    const v: [number, number, number][] = [
+      [-b[0]!, -h / 2, -b[1]!], [b[0]!, -h / 2, -b[1]!], [b[0]!, -h / 2, b[1]!], [-b[0]!, -h / 2, b[1]!],
+      [-t[0]!, h / 2, -t[1]! + shift], [t[0]!, h / 2, -t[1]! + shift], [t[0]!, h / 2, t[1]! + shift], [-t[0]!, h / 2, t[1]! + shift],
+    ];
+    // Faces wound counter-clockwise when seen from outside.
+    const quads = [
+      [0, 1, 2, 3], // bottom (seen from below)
+      [4, 7, 6, 5], // top
+      [0, 4, 5, 1], // front (z-)
+      [2, 6, 7, 3], // back (z+)
+      [1, 5, 6, 2], // right (x+)
+      [3, 7, 4, 0], // left (x-)
+    ];
+    const pos: number[] = [];
+    for (const [a, bb, c, dd] of quads) {
+      for (const idx of [a, bb, c, a, c, dd]) pos.push(...v[idx!]!);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    return this.add(name, g, color, o);
+  }
+
+  /** Adds any geometry (it is copied and moved into place). */
+  add(name: string, geometry: THREE.BufferGeometry, color: ColorName, o: PartOptions = {}): this {
+    const layer = o.layer ?? "body";
+    const g = geometry.index ? geometry.toNonIndexed() : geometry.clone();
+    geometry.dispose();
+    g.deleteAttribute("normal");
+    g.deleteAttribute("uv");
+    const m = new THREE.Matrix4();
+    const r = o.rot ?? [0, 0, 0];
+    m.makeRotationFromEuler(new THREE.Euler(r[0], r[1], r[2], "XYZ"));
+    const at = o.at ?? [0, 0, 0];
+    m.setPosition(at[0], at[1], at[2]);
+    g.applyMatrix4(m);
+    const shaded = !(layer === "glow" || layer === "blinkA" || layer === "blinkB" || layer === "flame");
+    this.parts[layer].push({ name, geometry: g, hex: this.color(color), shaded });
+    return this;
+  }
+
+  // ------------------------------------------------------------ anchors and animation
+
+  /** A named point. `dir` = the way it faces (default: forward, -Z). */
+  anchor(name: string, at: readonly [number, number, number], dir: readonly [number, number, number] = [0, 0, -1]): this {
+    this.anchors[name] = { pos: new THREE.Vector3(...at), dir: new THREE.Vector3(...dir).normalize() };
+    return this;
+  }
+
+  /** Where the flame layer starts (flames grow backwards from here). All engine exits share this z. */
+  flameOrigin(at: readonly [number, number, number]): this {
+    this.origins.flame = new THREE.Vector3(...at);
+    return this;
+  }
+
+  /** The point the ring layer spins around, its axis and speed (radians per second). */
+  spin(at: readonly [number, number, number], axis: readonly [number, number, number], speed: number): this {
+    this.origins.ring = new THREE.Vector3(...at);
+    this.spinAxis = new THREE.Vector3(...axis).normalize();
+    this.spinSpeed = speed;
+    return this;
+  }
+
+  // ------------------------------------------------------------ finish
+
+  finish(): AssetModel {
+    const group = new THREE.Group();
+    const material = makeAssetMaterial();
+    const animation: AssetAnimation = { blinkers: [], spinners: [], flames: [] };
+
+    const make = (layers: Layer[], label: string, origin?: THREE.Vector3): THREE.Mesh | null => {
+      const list = layers.flatMap((l) => this.parts[l]);
+      if (list.length === 0) return null;
+      const mesh = new THREE.Mesh(mergeParts(list, origin), material);
+      mesh.name = label;
+      if (origin) mesh.position.copy(origin);
+      group.add(mesh);
+      return mesh;
+    };
+
+    make(["body", "glow"], "body");
+    for (const g of ["A", "B"] as const) {
+      const mesh = make([g === "A" ? "blinkA" : "blinkB"], `blink${g}`);
+      if (mesh) animation.blinkers.push({ mesh, group: g });
+    }
+    const flame = make(["flame"], "flame", this.origins.flame ?? new THREE.Vector3());
+    if (flame) {
+      flame.scale.z = FLAME_PARKED;
+      animation.flames.push(flame);
+    }
+    const ring = make(["ring"], "ring", this.origins.ring ?? new THREE.Vector3());
+    if (ring && this.spinSpeed !== 0) animation.spinners.push({ object: ring, axis: this.spinAxis, speed: this.spinSpeed });
+
+    const startQuats = animation.spinners.map((s) => s.object.quaternion.clone());
+    const q = new THREE.Quaternion();
+    const update = (t: number): void => {
+      const phase = ((t % BLINK_PERIOD) + BLINK_PERIOD) % BLINK_PERIOD;
+      const aOn = phase < BLINK_ON;
+      for (const b of animation.blinkers) b.mesh.visible = b.group === "A" ? aOn : !aOn;
+      animation.spinners.forEach((s, i) => {
+        q.setFromAxisAngle(s.axis, s.speed * t);
+        s.object.quaternion.copy(startQuats[i]!).premultiply(q);
+      });
+    };
+    update(0);
+    return { group, anchors: this.anchors, animation, update };
+  }
+}
+
+/** Merges parts into one geometry with two colour sets: `color` (shaded) and `baseColor` (flat, for the viewer). */
+function mergeParts(list: PendingPart[], origin?: THREE.Vector3): THREE.BufferGeometry {
+  let total = 0;
+  for (const p of list) total += p.geometry.getAttribute("position").count;
+  const pos = new Float32Array(total * 3);
+  const col = new Float32Array(total * 3);
+  const base = new Float32Array(total * 3);
+  const infos: PartInfo[] = [];
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  const colr = new THREE.Color();
+  let v = 0;
+  for (const p of list) {
+    const src = p.geometry.getAttribute("position");
+    colr.setHex(p.hex);
+    infos.push({ name: p.name, start: v / 3, count: src.count / 3 });
+    for (let i = 0; i + 2 < src.count; i += 3) {
+      a.fromBufferAttribute(src, i);
+      b.fromBufferAttribute(src, i + 1);
+      c.fromBufferAttribute(src, i + 2);
+      n.subVectors(b, a).cross(c.clone().sub(a)).normalize();
+      const s = p.shaded ? shadeFor(n) : 1;
+      for (const corner of [a, b, c]) {
+        pos[v * 3] = corner.x - (origin?.x ?? 0);
+        pos[v * 3 + 1] = corner.y - (origin?.y ?? 0);
+        pos[v * 3 + 2] = corner.z - (origin?.z ?? 0);
+        col[v * 3] = colr.r * s;
+        col[v * 3 + 1] = colr.g * s;
+        col[v * 3 + 2] = colr.b * s;
+        base[v * 3] = colr.r;
+        base[v * 3 + 1] = colr.g;
+        base[v * 3 + 2] = colr.b;
+        v++;
+      }
+    }
+    p.geometry.dispose();
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  g.setAttribute("baseColor", new THREE.BufferAttribute(base, 3));
+  g.userData.parts = infos;
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  return g;
+}

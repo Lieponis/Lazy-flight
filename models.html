@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#05060d" />
+    <title>Model viewer - Lazy Freight</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #0b0d18; color: #e3e7ff; font-family: system-ui, sans-serif; font-size: 15px; }
+      body { display: flex; flex-direction: column; overflow: hidden; }
+      button, select, input { font: inherit; }
+      button, select { min-height: 40px; padding: 6px 12px; border-radius: 8px; border: 1px solid #3a3f66; background: #1a1d33; color: #e3e7ff; cursor: pointer; }
+      button.on { background: #ffd23d; color: #111; border-color: #ffd23d; font-weight: 600; }
+      button:active { transform: translateY(1px); }
+      #top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; background: #11142a; border-bottom: 1px solid #262a4a; }
+      #top .title { font-weight: 700; margin-right: 6px; }
+      #top select { max-width: 60vw; }
+      #main { flex: 1; display: flex; min-height: 0; }
+      #view { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; background: #000; touch-action: none; overflow: hidden; }
+      #frame { position: relative; }
+      #frame.preview { outline: 2px dashed #ffd23d; }
+      #frame canvas { display: block; width: 100%; height: 100%; }
+      #frame.preview canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+      #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+      .alabel { position: absolute; font: 11px monospace; padding: 1px 4px; border-radius: 3px; background: rgba(0,0,0,0.7); white-space: nowrap; transform: translate(6px, -50%); }
+      #sizeinfo { position: absolute; left: 8px; bottom: 8px; font: 12px monospace; background: rgba(0,0,0,0.65); padding: 4px 6px; border-radius: 4px; pointer-events: none; }
+      #previewinfo { position: absolute; left: 8px; top: 8px; font: 12px monospace; background: rgba(0,0,0,0.65); padding: 4px 6px; border-radius: 4px; pointer-events: none; color: #ffd23d; }
+      #panel { width: 340px; overflow-y: auto; background: #11142a; border-left: 1px solid #262a4a; padding: 8px 10px 40px; }
+      #panel h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: #8d99c9; margin: 14px 0 6px; }
+      .row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+      .count { display: flex; justify-content: space-between; padding: 6px 8px; border-radius: 6px; margin: 3px 0; font-family: monospace; }
+      .pass { background: #123d24; color: #9dffb7; }
+      .fail { background: #4a1414; color: #ffb3a8; }
+      .problems { margin: 6px 0; padding: 0; list-style: none; }
+      .problems li { padding: 6px 8px; margin: 3px 0; border-radius: 6px; }
+      .problems li.error { background: #4a1414; color: #ffcfc8; }
+      .problems li.warning { background: #4a3a10; color: #ffe9a8; }
+      .problems li.ok { background: #123d24; color: #9dffb7; }
+      .tints { display: flex; flex-wrap: wrap; gap: 6px; }
+      .tint { width: 40px; height: 40px; border-radius: 8px; border: 2px solid #3a3f66; padding: 0; min-height: 0; }
+      .tint.on { border-color: #ffd23d; box-shadow: 0 0 0 2px #ffd23d; }
+      input[type="color"] { width: 48px; height: 40px; border: none; background: none; padding: 0; }
+      #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #ffd23d; color: #111; padding: 10px 16px; border-radius: 8px; font-weight: 600; display: none; z-index: 10; }
+      .page { flex: 1; overflow-y: auto; padding: 12px 16px 60px; display: none; }
+      .page h2 { font-size: 18px; margin: 18px 0 6px; }
+      .note { color: #a9b0d8; font-size: 14px; max-width: 760px; }
+      .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+      .sw { display: flex; gap: 8px; align-items: center; background: #161a33; border-radius: 8px; padding: 6px; }
+      .sw .chip { width: 46px; height: 46px; border-radius: 6px; flex: none; image-rendering: pixelated; }
+      .sw small { color: #a9b0d8; display: block; }
+      .steps { display: flex; gap: 0; }
+      .steps div { width: 70px; height: 50px; display: flex; align-items: flex-end; padding: 3px; font: 11px monospace; color: #111; }
+      table { border-collapse: collapse; margin: 6px 0; }
+      td, th { border: 1px solid #262a4a; padding: 5px 8px; text-align: left; font-size: 14px; }
+      th { background: #161a33; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+      .cell { background: #161a33; border-radius: 8px; padding: 6px; cursor: pointer; }
+      .cell canvas { width: 100%; image-rendering: pixelated; display: block; border-radius: 4px; }
+      .cell small { color: #a9b0d8; }
+      .badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+      .badge.ok { background: #123d24; color: #9dffb7; }
+      .badge.bad { background: #4a1414; color: #ffb3a8; }
+      @media (max-width: 760px) {
+        #main { flex-direction: column; }
+        #panel { width: auto; max-height: 45vh; border-left: none; border-top: 1px solid #262a4a; }
+        #panel.folded { display: none; }
+      }
+      @media (min-width: 761px) { #fold { display: none; } }
+    </style>
+  </head>
+  <body>
+    <div id="top">
+      <span class="title">Model viewer</span>
+      <button id="tabModel" type="button">Model</button>
+      <button id="tabGrid" type="button">All variants</button>
+      <button id="tabStyle" type="button">Style guide</button>
+      <select id="asset" aria-label="Asset"></select>
+      <span id="variants" class="row" style="margin:0"></span>
+      <button id="fold" type="button">Tools</button>
+    </div>
+    <div id="main">
+      <div id="pageModel" style="display:flex; flex:1; min-height:0" class="modelpage">
+        <div id="view">
+          <div id="frame"><div id="labels"></div></div>
+          <div id="sizeinfo"></div>
+          <div id="previewinfo"></div>
+        </div>
+      </div>
+      <div id="pageGrid" class="page"></div>
+      <div id="pageStyle" class="page"></div>
+      <div id="panel"></div>
+    </div>
+    <div id="toast"></div>
+    <script type="module" src="/src/models.ts"></script>
+  </body>
+</html>

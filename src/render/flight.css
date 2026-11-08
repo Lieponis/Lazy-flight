@@ -1,5 +1,5 @@
 /* The flight HUD: plain HTML on top of the picture. Top-left title, bottom bar with text and one button.
-   It is kept under about 150px tall so the temporary trade panel (top right, up to 210px from the bottom) never overlaps it. */
+   It is kept under about 150px tall. The status strip from src/ui sits above the title; the menus are hidden in flight. */
 .flight-flash {
   position: fixed;
   inset: 0;
@@ -22,7 +22,8 @@
 
 .fh-title {
   position: absolute;
-  top: max(8px, env(safe-area-inset-top));
+  /* sits just under the status strip from src/ui (Agent 5 sets --ui-top-reserve) */
+  top: calc(max(8px, env(safe-area-inset-top)) + var(--ui-top-reserve, 0px));
   left: 12px;
   font-size: 14px;
   text-shadow: 0 1px 0 #000;

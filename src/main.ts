@@ -35,4 +35,4 @@ renderer.setClearColor(BACKGROUND_COLOR);
 app.appendChild(renderer.domElement);
 
 const api = startRender(renderer, app);
-startUi(api, app); // the temporary trade panel (src/ui)
+startUi(api, app); // the menus: status strip, JOBS, MAP, Jobs menu, arrival card (src/ui)

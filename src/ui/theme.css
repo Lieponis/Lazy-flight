@@ -1,0 +1,479 @@
+/* The look of all menus: a simple "downgraded Elite cockpit menu".
+   Dark panels, thin teal lines, amber for money and the main action, a pixel terminal font.
+   Font: VT323 (SIL Open Font License 1.1), file and license in src/ui/fonts/. */
+
+@font-face {
+  font-family: "VT323";
+  src: url("./fonts/VT323-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --ui-font: "VT323", ui-monospace, Menlo, Consolas, monospace;
+  --ui-text: #cfe9e6;
+  --ui-dim: #7d979c;
+  --ui-teal: #3fe0d0;
+  --ui-line: rgba(63, 224, 208, 0.5);
+  --ui-line-dim: rgba(63, 224, 208, 0.22);
+  --ui-amber: #ffb547;
+  --ui-red: #ff7a6a;
+  --ui-bg: rgba(5, 9, 16, 0.9);
+  --ui-bg-panel: rgba(5, 9, 16, 0.97);
+  --ui-bg-solid: #070c15;
+  --ui-gap: 10px;
+  --ui-safe-l: max(8px, env(safe-area-inset-left));
+  --ui-safe-r: max(8px, env(safe-area-inset-right));
+  --ui-safe-t: max(6px, env(safe-area-inset-top));
+  --ui-safe-b: max(10px, env(safe-area-inset-bottom));
+  /* Set by the code: how much room the top strip and bottom bar take (px). */
+  --ui-top-reserve: 0px;
+  --ui-bottom-reserve: 0px;
+}
+
+.ui-layer [hidden] {
+  display: none !important;
+}
+
+.ui-layer {
+  font-family: var(--ui-font);
+  color: var(--ui-text);
+  font-size: 20px;
+  line-height: 1.1;
+  -webkit-font-smoothing: none;
+}
+
+/* ------------------------------------------------------------ buttons */
+
+.ui-btn {
+  font: inherit;
+  font-size: 22px;
+  letter-spacing: 1px;
+  color: var(--ui-teal);
+  background: rgba(10, 30, 36, 0.92);
+  border: 1px solid var(--ui-teal);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.5);
+  min-height: 44px;
+  min-width: 44px;
+  padding: 6px 14px;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ui-btn:hover:not(:disabled),
+.ui-btn:focus-visible {
+  background: rgba(63, 224, 208, 0.18);
+  outline: none;
+}
+
+.ui-btn:active:not(:disabled) {
+  background: var(--ui-teal);
+  color: var(--ui-bg-solid);
+}
+
+.ui-btn:disabled {
+  color: var(--ui-dim);
+  border-color: var(--ui-line-dim);
+  background: rgba(10, 16, 24, 0.9);
+  cursor: default;
+}
+
+.ui-btn-primary,
+.ui-btn-amber {
+  color: var(--ui-amber);
+  border-color: var(--ui-amber);
+  background: rgba(40, 26, 6, 0.92);
+}
+
+.ui-btn-primary:hover:not(:disabled),
+.ui-btn-amber:hover:not(:disabled) {
+  background: rgba(255, 181, 71, 0.18);
+}
+
+.ui-btn-primary:active:not(:disabled),
+.ui-btn-amber:active:not(:disabled) {
+  background: var(--ui-amber);
+  color: var(--ui-bg-solid);
+}
+
+.ui-btn-big {
+  min-height: 56px;
+  min-width: 132px;
+  font-size: 26px;
+  letter-spacing: 3px;
+}
+
+.ui-btn-wide {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* ------------------------------------------------------------ status strip (top) */
+
+.ui-strip {
+  position: fixed;
+  z-index: 30;
+  top: var(--ui-safe-t);
+  left: var(--ui-safe-l);
+  right: var(--ui-safe-r);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 16px;
+  padding: 4px 10px;
+  box-sizing: border-box;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-line-dim);
+  border-bottom-color: var(--ui-line);
+  pointer-events: none; /* just information; drags pass through to the picture */
+  font-size: 20px;
+}
+
+.ui-strip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.ui-strip-key {
+  color: var(--ui-dim);
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+
+.ui-amber {
+  color: var(--ui-amber);
+}
+
+.ui-fuelbar {
+  display: inline-block;
+  width: 52px;
+  height: 8px;
+  border: 1px solid var(--ui-line);
+  padding: 1px;
+}
+
+.ui-fuelbar-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--ui-teal);
+}
+
+.ui-fuelbar.ui-low {
+  border-color: var(--ui-red);
+}
+
+.ui-fuelbar.ui-low .ui-fuelbar-fill {
+  background: var(--ui-red);
+}
+
+.ui-strip-loc {
+  flex: 1 1 160px;
+  min-width: 0;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text);
+}
+
+/* ------------------------------------------------------------ bottom bar */
+
+.ui-nav {
+  position: fixed;
+  z-index: 30;
+  left: var(--ui-safe-l);
+  right: var(--ui-safe-r);
+  bottom: var(--ui-safe-b);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ui-nav-group {
+  display: flex;
+  gap: var(--ui-gap);
+  align-items: stretch;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ui-tabs {
+  display: flex;
+  border: 1px solid var(--ui-teal);
+  pointer-events: auto;
+}
+
+.ui-tab {
+  border: none;
+  box-shadow: none;
+  min-height: 56px;
+  min-width: 104px;
+  font-size: 22px;
+}
+
+.ui-tab + .ui-tab {
+  border-left: 1px solid var(--ui-teal);
+}
+
+.ui-tab.ui-tab-on,
+.ui-tab.ui-tab-on:hover:not(:disabled) {
+  background: var(--ui-teal);
+  color: var(--ui-bg-solid);
+}
+
+/* ------------------------------------------------------------ overlays and panels */
+
+.ui-overlay {
+  position: fixed;
+  z-index: 40;
+  top: calc(var(--ui-top-reserve) + 6px);
+  left: var(--ui-safe-l);
+  right: var(--ui-safe-r);
+  bottom: var(--ui-safe-b);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.ui-panel {
+  width: 100%;
+  max-width: 680px;
+  max-height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-bg-panel);
+  border: 1px solid var(--ui-line);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), 0 0 24px rgba(63, 224, 208, 0.08);
+}
+
+.ui-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ui-line);
+}
+
+.ui-panel-titles {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.ui-panel-title {
+  color: var(--ui-teal);
+  font-size: 26px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-panel-sub {
+  color: var(--ui-dim);
+  font-size: 17px;
+  letter-spacing: 1px;
+}
+
+.ui-hint,
+.ui-notice {
+  padding: 0 10px;
+  font-size: 18px;
+}
+
+.ui-hint:not(:empty),
+.ui-notice:not(:empty) {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ui-line-dim);
+}
+
+.ui-notice {
+  color: var(--ui-amber);
+}
+
+.ui-hint {
+  color: var(--ui-dim);
+}
+
+/* ------------------------------------------------------------ job cards */
+
+.ui-cards {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 10px 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.ui-card {
+  padding: 8px 10px;
+  border: 1px solid var(--ui-line-dim);
+  border-left: 3px solid var(--ui-teal);
+  background: rgba(63, 224, 208, 0.04);
+}
+
+.ui-card-blocked {
+  border-left-color: var(--ui-dim);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.ui-card-blocked > :not(.ui-card-reason) {
+  opacity: 0.55;
+}
+
+.ui-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.ui-chip {
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: var(--ui-teal);
+  border: 1px solid var(--ui-line);
+  padding: 0 6px;
+}
+
+.ui-card-reward {
+  color: var(--ui-amber);
+  font-size: 24px;
+}
+
+.ui-card-title {
+  font-size: 24px;
+  margin-top: 4px;
+}
+
+.ui-card-dest {
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+
+.ui-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  margin-top: 4px;
+}
+
+.ui-fact {
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.ui-fact-key {
+  color: var(--ui-dim);
+  font-size: 16px;
+  align-self: center;
+}
+
+.ui-card-blurb {
+  margin-top: 4px;
+  color: var(--ui-dim);
+  font-size: 18px;
+}
+
+.ui-card-reason {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--ui-red);
+  font-size: 18px;
+}
+
+.ui-card-reason b {
+  font-weight: normal;
+  letter-spacing: 1px;
+}
+
+.ui-card-reason span {
+  color: var(--ui-dim);
+}
+
+.ui-empty {
+  color: var(--ui-dim);
+  padding: 12px 0;
+}
+
+/* ------------------------------------------------------------ arrival card */
+
+.ui-arrival {
+  z-index: 50;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  align-items: center;
+  padding: var(--ui-safe-t) var(--ui-safe-r) var(--ui-safe-b) var(--ui-safe-l);
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.ui-arrival-card {
+  max-width: 380px;
+  padding: 12px 14px;
+  border-color: var(--ui-amber);
+  text-align: center;
+  gap: 4px;
+}
+
+.ui-arrival-card .ui-panel-title {
+  color: var(--ui-amber);
+  letter-spacing: 4px;
+}
+
+.ui-arrival-reward {
+  font-size: 34px;
+  color: var(--ui-amber);
+  margin: 4px 0;
+}
+
+.ui-arrival-line {
+  font-size: 20px;
+  color: var(--ui-text);
+}
+
+/* ------------------------------------------------------------ small screens */
+
+@media (max-width: 420px) {
+  .ui-btn-big {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+  .ui-nav-group {
+    width: 100%;
+  }
+  .ui-tabs {
+    flex: 2 1 0;
+  }
+  .ui-tab {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
+@media (max-height: 420px) {
+  .ui-btn-big,
+  .ui-tab {
+    min-height: 48px;
+  }
+}

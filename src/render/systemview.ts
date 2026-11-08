@@ -30,9 +30,6 @@ export interface SystemViewOptions {
   host: HTMLElement; // the canvas
   hud: Hud;
   state: StateStore;
-  onBack: () => void;
-  /** The temporary "Back to dock" button. */
-  onBackToDock: () => void;
 }
 
 interface PlanetEntry {
@@ -248,7 +245,7 @@ export class SystemViewScreen implements Screen {
   }
 
   private refreshHud(): void {
-    const { hud, onBack, onBackToDock } = this.opts;
+    const { hud } = this.opts;
     const chosen = this.entries[this.selected];
     if (chosen) {
       const { planet, dock } = chosen;
@@ -256,9 +253,6 @@ export class SystemViewScreen implements Screen {
     } else {
       hud.setLabel("Tap a planet to see its name and dock.\nDrag to turn the view, scroll or pinch to zoom.");
     }
-    hud.setButtons([
-      { text: "Back to dock", onClick: onBackToDock },
-      { text: "Back to map", onClick: onBack },
-    ]);
+    hud.setButtons([]); // the System | Galaxy switch and CLOSE live in src/ui (Agent 5)
   }
 }

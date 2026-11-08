@@ -49,8 +49,6 @@ export interface DockedOptions {
   seed: Seed;
   host: HTMLElement; // the canvas (drag and zoom listen here)
   hud: Hud;
-  /** The temporary "Map" button was pressed. Gets the id of the system the ship is in. */
-  onMap: (systemId: string) => void;
 }
 
 /** Drag to turn, scroll or pinch to zoom. Between touches the camera drifts slowly by itself. */
@@ -142,7 +140,6 @@ export class DockedScreen implements Screen {
   private clockT = 0;
   private titleText = "";
   private labelText = "";
-  private systemId = "";
 
   constructor(private opts: DockedOptions) {
     const bg = new THREE.BufferGeometry();
@@ -163,7 +160,6 @@ export class DockedScreen implements Screen {
     disposeAll(this.content);
     this.content.clear();
     this.lights = [];
-    this.systemId = planet.systemId;
 
     // The sun, far away, in the direction the light comes from.
     if (system) {
@@ -270,7 +266,7 @@ export class DockedScreen implements Screen {
     this.controls.attach();
     this.opts.hud.setTitle(this.titleText);
     this.opts.hud.setLabel(this.labelText);
-    this.opts.hud.setButtons([{ text: "Map", onClick: () => this.opts.onMap(this.systemId) }]);
+    this.opts.hud.setButtons([]); // JOBS and MAP live in src/ui (Agent 5)
   }
 
   exit(): void {

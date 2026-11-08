@@ -65,25 +65,21 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
       state,
       current: here,
       onOpenSystem: (id) => api.showSystem(id),
-      onBackToDock: () => api.showDocked(lastDockId),
     });
   }
   let starmap = makeStarmap(current);
-  // The dock the ship is parked at. The maps return here with "Back to dock".
+  // The dock the ship is parked at (the first one shown). Navigation buttons live in src/ui (Agent 5).
   let lastDockId = getPlanetsOfSystem(seed, current.id)[0]?.id ?? "";
   const docked = new DockedScreen({
     seed,
     host: canvas,
     hud,
-    onMap: (systemId) => api.showSystem(systemId),
   });
   const systemView = new SystemViewScreen({
     seed,
     host: canvas,
     hud,
     state,
-    onBack: () => api.showStarmap(),
-    onBackToDock: () => api.showDocked(lastDockId),
   });
 
   const flight = new FlightScreen({ seed, host: canvas, hud, parent });

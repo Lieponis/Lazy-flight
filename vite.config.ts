@@ -7,10 +7,11 @@ export default defineConfig({
     outDir: "dist",
     chunkSizeWarningLimit: 800,
     rollupOptions: {
-      // Two pages are published: the cube page and the universe debug page.
+      // Three pages are published: the game, the universe debug page and the model viewer.
       input: {
         main: "index.html",
         debug: "debug.html",
+        models: "models.html",
       },
     },
   },
