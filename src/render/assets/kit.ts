@@ -210,7 +210,7 @@ export class ModelKit {
    * A faceted hull: a list of cross-sections along Z (front first). Each section is a rectangle with its
    * top corners cut (ct) and bottom corners cut (cb), so the hull has 8 sides: angled shoulders, no box look.
    */
-  loft(name: string, sections: readonly LoftSection[], color: ColorName, o: PartOptions = {}): this {
+  loft(name: string, sections: readonly LoftSection[], color: ColorName, o: PartOptions & { openFront?: boolean } = {}): this {
     const rings = sections.map((s) => {
       const hw = s.w / 2;
       const b = s.y - s.h / 2;
@@ -237,8 +237,31 @@ export class ModelKit {
     const first = rings[0]!;
     const last = rings[rings.length - 1]!;
     for (let i = 1; i < 7; i++) {
-      tri(first[0]!, first[i]!, first[i + 1]!);
+      if (!o.openFront) tri(first[0]!, first[i]!, first[i + 1]!);
       tri(last[0]!, last[i + 1]!, last[i]!);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    return this.add(name, g, color, o);
+  }
+
+  /**
+   * A flat convex shape (points in the x-y plane, counter-clockwise, y up) pushed along Z from zFront to zBack.
+   * Used for station faces around a docking slot.
+   */
+  prism(name: string, poly: readonly (readonly [number, number])[], zFront: number, zBack: number, color: ColorName, o: PartOptions = {}): this {
+    const pos: number[] = [];
+    const n = poly.length;
+    const f = (i: number): number[] => [poly[i]![0], poly[i]![1], zFront];
+    const b = (i: number): number[] => [poly[i]![0], poly[i]![1], zBack];
+    for (let i = 1; i + 1 < n; i++) {
+      pos.push(...f(0), ...f(i + 1), ...f(i)); // front face looks to -Z
+      pos.push(...b(0), ...b(i), ...b(i + 1)); // back face looks to +Z
+    }
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      pos.push(...f(i), ...f(j), ...b(j));
+      pos.push(...f(i), ...b(j), ...b(i));
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));

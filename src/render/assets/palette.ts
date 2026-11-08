@@ -37,6 +37,7 @@ export const PAL = {
   lightRed: 0xff5a3c,
   lightGreen: 0x7dff8a,
   glass: 0x9fe6ff,
+  cyan: 0x3fe0ff,
 } as const;
 
 export type PalKey = keyof typeof PAL;
@@ -63,6 +64,7 @@ export const SWATCHES: Swatch[] = [
   { key: "engine", hex: PAL.engine, name: "Engine glow", use: "Exhaust and flames", glow: true },
   { key: "lightRed", hex: PAL.lightRed, name: "Red light", use: "Blinking beacons", glow: true },
   { key: "lightGreen", hex: PAL.lightGreen, name: "Green light", use: "Pad and bay lights", glow: true },
+  { key: "cyan", hex: PAL.cyan, name: "Cyan light", use: "Passenger hub light strips and sign", glow: true },
   { key: "glass", hex: PAL.glass, name: "Glass", use: "Cockpit bubbles, domes", glow: true },
 ];
 

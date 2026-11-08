@@ -58,7 +58,8 @@ export const SPIN_ANCHOR = "spinAxis";
 
 /** The landing pad and the station bay must fit the biggest ship with room to spare. */
 export const PAD_DIAMETER = 9;
-export const BAY_SIZE = { width: 9, height: 4, depth: 9 };
+// The bay is roomier than first planned (9 x 4 x 9) because Andy chose a closed slot with the camera inside.
+export const BAY_SIZE = { width: 11, height: 6.5, depth: 13 };
 
 /** Thinnest part that still shows at game resolution (about 3 screen pixels in the docked view). */
 export const MIN_PART_THICKNESS = 0.2;

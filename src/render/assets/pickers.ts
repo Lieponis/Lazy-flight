@@ -8,10 +8,10 @@
 import { hashString } from "../../universe";
 
 /** Outpost asset ids, in a fixed order. Adding one changes which docks get which look, so add only before integration. */
-export const OUTPOST_IDS: readonly string[] = [];
+export const OUTPOST_IDS: readonly string[] = ["outpost-depot", "outpost-domes", "outpost-comms", "outpost-hub"];
 
 /** Station asset ids, in a fixed order. */
-export const STATION_IDS: readonly string[] = [];
+export const STATION_IDS: readonly string[] = ["station-ring", "station-starport", "station-cargo", "station-refinery"];
 
 /** The outpost design for a dock, e.g. pickOutpostVariant("3:-2:5:0/2", "DESERT"). */
 export function pickOutpostVariant(dockId: string, planetType: string): string | null {

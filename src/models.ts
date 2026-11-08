@@ -55,6 +55,7 @@ interface ViewState {
   box: boolean;
   anchors: boolean;
   compare: boolean;
+  park: boolean;
   buddy: string;
   seed: number;
   cam: { yaw: number; pitch: number; dist: number } | null;
@@ -87,6 +88,7 @@ function readAddress(): ViewState {
     box: show.includes("box"),
     anchors: show.includes("anchors"),
     compare: q.get("compare") === "1",
+    park: q.get("park") === "1",
     buddy: findEntry(q.get("buddy") ?? "")?.id ?? "",
     seed: Number.isFinite(Number(q.get("seed"))) && q.get("seed") ? Number(q.get("seed")) : 12345,
     cam,
@@ -107,6 +109,7 @@ function addressFor(s: ViewState): string {
   q.set("preview", s.preview);
   q.set("show", [s.grid && "grid", s.box && "box", s.anchors && "anchors"].filter(Boolean).join(",") || "none");
   if (s.compare) q.set("compare", "1");
+  if (s.park) q.set("park", "1");
   if (s.buddy) q.set("buddy", s.buddy);
   q.set("seed", String(s.seed));
   if (s.cam) q.set("cam", [s.cam.yaw, s.cam.pitch, s.cam.dist].map((n) => n.toFixed(2)).join(","));
@@ -209,6 +212,7 @@ const ANCHOR_COLORS: Record<string, string> = {
   entrance: "#ff7fae",
   dockEntrance: "#ff7fae",
   spinAxis: "#c78bd9",
+  bayCamera: "#9fe6ff",
 };
 const anchorColor = (name: string): string => ANCHOR_COLORS[name] ?? "#ffffff";
 
@@ -289,6 +293,14 @@ function rebuild(): void {
   bounds = boundsOf(model);
   if (bounds.isEmpty()) bounds.set(new THREE.Vector3(-1, 0, -1), new THREE.Vector3(1, 1, 1));
 
+  if (S.park && entry.kind !== "ship" && model.anchors.parking) {
+    // A Cargo Hauler parked on the pad or in the bay, the way the game will place it.
+    const ship = ASSETS.find((a) => a.id === "cargo-hauler")?.build();
+    if (ship) {
+      ship.group.position.copy(model.anchors.parking.pos);
+      stage.add(ship.group);
+    }
+  }
   if (S.compare) {
     const old = oldShapeFor(entry);
     if (old) {
@@ -404,13 +416,25 @@ if (S.cam) Object.assign(cam, S.cam);
 function fitCamera(): void {
   const size = bounds.getSize(new THREE.Vector3());
   const longest = Math.max(size.x, size.y, size.z);
-  cam.yaw = 2.3;
+  // Outposts are seen from the pad side (their doors and windows face the pad); everything else from the front.
+  cam.yaw = findEntry(S.asset)?.kind === "outpost" ? -2.4 : 2.3;
   cam.pitch = 0.45;
   cam.dist = longest * 1.7 + 3;
   target.copy(bounds.getCenter(new THREE.Vector3()));
 }
 
 function gameCamera(): void {
+  const inside = model?.anchors.bayCamera;
+  const park = model?.anchors.parking;
+  if (inside && park) {
+    // Stations: the camera sits inside the bay and looks at the parked ship (Agent 3 decides the final spot).
+    target.copy(park.pos).add(new THREE.Vector3(0, 1, 0));
+    const v = inside.pos.clone().sub(target);
+    cam.dist = v.length();
+    cam.pitch = Math.asin(v.y / cam.dist);
+    cam.yaw = Math.atan2(v.x, v.z);
+    return;
+  }
   cam.pitch = (GAME_CAMERA.angleDeg * Math.PI) / 180;
   cam.dist = GAME_CAMERA.distance;
   const p = model?.anchors.parking?.pos;
@@ -705,6 +729,7 @@ function refreshPanel(): void {
   row.appendChild(button("Box + ruler", S.box, () => set("box", !S.box)));
   row.appendChild(button("Anchors", S.anchors, () => set("anchors", !S.anchors)));
   row.appendChild(button("Compare with old", S.compare, () => set("compare", !S.compare)));
+  if (entry.kind !== "ship") row.appendChild(button("Park a ship", S.park, () => set("park", !S.park)));
   const buddy = el("select", { "aria-label": "Size buddy" });
   buddy.appendChild(el("option", { value: "" }, "Size buddy: none"));
   for (const e of ALL) if (e.id !== entry.id && e.id !== "broken-demo") {
@@ -787,7 +812,7 @@ function thumbnail(entry: AssetEntry, variant: number, tint: number, w = 160, h 
   const b = boundsOf(m);
   const size = b.getSize(new THREE.Vector3());
   const c = new THREE.PerspectiveCamera(GAME_CAMERA.fov, w / h, 0.05, 1000);
-  const p = orbitCameraPosition(2.3, 0.5, Math.max(size.x, size.y, size.z) * 1.5 + 1.5);
+  const p = orbitCameraPosition(entry.kind === "outpost" ? -2.4 : 2.3, 0.5, Math.max(size.x, size.y, size.z) * 1.5 + 1.5);
   const mid = b.getCenter(new THREE.Vector3());
   c.position.set(mid.x + p.x, mid.y + p.y, mid.z + p.z);
   c.lookAt(mid);

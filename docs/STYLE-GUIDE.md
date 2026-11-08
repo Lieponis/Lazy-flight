@@ -15,7 +15,7 @@ Cozy, toy-like, PS1-era low poly: a "downgraded Elite Dangerous". Believable sci
 The game's flat look: every face gets one of four brightness steps (100%, 83%, 70%, 59%) from one fixed light direction (`shadedGeometry` and `faceShade` in src/render). The steps are baked into vertex colours, so no lights are needed and phones stay fast. Glow parts are not shaded.
 
 ## 4. Size scale (one unit system for everything)
-1 unit = one standard cargo crate (about 2 m). Pilot about 0.9 tall. Scout 3-4 long, Cargo Hauler 5-6, Passenger Liner 6.5-7.5 (any ship 2.5-8). Landing pad 9 wide (fits every ship). Outposts 8-28 across, pad included. Station bay 9 wide, 4 tall, 9 deep. Stations 16-48 across. No part thinner than 0.2 (thinner parts vanish at game resolution).
+1 unit = one standard cargo crate (about 2 m). Pilot about 0.9 tall. Scout 3-4 long, Cargo Hauler 5-6, Passenger Liner 6.5-7.5 (any ship 2.5-8). Landing pad 9 wide (fits every ship). Outposts 8-28 across, pad included. Station bay 11 wide, 6.5 tall, 13 deep (enlarged from 9 x 4 x 9 because the camera goes inside the bay). Stations 16-48 across. No part thinner than 0.2 (thinner parts vanish at game resolution).
 
 **Orientation:** +Y is up. Ships point their nose to -Z (as in ship.ts). Ship and outpost origin = the parking point on the ground (y = 0). Station origin = station centre.
 
@@ -41,3 +41,7 @@ IDs are lowercase words joined by hyphens, matching the existing ship id `cargo-
 
 ## 10. Ship look, revision 1 (Andy's answers, 2026-11-08)
 Less boxy, low poly but more detailed, less cartoonish. Faceted tops (8-sided "loft" hulls with cut shoulders) with a dark industrial underside. White and grey paint (`paintWhite e6e8ec`, `paintGrey a7adb8`, `metalDark 4b505c`, `underside 33363e`) with a few company colour marks per ship. Minimal surface detail: the shape carries the look. Cockpits: dark glass (`glassDark 24405e`, shaded) in panes with frame bars. Lights: glowing engine strips plus red (left) and green (right) blinking nav lights. No funny touches on ships (this differs from the brief; the Lead may confirm). References (shape feel only, our own designs): Cargo Hauler = Asp Explorer, Passenger Liner = Dolphin + Orca, Scout = Diamondback Explorer.
+
+## 11. Outposts and stations (Andy's answers, 2026-11-08)
+Outposts: look mixed by variant (Supply Depot rugged, the rest clean), size varies, the planet colour goes only on the ground and dust, a different landing pad per type, subtle close-up quirks, blinking beacon and pad lights, lit windows. Passenger Hub: sci-fi glass dome concourse, one big pad, glass tube, holo-style sign, transit tube, dark glass + cyan (new glow colour `cyan 3fe0ff`).
+Stations: grand Elite-like, all large (36-45 across), docking slot in the hull with the bay inside (camera goes inside: Agent 3), colours mixed by variant (industrial orange/yellow, grand cyan/blue), only the ring habitat spins, blinking bay lights and lit windows, no funny touches yet (left for Agent 7).
