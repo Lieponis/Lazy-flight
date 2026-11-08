@@ -31,3 +31,25 @@ export const TAP_RADIUS_PX = 18;
 
 /** Number of background stars (cheap: they are single dots). */
 export const STARFIELD_COUNT = 260;
+
+// ---------------------------------------------------------------- the flight view (part 3b)
+
+/** Real seconds the take-off takes (only on trips long enough; short trips are squeezed). */
+export const FLIGHT_LAUNCH_SECONDS = 5;
+
+/** Real seconds the approach to the destination takes. It starts this long before arrival. */
+export const FLIGHT_APPROACH_SECONDS = 10;
+
+/** The shortest warp we still want to show. A trip shorter than launch + this + approach is squeezed in proportion. */
+export const FLIGHT_MIN_WARP_SECONDS = 3;
+
+/** After the approach finishes, the screen waits this long ("docked") before showing the system view. */
+export const FLIGHT_DOCKED_HOLD_SECONDS = 0.6;
+
+/** The ship computer changes its line this often (real seconds). */
+export const FLIGHT_LINE_SECONDS = 25;
+
+/** Warp tunnel look. */
+export const TUNNEL_STREAKS = 140; // number of streaking stars (fewer = faster on phones)
+export const TUNNEL_RINGS = 12; // number of rings flying past
+export const TUNNEL_SPEED = 70; // how fast it flies, in units per second

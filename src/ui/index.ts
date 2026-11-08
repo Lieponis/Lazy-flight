@@ -2,7 +2,7 @@
 // Called once from src/main.ts after the starmap is running.
 
 import { Game, createClock, parseSpeedParam } from "../game";
-import { getPlanetsOfSystem } from "../universe";
+import { getDock, getPlanetsOfSystem } from "../universe";
 import { parseSeedParam } from "../render/helpers";
 import type { RenderApi } from "../render";
 import { START_SEED } from "../render/settings";
@@ -17,11 +17,33 @@ export function startUi(api: RenderApi, parent: HTMLElement): Game {
   const game = new Game(seed, firstDock.id, createClock(parseSpeedParam(window.location.search)));
   const panel = new TradePanel(parent, game);
 
+  // The flight screen follows the game: it starts when a job starts and ends when the job ends.
+  // (This is the only place where the game and the flight screen meet; src/render never imports src/game.)
+  let flying = false;
+  const syncFlight = (): void => {
+    const job = game.state.currentJob;
+    if (job && !flying) {
+      flying = true;
+      api.startFlight({
+        originDockId: game.state.currentDockId,
+        destinationDockId: job.destinationDockId,
+        destinationName: getDock(seed, job.destinationDockId)?.name ?? "the destination",
+        speed: game.clock.speed,
+        getProgress: () => game.progress(),
+      });
+    } else if (!job && flying) {
+      flying = false;
+      api.endFlight();
+    }
+  };
+
   // The starmap ring and "you are here" follow the player.
   game.subscribe(() => {
     api.setCurrentSystem(game.currentSystemId());
     panel.rebuild();
+    syncFlight();
   });
+  syncFlight(); // the page was opened in the middle of a flight
 
   // Check the clock a few times a second, and the moment the tab wakes up.
   const check = (): void => {

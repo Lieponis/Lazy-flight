@@ -163,3 +163,36 @@ export function cameraFov(aspect: number, baseFov: number): number {
   const half = (baseFov * Math.PI) / 360;
   return (2 * Math.atan(Math.tan(half) / Math.max(aspect, 0.4)) * 180) / Math.PI;
 }
+
+/**
+ * Streaking stars for the warp tunnel: `count` short lines spread around a long tube along the Z axis.
+ * positions = 6 numbers per streak (x, y, z of one end, then x, y, z of the other end). tints = a color number 0 to 3 per streak.
+ * Same numbers every time.
+ */
+export function tunnelStreakData(
+  count: number,
+  span: number,
+  minRadius: number,
+  maxRadius: number,
+  minLength: number,
+  maxLength: number,
+): { positions: Float32Array; tints: Uint8Array } {
+  const positions = new Float32Array(count * 6);
+  const tints = new Uint8Array(count);
+  let s = 987654321;
+  const next = (): number => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+  for (let i = 0; i < count; i++) {
+    const angle = next() * Math.PI * 2;
+    const radius = minRadius + next() * (maxRadius - minRadius);
+    const z = -next() * span;
+    const length = minLength + next() * (maxLength - minLength);
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    positions.set([x, y, z, x, y, z + length], i * 6);
+    tints[i] = Math.floor(next() * 4);
+  }
+  return { positions, tints };
+}

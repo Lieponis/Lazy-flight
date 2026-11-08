@@ -30,6 +30,11 @@ export class Hud {
     parent.appendChild(this.root);
   }
 
+  /** Hide or show the whole plain label and buttons (the flight screen has its own). */
+  setVisible(visible: boolean): void {
+    this.root.style.display = visible ? "" : "none";
+  }
+
   setTitle(text: string): void {
     this.title.textContent = text;
   }

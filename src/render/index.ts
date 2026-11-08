@@ -8,6 +8,7 @@
 
 import type * as THREE from "three";
 import { getSystem, type StarSystem } from "../universe";
+import type { FlightInfo } from "./flightplan";
 import { Hud } from "./hud";
 import { cameraFov, parseSeedParam, renderSizeFor } from "./helpers";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
@@ -15,11 +16,13 @@ import type { Screen } from "./screen";
 import { START_SEED } from "./settings";
 import { findStartSystem } from "./start";
 import { StateStore } from "./state";
+import { FlightScreen } from "./flight";
 import { StarMapScreen } from "./starmap";
 import { SystemViewScreen } from "./systemview";
 
 export { StateStore } from "./state";
 export type { RenderState, ScreenName } from "./state";
+export type { FlightInfo, FlightProgress } from "./flightplan";
 
 export interface RenderApi {
   state: StateStore;
@@ -27,6 +30,12 @@ export interface RenderApi {
   showSystem(systemId: string): void;
   /** Move the "you are here" system (the starmap ring and label follow). Used by the game on arrival. */
   setCurrentSystem(systemId: string): void;
+  /** Show the flight screen (launch, warp, approach) for a trip the game has started. */
+  startFlight(info: FlightInfo): void;
+  /** The game says the trip is over: finish the animation, then show the system view of the destination. */
+  endFlight(): void;
+  /** True while the flight screen is showing. */
+  isFlying(): boolean;
 }
 
 export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement): RenderApi {
@@ -64,6 +73,8 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
     onBack: () => api.showStarmap(),
   });
 
+  const flight = new FlightScreen({ seed, host: canvas, hud, parent });
+
   const api: RenderApi = {
     state,
     showStarmap(): void {
@@ -83,6 +94,22 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
       state.set({ currentSystemId: here.id, selectedSystemId: null });
       if (wasShowing) show(starmap);
     },
+    startFlight(info: FlightInfo): void {
+      flight.begin(info);
+      state.set({ screen: "flight", selectedPlanetId: null });
+      show(flight);
+    },
+    endFlight(): void {
+      if (active !== flight) return;
+      const destination = flight.destinationSystemId();
+      flight.finish(() => {
+        if (destination) api.showSystem(destination);
+        else api.showStarmap();
+      });
+    },
+    isFlying(): boolean {
+      return active === flight;
+    },
     showSystem(systemId: string): void {
       if (!getSystem(seed, systemId) || !systemView.open(systemId)) return;
       state.set({ screen: "system", viewedSystemId: systemId, selectedPlanetId: null });
@@ -95,7 +122,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
     const aspect = window.innerWidth / Math.max(1, window.innerHeight);
     const size = renderSizeFor(aspect, RENDER_WIDTH, RENDER_HEIGHT);
     renderer.setSize(size.width, size.height, false);
-    for (const screen of [starmap, systemView]) {
+    for (const screen of [starmap, systemView, flight]) {
       screen.camera.aspect = size.width / size.height;
       screen.camera.fov = cameraFov(size.width / size.height, 50);
       screen.camera.updateProjectionMatrix();

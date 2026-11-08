@@ -42,7 +42,7 @@ interface PlanetEntry {
   station: { object: THREE.Object3D; orbit: number; angle: number } | null;
 }
 
-function disposeAll(root: THREE.Object3D): void {
+export function disposeAll(root: THREE.Object3D): void {
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (mesh.geometry) mesh.geometry.dispose();
@@ -53,7 +53,7 @@ function disposeAll(root: THREE.Object3D): void {
 }
 
 /** A planet is a low-poly ball. Its patches are colored once (two colors + 4 flat brightness steps), no lights needed. */
-function makePlanetMesh(planet: Planet, radius: number, toStar: THREE.Vector3): THREE.Mesh {
+export function makePlanetMesh(planet: Planet, radius: number, toStar: THREE.Vector3): THREE.Mesh {
   const geometry = new THREE.IcosahedronGeometry(radius, 1); // not indexed: every triangle has its own 3 corners
   const position = geometry.getAttribute("position");
   const colors = new Float32Array(position.count * 3);
@@ -79,7 +79,7 @@ function makePlanetMesh(planet: Planet, radius: number, toStar: THREE.Vector3): 
 }
 
 /** OUTPOST: a little building (box + pointed roof) standing on the planet surface, on the side facing outwards. */
-function makeOutpost(planet: Planet, radius: number, outward: THREE.Vector3): THREE.Group {
+export function makeOutpost(planet: Planet, radius: number, outward: THREE.Vector3): THREE.Group {
   const s = clamp(radius * 0.8, 0.6, 1.1);
   const group = new THREE.Group();
   const wall = new THREE.Mesh(new THREE.BoxGeometry(0.55 * s, 0.35 * s, 0.55 * s), new THREE.MeshBasicMaterial({ color: 0xfff0b8 }));
@@ -100,7 +100,7 @@ function makeOutpost(planet: Planet, radius: number, outward: THREE.Vector3): TH
 }
 
 /** STATION: a small boxy body with two flat solar wings. */
-function makeStation(): THREE.Group {
+export function makeStation(): THREE.Group {
   const group = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.45, 0.7), new THREE.MeshBasicMaterial({ color: 0xe3e7ff }));
   const wingMaterial = new THREE.MeshBasicMaterial({ color: 0x4fc3ff });

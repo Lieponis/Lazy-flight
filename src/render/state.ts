@@ -1,7 +1,7 @@
 // What is selected right now. Agent 4 and Agent 5 can READ this (and listen for changes)
 // without knowing anything about drawing.
 
-export type ScreenName = "starmap" | "system";
+export type ScreenName = "starmap" | "system" | "flight";
 
 export interface RenderState {
   /** Which screen is showing. */
