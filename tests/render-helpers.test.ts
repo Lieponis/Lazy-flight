@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cameraFov,
   clamp,
   dockKindLabel,
   faceShade,
@@ -13,6 +14,7 @@ import {
   planetDisplayRadius,
   planetOrbitPosition,
   planetTypeLabel,
+  renderSizeFor,
   starfieldPositions,
 } from '../src/render/helpers';
 import { StateStore } from '../src/render/state';
@@ -136,5 +138,23 @@ describe('selection state', () => {
     stop();
     store.set({ selectedPlanetId: '4:5:6:1/0' });
     expect(heard).toBe(1);
+  });
+});
+
+describe('filling the whole window', () => {
+  it('gives exactly 320x180 for a 16:9 window', () => {
+    expect(renderSizeFor(16 / 9, 320, 180)).toEqual({ width: 320, height: 180 });
+  });
+  it('keeps a similar pixel count for tall and wide windows', () => {
+    for (const aspect of [0.46, 1, 2.1]) {
+      const s = renderSizeFor(aspect, 320, 180);
+      expect(s.width * s.height).toBeGreaterThan(57600 * 0.9);
+      expect(s.width * s.height).toBeLessThan(57600 * 1.1);
+      expect(s.width / s.height).toBeCloseTo(aspect, 1);
+    }
+  });
+  it('widens the view in tall windows only', () => {
+    expect(cameraFov(1.78, 50)).toBe(50);
+    expect(cameraFov(0.5, 50)).toBeGreaterThan(50);
   });
 });

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
-import { BACKGROUND_COLOR, RENDER_HEIGHT, RENDER_WIDTH } from './settings';
+import { BACKGROUND_COLOR } from './settings';
 import { startRender } from './render';
 
 // Draws at a tiny resolution and stretches the picture up without smoothing (the chunky pixel look).
@@ -29,10 +29,8 @@ try {
   throw new Error('WebGL not available');
 }
 
-renderer.setPixelRatio(1); // never render more pixels than RENDER_WIDTH x RENDER_HEIGHT
-renderer.setSize(RENDER_WIDTH, RENDER_HEIGHT, false); // false = leave the on-screen size to CSS
+renderer.setPixelRatio(1); // never render more pixels than the small hidden picture (size is set in src/render/index.ts)
 renderer.setClearColor(BACKGROUND_COLOR);
-renderer.domElement.style.setProperty('--aspect', String(RENDER_WIDTH / RENDER_HEIGHT));
 app.appendChild(renderer.domElement);
 
 startRender(renderer, app);

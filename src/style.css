@@ -24,21 +24,19 @@ body {
   background: #000;
 }
 
-/* The canvas is tiny (e.g. 320x180). CSS stretches it to the biggest 16:9
-   rectangle that fits the window. "pixelated" means NO smoothing. */
+/* The canvas is tiny (e.g. 320x180). CSS stretches it to fill the WHOLE window.
+   "pixelated" means NO smoothing. Its shape is set in src/render/index.ts. */
 #app canvas {
-  --aspect: 1.7778; /* overwritten from src/settings.ts */
   display: block;
-  width: min(100vw, calc(100vh * var(--aspect)));
-  height: min(100vh, calc(100vw / var(--aspect)));
+  width: 100vw;
+  height: 100vh;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
 }
 
 @supports (height: 100dvh) {
   #app canvas {
-    width: min(100vw, calc(100dvh * var(--aspect)));
-    height: min(100dvh, calc(100vw / var(--aspect)));
+    height: 100dvh;
   }
 }
 

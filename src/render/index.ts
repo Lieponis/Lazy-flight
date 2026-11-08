@@ -9,7 +9,8 @@
 import type * as THREE from "three";
 import { getSystem } from "../universe";
 import { Hud } from "./hud";
-import { parseSeedParam } from "./helpers";
+import { cameraFov, parseSeedParam, renderSizeFor } from "./helpers";
+import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import type { Screen } from "./screen";
 import { START_SEED } from "./settings";
 import { findStartSystem } from "./start";
@@ -70,6 +71,20 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
       show(systemView);
     },
   };
+
+  // Fill the whole window: the small hidden picture takes the shape of the window.
+  function resize(): void {
+    const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    const size = renderSizeFor(aspect, RENDER_WIDTH, RENDER_HEIGHT);
+    renderer.setSize(size.width, size.height, false);
+    for (const screen of [starmap, systemView]) {
+      screen.camera.aspect = size.width / size.height;
+      screen.camera.fov = cameraFov(size.width / size.height, 50);
+      screen.camera.updateProjectionMatrix();
+    }
+  }
+  resize();
+  window.addEventListener("resize", resize);
 
   api.showStarmap();
 

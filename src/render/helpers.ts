@@ -143,3 +143,23 @@ export function planetTypeLabel(type: string): string {
 export function dockKindLabel(kind: string): string {
   return kind === "OUTPOST" ? "Outpost" : kind === "STATION" ? "Station" : kind;
 }
+
+/**
+ * Size of the small hidden picture for a window shape (aspect = width / height).
+ * Keeps about the same number of pixels as the 320x180 setting, so the pixels stay equally chunky
+ * in a wide window, a tall phone or a square one. A 16:9 window gives exactly 320x180.
+ */
+export function renderSizeFor(aspect: number, baseWidth: number, baseHeight: number): { width: number; height: number } {
+  const a = clamp(aspect, 0.4, 3);
+  const area = baseWidth * baseHeight;
+  const height = Math.max(2, Math.round(Math.sqrt(area / a)));
+  const width = Math.max(2, Math.round(height * a));
+  return { width, height };
+}
+
+/** Vertical field of view in degrees. In tall windows it widens so the sides are not cut off. */
+export function cameraFov(aspect: number, baseFov: number): number {
+  if (aspect >= 1) return baseFov;
+  const half = (baseFov * Math.PI) / 360;
+  return (2 * Math.atan(Math.tan(half) / Math.max(aspect, 0.4)) * 180) / Math.PI;
+}
