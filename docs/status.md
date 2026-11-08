@@ -3,9 +3,10 @@
 **Last updated:** 2026-11-08
 
 ## Current phase
-M2 COMPLETE. Design doc v4 (2026-11-08): docked view home screen, Jobs menu, separate Map button.
-Agent 3 part 3c (docked view) DONE. Per Agent 3's report, Andy click-tested it (Actions green): home screen at start, drag/zoom, Map and Back to dock, flight and arrival at the destination dock, phone, and both an outpost and a station docked view. Andy re-checked the system map (Map button) and /debug.html after 3c: OK (2026-11-08).
-Next: Agent 5 part 5a (Jobs button/menu, Map button with System/Galaxy switch, status strip, arrival debrief card; replaces Agent 4's temporary panel and the temporary Map / Back to dock buttons). Then 4b mechanics (incl. approved emergency refuel), 6a saving, 3d pixel look, 7 polish.
+M2 COMPLETE. Agent 5 part 5a DONE and VERIFIED (Agent 5 ran npm run check: build and 124 tests; Actions green; Andy's click-test B to H incl. a real phone). Status strip, bottom bar (JOBS / MAP, SYSTEM | GALAXY | CLOSE), Jobs menu, arrival card, VT323 pixel font. Temporary panel and temporary buttons removed.
+Agent 8 (Asset Design, Viewer and Debug) IN PROGRESS in parallel: style guide, viewer /models.html, problem checker and 3 ship drafts (revision 1) are in Andy's folder; outposts and stations to come.
+Next: Agent 4 part 4b (emergency refuel, 3 ships buy/switch, passengers and tours playable, /game-debug.html test page). Brief: docs/briefs/agent-4b-brief.md.
+Then: 5b Shipyard + emergency refuel button, 6a saving, 4c ranks + outposts, 3d integration of Agent 8 assets + pixel look, 7 polish.
 
 ## What works
 - Live pixelated spinning cube (desktop and phone confirmed by Andy). Auto-publish via GitHub Actions. One command: npm run check.
@@ -43,6 +44,9 @@ Next: Agent 5 part 5a (Jobs button/menu, Map button with System/Galaxy switch, s
 - Note: docs/report-agent-2.md still says "not verified". This status file supersedes it.
 
 ## Known issues
+- Stale files src/ui/panel.ts and panel.css still exist in Andy's folder (Agent 5 deleted them but copying does not delete). Andy deletes them in his next commit.
+- Tours in v1 fly straight to the final stop (decision for 4b); per-stop flights later.
+- Flight HUD still uses its old font (suggestion: VT323 for consistency).
 - Expanded trade panel can cover the docked view on a phone (starts folded there). Agent 5 replaces it.
 - Ship, pad, building and station shapes are rough. Redo in 3d.
 - Ship and cockpit look is rough; Andy dislikes it. Redo in 3d.
@@ -79,6 +83,7 @@ Next: Agent 5 part 5a (Jobs button/menu, Map button with System/Galaxy switch, s
 - Agent 3 split: 3b flight view (render must not import game; wiring through src/ui glue), 3d pixel look polish (3c is now the docked view). Cockpit frame is simple geometry in 3b.
 - Agent 4 order and scope: 4a before 3b. 4a = trade jobs only. Trade jobs are contracts for v1: cargo is provided, reward paid on delivery. Buying and selling goods on the open market is a later suggestion. Starter ship has a cargo bay only, so passenger and tour jobs are blocked until a ship with a cabin exists (4b/Agent 5/6 phase).
 - Job time limits (12 to 48 h) are not enforced in 4a (all trips are at most 4 h).
+- 4b defaults (Lead): ships cargo-hauler (30 cargo, 0 cabin, tank 60), passenger-liner (6 cargo, 12 cabin, tank 70, price 1500), scout (10 cargo, 2 cabin, tank 110, price 1200). Own several, buy at any dock when no job, switch free, each ship keeps its own fuel, no selling. Ship IDs use hyphens and match Agent 8's models.
 - Free emergency refuel when the player is stuck (no usable fuel and not enough credits): approved 2026-11-08, build in Agent 4 part 4b.
 - Testing aid: ?speed=NUMBER makes game time run faster so Andy does not wait hours.
 
@@ -87,6 +92,6 @@ Permanently: free flight, combat.
 v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, more than 3 ships/ranks, full-galaxy map.
 
 ## Next step
-1. Agent 5 part 5a (in progress): Andy pastes the brief and attaches agent-5a-package.zip.
-2. Agent 8 (Asset Design) may start in parallel: brief + agent-8-package.zip. Andy commits each delivery separately.
-3. Then 3d (integration + pixel look), 4b (incl. emergency refuel and ship IDs), 5b, 6a, 7.
+1. Andy deletes src/ui/panel.ts and src/ui/panel.css in the next commit.
+2. Agent 4 part 4b: Andy attaches agent-4b-package.zip and pastes the one-line pointer.
+3. Agent 8 continues (reports back after each batch).

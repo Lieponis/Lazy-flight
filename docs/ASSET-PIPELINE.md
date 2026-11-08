@@ -4,7 +4,7 @@ Owner: Project Lead. Designer: Agent 8 (Asset Design). Approver of looks: Andy.
 
 ## The rules
 1. **Catalog is the truth.** Every ship, outpost and station design is one entry in `docs/ASSET-CATALOG.md` and one entry in the registry file `src/render/assets/registry.ts`. If it is not in both, the game does not use it.
-2. **Stable IDs.** An asset ID never changes once integrated (saves and game data refer to it). Ship IDs match `src/game/ships.ts` (cargo_hauler first). New ships and variants get new IDs.
+2. **Stable IDs.** An asset ID never changes once integrated (saves and game data refer to it). Ship IDs match `src/game/ships.ts` (cargo-hauler first; hyphens, lowercase). New ships and variants get new IDs.
 3. **Style guide first.** Every design follows `docs/STYLE-GUIDE.md` (palette, polygon budgets, scale, silhouette rules). Andy approves the style guide before any model is built.
 4. **Agent 8 never edits existing game files.** Agent 8 writes only new files: `src/render/assets/`, `models.html` (viewer), `src/models.ts`, tests, docs, and the one-line viewer entry in `vite.config.ts`. Other agents put the finished designs into the game.
 5. **Anchors are the contract.** Models expose named anchor points (examples: `parking` for where a ship rests on a pad or bay, `eye` for the cockpit camera, `engineL`/`engineR` for exhaust and warp effects, `dockEntrance`). Other agents use anchors and never hard-code positions.

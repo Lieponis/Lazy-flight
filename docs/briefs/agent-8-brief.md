@@ -27,7 +27,7 @@ A relaxing, funny, PS1-era low-poly game: chunky, grainy, space is near-black wh
 
 ## GOAL
 Deliver approved, budgeted, code-built designs, a viewer and debug tools for:
-- 3 SHIPS with clearly different silhouettes: Cargo Hauler (boxy, container racks, big engine block), Passenger Liner (sleeker, long, a row of windows, wider rear), Scout (small, swept, big engine, cockpit bubble). Use the ship IDs that exist in src/game/ships.ts and propose IDs for the other two in lowercase_with_underscores.
+- 3 SHIPS with clearly different silhouettes: Cargo Hauler (boxy, container racks, big engine block), Passenger Liner (sleeker, long, a row of windows, wider rear), Scout (small, swept, big engine, cockpit bubble). Use the ship IDs that exist in src/game/ships.ts and use exactly cargo-hauler, passenger-liner and scout (lowercase with hyphens, matching src/game/ships.ts).
 - 4 OUTPOST variants (buildings on a planet surface with a landing pad), taking the planet's colors as a tint so they suit the planet.
 - 4 STATION variants (orbiting stations with a docking bay and a bay for the parked ship), at least one with a slowly spinning ring.
 
@@ -46,7 +46,7 @@ For every asset also provide:
 ## THE VIEWER (models.html, with src/models.ts)
 - Rotate with drag, zoom with scroll or pinch, switch asset and variant, switch planet tint for outposts, toggle animation. Works on a phone, big finger-friendly buttons.
 - "Game resolution preview": the same low-resolution nearest-neighbor look as the game, at desktop and phone-sized windows, so Andy sees what the player sees.
-- Address options so any exact view can be shared and repeated, for example models.html?asset=cargo_hauler&variant=0&tint=ff8844&mode=wire. Every control is reflected in the address.
+- Address options so any exact view can be shared and repeated, for example models.html?asset=cargo-hauler&variant=0&tint=ff8844&mode=wire. Every control is reflected in the address.
 
 ## THE DEBUG TOOLS (inside the viewer) AND YOUR DEBUGGER DUTIES
 Build these so a non-programmer can see what is wrong and report it:
