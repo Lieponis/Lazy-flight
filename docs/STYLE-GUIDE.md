@@ -1,6 +1,6 @@
 # Style guide for ships, outposts and stations (Agent 8, stage S0)
 
-Status: DRAFT, waiting for Andy's approval. The numbers live in code: `src/render/assets/palette.ts` and `src/render/assets/style.ts`. The same guide is shown with pictures on `/models.html` (the "Style guide" tab).
+Status: APPROVED by Andy 2026-11-08 (palette, planet colours, sizes). Revision 1 for ships (Andy, same day): see section 10. The numbers live in code: `src/render/assets/palette.ts` and `src/render/assets/style.ts`. The same guide is shown with pictures on `/models.html` (the "Style guide" tab).
 
 ## 1. The look in one paragraph
 Cozy, toy-like, PS1-era low poly: a "downgraded Elite Dangerous". Believable sci-fi ships, simplified to bold silhouettes and big colour blocks that still read at 320 x 180 pixels. Space stays near-black; planets bring the colour. Every model has exactly one small funny touch (a mismatched pink panel, a crooked antenna, a crate strapped on). Never gritty, never anything that looks like a weapon.
@@ -22,7 +22,7 @@ The game's flat look: every face gets one of four brightness steps (100%, 83%, 7
 ## 5. Budgets
 | Kind | Triangles | Meshes | Materials |
 |---|---|---|---|
-| Ship | 700 | 4 | 2 |
+| Ship | 1000 (raised from 700 by Andy) | 4 | 2 |
 | Outpost | 1500 | 6 | 2 |
 | Station | 2500 | 6 | 2 |
 Defaults from ASSET-PIPELINE.md kept. Meshes added as a limit because each mesh is a separate draw call on a phone. In practice a model is 1 body mesh plus small meshes for blinking lights, flames and a spinning ring, all sharing 1 material.
@@ -38,3 +38,6 @@ Ships: `parking`, `eye`, `nose`, and `engineL` + `engineR` or `engineMain`. Outp
 
 ## 9. Naming
 IDs are lowercase words joined by hyphens, matching the existing ship id `cargo-hauler` in src/game/ships.ts (the code wins over the brief's underscore example). Proposed: `passenger-liner`, `scout`, `outpost-<name>`, `station-<name>`. An ID never changes once integrated.
+
+## 10. Ship look, revision 1 (Andy's answers, 2026-11-08)
+Less boxy, low poly but more detailed, less cartoonish. Faceted tops (8-sided "loft" hulls with cut shoulders) with a dark industrial underside. White and grey paint (`paintWhite e6e8ec`, `paintGrey a7adb8`, `metalDark 4b505c`, `underside 33363e`) with a few company colour marks per ship. Minimal surface detail: the shape carries the look. Cockpits: dark glass (`glassDark 24405e`, shaded) in panes with frame bars. Lights: glowing engine strips plus red (left) and green (right) blinking nav lights. No funny touches on ships (this differs from the brief; the Lead may confirm). References (shape feel only, our own designs): Cargo Hauler = Asp Explorer, Passenger Liner = Dolphin + Orca, Scout = Diamondback Explorer.

@@ -8,11 +8,48 @@
 //   model.anchors.parking.pos            // a named point
 //   model.update(seconds);               // blinking lights and spinning ring, every frame
 //
-// Empty for now: the style guide (stage S0) is approved first. Ships come in S1, outposts in S2, stations in S3.
+// Stage S1: the three ships. Outposts come in S2, stations in S3.
 
+import { buildCargoHauler, buildPassengerLiner, buildScout } from "./ships";
 import type { AssetEntry, AssetKind } from "./types";
 
-export const ASSETS: readonly AssetEntry[] = [];
+const SHIP_ANCHORS_TWIN = ["parking", "eye", "nose", "engineL", "engineR"] as const;
+
+export const ASSETS: readonly AssetEntry[] = [
+  {
+    id: "cargo-hauler",
+    name: "Cargo Hauler",
+    kind: "ship",
+    description: "Wide, flat hauler with a big multi-pane cockpit, cargo hidden inside and two engine pods.",
+    variants: 1,
+    build: buildCargoHauler,
+    anchorNames: SHIP_ANCHORS_TWIN,
+    triangles: 568,
+    status: "DRAFT",
+  },
+  {
+    id: "passenger-liner",
+    name: "Passenger Liner",
+    kind: "ship",
+    description: "Long, grand white liner with a raised top deck, a row of lit windows each side and a wide engine bank.",
+    variants: 1,
+    build: buildPassengerLiner,
+    anchorNames: SHIP_ANCHORS_TWIN,
+    triangles: 684,
+    status: "DRAFT",
+  },
+  {
+    id: "scout",
+    name: "Scout",
+    kind: "ship",
+    description: "Small, angular grey explorer with two dark side pods, short swept fins and one big engine.",
+    variants: 1,
+    build: buildScout,
+    anchorNames: ["parking", "eye", "nose", "engineMain"],
+    triangles: 540,
+    status: "DRAFT",
+  },
+];
 
 export function getAsset(id: string): AssetEntry {
   const entry = ASSETS.find((a) => a.id === id);

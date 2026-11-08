@@ -31,6 +31,17 @@ export interface PartOptions {
   layer?: Layer;
 }
 
+/** One cross-section of a loft: centre (x, y), position z, width, height, top and bottom corner cuts. */
+export interface LoftSection {
+  z: number;
+  w: number;
+  h: number;
+  y: number;
+  x?: number;
+  ct?: number;
+  cb?: number;
+}
+
 /** A record of where each named part lives inside a merged mesh (the checker uses it). */
 export interface PartInfo {
   name: string;
@@ -148,6 +159,96 @@ export class ModelKit {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     return this.add(name, g, color, o);
+  }
+
+  /**
+   * Any six-sided block from 8 corners: bottom four, then top four, each in the order
+   * (left-front, right-front, right-back, left-back). Front = -Z, left = -X.
+   */
+  hull8(name: string, corners: readonly (readonly [number, number, number])[], color: ColorName, o: PartOptions = {}): this {
+    const v = corners;
+    const quads = [
+      [0, 1, 2, 3],
+      [4, 7, 6, 5],
+      [0, 4, 5, 1],
+      [2, 6, 7, 3],
+      [1, 5, 6, 2],
+      [3, 7, 4, 0],
+    ];
+    const pos: number[] = [];
+    for (const [a, b, c, d] of quads) for (const i of [a, b, c, a, c, d]) pos.push(...v[i!]!);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    return this.add(name, g, color, o);
+  }
+
+  /**
+   * A block that changes size along its length (front at zFront, back at zBack, zFront < zBack).
+   * Each end is a rectangle: width, height and the height of its middle (y).
+   */
+  taper(
+    name: string,
+    front: { z: number; w: number; h: number; y: number },
+    back: { z: number; w: number; h: number; y: number },
+    color: ColorName,
+    o: PartOptions = {},
+  ): this {
+    const f = front;
+    const b = back;
+    return this.hull8(
+      name,
+      [
+        [-f.w / 2, f.y - f.h / 2, f.z], [f.w / 2, f.y - f.h / 2, f.z], [b.w / 2, b.y - b.h / 2, b.z], [-b.w / 2, b.y - b.h / 2, b.z],
+        [-f.w / 2, f.y + f.h / 2, f.z], [f.w / 2, f.y + f.h / 2, f.z], [b.w / 2, b.y + b.h / 2, b.z], [-b.w / 2, b.y + b.h / 2, b.z],
+      ],
+      color,
+      o,
+    );
+  }
+
+  /**
+   * A faceted hull: a list of cross-sections along Z (front first). Each section is a rectangle with its
+   * top corners cut (ct) and bottom corners cut (cb), so the hull has 8 sides: angled shoulders, no box look.
+   */
+  loft(name: string, sections: readonly LoftSection[], color: ColorName, o: PartOptions = {}): this {
+    const rings = sections.map((s) => {
+      const hw = s.w / 2;
+      const b = s.y - s.h / 2;
+      const t = s.y + s.h / 2;
+      const ct = Math.min(s.ct ?? 0, hw, s.h / 2);
+      const cb = Math.min(s.cb ?? 0, hw, s.h / 2);
+      const pts: [number, number][] = [
+        [-hw + cb, b], [hw - cb, b], [hw, b + cb], [hw, t - ct],
+        [hw - ct, t], [-hw + ct, t], [-hw, t - ct], [-hw, b + cb],
+      ];
+      return pts.map(([x, y]) => [x + (s.x ?? 0), y, s.z] as [number, number, number]);
+    });
+    const pos: number[] = [];
+    const tri = (a: number[], b: number[], c: number[]): void => void pos.push(...a, ...c, ...b);
+    for (let r = 0; r + 1 < rings.length; r++) {
+      const A = rings[r]!;
+      const B = rings[r + 1]!;
+      for (let i = 0; i < 8; i++) {
+        const j = (i + 1) % 8;
+        tri(A[i]!, B[i]!, B[j]!);
+        tri(A[i]!, B[j]!, A[j]!);
+      }
+    }
+    const first = rings[0]!;
+    const last = rings[rings.length - 1]!;
+    for (let i = 1; i < 7; i++) {
+      tri(first[0]!, first[i]!, first[i + 1]!);
+      tri(last[0]!, last[i + 1]!, last[i]!);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    return this.add(name, g, color, o);
+  }
+
+  /** The same 8-corner block mirrored to the other side (x becomes -x), with its faces kept pointing out. */
+  static mirrorX(c: readonly (readonly [number, number, number])[]): [number, number, number][] {
+    const m = c.map(([x, y, z]) => [-x, y, z] as [number, number, number]);
+    return [m[1]!, m[0]!, m[3]!, m[2]!, m[5]!, m[4]!, m[7]!, m[6]!];
   }
 
   /** Adds any geometry (it is copied and moved into place). */

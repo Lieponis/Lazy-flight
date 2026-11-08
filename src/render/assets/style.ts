@@ -23,7 +23,7 @@ export interface KindRules {
 
 export const RULES: Record<AssetKind, KindRules> = {
   ship: {
-    maxTriangles: 700,
+    maxTriangles: 1000, // raised from 700 by Andy (2026-11-08) for more detail
     maxMeshes: 4,
     maxMaterials: 2,
     size: { min: 2.5, max: 8 },
