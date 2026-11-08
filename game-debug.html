@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Game debug page</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 16px; max-width: 1100px; line-height: 1.4; color: #111; background: #fafafa; }
+      h1 { font-size: 1.4rem; margin-bottom: 4px; }
+      h2 { font-size: 1.1rem; margin-top: 24px; border-bottom: 2px solid #ccc; padding-bottom: 4px; }
+      .box { background: #fff; border: 1px solid #ccc; border-radius: 6px; padding: 10px 12px; margin: 8px 0; }
+      .note { color: #555; font-size: 0.9rem; }
+      table { border-collapse: collapse; width: 100%; background: #fff; margin: 8px 0; font-size: 0.92rem; }
+      th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; }
+      th { background: #eee; }
+      button { padding: 6px 10px; font-size: 0.95rem; cursor: pointer; margin: 2px 4px 2px 0; }
+      button:disabled { cursor: default; }
+      button.test { background: #fff3cd; border: 1px solid #c9a227; }
+      .ok { color: #0a7a2f; font-weight: bold; }
+      .bad { color: #b3261e; font-weight: bold; }
+      .msg { background: #eef6ff; border: 1px solid #9bbcdf; border-radius: 6px; padding: 8px 12px; margin: 8px 0; min-height: 1.4em; }
+      .debrief { background: #eaffea; border: 1px dashed #2a8a3a; border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
+      select { padding: 5px; font-size: 0.95rem; max-width: 100%; }
+      .scroll { overflow-x: auto; }
+    </style>
+  </head>
+  <body>
+    <h1>Game debug page</h1>
+    <p class="note">
+      Plain text and buttons, no graphics. This page has its OWN game, so it never disturbs the real game page.
+      Buttons marked <b>TEST</b> break the normal rules on purpose. <a href="./">Back to the game</a>.
+    </p>
+    <div id="app"></div>
+    <script type="module" src="/src/game-debug.ts"></script>
+  </body>
+</html>

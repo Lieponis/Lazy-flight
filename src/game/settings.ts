@@ -45,3 +45,11 @@ export const MAX_TRIP_SECONDS = 4 * 60 * 60;
  * (one real second counts as one minute). This is the largest speed allowed.
  */
 export const MAX_SPEED = 100000;
+
+// ---------------------------------------------------------------- SAFETY NET
+
+/**
+ * Fuel the dock gives you for free when you are STUCK (cannot take any job that fits your ship
+ * because of fuel, even if you spent all your credits on fuel). Never fills past the tank.
+ */
+export const EMERGENCY_REFUEL_AMOUNT = 20;

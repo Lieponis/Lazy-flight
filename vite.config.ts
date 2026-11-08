@@ -7,11 +7,12 @@ export default defineConfig({
     outDir: "dist",
     chunkSizeWarningLimit: 800,
     rollupOptions: {
-      // Three pages are published: the game, the universe debug page and the model viewer.
+      // Four pages are published: the game, the universe debug page, the model viewer and the game debug page.
       input: {
         main: "index.html",
         debug: "debug.html",
         models: "models.html",
+        gamedebug: "game-debug.html",
       },
     },
   },

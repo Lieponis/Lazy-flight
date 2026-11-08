@@ -2,9 +2,9 @@
 //   import { Game, createClock, parseSpeedParam } from "../game";
 
 export * from "./settings";
-export { SHIPS, getShip } from "./ships";
+export { SHIPS, SHIP_ORDER, getShip, isShipId } from "./ships";
 export type { ShipDef } from "./ships";
-export { newGameState } from "./state";
+export { newGameState, normalizeState } from "./state";
 export type { GameState } from "./state";
 export { createClock, parseSpeedParam, slotOf } from "./clock";
 export type { GameClock } from "./clock";
@@ -13,12 +13,16 @@ export {
   acceptJob,
   checkJob,
   debriefFor,
+  emergencyRefuel,
   fuelCost,
+  isStuck,
   refuel,
   settleArrival,
   travelProgress,
   tripSeconds,
 } from "./rules";
-export type { AcceptResult, Arrival, Block, BlockCode, RefuelResult, TravelProgress } from "./rules";
+export { buyShip, ownedShipIds, ownsShip, shipCatalog, shipFuel, switchShip } from "./fleet";
+export type { FleetResult, ShipCatalogEntry } from "./fleet";
+export type { AcceptResult, EmergencyResult, Arrival, Block, BlockCode, RefuelResult, TravelProgress } from "./rules";
 export { Game } from "./game";
 export type { BoardEntry, GameListener } from "./game";

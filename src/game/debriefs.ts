@@ -13,3 +13,31 @@ export const DEBRIEF_LINES: string[] = [
   "Cargo bay empty, wallet fuller. The ship hums a little tune.",
   "The paperwork for the {item} was longer than the flight itself.",
 ];
+
+// Lines for passenger jobs. {amount} = how many people, {item} = the group, {place} = where you arrived.
+export const PASSENGER_DEBRIEF_LINES: string[] = [
+  "The {item} left the ship in a much better mood than they boarded. Nobody mentions the snack incident.",
+  "{amount} {item} waved goodbye at {place}. One of them left a very small tip.",
+  "The {item} rated the flight five stars. Two of those stars were for the legroom.",
+  "At {place} the {item} asked if the ship could also go back. It can. It will cost extra.",
+  "All {amount} passengers arrived. Most of the luggage arrived with them.",
+  "The {item} sang the whole way. You now know all the words.",
+];
+
+// Lines for tours. {stops} = the places you "visited" on the way, {place} = the last stop.
+export const TOUR_DEBRIEF_LINES: string[] = [
+  "Tour complete! You waved at {stops} on the way to {place}. The guests took 400 photos.",
+  "The {item} saw {stops} out of the window and declared the tour a triumph. {place} was the finale.",
+  "Everyone clapped at {place}. Along the way: {stops}. The gift shop was imaginary but the souvenirs are real.",
+  "Scenic route done: {stops}, then {place}. The {item} want a refund and a second helping.",
+  "You flew straight to {place}, but the commentary covered {stops} very convincingly.",
+];
+
+// Lines for the free emergency refuel. {amount} = fuel given.
+export const EMERGENCY_LINES: string[] = [
+  "The dock manager feels sorry for you and tops up {amount} fuel. \"Don't tell anyone,\" she says.",
+  "A kind mechanic rolls over a barrel and pours in {amount} fuel. \"On the house,\" he sighs.",
+  "The dockmaster squints at your empty tank and gives you {amount} fuel. \"Go earn something,\" he says.",
+  "A tiny robot trundles up with {amount} fuel and a look of pity. It beeps softly.",
+  "You get {amount} free fuel and a pat on the hull. The dock cat watches, unimpressed.",
+];

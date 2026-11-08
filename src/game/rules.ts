@@ -1,8 +1,9 @@
 // The game rules as plain functions. Each takes the state (and the time) and gives back a NEW state.
 // No drawing, no clock, no browser in here, so everything is easy to test.
 
-import { DEBRIEF_LINES } from "./debriefs";
+import { DEBRIEF_LINES, EMERGENCY_LINES, PASSENGER_DEBRIEF_LINES, TOUR_DEBRIEF_LINES } from "./debriefs";
 import {
+  EMERGENCY_REFUEL_AMOUNT,
   FUEL_PER_LY,
   MAX_TRIP_SECONDS,
   MIN_FUEL_PER_TRIP,
@@ -63,7 +64,7 @@ export function checkJob(state: GameState, job: Job): Block | null {
 
   const need = fuelCost(job.totalDistance);
   if (need > ship.fuelTankSize) {
-    return { code: "tank-too-small", text: `Needs ${need} fuel but your tank only holds ${ship.fuelTankSize}.` };
+    return { code: "tank-too-small", text: `Too far for this ship's tank: needs ${need} fuel, the tank holds ${ship.fuelTankSize}.` };
   }
   if (need > state.fuel) {
     return { code: "not-enough-fuel", text: `Not enough fuel: needs ${need}, you have ${state.fuel}. Refuel first.` };
@@ -114,13 +115,18 @@ export interface Arrival {
   debrief: string;
 }
 
-/** Picks the debrief line for a job (the same job always gets the same line). */
-export function debriefFor(job: Job, placeName: string): string {
-  const line = DEBRIEF_LINES[hashString(job.id) % DEBRIEF_LINES.length] ?? "Delivery complete.";
+/**
+ * Picks the debrief line for a job (the same job always gets the same line). Goods, passenger and tour jobs
+ * each have their own lines. `stopNames` = the stops before the last one (tours), as text.
+ */
+export function debriefFor(job: Job, placeName: string, stopNames = ""): string {
+  const lines = job.kind === "TOUR" ? TOUR_DEBRIEF_LINES : job.kind === "PASSENGER" ? PASSENGER_DEBRIEF_LINES : DEBRIEF_LINES;
+  const line = lines[hashString(job.id) % lines.length] ?? "Delivery complete.";
   return line
     .split("{item}").join(job.itemName)
     .split("{amount}").join(String(job.amount))
-    .split("{place}").join(placeName);
+    .split("{place}").join(placeName)
+    .split("{stops}").join(stopNames);
 }
 
 /**
@@ -135,6 +141,8 @@ export function settleArrival(
   const job = state.currentJob;
   if (!job || state.travelEndMs === null || nowMs < state.travelEndMs) return { state, arrival: null };
   const dockId = job.destinationDockId;
+  // Tours fly straight to the last stop; the stops on the way are only flavor text for the debrief.
+  const stopNames = job.stops.slice(0, -1).map(placeNameOf).join(" and ");
   return {
     state: {
       ...state,
@@ -144,7 +152,7 @@ export function settleArrival(
       travelStartMs: null,
       travelEndMs: null,
     },
-    arrival: { job, reward: job.reward, dockId, debrief: debriefFor(job, placeNameOf(dockId)) },
+    arrival: { job, reward: job.reward, dockId, debrief: debriefFor(job, placeNameOf(dockId), stopNames) },
   };
 }
 
@@ -164,4 +172,45 @@ export function refuel(state: GameState): RefuelResult {
   if (units <= 0) return { ok: false, reason: "Not enough credits for any fuel." };
   const cost = units * REFUEL_PRICE_PER_UNIT;
   return { ok: true, units, cost, state: { ...state, fuel: state.fuel + units, credits: state.credits - cost } };
+}
+
+// ------------------------------------------------------------ safety net: stuck and emergency refuel
+
+/**
+ * "Stuck" = you are docked, no job on this board can be taken now, and not even spending ALL your credits
+ * on fuel would help, although at least one job fits your ship (cargo or cabin) and its tank. So it is
+ * only ever about fuel. Jobs blocked by cargo, cabin or tank size never make you "stuck".
+ */
+export function isStuck(state: GameState, jobs: readonly Job[]): boolean {
+  if (state.currentJob) return false;
+  const tank = getShip(state.shipId).fuelTankSize;
+  const affordable = Math.floor(Math.max(0, state.credits) / REFUEL_PRICE_PER_UNIT);
+  const bestFuel = Math.min(tank, state.fuel + affordable);
+  let fuelBlocked = false;
+  for (const job of jobs) {
+    const block = checkJob(state, job);
+    if (!block) return false; // you can take a job right now
+    if (block.code === "not-enough-fuel") {
+      fuelBlocked = true;
+      if (fuelCost(job.totalDistance) <= bestFuel) return false; // refuelling would fix it
+    }
+  }
+  return fuelBlocked;
+}
+
+export type EmergencyResult =
+  | { ok: true; state: GameState; units: number; line: string }
+  | { ok: false; reason: string };
+
+/** Free fuel, but ONLY while stuck. Gives EMERGENCY_REFUEL_AMOUNT (never above the tank). Credits never change. */
+export function emergencyRefuel(state: GameState, jobs: readonly Job[]): EmergencyResult {
+  if (!isStuck(state, jobs)) {
+    return { ok: false, reason: "You are not stuck. Take a job, or buy fuel with your credits." };
+  }
+  const tank = getShip(state.shipId).fuelTankSize;
+  const units = Math.min(EMERGENCY_REFUEL_AMOUNT, tank - state.fuel);
+  if (units <= 0) return { ok: false, reason: "The tank is already full." };
+  const pick = hashString(`${state.currentDockId}|${state.fuel}|${state.credits}`) % EMERGENCY_LINES.length;
+  const line = (EMERGENCY_LINES[pick] ?? "Free fuel.").split("{amount}").join(String(units));
+  return { ok: true, units, line, state: { ...state, fuel: state.fuel + units } };
 }

@@ -2,12 +2,15 @@
 // Rules live in rules.ts; this file only connects them to the universe and the clock.
 
 import { getDock, getJobBoard, getSystem, type Job, type Seed } from "../universe";
+import { buyShip, shipCatalog, switchShip, type ShipCatalogEntry } from "./fleet";
 import type { GameClock } from "./clock";
 import { slotOf } from "./clock";
 import {
   acceptJob,
   checkJob,
+  emergencyRefuel,
   fuelCost,
+  isStuck,
   refuel,
   settleArrival,
   travelProgress,
@@ -16,7 +19,7 @@ import {
   type Block,
   type TravelProgress,
 } from "./rules";
-import { newGameState, type GameState } from "./state";
+import { newGameState, normalizeState, type GameState } from "./state";
 
 /** One line of the mission board. */
 export interface BoardEntry {
@@ -93,6 +96,53 @@ export class Game {
     this.state = result.state;
     this.changed();
     return { ok: true };
+  }
+
+  /** Is the player stuck (no job takeable even after spending all credits on fuel, because of fuel)? */
+  isStuck(): boolean {
+    if (this.state.currentJob) return false;
+    return isStuck(this.state, getJobBoard(this.seed, this.state.currentDockId, this.currentSlot()) ?? []);
+  }
+
+  /** Free fuel. Works only when stuck. Returns the funny line, or the reason it did not work. */
+  emergencyRefuel(): { ok: true; units: number; line: string } | { ok: false; reason: string } {
+    if (this.state.currentJob) return { ok: false, reason: "You can only do this while docked." };
+    const jobs = getJobBoard(this.seed, this.state.currentDockId, this.currentSlot()) ?? [];
+    const result = emergencyRefuel(this.state, jobs);
+    if (!result.ok) return result;
+    this.state = result.state;
+    this.changed();
+    return { ok: true, units: result.units, line: result.line };
+  }
+
+  /** The shipyard list: each ship with owned, active, canBuy and the reason it cannot be bought. */
+  getShipCatalog(): ShipCatalogEntry[] {
+    return shipCatalog(this.state);
+  }
+
+  /** Buy a ship (any dock, not in flight). Does not switch to it. */
+  buyShip(id: string): { ok: true } | { ok: false; reason: string } {
+    const result = buyShip(this.state, id);
+    if (!result.ok) return result;
+    this.state = result.state;
+    this.changed();
+    return { ok: true };
+  }
+
+  /** Switch the active ship (free, docked only). */
+  switchShip(id: string): { ok: true } | { ok: false; reason: string } {
+    const result = switchShip(this.state, id);
+    if (!result.ok) return result;
+    this.state = result.state;
+    this.changed();
+    return { ok: true };
+  }
+
+  /** Replace the state with saved data (old saves without ownedShips get sensible defaults). */
+  loadState(raw: Partial<GameState> & { currentDockId: string }): void {
+    this.state = normalizeState(raw);
+    this.lastArrival = null;
+    this.changed();
   }
 
   /** Checks the clock. If the trip is over: pays, moves, clears the job. Returns the arrival (or null). */
