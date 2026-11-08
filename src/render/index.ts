@@ -7,7 +7,7 @@
 //   api.state.subscribe((s) => ...)    // be told when something changes
 
 import type * as THREE from "three";
-import { getSystem } from "../universe";
+import { getSystem, type StarSystem } from "../universe";
 import { Hud } from "./hud";
 import { cameraFov, parseSeedParam, renderSizeFor } from "./helpers";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
@@ -25,6 +25,8 @@ export interface RenderApi {
   state: StateStore;
   showStarmap(): void;
   showSystem(systemId: string): void;
+  /** Move the "you are here" system (the starmap ring and label follow). Used by the game on arrival. */
+  setCurrentSystem(systemId: string): void;
 }
 
 export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement): RenderApi {
@@ -43,14 +45,17 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
     screen.enter();
   }
 
-  const starmap = new StarMapScreen({
-    seed,
-    host: canvas,
-    hud,
-    state,
-    current,
-    onOpenSystem: (id) => api.showSystem(id),
-  });
+  function makeStarmap(here: StarSystem): StarMapScreen {
+    return new StarMapScreen({
+      seed,
+      host: canvas,
+      hud,
+      state,
+      current: here,
+      onOpenSystem: (id) => api.showSystem(id),
+    });
+  }
+  let starmap = makeStarmap(current);
   const systemView = new SystemViewScreen({
     seed,
     host: canvas,
@@ -64,6 +69,19 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement):
     showStarmap(): void {
       state.set({ screen: "starmap", viewedSystemId: null, selectedPlanetId: null });
       show(starmap);
+    },
+    setCurrentSystem(systemId: string): void {
+      const here = getSystem(seed, systemId);
+      if (!here || here.id === state.get().currentSystemId) return;
+      const wasShowing = active === starmap;
+      if (wasShowing) {
+        starmap.exit();
+        active = null;
+      }
+      starmap = makeStarmap(here); // the map is centered on the current system, so build a new one
+      resize(); // give the new map the right camera shape
+      state.set({ currentSystemId: here.id, selectedSystemId: null });
+      if (wasShowing) show(starmap);
     },
     showSystem(systemId: string): void {
       if (!getSystem(seed, systemId) || !systemView.open(systemId)) return;

@@ -1,0 +1,116 @@
+/* TEMPORARY trade panel (Agent 5 replaces it). It sits on the right, under the starmap title,
+   and above the bottom label, so it does not cover the starmap labels. Use Hide to fold it away. */
+.trade-panel {
+  position: fixed;
+  top: max(34px, calc(env(safe-area-inset-top) + 28px));
+  right: 8px;
+  width: min(380px, calc(100vw - 16px));
+  box-sizing: border-box;
+  z-index: 10;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #d7dcff;
+  background: rgba(5, 6, 13, 0.88);
+  border: 2px solid #2a3170;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.tp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+.tp-summary {
+  font-weight: bold;
+}
+
+.tp-body {
+  max-height: calc(100vh - 210px);
+  max-height: calc(100dvh - 210px);
+  overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 8px 8px;
+  border-top: 1px solid #2a3170;
+}
+
+.trade-panel.tp-collapsed .tp-body {
+  display: none;
+}
+
+.trade-panel button {
+  font: inherit;
+  font-weight: bold;
+  color: #05060d;
+  background: #7fe7ff;
+  border: 2px solid #d7f6ff;
+  padding: 8px 12px;
+  min-height: 40px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.trade-panel button:disabled {
+  color: #6a7094;
+  background: #1a1e3a;
+  border-color: #2a3170;
+  cursor: default;
+}
+
+.tp-section {
+  margin-top: 8px;
+}
+
+.tp-heading {
+  color: #7fe7ff;
+  font-weight: bold;
+}
+
+.tp-debrief {
+  padding: 6px;
+  border: 1px dashed #5dff7a;
+  color: #b9ffc6;
+}
+
+.tp-notice {
+  color: #ffd27f;
+}
+
+.tp-jobs {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.tp-job {
+  margin-bottom: 6px;
+  padding: 6px;
+  border: 1px solid #2a3170;
+}
+
+.tp-job.tp-blocked {
+  opacity: 0.7;
+}
+
+.tp-job-title {
+  font-weight: bold;
+}
+
+.tp-blurb {
+  color: #aab2e8;
+  font-style: italic;
+  margin: 2px 0 4px;
+}
+
+.tp-reason {
+  color: #ff9a8a;
+}
+
+.tp-progress {
+  width: 100%;
+}
