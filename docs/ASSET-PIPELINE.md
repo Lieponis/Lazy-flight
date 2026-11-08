@@ -21,7 +21,7 @@ Owner: Project Lead. Designer: Agent 8 (Asset Design). Approver of looks: Andy.
 | S2 Outposts | Agent 8 | approved style | 4 outpost variants with surface tint by planet colour | Andy: keep / change per variant (max 2 rounds) |
 | S3 Stations | Agent 8 | approved style | 4 station variants | Andy: keep / change per variant (max 2 rounds) |
 | S4 Lead check | Lead | catalog, tests, viewer | assets marked APPROVED; budgets and layer rule checked | Actions green |
-| S5 Integration | Agent 3 (part 3d) | APPROVED assets | docked, system, flight and starmap scenes use registry assets and anchors; old rough shapes removed | Andy click-test |
+| S5 Integration | Agent 3 (part 3d); pixel look is part 3e | APPROVED assets | docked, system, flight and starmap scenes use registry assets and anchors; old rough shapes removed | Andy click-test |
 | S6 Game data | Agent 4 (part 4b) | ship asset IDs | ship definitions use the same IDs | tests, Andy click-test |
 | S7 Screens | Agent 5 (part 5b) | catalog names and descriptions | Shipyard shows names, descriptions and optional preview | Andy click-test |
 | S8 Checks | Agent 6 | polygon and performance budgets | frame-rate and regression checks | Agent 6 report |

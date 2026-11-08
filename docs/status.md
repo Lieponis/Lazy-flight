@@ -3,10 +3,11 @@
 **Last updated:** 2026-11-08
 
 ## Current phase
-M2 COMPLETE. Agent 5 part 5a DONE and VERIFIED (Agent 5 ran npm run check: build and 124 tests; Actions green; Andy's click-test B to H incl. a real phone). Status strip, bottom bar (JOBS / MAP, SYSTEM | GALAXY | CLOSE), Jobs menu, arrival card, VT323 pixel font. Temporary panel and temporary buttons removed.
-Agent 8 (Asset Design, Viewer and Debug) IN PROGRESS in parallel: style guide, viewer /models.html, problem checker and 3 ship drafts (revision 1) are in Andy's folder; outposts and stations to come.
-Next: Agent 4 part 4b (emergency refuel, 3 ships buy/switch, passengers and tours playable, /game-debug.html test page). Brief: docs/briefs/agent-4b-brief.md.
-Then: 5b Shipyard + emergency refuel button, 6a saving, 4c ranks + outposts, 3d integration of Agent 8 assets + pixel look, 7 polish.
+M2 COMPLETE. Done and verified: Agents 1, 2, 3a, 3b, 3c, 4a, 5a, and Agent 8 (Asset Design, Viewer and Debug).
+Agent 8 DONE (2026-11-08): style guide, 11 designs kept by Andy (3 ships, 4 outposts, 4 stations), viewer /models.html with debug tools, 19 new tests (123 in total), Agent 8 ran npm run check after every batch, Andy approved every batch after green Actions. Lead check S4 passed (all triangle counts inside budgets: ships 540-684 of 1000, outposts 544-1048 of 1500, stations 854-1374 of 2500; all 11 IDs in the registry). Catalog statuses set to APPROVED.
+Not verified for Agent 8: frame rate on a real phone, viewer on a real phone.
+IN PROGRESS: Agent 4 part 4b (brief docs/briefs/agent-4b-brief.md): emergency refuel, 3 ships, passengers and tours, /game-debug.html.
+NEXT (can run in parallel with 4b, different files): Agent 3 part 3d = put Agent 8's designs into the docked view, system view and flight (brief docs/briefs/agent-3d-brief.md). Then 3e pixel look and cockpit redo, 5b Shipyard + emergency refuel button, 6a saving, 4c ranks + outposts, 7 polish.
 
 ## What works
 - Live pixelated spinning cube (desktop and phone confirmed by Andy). Auto-publish via GitHub Actions. One command: npm run check.
@@ -44,7 +45,7 @@ Then: 5b Shipyard + emergency refuel button, 6a saving, 4c ranks + outposts, 3d 
 - Note: docs/report-agent-2.md still says "not verified". This status file supersedes it.
 
 ## Known issues
-- Stale files src/ui/panel.ts and panel.css still exist in Andy's folder (Agent 5 deleted them but copying does not delete). Andy deletes them in his next commit.
+- (Fixed) Stale panel.ts and panel.css were removed from Andy's folder.
 - Tours in v1 fly straight to the final stop (decision for 4b); per-stop flights later.
 - Flight HUD still uses its old font (suggestion: VT323 for consistency).
 - Expanded trade panel can cover the docked view on a phone (starts folded there). Agent 5 replaces it.
@@ -80,7 +81,9 @@ Then: 5b Shipyard + emergency refuel button, 6a saving, 4c ranks + outposts, 3d 
 - New agent 8 (Asset Design, Viewer and Debug): also builds the /models.html viewer with debug tools (wireframe, ruler, anchors, budgets, problem checker, variant grid, compare, shareable addresses, copy-problem-report) and fixes asset defects. Full brief in docs/briefs/agent-8-brief.md (Andy pastes a one-line pointer). Designs ships (3 classes), outposts (4 variants) and stations (4 variants) as code-built low-poly models plus a viewer page (models.html). Pipeline and rules in docs/ASSET-PIPELINE.md. Agent 8 never edits existing game files; integration is done by Agent 3 part 3d after Lead approval. May run in parallel with Agent 5a (different files); Andy commits one delivery at a time and waits for a green tick.
 - Working method: agents give Andy ONE small step per message (do / look for / reply with). Files delivered as one zip, committed through GitHub Desktop.
 
-- Agent 3 split: 3b flight view (render must not import game; wiring through src/ui glue), 3d pixel look polish (3c is now the docked view). Cockpit frame is simple geometry in 3b.
+- Agent 3 plan now: 3d integrates Agent 8's approved designs (docked, system view, flight, ship by id with ?ship= testing aid; docked camera INSIDE the station bay, Andy's choice), 3e = pixel look and cockpit frame redo. Old shape functions stay exported for the viewer's compare.
+- Agent 8 decisions by Andy: no funny touches on ships or stations (outposts subtle ones); ship budget 1000; station bay 11 x 6.5 x 13.
+- Agent 3 earlier split: 3b flight view (render must not import game; wiring through src/ui glue), 3d pixel look polish (3c is now the docked view). Cockpit frame is simple geometry in 3b.
 - Agent 4 order and scope: 4a before 3b. 4a = trade jobs only. Trade jobs are contracts for v1: cargo is provided, reward paid on delivery. Buying and selling goods on the open market is a later suggestion. Starter ship has a cargo bay only, so passenger and tour jobs are blocked until a ship with a cabin exists (4b/Agent 5/6 phase).
 - Job time limits (12 to 48 h) are not enforced in 4a (all trips are at most 4 h).
 - 4b defaults (Lead): ships cargo-hauler (30 cargo, 0 cabin, tank 60), passenger-liner (6 cargo, 12 cabin, tank 70, price 1500), scout (10 cargo, 2 cabin, tank 110, price 1200). Own several, buy at any dock when no job, switch free, each ship keeps its own fuel, no selling. Ship IDs use hyphens and match Agent 8's models.
@@ -92,6 +95,10 @@ Permanently: free flight, combat.
 v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, more than 3 ships/ranks, full-galaxy map.
 
 ## Next step
-1. Andy deletes src/ui/panel.ts and src/ui/panel.css in the next commit.
-2. Agent 4 part 4b: Andy attaches agent-4b-package.zip and pastes the one-line pointer.
-3. Agent 8 continues (reports back after each batch).
+1. Andy continues the Agent 4 part 4b chat (if started) and reports back.
+2. Agent 3 part 3d: new chat, attach agent-3d-package.zip, paste the one-line pointer.
+3. Commit each delivery separately and wait for a green tick.
+
+
+## Known issue (4b)
+- Balance: 29 of 44 sample tours need more fuel than the Passenger Liner tank (70). Lead suggestion: raise Liner tank to 100 in ships.ts, or decide in 4c balance pass. Andy to decide.
