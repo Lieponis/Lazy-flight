@@ -17,7 +17,11 @@ import {
   relativeToParking,
   resolveShipId,
   rotateY,
+  stationExitPose,
+  stationExitTransform,
   stationModelFor,
+  stationPlanetCentre,
+  exitPitch,
 } from '../src/render/integration';
 import { OUTPOST_IDS, STATION_IDS } from '../src/render/assets/pickers';
 import { BAY_SIZE, FLAME_FLYING, FLAME_PARKED, FLAME_WARP } from '../src/render/assets/style';
@@ -221,5 +225,60 @@ describe('flight: camera inside a station bay', () => {
     expect(approachCameraBlend(60)).toBe(0);
     expect(approachCameraBlend(30)).toBe(1);
     expect(approachCameraBlend(0)).toBe(1);
+  });
+});
+
+describe('leaving a station along the planet', () => {
+  const e = { distance: 260, straight: 20, growth: 0.5 };
+  const r0 = 330;
+  it('starts in the bay and goes straight out of the slot first', () => {
+    const start = stationExitPose(0, r0, e);
+    expect(start.slide).toBe(0);
+    expect(start.pitch).toBe(0);
+    expect(Math.abs(start.pos.z)).toBe(0);
+    // Early in the launch (before the straight part ends) the ship has not turned at all and has not left the height of the floor.
+    const early = stationExitPose(0.25, r0, e); // 260 * 0.0625 = 16 units
+    expect(early.pitch).toBe(0);
+    expect(Math.abs(early.pos.y)).toBeLessThan(1e-9);
+    expect(early.pos.z).toBeLessThan(-15);
+  });
+  it('then turns slowly towards the planet, more and more, but never a full circle', () => {
+    let last = -1;
+    for (let p = 0; p <= 1.0001; p += 0.1) {
+      const pose = stationExitPose(p, r0, e);
+      expect(pose.pitch).toBeGreaterThan(last - 1e-12);
+      last = pose.pitch;
+    }
+    expect(last).toBeGreaterThan(0.1);
+    expect(last).toBeLessThan(1.5);
+  });
+  it('keeps the orbit getting wider (the turn rate falls)', () => {
+    const rate = (s: number): number => exitPitch(s + 1, r0, e) - exitPitch(s, r0, e);
+    expect(rate(30)).toBeGreaterThan(rate(100));
+    expect(rate(100)).toBeGreaterThan(rate(250));
+  });
+  it('stays above the planet all the way', () => {
+    const centre = stationPlanetCentre(300, 30, e.straight);
+    for (let p = 0; p <= 1.0001; p += 0.05) {
+      const pose = stationExitPose(p, r0, e);
+      const d = Math.hypot(pose.pos.y - centre.y, pose.pos.z - centre.z);
+      expect(d).toBeGreaterThan(300);
+    }
+  });
+  it('puts the planet straight below the station so the slot points along its surface', () => {
+    const c = stationPlanetCentre(300, 30, 20);
+    expect(c.x).toBe(0);
+    expect(c.y).toBe(-330);
+    expect(c.z).toBe(-20);
+  });
+  it('moves the station so the ship ends up at its place', () => {
+    const pose = stationExitPose(0.8, r0, e);
+    const t = stationExitTransform(pose);
+    // Turn the ship's place by the same angle and move: it must land on the origin (where the ship is).
+    const c = Math.cos(t.rotX);
+    const s = Math.sin(t.rotX);
+    const landed = { y: pose.pos.y * c - pose.pos.z * s + t.position.y, z: pose.pos.y * s + pose.pos.z * c + t.position.z };
+    expect(Math.abs(landed.y)).toBeLessThan(1e-9);
+    expect(Math.abs(landed.z)).toBeLessThan(1e-9);
   });
 });
