@@ -125,3 +125,30 @@ export const FLIGHT_BAY_CAMERA = { x: 3.2, y: 3.4, z: 4.8 };
 /** Flight view: the camera shakes a little before the jump (strength in scene units), building up from this point of the launch (0 to 1) to full at the flash. */
 export const FLIGHT_SHAKE_STRENGTH = 0.1;
 export const FLIGHT_SHAKE_START = 0.5;
+
+/**
+ * Leaving an OUTPOST (Andy's drawing). The ship is always along its path.
+ *   1. It lifts off slowly and goes forward; the nose starts to tilt up after `tiltStart` units and is at `tilt` radians (0.8 = 46 degrees) after `tiltEnd`.
+ *   2. A little faster until `t1` seconds (`v1` units per second), then it speeds up until `t2` (`v2`).
+ *   3. It flies the angled line, a bit faster, until `t3` (`v3`) and `curveStart` units.
+ *   4. Then it curves into an orbit away from the planet, until `curveEnd` units, then flies straight (`curveRadius` = how tight it starts, `growth` = how fast the orbit widens),
+ *      speeding up more and more (the speed multiplies by e every `speedUpSeconds`).
+ * `seconds` = the launch length these numbers are made for; a squeezed launch (very short trips) plays the same picture faster.
+ */
+export const OUTPOST_EXIT = {
+  seconds: 10,
+  tiltStart: 2,
+  tiltEnd: 25,
+  tilt: 0.8,
+  t1: 3,
+  v1: 8,
+  t2: 4.2,
+  v2: 40,
+  t3: 6,
+  v3: 52,
+  curveStart: 125,
+  curveEnd: 520,
+  curveRadius: 300,
+  growth: 0.5,
+  speedUpSeconds: 0.9,
+};

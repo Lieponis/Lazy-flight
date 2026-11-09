@@ -284,3 +284,69 @@ export function shakeOffset(t: number, amount: number): Vec3 {
     z: a * 0.5 * (Math.sin(t * 41.9 + 0.7) + Math.sin(t * 36.1 + 2.6)),
   };
 }
+
+// ------------------------------------------------------------------ leaving an outpost (lift off, tilt, angled line, curve into orbit)
+
+export interface OutpostExitSettings {
+  seconds: number;
+  tiltStart: number;
+  tiltEnd: number;
+  /** The nose-up angle of the angled line, in radians. */
+  tilt: number;
+  t1: number;
+  v1: number;
+  t2: number;
+  v2: number;
+  t3: number;
+  v3: number;
+  curveStart: number;
+  /** The turning stops here; after it the ship flies straight along its last heading. */
+  curveEnd: number;
+  curveRadius: number;
+  growth: number;
+  speedUpSeconds: number;
+}
+
+/** How far the ship has flown at progress p of the launch. Slow, then faster, then the angled line, then faster and faster. */
+export function outpostExitDistance(p: number, e: OutpostExitSettings): number {
+  const t = clamp(p, 0, 1) * e.seconds;
+  if (t <= e.t1) return (0.5 * e.v1 * t * t) / e.t1;
+  const s1 = 0.5 * e.v1 * e.t1;
+  if (t <= e.t2) {
+    const u = t - e.t1;
+    const a = (e.v2 - e.v1) / (e.t2 - e.t1);
+    return s1 + e.v1 * u + 0.5 * a * u * u;
+  }
+  const s2 = s1 + ((e.v1 + e.v2) / 2) * (e.t2 - e.t1);
+  if (t <= e.t3) {
+    const u = t - e.t2;
+    const a = (e.v3 - e.v2) / (e.t3 - e.t2);
+    return s2 + e.v2 * u + 0.5 * a * u * u;
+  }
+  const s3 = s2 + ((e.v2 + e.v3) / 2) * (e.t3 - e.t2);
+  return s3 + e.v3 * e.speedUpSeconds * (Math.exp((t - e.t3) / e.speedUpSeconds) - 1);
+}
+
+/** The nose-up angle (radians) after flying `s` units: flat, tilting up, the angled line, then curving back down into the orbit. */
+export function outpostExitHeading(s: number, e: OutpostExitSettings): number {
+  if (s <= e.tiltStart) return 0;
+  if (s < e.tiltEnd) return e.tilt * smoothstep((s - e.tiltStart) / (e.tiltEnd - e.tiltStart));
+  if (s <= e.curveStart) return e.tilt;
+  const d = Math.min(s, e.curveEnd) - e.curveStart;
+  return e.tilt - (e.growth > 1e-9 ? Math.log(1 + (e.growth * d) / e.curveRadius) / e.growth : d / e.curveRadius);
+}
+
+/** Where the ship is, relative to its pad (forward is -Z, up is +Y), and how its nose is turned (`pitch` is nose-DOWN positive, like the station launch). */
+export function outpostExitPose(p: number, e: OutpostExitSettings): ExitPose {
+  const slide = outpostExitDistance(p, e);
+  const steps = 240;
+  const ds = slide / steps;
+  let y = 0;
+  let z = 0;
+  for (let i = 0; i < steps; i++) {
+    const h = outpostExitHeading((i + 0.5) * ds, e);
+    z -= Math.cos(h) * ds;
+    y += Math.sin(h) * ds;
+  }
+  return { slide, pitch: -outpostExitHeading(slide, e), pos: { x: 0, y, z } };
+}

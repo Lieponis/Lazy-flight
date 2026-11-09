@@ -12,6 +12,9 @@ import {
   launchCameraBlend,
   launchOffset,
   exitDistance,
+  outpostExitDistance,
+  outpostExitHeading,
+  outpostExitPose,
   shakeAmount,
   shakeOffset,
   outpostFraming,
@@ -29,7 +32,7 @@ import {
 import { OUTPOST_IDS, STATION_IDS } from '../src/render/assets/pickers';
 import { BAY_SIZE, FLAME_FLYING, FLAME_PARKED, FLAME_WARP } from '../src/render/assets/style';
 import { camPosition } from '../src/render/dockedcam';
-import { DOCKED_BAY_MARGIN, STATION_EXIT } from '../src/render/settings';
+import { DOCKED_BAY_MARGIN, OUTPOST_EXIT, STATION_EXIT } from '../src/render/settings';
 
 describe('which ship is drawn', () => {
   it('uses the ids of the three ship designs', () => {
@@ -345,5 +348,66 @@ describe('camera shake before the jump', () => {
       expect(Math.abs(o.z)).toBeLessThanOrEqual(0.1);
     }
     expect(Math.abs(shakeOffset(1.234, 0).x)).toBe(0);
+  });
+});
+
+describe('leaving an outpost', () => {
+  const e = OUTPOST_EXIT;
+  const R = 150; // the planet under the pad
+  const centreY = -R - 0.5;
+  const pose = (p: number) => outpostExitPose(p, e);
+  const away = (p: number): number => Math.hypot(pose(p).pos.y - centreY, pose(p).pos.z);
+
+  it('starts on the pad, slowly: very little distance in the first second', () => {
+    expect(pose(0).slide).toBe(0);
+    expect(outpostExitDistance(0.1, e)).toBeLessThan(3); // 1 second
+    expect(outpostExitHeading(1, e)).toBe(0); // still level: the lift starts flat
+  });
+  it('tilts up gradually, then holds an angled line, then curves down into the orbit', () => {
+    expect(outpostExitHeading(30, e)).toBeCloseTo(e.tilt, 9);
+    expect(outpostExitHeading(e.curveStart, e)).toBeCloseTo(e.tilt, 9);
+    let last = -1;
+    for (let s = 0; s <= e.tiltEnd; s += 1) {
+      const h = outpostExitHeading(s, e);
+      expect(h).toBeGreaterThan(last - 1e-12);
+      last = h;
+    }
+    expect(outpostExitHeading(400, e)).toBeLessThan(e.tilt);
+    expect(outpostExitHeading(e.curveEnd, e)).toBeGreaterThan(-1);
+    expect(outpostExitHeading(e.curveEnd + 3000, e)).toBeCloseTo(outpostExitHeading(e.curveEnd, e), 9); // no more turning after the curve
+  });
+  it('speeds up a little, then more, then the angled line, then faster and faster, with no jumps in speed', () => {
+    const v = (t: number): number => (outpostExitDistance((t + 0.01) / e.seconds, e) - outpostExitDistance(t / e.seconds, e)) / 0.01;
+    for (const t of [e.t1, e.t2, e.t3]) {
+      expect(Math.abs(v(t + 0.02) - v(t - 0.02)) / v(t)).toBeLessThan(0.15);
+    }
+    expect(v(2)).toBeGreaterThan(v(1));
+    expect(v(3.6)).toBeGreaterThan(v(3.1));
+    expect(v(8)).toBeGreaterThan(v(6.5));
+    expect(v(9.5)).toBeGreaterThan(v(8));
+  });
+  it('goes up and forward, never below the pad, and never into the planet', () => {
+    for (let p = 0; p <= 1.0001; p += 0.02) {
+      if (p <= 0.85) expect(pose(p).pos.y).toBeGreaterThan(-1e-9); // up until the flash
+      expect(away(p)).toBeGreaterThan(R);
+    }
+  });
+  it('is flying away from the planet at the end (further every moment)', () => {
+    let last = 0;
+    for (let p = 0.7; p <= 1.0001; p += 0.05) {
+      expect(away(p)).toBeGreaterThan(last);
+      last = away(p);
+    }
+    expect(away(0.8)).toBeGreaterThan(500);
+  });
+  it('turns the dock the right way: the ship ends up at its place', () => {
+    for (const p of [0.2, 0.5, 0.9]) {
+      const q = pose(p);
+      const t = stationExitTransform(q);
+      const c = Math.cos(t.rotX);
+      const s = Math.sin(t.rotX);
+      expect(Math.abs(q.pos.y * c - q.pos.z * s + t.position.y)).toBeLessThan(1e-6);
+      expect(Math.abs(q.pos.y * s + q.pos.z * c + t.position.z)).toBeLessThan(1e-6);
+    }
   });
 });

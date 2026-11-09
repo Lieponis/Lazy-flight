@@ -32,7 +32,7 @@ import {
   approachOffset,
   flameLength,
   launchCameraBlend,
-  launchOffset,
+  outpostExitPose,
   lerp3,
   orbitPosition,
   stationExitPose,
@@ -49,6 +49,7 @@ import {
   DOCKED_GROUND_DETAIL,
   DOCKED_GROUND_RADIUS,
   FLIGHT_STATION_PLANET_ALTITUDE,
+  OUTPOST_EXIT,
   DOCKED_STATION_PLANET_DETAIL,
   DOCKED_STATION_PLANET_RADIUS,
   FLIGHT_APPROACH_FROM_OUTPOST,
@@ -56,7 +57,6 @@ import {
   FLIGHT_APPROACH_SECONDS,
   FLIGHT_BAY_CAMERA,
   FLIGHT_DOCKED_HOLD_SECONDS,
-  FLIGHT_LAUNCH_FAR,
   FLIGHT_LAUNCH_SECONDS,
   FLIGHT_LINE_SECONDS,
   FLIGHT_MIN_WARP_SECONDS,
@@ -288,17 +288,14 @@ export class FlightScreen implements Screen {
 
     // The docks slide past the ship. The ship's parking spot and the dock's parking spot are the same point at the two ends.
     if (phase === "LAUNCH" && this.origin) {
-      if (this.origin.isStation) {
-        // Straight out of the slot (along the planet's surface), then round the planet in a widening orbit.
-        const pose = stationExitPose(p, DOCKED_STATION_PLANET_RADIUS + FLIGHT_STATION_PLANET_ALTITUDE, STATION_EXIT);
-        const t = stationExitTransform(pose);
-        this.origin.group.rotation.x = t.rotX;
-        this.origin.group.position.set(t.position.x, t.position.y, t.position.z);
-        this.origin.slide = pose.slide;
-      } else {
-        const o = launchOffset(p, FLIGHT_LAUNCH_FAR);
-        this.origin.group.position.set(o.x, o.y, o.z);
-      }
+      // Station: straight out of the slot, then round the planet. Outpost: lift off, tilt, angled line, then curve into orbit.
+      const pose = this.origin.isStation
+        ? stationExitPose(p, DOCKED_STATION_PLANET_RADIUS + FLIGHT_STATION_PLANET_ALTITUDE, STATION_EXIT)
+        : outpostExitPose(p, OUTPOST_EXIT);
+      const t = stationExitTransform(pose);
+      this.origin.group.rotation.x = t.rotX;
+      this.origin.group.position.set(t.position.x, t.position.y, t.position.z);
+      this.origin.slide = pose.slide;
     } else if ((phase === "APPROACH" || phase === "DONE") && this.dest) {
       const o = approachOffset(phase === "DONE" ? 1 : p, this.dest.isStation ? FLIGHT_APPROACH_FROM_STATION : FLIGHT_APPROACH_FROM_OUTPOST);
       this.dest.group.position.set(o.x, o.y, o.z);
