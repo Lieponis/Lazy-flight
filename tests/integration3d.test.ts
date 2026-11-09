@@ -12,7 +12,9 @@ import {
   launchCameraBlend,
   launchOffset,
   exitDistance,
-  bayGlidePoint,
+  arrivalShakeAmount,
+  chaseBlend,
+  exitProgressForDistance,
   stationEntryState,
   stationEntryTransform,
   outpostExitDistance,
@@ -415,11 +417,16 @@ describe('leaving an outpost', () => {
   });
 });
 
-describe('arriving at a station (the departure backwards)', () => {
+describe('arriving at a station (the departure backwards, slower)', () => {
   const r0 = 180;
   const state = (p: number) => stationEntryState(p, r0, STATION_EXIT, STATION_ENTRY);
-  it('starts far away and ends exactly parked, facing the opening', () => {
-    expect(state(0).pose.slide).toBeGreaterThan(2000);
+  it('drops out of warp fairly close to the station, not at the far end of the departure', () => {
+    expect(state(0).pose.slide).toBeGreaterThan(STATION_ENTRY.startDistance * 0.98);
+    expect(state(0).pose.slide).toBeLessThan(STATION_ENTRY.startDistance * 1.02);
+    expect(exitProgressForDistance(5, STATION_EXIT)).toBeGreaterThan(0);
+    expect(exitDistance(exitProgressForDistance(300, STATION_EXIT), STATION_EXIT)).toBeCloseTo(300, 3);
+  });
+  it('ends exactly parked, facing the opening', () => {
     const end = state(1);
     expect(Math.abs(end.pose.slide)).toBeLessThan(1e-9);
     expect(end.yaw).toBeCloseTo(0, 9);
@@ -435,6 +442,12 @@ describe('arriving at a station (the departure backwards)', () => {
       last = state(p).pose.slide;
     }
   });
+  it('is slower than the departure was: it takes the whole approach to cover less ground', () => {
+    // the arrival speed at the start (units per share of the approach) is lower than the departure speed at its end
+    const arrive = state(0).pose.slide - state(0.01).pose.slide;
+    const depart = exitDistance(1, STATION_EXIT) - exitDistance(0.99, STATION_EXIT);
+    expect(arrive).toBeLessThan(depart);
+  });
   it('is stopped in the bay when it turns round, and turns smoothly to face the opening', () => {
     expect(Math.abs(state(STATION_ENTRY.pathShare).pose.slide)).toBeLessThan(1e-9);
     let yaw = Math.PI + 1e-9;
@@ -444,38 +457,16 @@ describe('arriving at a station (the departure backwards)', () => {
     }
     expect(state(STATION_ENTRY.turnEnd).yaw).toBeCloseTo(0, 9);
   });
-  it('lands the ship on its place all the way (the ship never moves)', () => {
-    for (const p of [0, 0.3, 0.7, 0.9, 1]) {
-      const st = state(p);
-      const t = stationEntryTransform(st);
-      // the ship's spot in the station frame is pose.pos; turn it about X, move it, then turn about up
-      const c = Math.cos(t.rotX);
-      const s = Math.sin(t.rotX);
-      const xy = { x: st.pose.pos.x, y: st.pose.pos.y * c - st.pose.pos.z * s, z: st.pose.pos.y * s + st.pose.pos.z * c };
-      const moved = rotateY({ x: xy.x, y: xy.y, z: xy.z }, t.yaw);
-      const base = stationExitTransform(st.pose).position;
-      const landed = rotateY({ x: base.x, y: base.y, z: base.z }, t.yaw);
-      expect(Math.abs(moved.x + landed.x)).toBeLessThan(1e-6);
-      expect(Math.abs(moved.y + landed.y)).toBeLessThan(1e-6);
-      expect(Math.abs(moved.z + landed.z)).toBeLessThan(1e-6);
-    }
+  it('eases the camera in slowly from the orbit camera', () => {
+    expect(chaseBlend(0, 0.3)).toBe(0);
+    expect(chaseBlend(0.3, 0.3)).toBe(1);
+    expect(chaseBlend(0.05, 0.3)).toBeLessThan(0.1);
+    expect(chaseBlend(0.15, 0.3)).toBeCloseTo(0.5, 6);
   });
-  it('glides the camera to its resting spot, arcing over the ship', () => {
-    const start = { x: -2.4, y: 2.4, z: -6 };
-    const rest = { x: 3.2, y: 3.4, z: 4.8 };
-    const a = bayGlidePoint(start, rest, 0, 2.5);
-    expect(a.x).toBe(-2.4);
-    expect(a.y).toBeCloseTo(2.4, 9);
-    const end = bayGlidePoint(start, rest, 1, 2.5);
-    expect(end.x).toBeCloseTo(3.2, 9);
-    expect(end.y).toBeCloseTo(3.4, 9);
-    expect(end.z).toBeCloseTo(4.8, 9);
-    expect(bayGlidePoint(start, rest, 0.5, 2.5).y).toBeGreaterThan(2.9 + 2);
-  });
-  it('is the chase camera until the ship has stopped, then fixed in the bay', () => {
-    expect(state(0.5).chase).toBe(true);
-    expect(state(0.9).chase).toBe(false);
-    expect(state(0.5).glide).toBe(0);
-    expect(state(1).glide).toBeCloseTo(1, 9);
+  it('shakes hard as the ship drops out of warp and calms down', () => {
+    expect(arrivalShakeAmount(0, 1.8)).toBe(1);
+    expect(arrivalShakeAmount(0.9, 1.8)).toBeCloseTo(0.5, 6);
+    expect(arrivalShakeAmount(1.8, 1.8)).toBe(0);
+    expect(arrivalShakeAmount(10, 1.8)).toBe(0);
   });
 });

@@ -28,7 +28,10 @@ import type { Screen } from "./screen";
 import type { AssetModel } from "./assets";
 import {
   FALLBACK_SHIP_ID,
-  bayGlidePoint,
+  arrivalShakeAmount,
+  bayBoxWorld,
+  chaseBlend,
+  clampToBox,
   approachOffset,
   flameLength,
   launchCameraBlend,
@@ -44,10 +47,12 @@ import {
   rotateY,
   shakeAmount,
   shakeOffset,
+  type Box,
   type Vec3,
 } from "./integration";
 import { buildDockModel, buildShipModel, parkAtOrigin } from "./models3d";
 import {
+  DOCKED_BAY_MARGIN,
   DOCKED_GROUND_DETAIL,
   DOCKED_GROUND_RADIUS,
   FLIGHT_STATION_PLANET_ALTITUDE,
@@ -57,6 +62,8 @@ import {
   DOCKED_STATION_PLANET_RADIUS,
   FLIGHT_APPROACH_FROM_OUTPOST,
   FLIGHT_APPROACH_SECONDS,
+  FLIGHT_APPROACH_SECONDS_STATION,
+  FLIGHT_ARRIVAL_SHAKE_SECONDS,
   FLIGHT_BAY_CAMERA,
   FLIGHT_CHASE_CAMERA,
   FLIGHT_DOCKED_HOLD_SECONDS,
@@ -75,7 +82,7 @@ import { disposeAll, makePlanetMesh } from "./systemview";
 import { buildTunnel } from "./tunnel";
 import "./flight.css";
 
-const PHASES: PhaseSettings = {
+const BASE_PHASES: PhaseSettings = {
   launchSeconds: FLIGHT_LAUNCH_SECONDS,
   approachSeconds: FLIGHT_APPROACH_SECONDS,
   minWarpSeconds: FLIGHT_MIN_WARP_SECONDS,
@@ -105,6 +112,8 @@ interface Body {
   slide: number;
   /** Stations you arrive at: where the arrival is (set every frame). */
   entry: ReturnType<typeof stationEntryState> | null;
+  /** Stations: the room inside the bay, with the ship's parking spot as the middle (the camera is kept off its walls). */
+  bayBox: Box | null;
 }
 
 export interface FlightScreenOptions {
@@ -133,7 +142,7 @@ export class FlightScreen implements Screen {
   private hudTimer = 0;
   private lastAspect = 0;
   private lastFov = 0;
-  private planetAt = new THREE.Vector3(); // scratch point
+  private phases: PhaseSettings = BASE_PHASES; // the approach to a station takes longer than to an outpost
 
   private flash = document.createElement("div");
   private hudRoot = document.createElement("div");
@@ -199,6 +208,7 @@ export class FlightScreen implements Screen {
     this.dest = this.makeBody(info.destinationDockId);
     if (this.origin) this.scene.add(this.origin.group);
     if (this.dest) this.scene.add(this.dest.group);
+    this.phases = { ...BASE_PHASES, approachSeconds: this.dest?.isStation ? FLIGHT_APPROACH_SECONDS_STATION : FLIGHT_APPROACH_SECONDS };
   }
 
   /** The dock the flight is going to (the app parks the ship there afterwards). */
@@ -256,7 +266,7 @@ export class FlightScreen implements Screen {
       f.t += seconds;
       const length = 0.8 * (1 - f.from) + 0.01;
       const progress = Math.min(1, f.from + (1 - f.from) * (f.t / length));
-      plan = { phase: "APPROACH", progress, phaseSeconds: FLIGHT_APPROACH_SECONDS, elapsedSeconds: 0, totalSeconds: 0 };
+      plan = { phase: "APPROACH", progress, phaseSeconds: this.phases.approachSeconds, elapsedSeconds: 0, totalSeconds: 0 };
       const last = this.lastPlan;
       if (last) {
         plan.elapsedSeconds = last.totalSeconds;
@@ -273,7 +283,7 @@ export class FlightScreen implements Screen {
       const progress = this.info.getProgress();
       if (progress) {
         const real = realTimes(progress, this.info.speed);
-        plan = planFlight(progress.fraction, real.remainingRealMs, real.totalRealMs, PHASES);
+        plan = planFlight(progress.fraction, real.remainingRealMs, real.totalRealMs, this.phases);
       } else {
         const last = this.lastPlan;
         plan = { phase: "DONE", progress: 1, phaseSeconds: 0, elapsedSeconds: last?.totalSeconds ?? 0, totalSeconds: last?.totalSeconds ?? 0 };
@@ -328,12 +338,12 @@ export class FlightScreen implements Screen {
     for (const f of this.ship.animation.flames) f.scale.z = flame;
     this.ship.group.position.y = 0.05 + Math.sin(this.clockT * 1.3) * 0.05;
 
-    this.placeCamera(phase, p);
+    this.placeCamera(phase, p, plan.phaseSeconds);
     this.flash.style.opacity = String(flashAmount(plan));
     this.updateHud(plan);
   }
 
-  private placeCamera(phase: FlightPhase, p: number): void {
+  private placeCamera(phase: FlightPhase, p: number, phaseSeconds: number): void {
     const camera = this.camera;
     if (camera.aspect !== this.lastAspect || camera.fov !== this.lastFov) {
       this.lastAspect = camera.aspect;
@@ -351,18 +361,15 @@ export class FlightScreen implements Screen {
         const bay = rotateY(this.origin.bayCamera, Math.sin(this.clockT * 0.35) * 0.14);
         rel = lerp3(bay, rel, launchCameraBlend(this.origin.slide));
       } else if ((phase === "APPROACH" || phase === "DONE") && this.dest?.isStation && this.dest.entry) {
+        // Arriving at a station: the camera follows the ship from behind, a little to the side and above. It eases in from the orbit
+        // camera, and it turns with the ship when the ship turns round in the bay (kept off the walls).
         const entry = this.dest.entry;
-        if (entry.chase) {
-          // Arriving at a station: the camera follows the ship from behind, a little to the side and above.
-          rel = { x: FLIGHT_CHASE_CAMERA.x, y: FLIGHT_CHASE_CAMERA.y, z: FLIGHT_CHASE_CAMERA.z };
-        } else {
-          // The ship turns round in the bay: the camera stays fixed in the bay, then glides to its resting spot.
-          const startInBay = rotateY(FLIGHT_CHASE_CAMERA, -Math.PI); // where the chase camera was, in the station's frame
-          const restInBay = FLIGHT_BAY_CAMERA;
-          const at = bayGlidePoint(startInBay, restInBay, entry.glide, STATION_ENTRY.glideArc);
-          const world = this.dest.group.localToWorld(this.planetAt.set(at.x, at.y, at.z));
-          rel = { x: world.x, y: world.y, z: world.z };
+        let chase: Vec3 = { x: FLIGHT_CHASE_CAMERA.x, y: FLIGHT_CHASE_CAMERA.y, z: FLIGHT_CHASE_CAMERA.z };
+        if (this.dest.bayBox && entry.pose.slide < 1) {
+          const inBay = rotateY(chase, -entry.yaw); // the same spot in the station's own frame
+          if (inBay.z > this.dest.bayBox.min.z) chase = rotateY(clampToBox(inBay, this.dest.bayBox, DOCKED_BAY_MARGIN), entry.yaw);
         }
+        rel = lerp3(rel, chase, phase === "DONE" ? 1 : chaseBlend(p, STATION_ENTRY.cameraBlend));
       }
       camera.position.set(rel.x, rel.y + shipY, rel.z);
       camera.lookAt(0, shipY + 0.8, 0);
@@ -376,7 +383,9 @@ export class FlightScreen implements Screen {
       camera.rotation.set(pitch, 0, 0);
     }
     // A light shake just before the jump.
-    const shake = shakeAmount(phase, p, FLIGHT_SHAKE_START);
+    // ...and when the ship drops out of warp at a station.
+    const arriving = phase === "APPROACH" && this.dest?.isStation === true;
+    const shake = arriving ? arrivalShakeAmount(p * phaseSeconds, FLIGHT_ARRIVAL_SHAKE_SECONDS) : shakeAmount(phase, p, FLIGHT_SHAKE_START);
     if (shake > 0) {
       const o = shakeOffset(this.clockT, shake * FLIGHT_SHAKE_STRENGTH);
       camera.position.x += o.x;
@@ -442,7 +451,9 @@ export class FlightScreen implements Screen {
       group.add(world);
     }
     group.visible = false;
-    return { group, model: built.model, isStation, bayCamera: isStation ? { ...FLIGHT_BAY_CAMERA } : null, slide: 0, entry: null };
+    const entrance = built.model.anchors.dockEntrance?.pos;
+    const bayBox = isStation && entrance ? bayBoxWorld(entrance, built.parking) : null;
+    return { group, model: built.model, isStation, bayCamera: isStation ? { ...FLIGHT_BAY_CAMERA } : null, slide: 0, entry: null, bayBox };
   }
 
   private clearBodies(): void {

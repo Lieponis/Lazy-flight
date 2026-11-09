@@ -351,17 +351,17 @@ export function outpostExitPose(p: number, e: OutpostExitSettings): ExitPose {
   return { slide, pitch: -outpostExitHeading(slide, e), pos: { x: 0, y, z } };
 }
 
-// ------------------------------------------------------------------ arriving at a station (the departure, backwards)
+// ------------------------------------------------------------------ arriving at a station (the departure, backwards, slower)
 
 export interface EntrySettings {
   /** The share of the approach spent flying in; the rest is the turn round in the bay. */
   pathShare: number;
   /** The half turn is finished at this point of the approach. */
   turnEnd: number;
-  /** The camera glides to its resting spot from here to the end. */
-  glideStart: number;
-  /** How high (units) the glide arcs over the ship. */
-  glideArc: number;
+  /** How far from the bay (units) the ship drops out of warp. */
+  startDistance: number;
+  /** The camera goes from the orbit camera to the chase camera during this first share of the approach. */
+  cameraBlend: number;
 }
 
 export interface EntryState {
@@ -369,23 +369,28 @@ export interface EntryState {
   pose: ExitPose;
   /** Turn of the station round the ship (radians): PI while flying in nose-first, 0 once the ship has turned round and faces the opening. */
   yaw: number;
-  /** 0 to 1: how far the camera has glided to its resting spot. */
-  glide: number;
-  /** True while the camera follows the ship from behind; after that it stays fixed in the bay. */
-  chase: boolean;
+}
+
+/** The launch progress (0 to 1) at which the ship has flown `distance` units. Used to start the arrival closer than the end of the launch. */
+export function exitProgressForDistance(distance: number, e: ExitSettings): number {
+  let lo = 0;
+  let hi = 1;
+  if (exitDistance(1, e) <= distance) return 1;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (exitDistance(mid, e) < distance) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
 }
 
 /** The arrival at progress p (0 to 1) of the approach. */
 export function stationEntryState(p: number, r0: number, exit: ExitSettings, e: EntrySettings): EntryState {
   const q = clamp(p / e.pathShare, 0, 1);
-  const pose = stationExitPose(1 - q, r0, exit);
+  const p0 = exitProgressForDistance(e.startDistance, exit);
+  const pose = stationExitPose(p0 * (1 - q), r0, exit);
   const turn = smoothstep((p - e.pathShare) / Math.max(1e-6, e.turnEnd - e.pathShare));
-  return {
-    pose,
-    yaw: Math.PI * (1 - turn),
-    glide: smoothstep((p - e.glideStart) / Math.max(1e-6, 1 - e.glideStart)),
-    chase: p < e.pathShare,
-  };
+  return { pose, yaw: Math.PI * (1 - turn) };
 }
 
 /** The station group's turn (`rotX` about X, then `yaw` about up) and position so that the ship, which never moves, ends up where `state` says. */
@@ -394,9 +399,12 @@ export function stationEntryTransform(state: EntryState): { rotX: number; yaw: n
   return { rotX: t.rotX, yaw: state.yaw, position: rotateY(t.position, state.yaw) };
 }
 
-/** Where the camera is, in the station's own frame, while it is fixed in the bay: it starts where the chase camera was and glides (with an arc) to `rest`. */
-export function bayGlidePoint(start: Vec3, rest: Vec3, glide: number, arc: number): Vec3 {
-  const g = clamp(glide, 0, 1);
-  const p = lerp3(start, rest, g);
-  return { x: p.x, y: p.y + arc * Math.sin(Math.PI * g), z: p.z };
+/** 0 to 1: how much the camera has moved from the orbit camera to the chase camera. */
+export function chaseBlend(p: number, share: number): number {
+  return smoothstep(p / Math.max(1e-6, share));
+}
+
+/** The shake when the ship drops out of warp: full at once, calming down over `calmSeconds`. `secondsIn` = real seconds since the approach began. */
+export function arrivalShakeAmount(secondsIn: number, calmSeconds: number): number {
+  return 1 - smoothstep(secondsIn / Math.max(0.01, calmSeconds));
 }

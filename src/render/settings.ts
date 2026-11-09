@@ -154,10 +154,18 @@ export const OUTPOST_EXIT = {
 };
 
 /**
- * Arriving at a STATION: the reverse of leaving it. The ship comes in along the same path backwards (nose first, slowing down),
- * enters the opening, stops, then turns round (a half turn) in the bay so it rests facing the opening.
- * `pathShare` = the share of the approach spent flying in; the half turn ends at `turnEnd`; the camera glides to the bay camera spot from `glideStart` to the end.
- * The camera follows the ship from behind and a little to the side (`FLIGHT_CHASE_CAMERA`: right, up, behind).
+ * Arriving at a STATION: the reverse of leaving it, but slower and starting closer.
+ * The ship comes in along the same path backwards (nose first, slowing down), enters the opening, stops, then turns round
+ * (a half turn) in the bay so it rests facing the opening.
+ * `startDistance` = how far from the bay (units) the ship is when it drops out of warp; `pathShare` = the share of the approach spent
+ * flying in; the half turn ends at `turnEnd`; the camera goes from the orbit camera to the chase camera during the first `cameraBlend` of the approach.
+ * The chase camera follows the ship from behind and a little to the side, and turns with the ship when it turns round (right, up, behind).
  */
-export const STATION_ENTRY = { pathShare: 0.85, turnEnd: 0.95, glideStart: 0.92, glideArc: 2.5 };
-export const FLIGHT_CHASE_CAMERA = { x: 2.4, y: 2.4, z: 6 };
+export const STATION_ENTRY = { pathShare: 0.85, turnEnd: 0.95, startDistance: 800, cameraBlend: 0.3 };
+export const FLIGHT_CHASE_CAMERA = { x: 2.2, y: 3.2, z: 4.6 };
+
+/** The approach to a STATION takes this long (real seconds, on trips long enough). Outposts keep FLIGHT_APPROACH_SECONDS. */
+export const FLIGHT_APPROACH_SECONDS_STATION = 16;
+
+/** Arriving at a station: the camera shakes as the ship drops out of warp, calming down over this many seconds. */
+export const FLIGHT_ARRIVAL_SHAKE_SECONDS = 1.8;
