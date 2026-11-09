@@ -21,7 +21,9 @@ import {
 } from "./settings";
 import { getShip } from "./ships";
 import type { GameState } from "./state";
-import { hashString, type Job } from "../universe";
+import { boardPeriodOf, hashString, type Job } from "../universe";
+import { slotOf } from "./clock";
+import { MAX_DELIVERED_IDS } from "./state";
 
 // ------------------------------------------------------------ distance -> time and fuel
 
@@ -191,6 +193,20 @@ export function debriefFor(job: Job, placeName: string, stopNames = ""): string 
  * If the end time has passed: pay the reward ONCE, move to the destination dock, clear the job.
  * Otherwise returns the same state and arrival = null.
  */
+/** Job ids look like "<dock>#<board period>#<n>". The period, or -1 if the id has another shape. */
+export function periodOfJobId(id: string): number {
+  const part = id.split("#")[1];
+  const n = part === undefined ? Number.NaN : Number(part);
+  return Number.isInteger(n) ? n : -1;
+}
+
+/** The board's jobs without the ones you already delivered this board period. */
+export function withoutDelivered(state: GameState, jobs: Job[]): Job[] {
+  if (state.deliveredJobIds.length === 0) return jobs;
+  const done = new Set(state.deliveredJobIds);
+  return jobs.filter((j) => !done.has(j.id));
+}
+
 export function settleArrival(
   state: GameState,
   nowMs: number,
@@ -216,11 +232,17 @@ export function settleArrival(
       debrief += ` ${line.split("{rank}").join(rankName).split("{kind}").join(RANK_KIND_LABELS[job.kind])}`;
     }
   }
+  // Remember this job for the current board period (so it is not offered again), and forget older periods.
+  const period = boardPeriodOf(slotOf(nowMs));
+  const deliveredJobIds = [...state.deliveredJobIds, job.id]
+    .filter((id) => periodOfJobId(id) >= period || id === job.id)
+    .slice(-MAX_DELIVERED_IDS);
   return {
     state: {
       ...state,
       credits: state.credits + job.reward,
       completedJobs,
+      deliveredJobIds,
       currentDockId: dockId,
       currentJob: null,
       travelStartMs: null,

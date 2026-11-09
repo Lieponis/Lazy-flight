@@ -111,3 +111,59 @@ describe("BUG 6b-1: rank bonus pushes a job over the rank limit at Accept", () =
     expect(game.state.credits).toBe(credits + Math.round(job!.reward * 1.05));
   });
 });
+
+// ------------------------------------------------------------ BUG 6b-2 (src/game, fixed with the Lead's OK)
+// With short trips, a delivered job came back on the board (and paid again) when you returned to the same dock
+// within the same board period. Now delivered jobs are hidden for the rest of that period.
+describe("BUG 6b-2: a delivered job does not come back in the same board period", () => {
+  const HOUR = 3_600_000;
+  const play = () => {
+    const t = { now: 100 * HOUR }; // start of a board period (periods are 6 game hours)
+    const game = new Game(SEED, startDock(), createClock(1, () => t.now));
+    const entry = game.getBoard().find((e) => !e.block)!;
+    game.accept(entry.job.id);
+    t.now = game.state.travelEndMs!;
+    game.update();
+    return { t, game, job: entry.job };
+  };
+
+  it("back at the same dock in the same period: the job is gone from the board and cannot be accepted", () => {
+    const { game, job } = play();
+    expect(game.state.deliveredJobIds).toContain(job.id);
+    game.loadState({ ...game.state, currentDockId: job.originDockId }); // back at the start (same period)
+    expect(game.getBoard().map((e) => e.job.id)).not.toContain(job.id);
+    expect(game.accept(job.id).ok).toBe(false);
+  });
+
+  it("the other jobs of that board are still there", () => {
+    const { game, job } = play();
+    game.loadState({ ...game.state, currentDockId: job.originDockId });
+    const all = getJobBoard(SEED, job.originDockId, game.currentSlot())!;
+    expect(game.getBoard().length).toBe(all.length - 1);
+  });
+
+  it("ids from older periods are forgotten on the next arrival (the list stays short)", () => {
+    const { t, game, job } = play();
+    t.now += 24 * HOUR; // a few periods later
+    game.loadState({ ...game.state, currentDockId: job.destinationDockId });
+    const next = game.getBoard().find((e) => !e.block);
+    if (!next) return;
+    game.refuel();
+    game.accept(next.job.id);
+    t.now = game.state.travelEndMs!;
+    game.update();
+    expect(game.state.deliveredJobIds).toEqual([next.job.id]);
+  });
+
+  it("old saves without the list load fine", () => {
+    const old = newGameState(startDock()) as Partial<GameState>;
+    delete old.deliveredJobIds;
+    const game = new Game(SEED, startDock(), createClock(1, () => 0));
+    game.loadState(old as GameState);
+    expect(game.state.deliveredJobIds).toEqual([]);
+  });
+
+  it("the simulator never sees a repeat job any more", () => {
+    for (const s of STRATEGIES) expect(simulate(SEED, s, 30).repeatJobs).toBe(0);
+  });
+});

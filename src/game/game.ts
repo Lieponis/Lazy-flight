@@ -29,6 +29,7 @@ import {
   travelProgress,
   tripSeconds,
   withBonuses,
+  withoutDelivered,
   type Arrival,
   type Block,
   type TravelProgress,
@@ -105,10 +106,15 @@ export class Game {
     return slotOf(this.clock.now());
   }
 
+  /** The plain jobs on this dock's board right now, without jobs you already delivered this board period. */
+  private boardJobs(): Job[] {
+    return withoutDelivered(this.state, getJobBoard(this.seed, this.state.currentDockId, this.currentSlot()) ?? []);
+  }
+
   /** The mission board of the dock you are at. Empty while you are flying. */
   getBoard(): BoardEntry[] {
     if (this.state.currentJob) return [];
-    const jobs = getJobBoard(this.seed, this.state.currentDockId, this.currentSlot()) ?? [];
+    const jobs = this.boardJobs();
     return jobs.map((plain) => {
       // Bonuses are added here, so the card shows exactly what the arrival will pay.
       const { job, baseReward, bonusPercent } = withBonuses(this.state, plain);
@@ -128,7 +134,7 @@ export class Game {
     if (this.state.currentJob) {
       return { ok: false, block: { code: "busy", text: "You already have a job. Finish it first." } };
     }
-    const plain = (getJobBoard(this.seed, this.state.currentDockId, this.currentSlot()) ?? []).find((j) => j.id === jobId);
+    const plain = this.boardJobs().find((j) => j.id === jobId);
     if (!plain) return { ok: false, block: { code: "wrong-dock", text: "That job is no longer on the board." } };
     // Check the job WITHOUT bonuses (the same check the board shows), so your own rank or outpost bonus can never
     // push a job over a rank limit (bug 6b-1). The job you carry keeps the bonus pay, which is paid on arrival.
@@ -152,14 +158,13 @@ export class Game {
   /** Is the player stuck (no job takeable even after spending all credits on fuel, because of fuel)? */
   isStuck(): boolean {
     if (this.state.currentJob) return false;
-    return isStuck(this.state, getJobBoard(this.seed, this.state.currentDockId, this.currentSlot()) ?? []);
+    return isStuck(this.state, this.boardJobs());
   }
 
   /** Free fuel. Works only when stuck. Returns the funny line, or the reason it did not work. */
   emergencyRefuel(): { ok: true; units: number; line: string } | { ok: false; reason: string } {
     if (this.state.currentJob) return { ok: false, reason: "You can only do this while docked." };
-    const jobs = getJobBoard(this.seed, this.state.currentDockId, this.currentSlot()) ?? [];
-    const result = emergencyRefuel(this.state, jobs);
+    const result = emergencyRefuel(this.state, this.boardJobs());
     if (!result.ok) return result;
     this.state = result.state;
     this.changed();

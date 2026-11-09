@@ -31,7 +31,16 @@ export interface GameState {
   travelStartMs: number | null;
   /** Game time (ms) when the trip ends, or null. */
   travelEndMs: number | null;
+  /**
+   * Ids of jobs you delivered in the current board period. They are hidden from the board, so a job you already
+   * delivered cannot show up again (and pay again) when you come back within the same period (bug 6b-2).
+   * Old periods are dropped on each arrival, so this list stays short.
+   */
+  deliveredJobIds: string[];
 }
+
+/** Most delivered ids kept (safety limit; normally only the current board period's few ids are kept). */
+export const MAX_DELIVERED_IDS = 200;
 
 /** A fresh game: starting credits, a full tank, docked at `startDockId`, no job. */
 export function newGameState(startDockId: string): GameState {
@@ -47,6 +56,7 @@ export function newGameState(startDockId: string): GameState {
     currentJob: null,
     travelStartMs: null,
     travelEndMs: null,
+    deliveredJobIds: [],
   };
 }
 
@@ -93,5 +103,8 @@ export function normalizeState(raw: Partial<GameState> & { currentDockId: string
     currentJob: hasJob ? (raw.currentJob as Job) : null,
     travelStartMs: hasJob ? (raw.travelStartMs as number) : null,
     travelEndMs: hasJob ? (raw.travelEndMs as number) : null,
+    deliveredJobIds: Array.isArray(raw.deliveredJobIds)
+      ? (raw.deliveredJobIds as unknown[]).filter((id): id is string => typeof id === "string" && id !== "").slice(-MAX_DELIVERED_IDS)
+      : [],
   };
 }

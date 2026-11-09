@@ -21,8 +21,10 @@ export {
   refuel,
   settleArrival,
   travelProgress,
+  periodOfJobId,
   tripSeconds,
   withBonuses,
+  withoutDelivered,
 } from "./rules";
 export { buyShip, ownedShipIds, ownsShip, shipCatalog, shipFuel, switchShip } from "./fleet";
 export type { FleetResult, ShipCatalogEntry } from "./fleet";
