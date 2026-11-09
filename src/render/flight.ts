@@ -46,7 +46,7 @@ import { buildDockModel, buildShipModel, parkAtOrigin } from "./models3d";
 import {
   DOCKED_GROUND_DETAIL,
   DOCKED_GROUND_RADIUS,
-  DOCKED_STATION_PLANET_ALTITUDE,
+  FLIGHT_STATION_PLANET_ALTITUDE,
   DOCKED_STATION_PLANET_DETAIL,
   DOCKED_STATION_PLANET_RADIUS,
   FLIGHT_APPROACH_FROM_OUTPOST,
@@ -107,7 +107,7 @@ export interface FlightScreenOptions {
 
 export class FlightScreen implements Screen {
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(50, RENDER_WIDTH / RENDER_HEIGHT, 0.05, 1500);
+  readonly camera = new THREE.PerspectiveCamera(50, RENDER_WIDTH / RENDER_HEIGHT, 0.05, 40000);
 
   private ship: AssetModel = buildShipModel(FALLBACK_SHIP_ID);
   private shipId = FALLBACK_SHIP_ID;
@@ -286,7 +286,7 @@ export class FlightScreen implements Screen {
     if (phase === "LAUNCH" && this.origin) {
       if (this.origin.isStation) {
         // Straight out of the slot (along the planet's surface), then round the planet in a widening orbit.
-        const pose = stationExitPose(p, DOCKED_STATION_PLANET_RADIUS + DOCKED_STATION_PLANET_ALTITUDE, STATION_EXIT);
+        const pose = stationExitPose(p, DOCKED_STATION_PLANET_RADIUS + FLIGHT_STATION_PLANET_ALTITUDE, STATION_EXIT);
         const t = stationExitTransform(pose);
         this.origin.group.rotation.x = t.rotX;
         this.origin.group.position.set(t.position.x, t.position.y, t.position.z);
@@ -404,7 +404,7 @@ export class FlightScreen implements Screen {
       if (!arriving) {
         // The planet lies below the station, so the slot points along its surface.
         const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, DOCKED_STATION_PLANET_DETAIL);
-        const c = stationPlanetCentre(DOCKED_STATION_PLANET_RADIUS, DOCKED_STATION_PLANET_ALTITUDE, STATION_EXIT.straight);
+        const c = stationPlanetCentre(DOCKED_STATION_PLANET_RADIUS, FLIGHT_STATION_PLANET_ALTITUDE, STATION_EXIT.straight);
         world.position.set(c.x, c.y, c.z);
         group.add(world);
       }
