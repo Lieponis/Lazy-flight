@@ -1,7 +1,15 @@
 // The game rules as plain functions. Each takes the state (and the time) and gives back a NEW state.
 // No drawing, no clock, no browser in here, so everything is easy to test.
 
-import { DEBRIEF_LINES, EMERGENCY_LINES, PASSENGER_DEBRIEF_LINES, TOUR_DEBRIEF_LINES } from "./debriefs";
+import {
+  DEBRIEF_LINES,
+  EMERGENCY_LINES,
+  PASSENGER_DEBRIEF_LINES,
+  RANK_UP_LINES,
+  TOUR_DEBRIEF_LINES,
+} from "./debriefs";
+import { deliveryBonusPercentAt, fuelDiscountPercentAt } from "./outposts";
+import { RANK_KIND_LABELS, RANK_NAMES, isRankKind, rankBonusPercent, rankIndexFor, requiredRankIndex, type RankKind } from "./ranks";
 import {
   EMERGENCY_REFUEL_AMOUNT,
   FUEL_PER_LY,
@@ -41,8 +49,14 @@ export type BlockCode =
   | "tank-too-small"
   | "not-enough-fuel";
 
+/**
+ * Block codes added after 4b. Kept apart from BlockCode so the menus (which list every BlockCode) keep compiling;
+ * unknown codes show as "Not available" plus the game's own text until Agent 5 adds a short wording.
+ */
+export type ExtraBlockCode = "rank-too-low";
+
 export interface Block {
-  code: BlockCode;
+  code: BlockCode | ExtraBlockCode;
   /** Plain-language reason to show the player. */
   text: string;
 }
@@ -62,6 +76,19 @@ export function checkJob(state: GameState, job: Job): Block | null {
     return { code: "cargo-too-large", text: `Cargo too large: ${job.amount} units, your bay holds ${ship.cargoCapacity}.` };
   }
 
+  // Better-paying jobs need a higher rank in that kind of job.
+  if (isRankKind(job.kind)) {
+    const needed = requiredRankIndex(job);
+    const have = rankIndexFor(job.kind, state.completedJobs[job.kind]);
+    if (have < needed) {
+      const names = RANK_NAMES[job.kind];
+      return {
+        code: "rank-too-low",
+        text: `Needs rank ${names[needed]} in ${RANK_KIND_LABELS[job.kind]} (you are ${names[have]}).`,
+      };
+    }
+  }
+
   const need = fuelCost(job.totalDistance);
   if (need > ship.fuelTankSize) {
     return { code: "tank-too-small", text: `Too far for this ship's tank: needs ${need} fuel, the tank holds ${ship.fuelTankSize}.` };
@@ -70,6 +97,27 @@ export function checkJob(state: GameState, job: Job): Block | null {
     return { code: "not-enough-fuel", text: `Not enough fuel: needs ${need}, you have ${state.fuel}. Refuel first.` };
   }
   return null;
+}
+
+// ------------------------------------------------------------ pay bonuses (rank and outpost)
+
+export interface PayInfo {
+  /** The job with its reward already including the bonuses (this is what you will be paid). */
+  job: Job;
+  /** The reward before any bonus. */
+  baseReward: number;
+  /** Total bonus in percent (rank + outpost). */
+  bonusPercent: number;
+}
+
+/**
+ * What the player really gets paid for a job: the plain reward plus the rank bonus of that job kind
+ * plus the outpost bonus if the job ends in a system where the player owns an outpost.
+ */
+export function withBonuses(state: GameState, job: Job): PayInfo {
+  const bonusPercent = rankBonusPercent(job.kind, state.completedJobs) + deliveryBonusPercentAt(state, job.destinationDockId);
+  if (bonusPercent <= 0) return { job, baseReward: job.reward, bonusPercent: 0 };
+  return { job: { ...job, reward: Math.round(job.reward * (1 + bonusPercent / 100)) }, baseReward: job.reward, bonusPercent };
 }
 
 export type AcceptResult = { ok: true; state: GameState } | { ok: false; block: Block };
@@ -108,11 +156,21 @@ export function travelProgress(state: GameState, nowMs: number): TravelProgress 
   return { fraction: elapsed / totalMs, remainingMs: totalMs - elapsed, totalMs };
 }
 
+export interface RankUp {
+  kind: RankKind;
+  /** The new rank, 2 or 3. */
+  rankNumber: number;
+  rankName: string;
+}
+
 export interface Arrival {
   job: Job;
   reward: number;
   dockId: string;
+  /** The funny line. When you ranked up with this delivery, the rank-up line is added at the end. */
   debrief: string;
+  /** Set when this delivery raised a rank, otherwise null. */
+  rankUp: RankUp | null;
 }
 
 /**
@@ -143,16 +201,32 @@ export function settleArrival(
   const dockId = job.destinationDockId;
   // Tours fly straight to the last stop; the stops on the way are only flavor text for the debrief.
   const stopNames = job.stops.slice(0, -1).map(placeNameOf).join(" and ");
+  // Count the delivery for the rank of this kind of job, and notice a rank-up.
+  let completedJobs = state.completedJobs;
+  let rankUp: RankUp | null = null;
+  let debrief = debriefFor(job, placeNameOf(dockId), stopNames);
+  if (isRankKind(job.kind)) {
+    const before = rankIndexFor(job.kind, completedJobs[job.kind]);
+    completedJobs = { ...completedJobs, [job.kind]: completedJobs[job.kind] + 1 };
+    const after = rankIndexFor(job.kind, completedJobs[job.kind]);
+    if (after > before) {
+      const rankName = RANK_NAMES[job.kind][after];
+      rankUp = { kind: job.kind, rankNumber: after + 1, rankName };
+      const line = RANK_UP_LINES[hashString(`${job.id}|rank`) % RANK_UP_LINES.length] ?? "Rank up!";
+      debrief += ` ${line.split("{rank}").join(rankName).split("{kind}").join(RANK_KIND_LABELS[job.kind])}`;
+    }
+  }
   return {
     state: {
       ...state,
       credits: state.credits + job.reward,
+      completedJobs,
       currentDockId: dockId,
       currentJob: null,
       travelStartMs: null,
       travelEndMs: null,
     },
-    arrival: { job, reward: job.reward, dockId, debrief: debriefFor(job, placeNameOf(dockId), stopNames) },
+    arrival: { job, reward: job.reward, dockId, debrief, rankUp },
   };
 }
 
@@ -162,15 +236,29 @@ export type RefuelResult =
   | { ok: true; state: GameState; units: number; cost: number }
   | { ok: false; reason: string };
 
-/** Buy fuel at the flat price until the tank is full or the credits run out. Only while docked. */
+/**
+ * What one unit of fuel costs here, in hundredths of a credit (so a discount never needs decimals):
+ * 200 = 2 credits. An outpost in this star system makes it cheaper.
+ */
+export function fuelUnitCents(state: GameState): number {
+  return REFUEL_PRICE_PER_UNIT * (100 - fuelDiscountPercentAt(state, state.currentDockId));
+}
+
+/** Units of fuel the player's credits can buy here. */
+export function affordableFuelUnits(state: GameState): number {
+  const cents = fuelUnitCents(state);
+  return cents > 0 ? Math.floor((Math.max(0, state.credits) * 100) / cents) : 0;
+}
+
+/** Buy fuel at the dock's price until the tank is full or the credits run out. Only while docked. */
 export function refuel(state: GameState): RefuelResult {
   if (state.currentJob) return { ok: false, reason: "You can only refuel while docked." };
   const tank = getShip(state.shipId).fuelTankSize;
   const missing = tank - state.fuel;
   if (missing <= 0) return { ok: false, reason: "The tank is already full." };
-  const units = Math.min(missing, Math.floor(state.credits / REFUEL_PRICE_PER_UNIT));
+  const units = Math.min(missing, affordableFuelUnits(state));
   if (units <= 0) return { ok: false, reason: "Not enough credits for any fuel." };
-  const cost = units * REFUEL_PRICE_PER_UNIT;
+  const cost = Math.ceil((units * fuelUnitCents(state)) / 100); // whole credits, rounded up
   return { ok: true, units, cost, state: { ...state, fuel: state.fuel + units, credits: state.credits - cost } };
 }
 
@@ -184,8 +272,7 @@ export function refuel(state: GameState): RefuelResult {
 export function isStuck(state: GameState, jobs: readonly Job[]): boolean {
   if (state.currentJob) return false;
   const tank = getShip(state.shipId).fuelTankSize;
-  const affordable = Math.floor(Math.max(0, state.credits) / REFUEL_PRICE_PER_UNIT);
-  const bestFuel = Math.min(tank, state.fuel + affordable);
+  const bestFuel = Math.min(tank, state.fuel + affordableFuelUnits(state));
   let fuelBlocked = false;
   for (const job of jobs) {
     const block = checkJob(state, job);

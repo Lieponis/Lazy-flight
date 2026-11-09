@@ -103,7 +103,7 @@ describe("ui: words", () => {
 
 describe("ui: job cards", () => {
   it("builds the text of a takeable card", () => {
-    const entry: BoardEntry = { job: fakeJob(), fuelNeeded: 9, tripSeconds: 200, block: null };
+    const entry: BoardEntry = { job: fakeJob(), baseReward: 1350, bonusPercent: 0, fuelNeeded: 9, tripSeconds: 200, block: null };
     const c = jobCardText(entry, names, 1);
     expect(c).toMatchObject({
       kind: "CARGO",
@@ -122,6 +122,8 @@ describe("ui: job cards", () => {
   it("dims a blocked card with a plain reason and the game's detail", () => {
     const entry: BoardEntry = {
       job: fakeJob({ kind: "TOUR", stops: ["x/1", "y/1", "b/2"] }),
+      baseReward: 1350,
+      bonusPercent: 0,
       fuelNeeded: 9,
       tripSeconds: 200,
       block: { code: "no-cabin", text: "Needs a passenger cabin (your ship has none)." },

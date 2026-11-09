@@ -12,6 +12,15 @@ import {
   type GameClock,
 } from "./game";
 import {
+  browserPageEvents,
+  getBrowserStorage,
+  loadIntoGame,
+  readSave,
+  startAutoSave,
+  type AutoSaver,
+  type StorageLike,
+} from "./save";
+import {
   generateDock,
   generateJobBoard,
   getDock,
@@ -40,12 +49,35 @@ function findStartDockId(): string {
 let offsetMs = 0; // TEST buttons move game time forward by changing this
 const baseClock = createClock(speed);
 const clock: GameClock = { speed, now: () => baseClock.now() + offsetMs };
-let game = makeGame();
-let message = "Welcome. Try the buttons.";
 
-function makeGame(): Game {
-  const g = new Game(seed, findStartDockId(), clock);
+// This page saves in its OWN place in the browser (keys start with "gamedebug."),
+// so trying things here never touches the real game's save. Reloading the page keeps your test game.
+function prefixed(storage: StorageLike, prefix: string): StorageLike {
+  return {
+    getItem: (key) => storage.getItem(prefix + key),
+    setItem: (key, value) => storage.setItem(prefix + key, value),
+    removeItem: (key) => storage.removeItem(prefix + key),
+  };
+}
+const browserStorage = getBrowserStorage();
+const storage: StorageLike | null = browserStorage ? prefixed(browserStorage, "gamedebug.") : null;
+let saver: AutoSaver | null = null;
+
+let game = makeGame(true);
+let message = storage ? "Welcome. This page saves its own test game, so a reload keeps it." : "Welcome. Saving is off in this browser.";
+
+function makeGame(tryLoad: boolean): Game {
+  saver?.stop(); // the old game must not be written over the new one
+  const startDockId = findStartDockId();
+  const g = new Game(seed, startDockId, clock);
+  if (tryLoad) {
+    const saved = readSave(storage);
+    if (saved.kind === "ok" && saved.data.seed === seed && saved.data.state) {
+      loadIntoGame(g, saved.data, saved.data.state, startDockId, Date.now());
+    }
+  }
   g.subscribe(() => render());
+  saver = startAutoSave(g, storage, tryLoad ? browserPageEvents() : null);
   return g;
 }
 
@@ -77,6 +109,7 @@ function dockLabel(dockId: string): string {
 
 function say(text: string): void {
   message = text;
+  saver?.saveNow(); // TEST buttons change the state directly, so save here too
   render();
 }
 
@@ -88,7 +121,7 @@ let dockCache: { id: string; text: string }[] = [];
 /** Docks near the start, with how many passenger and tour jobs the active ship could take there with a full tank. */
 function dockList(): { id: string; text: string }[] {
   const slot = game.currentSlot();
-  const key = `${seed}|${slot}|${game.state.shipId}`;
+  const key = `${seed}|${slot}|${game.state.shipId}|${game.state.ownedOutposts.join(",")}`;
   if (key === dockCacheKey) return dockCache;
   const list: { id: string; text: string }[] = [];
   const tank = getShip(game.state.shipId).fuelTankSize;
@@ -105,7 +138,9 @@ function dockList(): { id: string; text: string }[] {
         if (job.kind === "PASSENGER") passengers++;
         else if (job.kind === "TOUR") tours++;
       }
-      list.push({ id: dock.id, text: `${dock.name} (${system.name}) - passenger jobs: ${passengers}, tours: ${tours}` });
+      const offer = game.getOutpostOffer(dock.id);
+      const place = offer.isOutpost ? `OUTPOST ${offer.price} cr${offer.owned ? " (yours)" : ""}` : "station";
+      list.push({ id: dock.id, text: `${dock.name} (${system.name}) - ${place} - passenger jobs: ${passengers}, tours: ${tours}` });
     }
   }
   dockCacheKey = key;
@@ -187,7 +222,7 @@ function render(): void {
     }, { test: true, disabled: flying }),
     button("TEST: start a new game", () => {
       offsetMs = 0;
-      game = makeGame();
+      game = makeGame(false);
       dockCacheKey = "";
       say("New game started.");
     }, { test: true }),
@@ -256,8 +291,68 @@ function render(): void {
   );
   app.append(chooser);
 
+  // Ranks
+  app.append(h("h2", {}, "5. Ranks"));
+  const rankTable = h("table");
+  rankTable.append(h("tr", {}, ...["Category", "Jobs done", "Rank", "Next rank", "Jobs to go", "Pay bonus", "Biggest job allowed"].map((t) => h("th", {}, t))));
+  for (const r of game.getRanks()) {
+    rankTable.append(
+      h("tr", {},
+        h("td", {}, r.label),
+        h("td", {}, String(r.jobsDone)),
+        h("td", {}, `${r.rankNumber}: ${r.rankName}`),
+        h("td", {}, r.nextRankName ?? "(top rank)"),
+        h("td", {}, r.jobsToNext === null ? "-" : String(r.jobsToNext)),
+        h("td", {}, `+${r.rewardBonusPercent}%`),
+        h("td", {}, r.maxReward === null ? "no limit" : `${r.maxReward} cr`),
+      ),
+    );
+  }
+  const rankRow = h("div", { class: "box" });
+  for (const [kind, label] of [["TRADE", "cargo"], ["PASSENGER", "passenger"], ["TOUR", "tour"]] as const) {
+    rankRow.append(
+      button(`TEST: +4 ${label} jobs done`, () => {
+        game.state = { ...game.state, completedJobs: { ...game.state.completedJobs, [kind]: game.state.completedJobs[kind] + 4 } };
+        say(`Added 4 delivered ${label} jobs.`);
+      }, { test: true }),
+    );
+  }
+  rankRow.append(
+    button("TEST: top rank everywhere", () => {
+      game.state = { ...game.state, completedJobs: { TRADE: 99, PASSENGER: 99, TOUR: 99 } };
+      say("All ranks are at the top.");
+    }, { test: true }),
+    button("TEST: back to rank 1", () => {
+      game.state = { ...game.state, completedJobs: { TRADE: 0, PASSENGER: 0, TOUR: 0 } };
+      say("All ranks reset.");
+    }, { test: true }),
+  );
+  app.append(h("div", { class: "scroll" }, rankTable), rankRow);
+
+  // Outposts
+  app.append(h("h2", {}, "6. Outposts"));
+  const offer = game.getOutpostOffer(s.currentDockId);
+  const perks = game.getPerks();
+  const outBox = h("div", { class: "box" });
+  outBox.append(
+    h("div", {}, `This dock: ${offer.dockName} (${offer.systemName}) - ${offer.isOutpost ? `an outpost, price ${offer.price} cr` : "a station (not for sale)"}${offer.owned ? " - YOURS" : ""}`),
+    h("div", { class: offer.canBuy ? "ok" : "note" }, offer.canBuy ? "You can buy it now." : offer.reason),
+    h("div", {}, `Perks active in this star system: fuel ${perks.fuelDiscountPercent}% cheaper, jobs ending here pay +${perks.deliveryBonusPercent}%`),
+    button(`Buy this outpost${offer.price !== null ? ` (${offer.price} cr)` : ""}`, () => {
+      const r = game.buyOutpost(s.currentDockId);
+      say(r.ok ? `Bought for ${r.price} cr. ${r.line}` : r.reason);
+    }, { disabled: !offer.canBuy }),
+    button("TEST: add 50000 credits", () => {
+      game.state = { ...game.state, credits: game.state.credits + 50000 };
+      say("Added 50000 credits.");
+    }, { test: true }),
+  );
+  const mine = game.getOwnedOutposts();
+  outBox.append(h("div", {}, mine.length === 0 ? "You own no outposts yet." : `You own ${mine.length}: ${mine.map((o) => `${o.dockName} (${o.systemName})`).join("; ")}`));
+  app.append(outBox);
+
   // Job board
-  app.append(h("h2", {}, `5. Job board of ${dockLabel(s.currentDockId)}`));
+  app.append(h("h2", {}, `7. Job board of ${dockLabel(s.currentDockId)}`));
   const board: BoardEntry[] = game.getBoard();
   if (flying) app.append(h("p", { class: "note" }, "No board while you are flying."));
   else if (board.length === 0) app.append(h("p", { class: "note" }, "This board is empty."));
@@ -280,7 +375,7 @@ function render(): void {
         h("td", {}, dockLabel(j.destinationDockId)),
         h("td", {}, j.stops.length > 1 ? j.stops.map(dockLabel).join(" > ") : "1"),
         h("td", {}, `${j.totalDistance} ly`),
-        h("td", {}, `${j.reward} cr`),
+        h("td", {}, e.bonusPercent > 0 ? `${j.reward} cr (base ${e.baseReward} + ${e.bonusPercent}%)` : `${j.reward} cr`),
         h("td", {}, formatDuration(e.tripSeconds)),
         h("td", {}, String(e.fuelNeeded)),
         e.block ? h("td", { class: "bad" }, `BLOCKED [${e.block.code}]: ${e.block.text}`) : h("td", { class: "ok" }, "can take"),

@@ -1,10 +1,23 @@
 // The Game object: holds the state and the clock, and is what the panel talks to.
 // Rules live in rules.ts; this file only connects them to the universe and the clock.
 
-import { getDock, getJobBoard, getSystem, type Job, type Seed } from "../universe";
+import { getDock, getJobBoard, getSystem, hashString, type Job, type Seed } from "../universe";
 import { buyShip, shipCatalog, switchShip, type ShipCatalogEntry } from "./fleet";
+import { OUTPOST_LINES } from "./debriefs";
+import {
+  buyOutpost,
+  deliveryBonusPercentAt,
+  fuelDiscountPercentAt,
+  outpostBlock,
+  outpostPrice,
+  ownsOutpost,
+  systemOfDock,
+  type DockFacts,
+} from "./outposts";
+import { rankInfos, type RankInfo } from "./ranks";
 import type { GameClock } from "./clock";
 import { slotOf } from "./clock";
+import { OUTPOST_DELIVERY_BONUS_PERCENT, OUTPOST_FUEL_DISCOUNT_PERCENT } from "./settings";
 import {
   acceptJob,
   checkJob,
@@ -15,6 +28,7 @@ import {
   settleArrival,
   travelProgress,
   tripSeconds,
+  withBonuses,
   type Arrival,
   type Block,
   type TravelProgress,
@@ -23,7 +37,12 @@ import { newGameState, normalizeState, type GameState } from "./state";
 
 /** One line of the mission board. */
 export interface BoardEntry {
+  /** The job. Its `reward` is what you will really be paid (rank and outpost bonuses included). */
   job: Job;
+  /** The reward before bonuses. */
+  baseReward: number;
+  /** Total bonus in percent (rank + outpost); 0 = none. */
+  bonusPercent: number;
   fuelNeeded: number;
   tripSeconds: number;
   /** Null = you can take it. Otherwise the plain reason it is blocked. */
@@ -31,6 +50,30 @@ export interface BoardEntry {
 }
 
 export type GameListener = () => void;
+
+/** What the shipyard-style screen needs to show an outpost for sale. */
+export interface OutpostOffer {
+  dockId: string;
+  dockName: string;
+  systemName: string;
+  /** False for stations (not for sale). */
+  isOutpost: boolean;
+  owned: boolean;
+  /** Whole credits, or null for a station. */
+  price: number | null;
+  canBuy: boolean;
+  /** Why it cannot be bought ("" when it can). */
+  reason: string;
+  /** What owning an outpost gives you in its star system. */
+  perks: { fuelDiscountPercent: number; deliveryBonusPercent: number };
+}
+
+export interface OwnedOutpost {
+  dockId: string;
+  dockName: string;
+  systemId: string;
+  systemName: string;
+}
 
 export class Game {
   state: GameState;
@@ -66,12 +109,18 @@ export class Game {
   getBoard(): BoardEntry[] {
     if (this.state.currentJob) return [];
     const jobs = getJobBoard(this.seed, this.state.currentDockId, this.currentSlot()) ?? [];
-    return jobs.map((job) => ({
-      job,
-      fuelNeeded: fuelCost(job.totalDistance),
-      tripSeconds: tripSeconds(job.totalDistance),
-      block: checkJob(this.state, job),
-    }));
+    return jobs.map((plain) => {
+      // Bonuses are added here, so the card shows exactly what the arrival will pay.
+      const { job, baseReward, bonusPercent } = withBonuses(this.state, plain);
+      return {
+        job,
+        baseReward,
+        bonusPercent,
+        fuelNeeded: fuelCost(job.totalDistance),
+        tripSeconds: tripSeconds(job.totalDistance),
+        block: checkJob(this.state, plain),
+      };
+    });
   }
 
   /** Accept a job from the current board by its id. */
@@ -138,9 +187,79 @@ export class Game {
     return { ok: true };
   }
 
+  // ------------------------------------------------------------ ranks and outposts (4c)
+
+  /** The three ranks (cargo, passengers, tours): rank, name, progress to the next, bonus, biggest job allowed. */
+  getRanks(): RankInfo[] {
+    return rankInfos(this.state.completedJobs);
+  }
+
+  private dockFacts(dockId: string): DockFacts | null {
+    const dock = getDock(this.seed, dockId);
+    return dock ? { id: dock.id, kind: dock.kind, outpostPrice: dock.outpostPrice } : null;
+  }
+
+  /** The perks that count at a dock: cheaper fuel there, and bonus pay for jobs that end there. */
+  getPerks(dockId: string = this.state.currentDockId): { fuelDiscountPercent: number; deliveryBonusPercent: number } {
+    return {
+      fuelDiscountPercent: fuelDiscountPercentAt(this.state, dockId),
+      deliveryBonusPercent: deliveryBonusPercentAt(this.state, dockId),
+    };
+  }
+
+  /** What buying this dock's outpost looks like: price, whether you can, and why not. */
+  getOutpostOffer(dockId: string): OutpostOffer {
+    const dock = getDock(this.seed, dockId);
+    const facts = this.dockFacts(dockId);
+    if (!dock || !facts) {
+      return { dockId, dockName: "Unknown dock", systemName: "?", isOutpost: false, owned: false, price: null, canBuy: false, reason: "There is no such dock.", perks: { fuelDiscountPercent: 0, deliveryBonusPercent: 0 } };
+    }
+    const price = outpostPrice(facts);
+    const reason = outpostBlock(this.state, facts);
+    return {
+      dockId,
+      dockName: dock.name,
+      systemName: getSystem(this.seed, dock.systemId)?.name ?? "?",
+      isOutpost: dock.kind === "OUTPOST",
+      owned: ownsOutpost(this.state, dockId),
+      price,
+      canBuy: reason === "",
+      reason,
+      // What you would get from owning an outpost in this system (the same for every outpost).
+      perks: { fuelDiscountPercent: OUTPOST_FUEL_DISCOUNT_PERCENT, deliveryBonusPercent: OUTPOST_DELIVERY_BONUS_PERCENT },
+    };
+  }
+
+  /** Buy the outpost at a dock (you must be docked there). Returns the funny line, or the reason it failed. */
+  buyOutpost(dockId: string): { ok: true; price: number; line: string } | { ok: false; reason: string } {
+    const facts = this.dockFacts(dockId);
+    if (!facts) return { ok: false, reason: "There is no such dock." };
+    const result = buyOutpost(this.state, facts);
+    if (!result.ok) return result;
+    this.state = result.state;
+    const name = getDock(this.seed, dockId)?.name ?? "The outpost";
+    const line = (OUTPOST_LINES[hashString(dockId) % OUTPOST_LINES.length] ?? "It is yours.")
+      .split("{name}").join(name)
+      .split("{price}").join(String(result.price));
+    this.changed();
+    return { ok: true, price: result.price, line };
+  }
+
+  /** The outposts you own, in the order you bought them. */
+  getOwnedOutposts(): OwnedOutpost[] {
+    return this.state.ownedOutposts.map((dockId) => {
+      const dock = getDock(this.seed, dockId);
+      const systemId = dock?.systemId ?? systemOfDock(dockId);
+      return { dockId, dockName: dock?.name ?? "Unknown dock", systemId, systemName: getSystem(this.seed, systemId)?.name ?? "?" };
+    });
+  }
+
   /** Replace the state with saved data (old saves without ownedShips get sensible defaults). */
   loadState(raw: Partial<GameState> & { currentDockId: string }): void {
-    this.state = normalizeState(raw);
+    const state = normalizeState(raw);
+    // Keep only outposts that really exist in this universe (a save for another seed must not bring fake ones).
+    const real = state.ownedOutposts.filter((id) => getDock(this.seed, id)?.kind === "OUTPOST");
+    this.state = { ...state, ownedOutposts: real, outpostCount: real.length };
     this.lastArrival = null;
     this.changed();
   }

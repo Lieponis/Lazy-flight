@@ -42,7 +42,8 @@ const JOBS = sampleJobs();
 
 /** A state docked at the job's origin, with plenty of fuel, for testing a particular job. */
 function stateFor(job: Job, patch: Partial<GameState> = {}): GameState {
-  return { ...newGameState(job.originDockId), ...patch };
+  // These tests are not about ranks: give the player the top rank everywhere.
+  return { ...newGameState(job.originDockId), completedJobs: { TRADE: 99, PASSENGER: 99, TOUR: 99 }, ...patch };
 }
 
 const takeable = (): Job => {

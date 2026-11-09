@@ -41,3 +41,19 @@ export const EMERGENCY_LINES: string[] = [
   "A tiny robot trundles up with {amount} fuel and a look of pity. It beeps softly.",
   "You get {amount} free fuel and a pat on the hull. The dock cat watches, unimpressed.",
 ];
+
+// Lines for ranking up. {rank} = the new rank name, {kind} = the kind of job (cargo, passengers, tours).
+export const RANK_UP_LINES: string[] = [
+  "RANK UP! You are now a {rank} in {kind}. Someone printed you a very small certificate.",
+  "New rank in {kind}: {rank}. Your mum has been told. She is mildly impressed.",
+  "Ding! {rank}. The {kind} guild has given you a hat. It is not a good hat.",
+  "You are now a {rank} ({kind}). Nothing changes, except you feel slightly taller.",
+];
+
+// Lines for buying an outpost. {name} = the outpost, {price} = what it cost.
+export const OUTPOST_LINES: string[] = [
+  "You own {name} now. It cost {price} credits and comes with a doormat that says HOME.",
+  "{name} is yours for {price} credits. The previous owner left one sock and a lot of dust.",
+  "Congratulations, landlord! {name} cost {price} credits. The kettle works. Probably.",
+  "Signed, stamped, paid ({price} credits). {name} is your home base.",
+];

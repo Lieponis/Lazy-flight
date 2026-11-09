@@ -39,8 +39,11 @@ function sampleJobs(): Job[] {
 }
 const JOBS = sampleJobs();
 
+// These tests are about ships, fuel and capacity, not ranks: give the player the top rank everywhere.
+const TOP_RANKS = { TRADE: 99, PASSENGER: 99, TOUR: 99 };
+
 function at(job: Job, patch: Partial<GameState> = {}): GameState {
-  return { ...newGameState(job.originDockId), ...patch };
+  return { ...newGameState(job.originDockId), completedJobs: TOP_RANKS, ...patch };
 }
 const rich = (job: Job): GameState => at(job, { credits: 10_000 });
 

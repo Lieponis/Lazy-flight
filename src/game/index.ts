@@ -14,15 +14,41 @@ export {
   checkJob,
   debriefFor,
   emergencyRefuel,
+  affordableFuelUnits,
   fuelCost,
+  fuelUnitCents,
   isStuck,
   refuel,
   settleArrival,
   travelProgress,
   tripSeconds,
+  withBonuses,
 } from "./rules";
 export { buyShip, ownedShipIds, ownsShip, shipCatalog, shipFuel, switchShip } from "./fleet";
 export type { FleetResult, ShipCatalogEntry } from "./fleet";
-export type { AcceptResult, EmergencyResult, Arrival, Block, BlockCode, RefuelResult, TravelProgress } from "./rules";
+export type { AcceptResult, EmergencyResult, ExtraBlockCode, PayInfo, RankUp, Arrival, Block, BlockCode, RefuelResult, TravelProgress } from "./rules";
 export { Game } from "./game";
-export type { BoardEntry, GameListener } from "./game";
+export type { BoardEntry, GameListener, OutpostOffer, OwnedOutpost } from "./game";
+export {
+  RANK_KINDS,
+  RANK_KIND_LABELS,
+  RANK_NAMES,
+  emptyCompletedJobs,
+  isRankKind,
+  rankBonusPercent,
+  rankIndexFor,
+  rankInfos,
+  requiredRankIndex,
+} from "./ranks";
+export type { CompletedJobs, RankInfo, RankKind } from "./ranks";
+export {
+  buyOutpost,
+  deliveryBonusPercentAt,
+  fuelDiscountPercentAt,
+  outpostBlock,
+  outpostPrice,
+  ownsOutpost,
+  ownsOutpostInSystemOf,
+  systemOfDock,
+} from "./outposts";
+export type { BuyOutpostResult, DockFacts } from "./outposts";
