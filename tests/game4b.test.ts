@@ -73,7 +73,7 @@ describe("ships", () => {
   it("has the three ships with the exact ids and default numbers", () => {
     expect(SHIP_ORDER).toEqual(["cargo-hauler", "passenger-liner", "scout"]);
     expect(getShip("cargo-hauler")).toMatchObject({ cargoCapacity: 30, cabinCapacity: 0, fuelTankSize: 60, price: 0 });
-    expect(getShip("passenger-liner")).toMatchObject({ cargoCapacity: 6, cabinCapacity: 12, fuelTankSize: 100, price: 1500 });
+    expect(getShip("passenger-liner")).toMatchObject({ cargoCapacity: 6, cabinCapacity: 12, fuelTankSize: 100, price: 2500 });
     expect(getShip("scout")).toMatchObject({ cargoCapacity: 10, cabinCapacity: 2, fuelTankSize: 110, price: 1200 });
     for (const id of SHIP_ORDER) expect(getShip(id).description.length).toBeGreaterThan(5);
   });
@@ -83,7 +83,7 @@ describe("buying ships", () => {
   const base = newGameState("x/0");
 
   it("deducts the price, gives a full tank and does not switch", () => {
-    const r = buyShip({ ...base, credits: 2000 }, "passenger-liner");
+    const r = buyShip({ ...base, credits: 3000 }, "passenger-liner");
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.state.credits).toBe(500);
@@ -100,10 +100,10 @@ describe("buying ships", () => {
   });
 
   it("cannot be bought when short of credits, and credits never go negative", () => {
-    const r = buyShip({ ...base, credits: 1499 }, "passenger-liner");
+    const r = buyShip({ ...base, credits: 2499 }, "passenger-liner");
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason.length).toBeGreaterThan(5);
-    const exact = buyShip({ ...base, credits: 1500 }, "passenger-liner");
+    const exact = buyShip({ ...base, credits: 2500 }, "passenger-liner");
     expect(exact.ok && exact.state.credits).toBe(0);
   });
 
@@ -123,7 +123,7 @@ describe("buying ships", () => {
     const scout = cat[2];
     expect(hauler).toMatchObject({ owned: true, active: true, canBuy: false });
     expect(liner).toMatchObject({ owned: false, canBuy: false });
-    expect(liner?.reason).toMatch(/1500/);
+    expect(liner?.reason).toMatch(/2500/);
     expect(scout).toMatchObject({ owned: false, canBuy: true, reason: "" });
   });
 });

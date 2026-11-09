@@ -337,3 +337,24 @@ describe("save: the universe is the same after loading", () => {
     expect(Object.keys(data).sort()).toEqual(["gameNowMs", "savedAtRealMs", "seed", "state", "version"]);
   });
 });
+
+describe("save: trips saved before the 6b trip-time change (8 min per ly -> 1 min per ly)", () => {
+  it("an old mid-flight save with a long trip loads without crashing and still lands and pays", () => {
+    const time = fakeTime(5_000_000);
+    const storage = new MemoryStorage();
+    const job = someJob();
+    // An old save: the same job, but its trip was planned with the old, 8x longer time.
+    const oldTrip = Math.round(job.totalDistance * 480 + 20) * 1000;
+    const old = flyingState(job, time.now() - 60_000, time.now() - 60_000 + oldTrip);
+    writeSave(storage, makeSaveData(SEED, old, time.now(), time.now()));
+    const plan = planStart("", storage, SEED);
+    const game = new Game(plan.seed, startDock(), createClock(1, time.now));
+    expect(() => loadIntoGame(game, plan.save!, plan.state!, startDock(), time.now())).not.toThrow();
+    const p = game.progress();
+    expect(p && p.fraction >= 0 && p.fraction <= 1).toBe(true);
+    const credits = game.state.credits;
+    time.advance(oldTrip);
+    expect(game.update()).not.toBeNull();
+    expect(game.state.credits).toBe(credits + job.reward);
+  });
+});

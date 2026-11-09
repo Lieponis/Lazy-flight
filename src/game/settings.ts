@@ -25,9 +25,10 @@ export const REFUEL_PRICE_PER_UNIT = 2;
 
 /**
  * Real-world seconds of travel per light year (at normal speed).
- * 480 = 8 minutes per light year, so 25 ly = 3 hours 20 minutes.
+ * 60 = 1 minute per light year, so 25 ly = about 25 minutes (a 3-stop tour of up to 75 ly about 75 minutes).
+ * Was 480 (8 minutes per ly); changed 2026-11-09 by Andy's decision after the Agent 6b balance pass.
  */
-export const TRAVEL_SECONDS_PER_LY = 480;
+export const TRAVEL_SECONDS_PER_LY = 60;
 
 /**
  * Seconds a trip inside the same system takes (so you can see something happen).

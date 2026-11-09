@@ -234,7 +234,7 @@ describe("ui: which controls show on which screen", () => {
 });
 
 describe("ui: shipyard cards", () => {
-  const rich = (): GameState => ({ ...newGameState("a/1"), credits: 2000 });
+  const rich = (): GameState => ({ ...newGameState("a/1"), credits: 3000 });
   const card = (state: GameState, id: string) => shipCardText(shipCatalog(state).find((e) => e.ship.id === id)!, state.credits);
 
   it("the starter ship is ACTIVE with its fuel", () => {
@@ -245,14 +245,14 @@ describe("ui: shipyard cards", () => {
 
   it("a ship you can afford can be bought", () => {
     const c = card(rich(), "passenger-liner");
-    expect(c).toMatchObject({ action: "buy", price: "1,500 CR", fuel: "", reason: "" });
+    expect(c).toMatchObject({ action: "buy", price: "2,500 CR", fuel: "", reason: "" });
     expect(c.stats).toEqual({ cargo: "6", cabin: "12", tank: "100" });
   });
 
   it("a ship you cannot afford says how much is missing", () => {
     const c = card({ ...rich(), credits: 200 }, "passenger-liner");
     expect(c.action).toBe("blocked");
-    expect(c.reason).toBe("Need 1,300 CR more");
+    expect(c.reason).toBe("Need 2,300 CR more"); // Liner 2,500 (6b), you have 200
   });
 
   it("an owned, parked ship can be switched to and shows its own fuel", () => {

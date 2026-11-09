@@ -55,7 +55,7 @@ describe("emergency fuel through normal rules", () => {
   });
 });
 
-// ------------------------------------------------------------ BUG 6b-1 (src/game, reported to the Lead)
+// ------------------------------------------------------------ BUG 6b-1 (src/game, fixed with the Lead's OK)
 // The board says a job can be taken, but ACCEPT refuses it with "Needs rank ...".
 // Cause: Game.accept() checks the job WITH the rank/outpost pay bonus added, and the rank limit is then
 // compared with the bigger reward. A job just under a rank limit is pushed over it by your own bonus.
@@ -98,12 +98,16 @@ describe("BUG 6b-1: rank bonus pushes a job over the rank limit at Accept", () =
     expect(entry?.block).toBeNull();
   });
 
-  // it.fails = this test FAILS today because of the bug. When the Lead fixes Game.accept, vitest will
-  // report it as unexpectedly passing: then change it.fails to it.
-  it.fails("ACCEPT takes it (fails today: the bug)", () => {
+  // Fixed in Game.accept (Lead approved): the job is checked without bonuses; the bonus is still paid on arrival.
+  it("ACCEPT takes it, and the arrival still pays the bonus", () => {
     const game = setup();
     const slot = Number(job!.id.split("#")[1]) * 6;
     game.clock.now = () => slot * 3_600_000;
     expect(game.accept(job!.id).ok).toBe(true);
+    const credits = game.state.credits;
+    game.clock.now = () => game.state.travelEndMs!;
+    const arrival = game.update();
+    expect(arrival?.reward).toBe(Math.round(job!.reward * 1.05)); // +5% at cargo rank 2
+    expect(game.state.credits).toBe(credits + Math.round(job!.reward * 1.05));
   });
 });

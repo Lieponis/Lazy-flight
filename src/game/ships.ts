@@ -30,7 +30,7 @@ export const SHIPS: Record<string, ShipDef> = {
     id: "passenger-liner",
     name: "Passenger Liner",
     description: "Comfy cabin for 12 passengers, with a tiny cargo closet.",
-    price: 1500,
+    price: 2500, // was 1500; raised by Andy's decision (6b balance pass) so the first ship takes a little longer
     cargoCapacity: 6,
     cabinCapacity: 12,
     fuelTankSize: 100, // was 70; raised by Andy's decision (5b) so more tours fit

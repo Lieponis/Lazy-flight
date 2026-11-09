@@ -128,11 +128,13 @@ export class Game {
     if (this.state.currentJob) {
       return { ok: false, block: { code: "busy", text: "You already have a job. Finish it first." } };
     }
-    const job = this.getBoard().find((e) => e.job.id === jobId)?.job;
-    if (!job) return { ok: false, block: { code: "wrong-dock", text: "That job is no longer on the board." } };
-    const result = acceptJob(this.state, job, this.clock.now());
+    const plain = (getJobBoard(this.seed, this.state.currentDockId, this.currentSlot()) ?? []).find((j) => j.id === jobId);
+    if (!plain) return { ok: false, block: { code: "wrong-dock", text: "That job is no longer on the board." } };
+    // Check the job WITHOUT bonuses (the same check the board shows), so your own rank or outpost bonus can never
+    // push a job over a rank limit (bug 6b-1). The job you carry keeps the bonus pay, which is paid on arrival.
+    const result = acceptJob(this.state, plain, this.clock.now());
     if (!result.ok) return result;
-    this.state = result.state;
+    this.state = { ...result.state, currentJob: withBonuses(this.state, plain).job };
     this.lastArrival = null;
     this.changed();
     return { ok: true };

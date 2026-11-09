@@ -37,7 +37,7 @@ Type `npm run check` and press Enter. It builds the game and runs every automati
 
 ## 4. Testing aids (add to the end of the web address)
 
-- `?speed=600` makes game time run 600 times faster, so a trip takes seconds. Leave it out for normal play.
+- `?speed=60` makes game time run 60 times faster: a 20-minute trip takes 20 seconds. Leave it out for normal play. (Trips are 1 minute per light year.)
 - `?seed=777` starts a NEW game in universe 777 (it replaces your save). The game removes it from the address afterwards, so a reload continues that game.
 - `game-debug.html` is the rules test page (add credits, teleport, ranks, outposts). It uses its own save.
 - `debug.html` shows the universe as tables. `models.html` is the 3D model viewer.

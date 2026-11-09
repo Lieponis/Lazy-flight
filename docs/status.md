@@ -20,7 +20,7 @@ NEXT (can run in parallel with 4b, different files): Agent 3 part 3d = put Agent
 - Not verified: frame rate on phones (judged by feel only), npm run check in Agent 3's workspace.
 
 ## Agent 4 part 4a (2026-11-08), VERIFIED by Andy
-- Rules in src/game (credits, fuel, starter Cargo Hauler: 30 cargo, no cabin, 60 fuel; start credits 200; 2 fuel per ly; refuel 2 credits per unit; 8 min per ly; same-system 20 s; max 4 h). Contracts: cargo free, reward on delivery. Passenger/tour jobs blocked (no cabin).
+- Rules in src/game (credits, fuel, starter Cargo Hauler: 30 cargo, no cabin, 60 fuel; start credits 200; 2 fuel per ly; refuel 2 credits per unit; 8 min per ly (changed to 1 min per ly on 2026-11-09, Agent 6b, Lead approved); same-system 20 s; max 4 h). Contracts: cargo free, reward on delivery. Passenger/tour jobs blocked (no cabin).
 - Temporary panel in src/ui (right side, folded on phones). One small change in src/render/index.ts: setCurrentSystem(systemId). ?speed=NUMBER testing aid. 27 new tests (run only with a stand-in runner).
 - Real build and Andy's click-test passed.
 - Settings: src/game/settings.ts. Ships: ships.ts. Debrief lines: debriefs.ts.
@@ -86,7 +86,7 @@ NEXT (can run in parallel with 4b, different files): Agent 3 part 3d = put Agent
 - Agent 3 earlier split: 3b flight view (render must not import game; wiring through src/ui glue), 3d pixel look polish (3c is now the docked view). Cockpit frame is simple geometry in 3b.
 - Agent 4 order and scope: 4a before 3b. 4a = trade jobs only. Trade jobs are contracts for v1: cargo is provided, reward paid on delivery. Buying and selling goods on the open market is a later suggestion. Starter ship has a cargo bay only, so passenger and tour jobs are blocked until a ship with a cabin exists (4b/Agent 5/6 phase).
 - Job time limits (12 to 48 h) are not enforced in 4a (all trips are at most 4 h).
-- 4b defaults (Lead): ships cargo-hauler (30 cargo, 0 cabin, tank 60), passenger-liner (6 cargo, 12 cabin, tank 70, price 1500), scout (10 cargo, 2 cabin, tank 110, price 1200). Own several, buy at any dock when no job, switch free, each ship keeps its own fuel, no selling. Ship IDs use hyphens and match Agent 8's models.
+- 4b defaults (Lead): ships cargo-hauler (30 cargo, 0 cabin, tank 60), passenger-liner (6 cargo, 12 cabin, tank 70, price 1500; now tank 100 (5b) and price 2500 (6b, 2026-11-09)), scout (10 cargo, 2 cabin, tank 110, price 1200). Own several, buy at any dock when no job, switch free, each ship keeps its own fuel, no selling. Ship IDs use hyphens and match Agent 8's models.
 - Free emergency refuel when the player is stuck (no usable fuel and not enough credits): approved 2026-11-08, build in Agent 4 part 4b.
 - Testing aid: ?speed=NUMBER makes game time run faster so Andy does not wait hours.
 
