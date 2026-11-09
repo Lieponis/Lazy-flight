@@ -12,6 +12,9 @@ import {
   launchCameraBlend,
   launchOffset,
   exitDistance,
+  bayGlidePoint,
+  stationEntryState,
+  stationEntryTransform,
   outpostExitDistance,
   outpostExitHeading,
   outpostExitPose,
@@ -32,7 +35,7 @@ import {
 import { OUTPOST_IDS, STATION_IDS } from '../src/render/assets/pickers';
 import { BAY_SIZE, FLAME_FLYING, FLAME_PARKED, FLAME_WARP } from '../src/render/assets/style';
 import { camPosition } from '../src/render/dockedcam';
-import { DOCKED_BAY_MARGIN, OUTPOST_EXIT, STATION_EXIT } from '../src/render/settings';
+import { DOCKED_BAY_MARGIN, OUTPOST_EXIT, STATION_ENTRY, STATION_EXIT } from '../src/render/settings';
 
 describe('which ship is drawn', () => {
   it('uses the ids of the three ship designs', () => {
@@ -409,5 +412,70 @@ describe('leaving an outpost', () => {
       expect(Math.abs(q.pos.y * c - q.pos.z * s + t.position.y)).toBeLessThan(1e-6);
       expect(Math.abs(q.pos.y * s + q.pos.z * c + t.position.z)).toBeLessThan(1e-6);
     }
+  });
+});
+
+describe('arriving at a station (the departure backwards)', () => {
+  const r0 = 180;
+  const state = (p: number) => stationEntryState(p, r0, STATION_EXIT, STATION_ENTRY);
+  it('starts far away and ends exactly parked, facing the opening', () => {
+    expect(state(0).pose.slide).toBeGreaterThan(2000);
+    const end = state(1);
+    expect(Math.abs(end.pose.slide)).toBeLessThan(1e-9);
+    expect(end.yaw).toBeCloseTo(0, 9);
+    const t = stationEntryTransform(end);
+    expect(Math.abs(t.position.x) + Math.abs(t.position.y) + Math.abs(t.position.z)).toBeLessThan(1e-6);
+    expect(Math.abs(t.rotX)).toBeLessThan(1e-9);
+  });
+  it('flies in nose-first (half turn off) and slows down all the way in', () => {
+    let last = 1e9;
+    for (let p = 0; p <= STATION_ENTRY.pathShare + 1e-9; p += 0.05) {
+      expect(state(p).yaw).toBeCloseTo(Math.PI, 9);
+      expect(state(p).pose.slide).toBeLessThan(last + 1e-9);
+      last = state(p).pose.slide;
+    }
+  });
+  it('is stopped in the bay when it turns round, and turns smoothly to face the opening', () => {
+    expect(Math.abs(state(STATION_ENTRY.pathShare).pose.slide)).toBeLessThan(1e-9);
+    let yaw = Math.PI + 1e-9;
+    for (let p = STATION_ENTRY.pathShare; p <= 1.0001; p += 0.01) {
+      expect(state(p).yaw).toBeLessThanOrEqual(yaw);
+      yaw = state(p).yaw;
+    }
+    expect(state(STATION_ENTRY.turnEnd).yaw).toBeCloseTo(0, 9);
+  });
+  it('lands the ship on its place all the way (the ship never moves)', () => {
+    for (const p of [0, 0.3, 0.7, 0.9, 1]) {
+      const st = state(p);
+      const t = stationEntryTransform(st);
+      // the ship's spot in the station frame is pose.pos; turn it about X, move it, then turn about up
+      const c = Math.cos(t.rotX);
+      const s = Math.sin(t.rotX);
+      const xy = { x: st.pose.pos.x, y: st.pose.pos.y * c - st.pose.pos.z * s, z: st.pose.pos.y * s + st.pose.pos.z * c };
+      const moved = rotateY({ x: xy.x, y: xy.y, z: xy.z }, t.yaw);
+      const base = stationExitTransform(st.pose).position;
+      const landed = rotateY({ x: base.x, y: base.y, z: base.z }, t.yaw);
+      expect(Math.abs(moved.x + landed.x)).toBeLessThan(1e-6);
+      expect(Math.abs(moved.y + landed.y)).toBeLessThan(1e-6);
+      expect(Math.abs(moved.z + landed.z)).toBeLessThan(1e-6);
+    }
+  });
+  it('glides the camera to its resting spot, arcing over the ship', () => {
+    const start = { x: -2.4, y: 2.4, z: -6 };
+    const rest = { x: 3.2, y: 3.4, z: 4.8 };
+    const a = bayGlidePoint(start, rest, 0, 2.5);
+    expect(a.x).toBe(-2.4);
+    expect(a.y).toBeCloseTo(2.4, 9);
+    const end = bayGlidePoint(start, rest, 1, 2.5);
+    expect(end.x).toBeCloseTo(3.2, 9);
+    expect(end.y).toBeCloseTo(3.4, 9);
+    expect(end.z).toBeCloseTo(4.8, 9);
+    expect(bayGlidePoint(start, rest, 0.5, 2.5).y).toBeGreaterThan(2.9 + 2);
+  });
+  it('is the chase camera until the ship has stopped, then fixed in the bay', () => {
+    expect(state(0.5).chase).toBe(true);
+    expect(state(0.9).chase).toBe(false);
+    expect(state(0.5).glide).toBe(0);
+    expect(state(1).glide).toBeCloseTo(1, 9);
   });
 });

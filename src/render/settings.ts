@@ -152,3 +152,12 @@ export const OUTPOST_EXIT = {
   growth: 0.5,
   speedUpSeconds: 0.9,
 };
+
+/**
+ * Arriving at a STATION: the reverse of leaving it. The ship comes in along the same path backwards (nose first, slowing down),
+ * enters the opening, stops, then turns round (a half turn) in the bay so it rests facing the opening.
+ * `pathShare` = the share of the approach spent flying in; the half turn ends at `turnEnd`; the camera glides to the bay camera spot from `glideStart` to the end.
+ * The camera follows the ship from behind and a little to the side (`FLIGHT_CHASE_CAMERA`: right, up, behind).
+ */
+export const STATION_ENTRY = { pathShare: 0.85, turnEnd: 0.95, glideStart: 0.92, glideArc: 2.5 };
+export const FLIGHT_CHASE_CAMERA = { x: 2.4, y: 2.4, z: 6 };

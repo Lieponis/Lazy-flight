@@ -28,13 +28,15 @@ import type { Screen } from "./screen";
 import type { AssetModel } from "./assets";
 import {
   FALLBACK_SHIP_ID,
-  approachCameraBlend,
+  bayGlidePoint,
   approachOffset,
   flameLength,
   launchCameraBlend,
   outpostExitPose,
   lerp3,
   orbitPosition,
+  stationEntryState,
+  stationEntryTransform,
   stationExitPose,
   stationExitTransform,
   stationPlanetCentre,
@@ -50,12 +52,13 @@ import {
   DOCKED_GROUND_RADIUS,
   FLIGHT_STATION_PLANET_ALTITUDE,
   OUTPOST_EXIT,
+  STATION_ENTRY,
   DOCKED_STATION_PLANET_DETAIL,
   DOCKED_STATION_PLANET_RADIUS,
   FLIGHT_APPROACH_FROM_OUTPOST,
-  FLIGHT_APPROACH_FROM_STATION,
   FLIGHT_APPROACH_SECONDS,
   FLIGHT_BAY_CAMERA,
+  FLIGHT_CHASE_CAMERA,
   FLIGHT_DOCKED_HOLD_SECONDS,
   FLIGHT_LAUNCH_SECONDS,
   FLIGHT_LINE_SECONDS,
@@ -100,6 +103,8 @@ interface Body {
   bayCamera: Vec3 | null;
   /** Stations you leave: how far the ship has flown out so far. */
   slide: number;
+  /** Stations you arrive at: where the arrival is (set every frame). */
+  entry: ReturnType<typeof stationEntryState> | null;
 }
 
 export interface FlightScreenOptions {
@@ -128,6 +133,7 @@ export class FlightScreen implements Screen {
   private hudTimer = 0;
   private lastAspect = 0;
   private lastFov = 0;
+  private planetAt = new THREE.Vector3(); // scratch point
 
   private flash = document.createElement("div");
   private hudRoot = document.createElement("div");
@@ -189,8 +195,8 @@ export class FlightScreen implements Screen {
     this.clockT = 0;
     this.hudTimer = 0;
     this.lastFrameMs = performance.now();
-    this.origin = this.makeBody(info.originDockId, false);
-    this.dest = this.makeBody(info.destinationDockId, true);
+    this.origin = this.makeBody(info.originDockId);
+    this.dest = this.makeBody(info.destinationDockId);
     if (this.origin) this.scene.add(this.origin.group);
     if (this.dest) this.scene.add(this.dest.group);
   }
@@ -297,8 +303,18 @@ export class FlightScreen implements Screen {
       this.origin.group.position.set(t.position.x, t.position.y, t.position.z);
       this.origin.slide = pose.slide;
     } else if ((phase === "APPROACH" || phase === "DONE") && this.dest) {
-      const o = approachOffset(phase === "DONE" ? 1 : p, this.dest.isStation ? FLIGHT_APPROACH_FROM_STATION : FLIGHT_APPROACH_FROM_OUTPOST);
-      this.dest.group.position.set(o.x, o.y, o.z);
+      const q = phase === "DONE" ? 1 : p;
+      if (this.dest.isStation) {
+        // The departure walked backwards: in nose-first along the planet's surface, then a half turn in the bay.
+        const entry = stationEntryState(q, DOCKED_STATION_PLANET_RADIUS + FLIGHT_STATION_PLANET_ALTITUDE, STATION_EXIT, STATION_ENTRY);
+        const t = stationEntryTransform(entry);
+        this.dest.group.rotation.set(t.rotX, t.yaw, 0, "YXZ");
+        this.dest.group.position.set(t.position.x, t.position.y, t.position.z);
+        this.dest.entry = entry;
+      } else {
+        const o = approachOffset(q, FLIGHT_APPROACH_FROM_OUTPOST);
+        this.dest.group.position.set(o.x, o.y, o.z);
+      }
     }
     if (phase === "WARP") this.tunnel.update(this.clockT);
 
@@ -330,13 +346,23 @@ export class FlightScreen implements Screen {
       this.cockpit.group.visible = false;
       const height = (phase === "WARP" ? FLIGHT_ORBIT_HEIGHT_WARP : FLIGHT_ORBIT_HEIGHT_DOCK) + Math.sin(this.clockT * 0.4) * 0.6;
       let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * 0.35, FLIGHT_ORBIT_RADIUS, height);
-      // Leaving or entering a station: the camera stays inside the bay while the walls are around the ship.
-      const station = phase === "LAUNCH" ? this.origin : phase === "APPROACH" || phase === "DONE" ? this.dest : null;
-      if (station && station.bayCamera) {
-        const bay = rotateY(station.bayCamera, Math.sin(this.clockT * 0.35) * 0.14);
-        if (phase === "LAUNCH") {
-          rel = lerp3(bay, rel, launchCameraBlend(station.slide));
-        } else rel = lerp3(rel, bay, approachCameraBlend(-station.group.position.z));
+      if (phase === "LAUNCH" && this.origin?.bayCamera) {
+        // Leaving a station: the camera starts inside the bay and swings out once the station is clear.
+        const bay = rotateY(this.origin.bayCamera, Math.sin(this.clockT * 0.35) * 0.14);
+        rel = lerp3(bay, rel, launchCameraBlend(this.origin.slide));
+      } else if ((phase === "APPROACH" || phase === "DONE") && this.dest?.isStation && this.dest.entry) {
+        const entry = this.dest.entry;
+        if (entry.chase) {
+          // Arriving at a station: the camera follows the ship from behind, a little to the side and above.
+          rel = { x: FLIGHT_CHASE_CAMERA.x, y: FLIGHT_CHASE_CAMERA.y, z: FLIGHT_CHASE_CAMERA.z };
+        } else {
+          // The ship turns round in the bay: the camera stays fixed in the bay, then glides to its resting spot.
+          const startInBay = rotateY(FLIGHT_CHASE_CAMERA, -Math.PI); // where the chase camera was, in the station's frame
+          const restInBay = FLIGHT_BAY_CAMERA;
+          const at = bayGlidePoint(startInBay, restInBay, entry.glide, STATION_ENTRY.glideArc);
+          const world = this.dest.group.localToWorld(this.planetAt.set(at.x, at.y, at.z));
+          rel = { x: world.x, y: world.y, z: world.z };
+        }
       }
       camera.position.set(rel.x, rel.y + shipY, rel.z);
       camera.lookAt(0, shipY + 0.8, 0);
@@ -393,10 +419,9 @@ export class FlightScreen implements Screen {
 
   /**
    * One end of the trip: the dock design picked for this dock, with its parking spot at the group's origin,
-   * plus the planet under it (outposts) or beside it (stations you leave).
-   * `arriving` = this is the destination: a station is turned round so its slot faces the incoming ship.
+   * plus the planet under it (outposts) or below it (stations: the slot points along the planet's surface).
    */
-  private makeBody(dockId: string, arriving: boolean): Body | null {
+  private makeBody(dockId: string): Body | null {
     const planet = getPlanet(this.opts.seed, dockId);
     if (!planet) return null;
     const dock = generateDock(this.opts.seed, planet);
@@ -406,25 +431,18 @@ export class FlightScreen implements Screen {
     const group = new THREE.Group();
     group.add(built.model.group);
     const isStation = dock.kind === "STATION";
-    let bayCamera: Vec3 | null = null;
     if (!isStation) {
       const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, WORLD_LIGHT, DOCKED_GROUND_DETAIL);
       ground.position.y = -DOCKED_GROUND_RADIUS - built.parking.y - 0.12;
       group.add(ground);
     } else {
-      if (!arriving) {
-        // The planet lies below the station, so the slot points along its surface.
-        const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, DOCKED_STATION_PLANET_DETAIL);
-        const c = stationPlanetCentre(DOCKED_STATION_PLANET_RADIUS, FLIGHT_STATION_PLANET_ALTITUDE, STATION_EXIT.straight);
-        world.position.set(c.x, c.y, c.z);
-        group.add(world);
-      }
-      const turn = arriving ? Math.PI : 0;
-      group.rotation.y = turn;
-      bayCamera = rotateY(FLIGHT_BAY_CAMERA, turn);
+      const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, DOCKED_STATION_PLANET_DETAIL);
+      const c = stationPlanetCentre(DOCKED_STATION_PLANET_RADIUS, FLIGHT_STATION_PLANET_ALTITUDE, STATION_EXIT.straight);
+      world.position.set(c.x, c.y, c.z);
+      group.add(world);
     }
     group.visible = false;
-    return { group, model: built.model, isStation, bayCamera, slide: 0 };
+    return { group, model: built.model, isStation, bayCamera: isStation ? { ...FLIGHT_BAY_CAMERA } : null, slide: 0, entry: null };
   }
 
   private clearBodies(): void {
