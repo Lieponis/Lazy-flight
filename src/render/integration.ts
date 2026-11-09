@@ -195,16 +195,12 @@ export function orbitPosition(angle: number, radius: number, height: number): Ve
 // ------------------------------------------------------------------ leaving a station along the planet
 
 export interface ExitSettings {
-  /** How far the ship has flown at the very end of the launch. */
+  /** How far the ship flies in the whole launch. */
   distance: number;
   /** Straight out of the slot for this far. */
   straight: number;
-  /** The turning stops here; after it the ship flies straight along its last heading. */
-  curveEnd: number;
   /** How fast the orbit widens (0 = a perfect circle round the planet). */
   growth: number;
-  /** Speeding up: distance flown = distance * progress ^ power. */
-  power: number;
 }
 
 export interface ExitPose {
@@ -216,9 +212,9 @@ export interface ExitPose {
   pos: Vec3;
 }
 
-/** The turn angle after flying `s` units: 0 while straight, then the circle of radius r0 that slowly widens, then no more turning. */
+/** The turn angle after flying `s` units: 0 while straight, then the circle of radius r0 that slowly widens. */
 export function exitPitch(s: number, r0: number, e: ExitSettings): number {
-  const d = Math.max(0, Math.min(s, e.curveEnd) - e.straight);
+  const d = Math.max(0, s - e.straight);
   if (d <= 0 || r0 <= 0) return 0;
   return e.growth > 1e-9 ? Math.log(1 + (e.growth * d) / r0) / e.growth : d / r0;
 }
@@ -226,10 +222,9 @@ export function exitPitch(s: number, r0: number, e: ExitSettings): number {
 /** Where the ship is at progress p (0 to 1) of a launch from a station. `r0` = distance from the ship's start height down to the planet's centre. */
 export function stationExitPose(p: number, r0: number, e: ExitSettings): ExitPose {
   const q = clamp(p, 0, 1);
-  const slide = e.distance * q ** e.power; // speeds up more and more
-  const curved = Math.min(slide, e.curveEnd);
+  const slide = e.distance * q * q; // speeds up
   const steps = 64;
-  const ds = curved / steps;
+  const ds = slide / steps;
   let y = 0;
   let z = 0;
   for (let i = 0; i < steps; i++) {
@@ -237,11 +232,7 @@ export function stationExitPose(p: number, r0: number, e: ExitSettings): ExitPos
     z -= Math.cos(a) * ds;
     y -= Math.sin(a) * ds;
   }
-  const pitch = exitPitch(slide, r0, e);
-  const rest = Math.max(0, slide - e.curveEnd); // the straight run after the curve
-  z -= Math.cos(pitch) * rest;
-  y -= Math.sin(pitch) * rest;
-  return { slide, pitch, pos: { x: 0, y, z } };
+  return { slide, pitch: exitPitch(slide, r0, e), pos: { x: 0, y, z } };
 }
 
 /** The station group's turn (about X) and position so that the ship, which never moves, ends up at `pose`. */
