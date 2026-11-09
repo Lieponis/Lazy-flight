@@ -76,6 +76,8 @@ interface PendingPart {
 export class ModelKit {
   private parts: Record<Layer, PendingPart[]> = { body: [], glow: [], blinkA: [], blinkB: [], flame: [], ring: [], light: [] };
   private windows: { name: string; points: [number, number, number][] }[] = [];
+  /** Everything built is moved by this much (cockpits use it to move the room around a fixed eye). */
+  private shift = new THREE.Vector3();
   private leverSpecs: { name: string; pivot: THREE.Vector3; axis: THREE.Vector3; maxAngle: number; build: (k: ModelKit) => void }[] = [];
   private origins: Partial<Record<Layer, THREE.Vector3>> = {};
   private anchors: Anchors = {};
@@ -292,7 +294,7 @@ export class ModelKit {
     if (o.q) m.makeRotationFromQuaternion(o.q);
     else m.makeRotationFromEuler(new THREE.Euler(r[0], r[1], r[2], "XYZ"));
     const at = o.at ?? [0, 0, 0];
-    m.setPosition(at[0], at[1], at[2]);
+    m.setPosition(at[0] + this.shift.x, at[1] + this.shift.y, at[2] + this.shift.z);
     g.applyMatrix4(m);
     const shaded = !(layer === "glow" || layer === "blinkA" || layer === "blinkB" || layer === "flame" || layer === "light");
     this.parts[layer].push({ name, geometry: g, hex: this.color(color), shaded });
@@ -303,7 +305,7 @@ export class ModelKit {
 
   /** A named point. `dir` = the way it faces (default: forward, -Z). */
   anchor(name: string, at: readonly [number, number, number], dir: readonly [number, number, number] = [0, 0, -1]): this {
-    this.anchors[name] = { pos: new THREE.Vector3(...at), dir: new THREE.Vector3(...dir).normalize() };
+    this.anchors[name] = { pos: new THREE.Vector3(...at).add(this.shift), dir: new THREE.Vector3(...dir).normalize() };
     return this;
   }
 
@@ -367,9 +369,16 @@ export class ModelKit {
     return this;
   }
 
+  /** From now on, move everything that is built (parts, anchors, openings, levers) by (x, y, z). */
+  moveAll(x: number, y: number, z: number): this {
+    this.shift.set(x, y, z);
+    return this;
+  }
+
   /** Records a window opening (a ring of 3D points). Nothing is built: an opening is empty space. */
   windowOpening(name: string, points: readonly (readonly [number, number, number])[]): this {
-    this.windows.push({ name, points: points.map((p) => [p[0], p[1], p[2]] as [number, number, number]) });
+    const d = this.shift;
+    this.windows.push({ name, points: points.map((p) => [p[0] + d.x, p[1] + d.y, p[2] + d.z] as [number, number, number]) });
     return this;
   }
 
@@ -400,7 +409,7 @@ export class ModelKit {
    * Its meshes share the model's material. The game may turn it up to `maxAngle` radians.
    */
   lever(name: string, pivot: readonly [number, number, number], axis: readonly [number, number, number], maxAngle: number, build: (k: ModelKit) => void): this {
-    this.leverSpecs.push({ name, pivot: new THREE.Vector3(...pivot), axis: new THREE.Vector3(...axis).normalize(), maxAngle, build });
+    this.leverSpecs.push({ name, pivot: new THREE.Vector3(...pivot).add(this.shift), axis: new THREE.Vector3(...axis).normalize(), maxAngle, build });
     return this;
   }
 

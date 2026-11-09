@@ -91,7 +91,7 @@ describe('cockpits (stage C1)', () => {
     for (const entry of cockpits) {
       const m = entry.build();
       expect(m.anchors.eye!.pos.length(), entry.id).toBe(0);
-      expect(m.anchors.eye!.dir.z, entry.id).toBe(-1);
+      expect(m.anchors.eye!.dir.z, entry.id).toBeLessThan(-0.95); // forward, a little down over the console
       for (const s of ['screenInfo', 'screenMap', 'screenFuel']) {
         expect(m.anchors[s]!.size!.w, `${entry.id} ${s}`).toBeGreaterThan(0.3);
         expect(m.anchors[s]!.size!.h, `${entry.id} ${s}`).toBeGreaterThan(0.2);
@@ -120,7 +120,9 @@ describe('cockpits (stage C1)', () => {
       const m = entry.build();
       expect(m.animation.levers.length, entry.id).toBeGreaterThanOrEqual(2);
       const names = m.windowOpenings!.map((w) => w.name);
-      expect(names, entry.id).toEqual(expect.arrayContaining(['front glass', 'left glass', 'right glass']));
+      expect(names, entry.id).toContain('front glass');
+      expect(names.some((n) => n.startsWith('left')), entry.id).toBe(true);
+      expect(names.some((n) => n.startsWith('right')), entry.id).toBe(true);
     }
   });
 

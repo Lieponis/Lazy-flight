@@ -4,11 +4,12 @@
 // low-poly and chunky, glass wrapping around the pilot instead of a box with a hole, a curved wall of screens,
 // controls for looks (levers Agent 3 may nudge later), the co-pilot seat beside the pilot (the dog shows at the right edge),
 // half glass and half cockpit, colours and mood per ship, up to 3000 triangles.
+// Revision 2 (Andy): eye higher and closer to the console for all three; Hauler and Liner snug, low, with leaning walls.
 //
 // Same bones for all three: the curved screen console in front, the pilot seat behind the eye, the co-pilot seat ahead-right.
 // Different glass cage, frame and colours:
-//   cockpit-cargo-hauler     fighter-style wrap-around: glass front, sides and overhead, diagonal pillars; dark grey and orange
-//   cockpit-passenger-liner  bright bridge: windows front and sides, solid roof with cyan glow strips; white and cyan
+//   cockpit-cargo-hauler     snug fighter canopy: glass front, sides and overhead, leaning sides, pillars converging; dark grey and orange
+//   cockpit-passenger-liner  low wrap-around band of angled panes under a solid roof; dark with cyan glow (revision 2)
 //   cockpit-scout            overhead canopy: glass over the head, diagonal struts, two joysticks; dark and red
 
 import * as THREE from "three";
@@ -20,11 +21,11 @@ type V3 = [number, number, number];
 // ------------------------------------------------------------------ the shared bones
 
 const FLOOR_Y = -1.4;
-const SILL_Y = -0.2; // where the glass starts (the "belt line")
+const SILL_Y = -0.05; // where the glass starts (the "belt line")
 const CAGE_BACK_Z = 0.5; // the glass ends here; behind it is a short closed cabin
 const CABIN_BACK_Z = 1.3;
-const ARC = { r1: 1.3, r2: 1.85, yIn: -0.62, yOut: -0.3, angles: [-52, -30, -10, 10, 24] }; // the curved console, degrees
-const COPILOT = { x: 1.15, z: -1.3 }; // the co-pilot seat, ahead-right so the dog shows at the edge of the view
+const ARC = { r1: 1.3, r2: 1.85, yIn: -0.5, yOut: -0.2, angles: [-52, -30, -10, 10, 24] }; // the curved console, degrees
+const COPILOT = { x: 1.02, z: -1.5 }; // the co-pilot seat, ahead-right so the dog shows at the edge of the view
 
 /** A point on the console arc: angle in degrees (0 = straight ahead, + = right), distance r, height y. */
 const arc = (deg: number, r: number, y: number): V3 => {
@@ -32,14 +33,22 @@ const arc = (deg: number, r: number, y: number): V3 => {
   return [Math.sin(a) * r, y, -Math.cos(a) * r];
 };
 
+/**
+ * The glass cage, described by its right half from the front centre to the back (the left half is mirrored).
+ * `sill` = where the glass starts, `top` = where it ends at the roof, the same number of points.
+ * Between neighbouring points there is a pane: glass or solid.
+ */
 interface Cage {
-  sf: [number, number]; // front sill corner: half width, z
-  sb: [number, number]; // back sill corner: half width, z (z = CAGE_BACK_Z)
-  tf: V3; // front top corner (right side): x, y, z
-  tb: V3; // back top corner (right side)
+  sill: V3[];
+  top: V3[];
+  /** For each pane of the right half, front to back: true = glass. (The centre pane, between the two halves, is always glass.) */
+  glass: boolean[];
   roofGlass: boolean;
-  frontStruts: number; // extra struts splitting the front glass
-  sideStrut: "middle" | "diagonal" | "none";
+  frontStruts: number; // extra struts splitting the centre front pane
+  frontStrutScale?: number; // their thickness, as a share of the frame thickness
+  sideStrut: "middle" | "diagonal" | "none"; // on the last (side) pane
+  /** Lower walls lean in: the floor is this fraction of the sill width (1 = upright walls). */
+  floorScale: number;
 }
 
 interface CockpitStyle {
@@ -56,70 +65,100 @@ interface CockpitStyle {
 }
 
 const mirror = (p: V3): V3 => [-p[0], p[1], p[2]];
+const lerp = (a: V3, b: V3, f: number): V3 => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
 
 function cage(k: ModelKit, s: CockpitStyle): void {
   const c = s.cage;
-  const SFR: V3 = [c.sf[0], SILL_Y, c.sf[1]];
-  const SBR: V3 = [c.sb[0], SILL_Y, c.sb[1]];
-  const TFR = c.tf;
-  const TBR = c.tb;
-  const [SFL, SBL, TFL, TBL] = [SFR, SBR, TFR, TBR].map(mirror) as [V3, V3, V3, V3];
+  // Full rings, from the back left, round the front, to the back right.
+  const ring = (half: V3[]): V3[] => [...half.map(mirror).reverse(), ...half];
+  const sill = ring(c.sill);
+  const top = ring(c.top);
+  const n = sill.length;
+  const half = c.sill.length;
+  const glassAt = (i: number): boolean => {
+    // Pane i joins point i and i+1. The centre pane is i = half - 1.
+    const d = i - (half - 1);
+    if (d === 0) return true;
+    return c.glass[Math.abs(d) - 1] ?? false;
+  };
+  const sideName = (i: number): string => {
+    const d = i - (half - 1);
+    return d === 0 ? "front" : `${d > 0 ? "right" : "left"} ${Math.abs(d)}`;
+  };
   const t = s.frameT;
+  const f = (p: V3): V3 => [p[0] * c.floorScale, FLOOR_Y, p[2]];
 
-  // The openings (empty space; the checker keeps them clear).
-  k.windowOpening("front glass", [SFL, SFR, TFR, TFL]);
-  k.windowOpening("right glass", [SFR, SBR, TBR, TFR]);
-  k.windowOpening("left glass", [SBL, SFL, TFL, TBL]);
-  if (c.roofGlass) k.windowOpening("roof glass", [TFL, TFR, TBR, TBL]);
-
-  // The frame: every edge of the glass cage is a pillar or rail ("strut": allowed in front of the glass).
-  const edges: [string, V3, V3][] = [
-    ["sill front", SFL, SFR], ["sill right", SFR, SBR], ["sill left", SFL, SBL],
-    ["pillar front right", SFR, TFR], ["pillar front left", SFL, TFL],
-    ["top front", TFL, TFR], ["top right", TFR, TBR], ["top left", TFL, TBL],
-    ["pillar back right", SBR, TBR], ["pillar back left", SBL, TBL], ["top back", TBL, TBR],
-  ];
-  for (const [name, a, b] of edges) k.beam(`strut ${name}`, a, b, t, s.frame);
-  const lerp = (a: V3, b: V3, f: number): V3 => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
-  for (let i = 1; i <= c.frontStruts; i++) {
-    const f = i / (c.frontStruts + 1);
-    k.beam(`strut front ${i}`, lerp(SFL, SFR, f), lerp(TFL, TFR, f), t * 0.8, s.frame);
+  for (let i = 0; i + 1 < n; i++) {
+    const a = sill[i]!;
+    const b = sill[i + 1]!;
+    const ta = top[i]!;
+    const tb = top[i + 1]!;
+    if (glassAt(i)) k.windowOpening(`${sideName(i)} glass`, [a, b, tb, ta]);
+    else k.convex(`${sideName(i)} panel`, [a, b, tb, ta, ...[a, b, tb, ta].map((p) => [p[0] * 1.06, p[1], p[2] - (Math.abs(p[0]) < 0.6 ? 0.08 : 0)] as V3)], s.hull);
+    k.beam(`strut sill ${sideName(i)}`, a, b, t, s.frame);
+    k.beam(`strut top ${sideName(i)}`, ta, tb, t, s.frame);
+    // Lower wall under each pane, leaning in towards the floor.
+    const out: V3 = [(a[0] + b[0]) / 2, 0, (a[2] + b[2]) / 2 - (Math.abs(a[0] + b[0]) < 0.1 ? 1 : 0)];
+    k.slab(`lower wall ${sideName(i)}`, [a, b, f(b), f(a)], [out[0], -0.3, out[2]], 0.1, s.hull);
   }
+  for (let i = 0; i < n; i++) k.beam(`strut pillar ${i}`, sill[i]!, top[i]!, t, s.frame);
+
+  // Extra struts.
+  const cs = sill[half - 1]!;
+  const ce = sill[half]!;
+  const ct = top[half - 1]!;
+  const cte = top[half]!;
+  for (let i = 1; i <= c.frontStruts; i++) {
+    const fr = i / (c.frontStruts + 1);
+    k.beam(`strut front ${i}`, lerp(cs, ce, fr), lerp(ct, cte, fr), t * (c.frontStrutScale ?? 0.8), s.frame);
+  }
+  const last = n - 1;
   for (const side of [1, -1]) {
     const m = side > 0 ? (p: V3): V3 => p : mirror;
-    if (c.sideStrut === "middle") k.beam(`strut side ${side}`, m(lerp(SFR, SBR, 0.5)), m(lerp(TFR, TBR, 0.5)), t * 0.8, s.frame);
-    if (c.sideStrut === "diagonal") k.beam(`strut side ${side}`, m(SFR), m(lerp(TFR, TBR, 0.6)), t * 0.9, s.frame);
-  }
-  if (c.roofGlass) k.beam("strut roof spine", [0, TFR[1] + 0.02, TFR[2]], [0, TBR[1] + 0.02, TBR[2]], t * 0.8, s.frame);
-  else {
-    k.slab("roof", [TFL, TFR, TBR, TBL], [0, 1, 0.15], 0.12, s.hull);
+    const sf = c.sill[half - 2] ?? c.sill[0]!;
+    const sb = c.sill[half - 1]!;
+    const tf = c.top[half - 2] ?? c.top[0]!;
+    const tbk = c.top[half - 1]!;
+    if (c.sideStrut === "middle") k.beam(`strut side ${side}`, m(lerp(sf, sb, 0.5)), m(lerp(tf, tbk, 0.5)), t * 0.8, s.frame);
+    if (c.sideStrut === "diagonal") k.beam(`strut side ${side}`, m(sf), m(lerp(tf, tbk, 0.6)), t * 0.9, s.frame);
   }
 
-  // Below the glass: lower walls, the nose under the console, the floor.
-  const f = (p: V3): V3 => [p[0], FLOOR_Y, p[2]];
-  k.slab("lower wall right", [SFR, SBR, f(SBR), f(SFR)], [1, 0, 0], 0.12, s.hull);
-  k.slab("lower wall left", [SBL, SFL, f(SFL), f(SBL)], [-1, 0, 0], 0.12, s.hull);
-  k.slab("lower nose", [SFL, SFR, f(SFR), f(SFL)], [0, 0, -1], 0.12, s.hull);
-  k.slab("floor", [f(SFL), f(SFR), f(SBR), f(SBL)], [0, -1, 0], 0.12, s.floor);
-  k.convex("floor extension", [f(SBL), f(SBR), [SBR[0], FLOOR_Y, CABIN_BACK_Z], [SBL[0], FLOOR_Y, CABIN_BACK_Z],
-    [SBL[0], FLOOR_Y - 0.12, CAGE_BACK_Z], [SBR[0], FLOOR_Y - 0.12, CAGE_BACK_Z], [SBR[0], FLOOR_Y - 0.12, CABIN_BACK_Z], [SBL[0], FLOOR_Y - 0.12, CABIN_BACK_Z]], s.floor);
+  // Roof: glass (with a spine) or solid.
+  if (c.roofGlass) {
+    k.windowOpening("roof glass", top);
+    const front = lerp(ct, cte, 0.5);
+    const back = lerp(top[0]!, top[last]!, 0.5);
+    k.beam("strut roof spine", [0, front[1] + 0.02, front[2]], [0, back[1] + 0.02, back[2]], t * 0.8, s.frame);
+  } else {
+    k.convex("roof", [...top, ...top.map((p) => [p[0], p[1] + 0.12, p[2]] as V3)], s.hull);
+  }
+
+  // Floor.
+  const floorRing = sill.map(f);
+  k.convex("floor", [...floorRing, ...floorRing.map((p) => [p[0], p[1] - 0.12, p[2]] as V3)], s.floor);
 
   // The short closed cabin behind the glass (seen only when looking back).
+  const SBR = sill[last]!;
+  const TBR = top[last]!;
+  const SBL = sill[0]!;
+  const TBL = top[0]!;
   const back = (p: V3): V3 => [p[0], p[1], CABIN_BACK_Z];
+  const fb = (p: V3): V3 => [p[0] * c.floorScale, FLOOR_Y, CABIN_BACK_Z];
   k.slab("cabin roof", [TBL, TBR, back(TBR), back(TBL)], [0, 1, 0], 0.12, s.hull);
   k.slab("cabin right", [SBR, back(SBR), back(TBR), TBR], [1, 0, 0], 0.12, s.hull);
   k.slab("cabin left", [SBL, back(SBL), back(TBL), TBL], [-1, 0, 0], 0.12, s.hull);
-  k.slab("cabin right low", [SBR, back(SBR), [SBR[0], FLOOR_Y, CABIN_BACK_Z], f(SBR)], [1, 0, 0], 0.12, s.hull);
-  k.slab("cabin left low", [SBL, back(SBL), [SBL[0], FLOOR_Y, CABIN_BACK_Z], f(SBL)], [-1, 0, 0], 0.12, s.hull);
-  k.slab("cabin back wall", [[-SBR[0], FLOOR_Y, CABIN_BACK_Z], [SBR[0], FLOOR_Y, CABIN_BACK_Z], [TBR[0], TBR[1], CABIN_BACK_Z], [-TBR[0], TBR[1], CABIN_BACK_Z]], [0, 0, 1], 0.12, s.hull);
+  k.slab("cabin right low", [SBR, back(SBR), fb(SBR), f(SBR)], [1, -0.3, 0], 0.12, s.hull);
+  k.slab("cabin left low", [SBL, back(SBL), fb(SBL), f(SBL)], [-1, -0.3, 0], 0.12, s.hull);
+  k.convex("cabin floor", [f(SBL), f(SBR), fb(SBR), fb(SBL), ...[f(SBL), f(SBR), fb(SBR), fb(SBL)].map((p) => [p[0], p[1] - 0.12, p[2]] as V3)], s.floor);
+  k.slab("cabin back wall", [fb(SBL), fb(SBR), back(SBR), back(TBR), back(TBL), back(SBL)], [0, 0, 1], 0.12, s.hull);
 
-  k.anchor("windowLight", [0, (SILL_Y + TFR[1]) / 2, (SFR[2] + TFR[2]) / 2], [0, 0, 1]);
+  k.anchor("windowLight", lerp(lerp(cs, ce, 0.5), lerp(ct, cte, 0.5), 0.5), [0, 0, 1]);
 }
 
 /** The curved wall of screens in front of the pilot, with a busy top. */
 function consoleArc(k: ModelKit, s: CockpitStyle): void {
   const { r1, r2, yIn, yOut, angles } = ARC;
-  const eye = new THREE.Vector3(0, 0, 0);
+  const eye = new THREE.Vector3(...EYE);
   const screenNames: (null | [string, string, ColorName])[] = [
     ["screen radar", "", "screenTeal"],
     ["screen info", "screenInfo", "screenTeal"],
@@ -139,8 +178,8 @@ function consoleArc(k: ModelKit, s: CockpitStyle): void {
     // The screen stands on the console, facing the pilot.
     const mid = (a0 + a1) / 2;
     const width = 2 * 1.62 * Math.sin((((a1 - a0) / 2) * Math.PI) / 180) * 0.86;
-    const h = 0.3;
-    const centre = new THREE.Vector3(...arc(mid, 1.66, -0.33));
+    const h = 0.26;
+    const centre = new THREE.Vector3(...arc(mid, 1.66, -0.19));
     const m = new THREE.Matrix4().lookAt(eye, centre, new THREE.Vector3(0, 1, 0));
     const q = new THREE.Quaternion().setFromRotationMatrix(m);
     const look = eye.clone().sub(centre).normalize();
@@ -179,21 +218,21 @@ function seats(k: ModelKit, s: CockpitStyle): void {
   k.box("pilot seat back", 0.75, 1.1, 0.16, s.seat, { at: [0, -0.3, 0.88] });
   // Co-pilot seat, ahead and to the right.
   const { x, z } = COPILOT;
-  k.box("copilot seat base", 0.45, 0.5, 0.45, "metalDark", { at: [x, FLOOR_Y + 0.25, z] });
-  k.box("copilot seat cushion", 0.62, 0.15, 0.7, s.seat, { at: [x, FLOOR_Y + 0.575, z] });
+  k.box("copilot seat base", 0.4, 0.5, 0.45, "metalDark", { at: [x, FLOOR_Y + 0.25, z] });
+  k.box("copilot seat cushion", 0.52, 0.15, 0.7, s.seat, { at: [x, FLOOR_Y + 0.575, z] });
   // A low bucket-seat back, so it never hides the side glass.
-  k.box("copilot seat back", 0.62, 0.38, 0.14, s.seat, { at: [x, FLOOR_Y + 0.84, z + 0.4] });
+  k.box("copilot seat back", 0.52, 0.38, 0.14, s.seat, { at: [x, FLOOR_Y + 0.84, z + 0.4] });
 }
 
 /** The co-pilot: an original low-poly dog, curled up asleep on the co-pilot seat, head on its paws, facing the pilot. */
 function dog(k: ModelKit): void {
   const top = FLOOR_Y + 0.65; // top of the cushion
-  const bx = COPILOT.x + 0.06;
-  const bz = COPILOT.z - 0.02;
+  const bx = COPILOT.x + 0.04;
+  const bz = COPILOT.z + 0.04;
   k.add("dog body", new THREE.IcosahedronGeometry(0.24, 1).scale(1.0, 0.56, 1.3), "dogTan", { at: [bx, top + 0.13, bz] });
-  k.add("dog back patch", new THREE.IcosahedronGeometry(0.11, 0).scale(1.1, 0.6, 1.3), "dogDark", { at: [bx + 0.04, top + 0.24, bz - 0.1] });
+  k.add("dog back patch", new THREE.IcosahedronGeometry(0.11, 0).scale(1.1, 0.6, 1.3), "dogDark", { at: [bx + 0.04, top + 0.24, bz + 0.1] });
   const hx = bx - 0.17;
-  const hz = bz + 0.24;
+  const hz = bz - 0.24;
   const hy = top + 0.12;
   k.add("dog head", new THREE.IcosahedronGeometry(0.13, 1).scale(1.0, 0.9, 1.0), "dogTan", { at: [hx, hy, hz] });
   k.box("dog snout", 0.13, 0.08, 0.1, "dogTan", { at: [hx - 0.13, hy - 0.03, hz] });
@@ -201,11 +240,11 @@ function dog(k: ModelKit): void {
   for (const s of [1, -1]) {
     k.box(`dog ear ${s}`, 0.06, 0.14, 0.04, "dogDark", { at: [hx + 0.02, hy - 0.02, hz + s * 0.13], rot: [s * 0.25, 0, 0] });
     k.box(`dog closed eye ${s}`, 0.02, 0.015, 0.05, "dogNose", { at: [hx - 0.115, hy + 0.04, hz + s * 0.05] });
-    k.box(`dog paw ${s}`, 0.16, 0.06, 0.07, "dogTan", { at: [hx - 0.08, top + 0.03, hz + s * 0.07 + 0.02] });
+    k.box(`dog paw ${s}`, 0.16, 0.06, 0.07, "dogTan", { at: [hx - 0.08, top + 0.03, hz + s * 0.07 - 0.02] });
   }
-  k.box("dog collar", 0.05, 0.1, 0.18, "teal", { at: [hx + 0.11, hy - 0.02, hz - 0.06] });
-  k.box("dog tail", 0.08, 0.07, 0.26, "dogTan", { at: [bx + 0.14, top + 0.05, bz - 0.24], rot: [0, 0.7, 0] });
-  k.box("dog tail tip", 0.07, 0.06, 0.1, "hullWhite", { at: [bx + 0.02, top + 0.05, bz - 0.36], rot: [0, 1.2, 0] });
+  k.box("dog collar", 0.05, 0.1, 0.18, "teal", { at: [hx + 0.11, hy - 0.02, hz + 0.06] });
+  k.box("dog tail", 0.08, 0.07, 0.26, "dogTan", { at: [bx + 0.14, top + 0.05, bz + 0.24], rot: [0, -0.7, 0] });
+  k.box("dog tail tip", 0.07, 0.06, 0.1, "hullWhite", { at: [bx + 0.02, top + 0.05, bz + 0.36], rot: [0, -1.2, 0] });
   k.anchor("dog", [bx, top + 0.13, bz], [-1, 0, 0]);
 }
 
@@ -221,14 +260,24 @@ function throttles(k: ModelKit, knob: ColorName): void {
   }
 }
 
+/**
+ * The pilot's eye, measured in the "bones" layout: higher and closer to the console than the room's centre
+ * (Andy, revision 2: "eye point higher and pilot closer to panels", the same for all three).
+ */
+const EYE: V3 = [0, 0.25, -0.2];
+/** The pilot looks slightly down over the console (10 degrees), like a real pilot. Agent 3 uses the eye anchor's `dir`. */
+const LOOK: V3 = [0, -Math.sin(0.17), -Math.cos(0.17)];
+
 function buildCockpit(s: CockpitStyle, extras: (k: ModelKit) => void): AssetModel {
   const k = new ModelKit();
+  // Build the room around the eye: the eye ends up at (0, 0, 0).
+  k.moveAll(-EYE[0], -EYE[1], -EYE[2]);
   cage(k, s);
   consoleArc(k, s);
   seats(k, s);
   if (s.dog) dog(k);
   extras(k);
-  k.anchor("eye", [0, 0, 0], [0, 0, -1]);
+  k.anchor("eye", EYE, LOOK);
   return k.finish();
 }
 
@@ -237,7 +286,12 @@ function buildCockpit(s: CockpitStyle, extras: (k: ModelKit) => void): AssetMode
 export function buildCockpitHauler(_o: BuildOptions = {}): AssetModel {
   return buildCockpit(
     {
-      cage: { sf: [1.15, -2.45], sb: [1.9, CAGE_BACK_Z], tf: [0.7, 0.95, -2.0], tb: [1.25, 1.45, CAGE_BACK_Z], roofGlass: true, frontStruts: 2, sideStrut: "middle" },
+      // Snug fighter canopy: glass front, sides and overhead; the sides lean in hard and the pillars converge on the nose.
+      cage: {
+        sill: [[1.0, SILL_Y, -2.0], [1.5, SILL_Y, CAGE_BACK_Z]],
+        top: [[0.4, 0.75, -1.4], [0.8, 1.05, CAGE_BACK_Z]],
+        glass: [true], roofGlass: true, frontStruts: 2, sideStrut: "middle", floorScale: 0.62, frontStrutScale: 0.55,
+      },
       frame: "metalDark", frameT: 0.2, hull: "hullDark", floor: "underside", console: "frame", trim: "orange",
       switches: ["orange", "yellow", "red", "hullLight"], seat: "seat", dog: true,
     },
@@ -245,7 +299,7 @@ export function buildCockpitHauler(_o: BuildOptions = {}): AssetModel {
       throttles(k, "orange");
       // A big orange mug on the console, a hazard stripe along the front sill.
       k.cyl("mug", 0.07, 0.06, 0.14, 6, "orange", { at: arc(-44, 1.5, -0.42) });
-      for (let j = 0; j < 7; j++) k.beam(`hazard ${j}`, [-0.9 + j * 0.3, SILL_Y - 0.14, -2.4], [-0.78 + j * 0.3, SILL_Y - 0.14, -2.4], 0.06, j % 2 ? "yellow" : "frame");
+      for (let j = 0; j < 6; j++) k.beam(`hazard ${j}`, [-0.75 + j * 0.3, SILL_Y - 0.14, -1.98], [-0.63 + j * 0.3, SILL_Y - 0.14, -1.98], 0.06, j % 2 ? "yellow" : "frame");
     },
   );
 }
@@ -255,16 +309,23 @@ export function buildCockpitHauler(_o: BuildOptions = {}): AssetModel {
 export function buildCockpitLiner(_o: BuildOptions = {}): AssetModel {
   return buildCockpit(
     {
-      cage: { sf: [1.4, -2.5], sb: [2.0, CAGE_BACK_Z], tf: [1.25, 1.1, -2.35], tb: [1.85, 1.5, CAGE_BACK_Z], roofGlass: false, frontStruts: 2, sideStrut: "middle" },
-      frame: "paintWhite", frameT: 0.18, hull: "hullWhite", floor: "paintGrey", console: "paintWhite", trim: "cyan",
-      switches: ["blue", "teal", "hullLight", "yellow"], seat: "blue", dog: true,
+      // A low wrap-around band of angled panes (centre, corners, sides) under a solid roof: a bridge, not a room.
+      cage: {
+        sill: [[0.55, SILL_Y, -2.05], [1.25, SILL_Y, -1.6], [1.6, SILL_Y, CAGE_BACK_Z]],
+        top: [[0.42, 0.9, -1.75], [1.0, 0.92, -1.35], [1.25, 0.98, CAGE_BACK_Z]],
+        glass: [true, true], roofGlass: false, frontStruts: 0, sideStrut: "none", floorScale: 0.62,
+      },
+      frame: "underside", frameT: 0.16, hull: "metalDark", floor: "underside", console: "frame", trim: "cyan",
+      switches: ["cyan", "teal", "blue", "hullLight"], seat: "blue", dog: true,
     },
     (k) => {
       throttles(k, "cyan");
-      // Cyan glow strips under the solid roof, along both sides and across the front.
-      k.beam("roof glow front", [-0.9, 1.11, -2.0], [0.9, 1.11, -2.0], 0.06, "cyan", { layer: "glow" });
-      for (const s of [1, -1]) k.beam(`roof glow side ${s}`, [s * 1.1, 1.08, -2.1], [s * 1.65, 1.38, 0.3], 0.06, "cyan", { layer: "glow" });
-      k.beam("roof glow centre", [0, 1.18, -1.9], [0, 1.45, 0.3], 0.1, "cyan", { layer: "glow" });
+      // Cyan glow strips under the solid roof and along the sill: dark cockpit, cyan accents.
+      k.beam("roof glow centre", [0, 0.9, -1.2], [0, 0.95, 0.3], 0.08, "cyan", { layer: "glow" });
+      for (const sd of [1, -1]) {
+        k.beam(`roof glow side ${sd}`, [sd * 0.75, 0.86, -1.2], [sd * 1.05, 0.92, 0.3], 0.06, "cyan", { layer: "glow" });
+        k.beam(`sill glow ${sd}`, [sd * 1.27, SILL_Y - 0.1, -1.45], [sd * 1.55, SILL_Y - 0.1, 0.3], 0.05, "cyan", { layer: "glow" });
+      }
       // A little potted plant on the left console.
       k.cyl("plant pot", 0.07, 0.05, 0.11, 6, "hullWhite", { at: arc(-44, 1.5, -0.42) });
       k.cone("plant", 0.11, 0.2, 5, "teal", { at: arc(-44, 1.5, -0.27) });
@@ -277,7 +338,12 @@ export function buildCockpitLiner(_o: BuildOptions = {}): AssetModel {
 export function buildCockpitScout(_o: BuildOptions = {}): AssetModel {
   return buildCockpit(
     {
-      cage: { sf: [0.9, -2.2], sb: [1.5, CAGE_BACK_Z], tf: [0.3, 0.7, -1.75], tb: [0.95, 1.25, CAGE_BACK_Z], roofGlass: true, frontStruts: 0, sideStrut: "diagonal" },
+      // Kept as Andy approved it (only the eye moved): overhead canopy, diagonal side struts.
+      cage: {
+        sill: [[0.9, SILL_Y, -2.2], [1.5, SILL_Y, CAGE_BACK_Z]],
+        top: [[0.3, 0.7, -1.75], [0.95, 1.25, CAGE_BACK_Z]],
+        glass: [true], roofGlass: true, frontStruts: 0, sideStrut: "diagonal", floorScale: 1,
+      },
       frame: "underside", frameT: 0.22, hull: "metalDark", floor: "underside", console: "underside", trim: "red",
       switches: ["red", "teal", "hullLight"], seat: "red", dog: false,
     },

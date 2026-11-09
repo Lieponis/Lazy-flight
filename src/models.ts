@@ -634,7 +634,12 @@ function tick(): void {
     const eye = model?.anchors.eye?.pos;
     if (sitting() && eye) {
       camera.position.copy(eye);
-      const { yaw, pitch } = S.look;
+      // Start from the way the eye anchor looks, then add the pilot's head turn.
+      const d = model?.anchors.eye?.dir;
+      const baseYaw = d ? Math.atan2(-d.x, -d.z) : 0;
+      const basePitch = d ? -Math.asin(Math.max(-1, Math.min(1, d.y))) : 0;
+      const yaw = baseYaw + S.look.yaw;
+      const pitch = basePitch + S.look.pitch;
       camera.lookAt(eye.x - Math.sin(yaw) * Math.cos(pitch), eye.y - Math.sin(pitch), eye.z - Math.cos(yaw) * Math.cos(pitch));
     } else {
       const p = orbitCameraPosition(cam.yaw, cam.pitch, cam.dist);
