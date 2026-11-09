@@ -44,6 +44,13 @@ export const RULES: Record<AssetKind, KindRules> = {
     size: { min: 16, max: 48 },
     requiredAnchors: ["parking", "dockEntrance"],
   },
+  cockpit: {
+    maxTriangles: 2000, // cockpit design brief: up to 2000 per cockpit, dog included
+    maxMeshes: 5,
+    maxMaterials: 2, // one shared material, plus the window-light material Agent 3 can tint
+    size: { min: 2, max: 6 },
+    requiredAnchors: ["eye", "screenInfo", "screenMap", "screenFuel", "windowLight"],
+  },
   reference: {
     maxTriangles: 700,
     maxMeshes: 4,

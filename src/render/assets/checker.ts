@@ -133,6 +133,73 @@ export function bayIntrusions(model: AssetModel): string[] {
 }
 
 /**
+ * Cockpits: names of parts that block the window opening, seen from the eye.
+ * Rays go from the eye to points spread over the window (kept a little inside its edge); any face they cross
+ * before reaching the window is a blocker. Window struts (parts named "strut ...") are allowed: they are the frame.
+ */
+export function windowBlockers(model: AssetModel): string[] {
+  const win = model.windowOpening;
+  const eye = model.anchors.eye?.pos;
+  if (!win || !eye) return [];
+  model.group.updateMatrixWorld(true);
+  const cx = win.poly.reduce((a, p) => a + p[0], 0) / win.poly.length;
+  const cy = win.poly.reduce((a, p) => a + p[1], 0) / win.poly.length;
+  const inside = (x: number, y: number): boolean => {
+    let ok = true;
+    win.poly.forEach((p, i) => {
+      const q = win.poly[(i + 1) % win.poly.length]!;
+      if ((q[0] - p[0]) * (y - p[1]) - (q[1] - p[1]) * (x - p[0]) < 0) ok = false;
+    });
+    return ok;
+  };
+  const xs = win.poly.map((p) => p[0]);
+  const ys = win.poly.map((p) => p[1]);
+  const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const targets: THREE.Vector3[] = [];
+  for (let i = 0; i <= 14; i++) {
+    for (let j = 0; j <= 10; j++) {
+      const x = minX + ((maxX - minX) * i) / 14;
+      const y = minY + ((maxY - minY) * j) / 10;
+      // Pull each point 6% towards the middle so the window's own edge does not count.
+      const px = cx + (x - cx) * 0.94;
+      const py = cy + (y - cy) * 0.94;
+      if (inside(x, y)) targets.push(new THREE.Vector3(px, py, win.z));
+    }
+  }
+  const found = new Set<string>();
+  const ray = new THREE.Ray();
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const hitPoint = new THREE.Vector3();
+  model.group.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const pos = mesh.geometry.getAttribute("position");
+    const infos: PartInfo[] = (mesh.geometry.userData.parts as PartInfo[] | undefined) ?? [{ name: mesh.name, start: 0, count: pos.count / 3 }];
+    for (const info of infos) {
+      if (info.name.startsWith("strut")) continue;
+      let blocked = false;
+      for (let t = info.start; t < info.start + info.count && !blocked; t++) {
+        a.fromBufferAttribute(pos, t * 3).applyMatrix4(mesh.matrixWorld);
+        b.fromBufferAttribute(pos, t * 3 + 1).applyMatrix4(mesh.matrixWorld);
+        c.fromBufferAttribute(pos, t * 3 + 2).applyMatrix4(mesh.matrixWorld);
+        for (const target of targets) {
+          const dist = target.distanceTo(eye);
+          ray.set(eye, target.clone().sub(eye).normalize());
+          if (ray.intersectTriangle(a, b, c, false, hitPoint) && hitPoint.distanceTo(eye) < dist - 0.01) {
+            blocked = true;
+            break;
+          }
+        }
+      }
+      if (blocked) found.add(info.name);
+    }
+  });
+  return [...found];
+}
+
+/**
  * Checks one model. `kind` decides the budgets. `entry` (optional) lets it compare the declared numbers.
  * Returns an empty list when everything is fine.
  */
@@ -221,6 +288,13 @@ export function checkModel(model: AssetModel, kind: AssetKind, entry?: AssetEntr
   if (kind === "station") {
     const cutting = bayIntrusions(model);
     if (cutting.length > 0) err(`Parts cut across the inside of the docking bay: ${cutting.join(", ")}.`);
+  }
+
+  // 7. Cockpits: the window must show the outside.
+  if (kind === "cockpit") {
+    if (!model.windowOpening) err("This cockpit has no window opening recorded.");
+    const blocking = windowBlockers(model);
+    if (blocking.length > 0) err(`Faces block the window opening: ${blocking.join(", ")}.`);
   }
 
   return problems;

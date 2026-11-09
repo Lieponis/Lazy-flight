@@ -10,11 +10,13 @@
 //
 // Stage S1: the three ships. Stage S2: the four outposts. Stage S3: the four stations.
 
+import { buildCockpitHauler, buildCockpitLiner, buildCockpitScout } from "./cockpits";
 import { buildOutpostComms, buildOutpostDepot, buildOutpostDomes, buildOutpostHub } from "./outposts";
 import { buildStationCargo, buildStationRefinery, buildStationRing, buildStationStarport } from "./stations";
 import { buildCargoHauler, buildPassengerLiner, buildScout } from "./ships";
 import type { AssetEntry, AssetKind } from "./types";
 
+const COCKPIT_ANCHORS = ["eye", "screenInfo", "screenMap", "screenFuel", "windowLight"] as const;
 const OUTPOST_ANCHORS = ["parking", "beacon", "entrance"] as const;
 const STATION_ANCHORS = ["parking", "dockEntrance", "bayCamera"] as const;
 const SHIP_ANCHORS_TWIN = ["parking", "eye", "nose", "engineL", "engineR"] as const;
@@ -139,6 +141,39 @@ export const ASSETS: readonly AssetEntry[] = [
     build: buildStationRefinery,
     anchorNames: STATION_ANCHORS,
     triangles: 1374,
+    status: "DRAFT",
+  },
+  {
+    id: "cockpit-cargo-hauler",
+    name: "Cargo Hauler cockpit",
+    kind: "cockpit",
+    description: "Wide and practical: three flat window panes, dark metal, hazard stripes, a coffee mug and the dog asleep on the second seat.",
+    variants: 1,
+    build: buildCockpitHauler,
+    anchorNames: [...COCKPIT_ANCHORS, "dog"],
+    triangles: 1416,
+    status: "DRAFT",
+  },
+  {
+    id: "cockpit-passenger-liner",
+    name: "Passenger Liner cockpit",
+    kind: "cockpit",
+    description: "Elegant: one wide panoramic window, white and cream, blue trim, a little plant and the dog asleep on the second seat.",
+    variants: 1,
+    build: buildCockpitLiner,
+    anchorNames: [...COCKPIT_ANCHORS, "dog"],
+    triangles: 1306,
+    status: "DRAFT",
+  },
+  {
+    id: "cockpit-scout",
+    name: "Scout cockpit",
+    kind: "cockpit",
+    description: "Cramped: a rounded canopy, heavy side bulkheads, low ceiling, red trim; a toolbox on the second seat (no dog).",
+    variants: 1,
+    build: buildCockpitScout,
+    anchorNames: COCKPIT_ANCHORS,
+    triangles: 1092,
     status: "DRAFT",
   },
 ];

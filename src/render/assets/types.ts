@@ -8,12 +8,14 @@
 
 import type * as THREE from "three";
 
-export type AssetKind = "ship" | "outpost" | "station" | "reference";
+export type AssetKind = "ship" | "outpost" | "station" | "cockpit" | "reference";
 
 /** A named point. `dir` is the way it faces (for example where the cockpit camera looks). */
 export interface Anchor {
   pos: THREE.Vector3;
   dir: THREE.Vector3;
+  /** Only for flat screens on cockpit dashboards: width and height in crate units. */
+  size?: { w: number; h: number };
 }
 
 export type Anchors = Record<string, Anchor>;
@@ -34,6 +36,16 @@ export interface AssetModel {
   animation: AssetAnimation;
   /** Moves the declared animations to time `t` (seconds since start). Cheap. */
   update(t: number): void;
+  /**
+   * Cockpits only: the window opening, a flat shape (x, y points) on the plane z = `z`, in model space.
+   * Everything seen through it is outside. The checker makes sure nothing inside blocks it.
+   */
+  windowOpening?: { z: number; poly: [number, number][] };
+  /**
+   * Cockpits only: the mesh lit by light coming in through the window. Its material colour starts white;
+   * set `windowLight.material.color` to tint it (for example by the nearest planet's colour).
+   */
+  windowLight?: THREE.Mesh;
 }
 
 export interface BuildOptions {

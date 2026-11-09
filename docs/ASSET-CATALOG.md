@@ -37,3 +37,12 @@ All stations: origin = station centre, up +Y. An Elite-style docking slot in the
 |---|---|---|---|---|
 | scale-test | Size yard | Landing pad 9 wide, one crate, a pilot, a traffic cone and three ship-size boxes (small, medium, large) | 204 | parking (pad centre), crate |
 | broken-demo | Broken on purpose | A shed with an inside-out roof, a floating antenna, too many triangles and missing anchors, so the problem checker can be seen working | about 2060 | parking |
+
+## Cockpits (stage C1)
+A view only (no steering, no free flight, no combat). Design source: docs/cockpit-design-brief.md. Origin = the pilot's eye, looking -Z, up +Y; Agent 3 places the cockpit at the ship's `eye` anchor and hides the ship's own model in cockpit view (nothing of the ship may show through the window). Same bones for all three: window wall at z -2.3, dashboard desk and screen bank in front, pilot seat behind the eye, a second seat on the right wall. Anchors: `eye`; `screenInfo`, `screenMap`, `screenFuel` (flat, unshaded screens; `dir` = facing, `size` = width and height in crate units, for Agent 5's text); `windowLight` (middle of the window; the `windowLight` mesh has its own material: set its colour to tint the light coming in); `dog` (Hauler and Liner only). Animation: dashboard lights blink in two groups. The dog sleeps (no animation; waking, tail and head movement stay a suggestion). Checker rule: "Faces block the window opening" (window struts allowed).
+
+| ID | Name | Feel | Description | Triangles | Status |
+|---|---|---|---|---|---|
+| cockpit-cargo-hauler | Cargo Hauler cockpit | wide, practical | Three flat window panes split by two struts, dark metal, hazard stripes and a red warning light over the window, busy desk, teal and amber screens, a warm desk lamp, a big orange coffee mug, the dog asleep on the second seat | 1416 | DRAFT |
+| cockpit-passenger-liner | Passenger Liner cockpit | elegant | One wide panoramic window strip with rounded ends, white and cream, blue trim, a little potted plant, the dog asleep on the second seat | 1306 | DRAFT |
+| cockpit-scout | Scout cockpit | cramped | A rounded canopy, heavy side bulkheads with red stripes, a low ceiling, a strapped-down toolbox on the second seat (no dog) | 1092 | DRAFT |

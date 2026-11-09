@@ -59,6 +59,14 @@ interface ViewState {
   buddy: string;
   seed: number;
   cam: { yaw: number; pitch: number; dist: number } | null;
+  /** Cockpits: camera at the pilot's eye. */
+  sit: boolean;
+  /** Field of view (degrees, up-down) for "Sit inside". */
+  fov: number;
+  /** Show the window opening outline in "Sit inside". */
+  cut: boolean;
+  /** Where the pilot looks in "Sit inside": left-right and up-down, radians. */
+  look: { yaw: number; pitch: number };
 }
 
 const ALL: AssetEntry[] = [...ASSETS, ...REFERENCE_ENTRIES];
@@ -90,6 +98,13 @@ function readAddress(): ViewState {
     compare: q.get("compare") === "1",
     park: q.get("park") === "1",
     buddy: findEntry(q.get("buddy") ?? "")?.id ?? "",
+    sit: q.get("sit") === "1",
+    fov: clamp(Number(q.get("fov")) || 60, 30, 100),
+    cut: q.get("cut") === "1",
+    look: (() => {
+      const l = (q.get("look") ?? "").split(",").map(Number);
+      return l.length === 2 && l.every(Number.isFinite) ? { yaw: l[0]!, pitch: l[1]! } : { yaw: 0, pitch: 0 };
+    })(),
     seed: Number.isFinite(Number(q.get("seed"))) && q.get("seed") ? Number(q.get("seed")) : 12345,
     cam,
   };
@@ -112,6 +127,12 @@ function addressFor(s: ViewState): string {
   if (s.park) q.set("park", "1");
   if (s.buddy) q.set("buddy", s.buddy);
   q.set("seed", String(s.seed));
+  if (s.sit) {
+    q.set("sit", "1");
+    q.set("fov", String(s.fov));
+    q.set("look", `${s.look.yaw.toFixed(2)},${s.look.pitch.toFixed(2)}`);
+  }
+  if (s.cut) q.set("cut", "1");
   if (s.cam) q.set("cam", [s.cam.yaw, s.cam.pitch, s.cam.dist].map((n) => n.toFixed(2)).join(","));
   return `${window.location.pathname}?${q.toString()}`;
 }
@@ -243,6 +264,7 @@ function applyMode(root: THREE.Object3D): void {
 
 /** The rough shape the game uses today, at the size the docked view shows it. Read only. */
 function oldShapeFor(entry: AssetEntry): { group: THREE.Group; label: string } | null {
+  if (entry.kind === "cockpit") return null; // the old cockpit is a flat overlay, not a model
   if (entry.kind === "ship" || entry.kind === "reference") {
     const ship = buildCargoHauler();
     for (const f of ship.flames) f.scale.z = 0.15;
@@ -336,6 +358,7 @@ function buildHelpers(): void {
   if (S.grid) {
     const extent = Math.ceil(Math.max(20, Math.max(size.x, size.z) * 3) / 2) * 2;
     const grid = new THREE.GridHelper(extent, extent, 0x4a5290, 0x262a4a);
+    grid.position.y = Math.min(0, bounds.min.y); // under the model (cockpits have their origin at the eye)
     helpers.add(grid);
   }
   if (S.box) {
@@ -373,6 +396,21 @@ function buildHelpers(): void {
       helpers.add(marker, axes, dirLine);
       floatingLabels.push({ text: name, pos: a.pos.clone(), color: anchorColor(name) });
     }
+  }
+  if (S.cut && model?.windowOpening) {
+    // The window opening: magenta outline and a faint fill. Everything inside it shows the outside.
+    const w = model.windowOpening;
+    const pts = w.poly.map(([x, y]) => new THREE.Vector3(x, y, w.z + 0.01));
+    const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xff3dd6, depthTest: false }));
+    line.renderOrder = 20;
+    const shape = new THREE.Shape(w.poly.map(([x, y]) => new THREE.Vector2(x, y)));
+    const fill = new THREE.Mesh(
+      new THREE.ShapeGeometry(shape),
+      new THREE.MeshBasicMaterial({ color: 0xff3dd6, transparent: true, opacity: 0.18, depthTest: false, side: THREE.DoubleSide }),
+    );
+    fill.position.z = w.z + 0.01;
+    fill.renderOrder = 19;
+    helpers.add(line, fill);
   }
   sizeInfo.textContent = `Width ${size.x.toFixed(1)} · Height ${size.y.toFixed(1)} · Length ${size.z.toFixed(1)} crates`;
 }
@@ -441,6 +479,8 @@ function gameCamera(): void {
   target.set(p?.x ?? 0, (p?.y ?? 0) + 0.8, p?.z ?? 0);
 }
 
+const sitting = (): boolean => S.sit && findEntry(S.asset)?.kind === "cockpit";
+
 function camChanged(): void {
   S.cam = { ...cam };
   saveAddress();
@@ -467,9 +507,19 @@ view.addEventListener("pointermove", (e) => {
   const dy = e.clientY - p.y;
   p.x = e.clientX;
   p.y = e.clientY;
-  if (pointers.size === 1) {
+  if (pointers.size === 1 && sitting()) {
+    // Look around from the seat (the pilot can turn the head, not the ship).
+    S.look.yaw = clamp(S.look.yaw + dx * 0.004, -1.6, 1.6);
+    S.look.pitch = clamp(S.look.pitch + dy * 0.004, -1.0, 1.0);
+  } else if (pointers.size === 1) {
     cam.yaw -= dx * 0.008;
     cam.pitch = clamp(cam.pitch + dy * 0.008, -1.45, 1.45);
+  } else if (pointers.size === 2 && sitting()) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+    if (lastPinch > 0 && d > 0) S.fov = clamp(S.fov * (lastPinch / d), 30, 100);
+    lastPinch = d;
+    layout();
   } else if (pointers.size === 2) {
     const [a, b] = [...pointers.values()];
     const d = Math.hypot(a!.x - b!.x, a!.y - b!.y);
@@ -488,6 +538,12 @@ view.addEventListener(
   "wheel",
   (e) => {
     e.preventDefault();
+    if (sitting()) {
+      S.fov = clamp(S.fov * Math.exp(e.deltaY * 0.0005), 30, 100);
+      layout();
+      saveAddress();
+      return;
+    }
     cam.dist = clamp(cam.dist * Math.exp(e.deltaY * 0.001), 0.5, 400);
     camChanged();
   },
@@ -511,7 +567,7 @@ function layout(): void {
     const pr = Math.min(window.devicePixelRatio || 1, 2);
     rw = Math.round(vw * pr);
     rh = Math.round(vh * pr);
-    camera.fov = GAME_CAMERA.fov;
+    camera.fov = sitting() ? S.fov : GAME_CAMERA.fov;
     previewInfo.style.display = "none";
   } else {
     aspect = S.preview === "desktop" ? 16 / 9 : 9 / 19.5;
@@ -521,7 +577,7 @@ function layout(): void {
     const size = renderSizeFor(aspect, RENDER_WIDTH, RENDER_HEIGHT);
     rw = size.width;
     rh = size.height;
-    camera.fov = cameraFov(aspect, GAME_CAMERA.fov);
+    camera.fov = cameraFov(aspect, sitting() ? S.fov : GAME_CAMERA.fov);
     previewInfo.style.display = "block";
     previewInfo.textContent = `What a ${S.preview} player sees: ${rw} x ${rh} pixels, stretched without smoothing`;
   }
@@ -571,13 +627,21 @@ function tick(): void {
   if (S.page === "model") {
     if (S.anim) animTime += dt;
     model?.update(S.anim ? animTime : 0);
-    const p = orbitCameraPosition(cam.yaw, cam.pitch, cam.dist);
-    camera.position.set(target.x + p.x, target.y + p.y, target.z + p.z);
-    camera.lookAt(target);
+    const eye = model?.anchors.eye?.pos;
+    if (sitting() && eye) {
+      camera.position.copy(eye);
+      const { yaw, pitch } = S.look;
+      camera.lookAt(eye.x - Math.sin(yaw) * Math.cos(pitch), eye.y - Math.sin(pitch), eye.z - Math.cos(yaw) * Math.cos(pitch));
+    } else {
+      const p = orbitCameraPosition(cam.yaw, cam.pitch, cam.dist);
+      camera.position.set(target.x + p.x, target.y + p.y, target.z + p.z);
+      camera.lookAt(target);
+    }
     if (bgPlanet) {
-      // Keep the planet behind the model, a little below, whichever way you turn.
-      const away = target.clone().sub(camera.position).setY(0).normalize();
-      bgPlanet.position.copy(target).addScaledVector(away, 420).add(new THREE.Vector3(0, -170, 0));
+      // Keep the planet ahead of the camera, a little below, whichever way you turn.
+      // When sitting inside, it sits a little above the horizon so it shows through the window.
+      const away = camera.getWorldDirection(new THREE.Vector3()).setY(0).normalize();
+      bgPlanet.position.copy(camera.position).addScaledVector(away, 420).add(new THREE.Vector3(0, sitting() ? -60 : -170, 0));
     }
     renderer.render(scene, camera);
     placeLabels();
@@ -623,7 +687,7 @@ function reportText(): string {
     "LAZY FREIGHT MODEL REPORT",
     `Asset: ${entry.id} (${entry.name}), variant ${S.variant}, status ${entry.status}`,
     `Planet tint: ${toHexText(S.tint)}`,
-    `View: ${S.mode}, background ${S.bg}, preview ${S.preview}, animation ${S.anim ? "on" : "off"}`,
+    `View: ${S.mode}, background ${S.bg}, preview ${S.preview}, animation ${S.anim ? "on" : "off"}${sitting() ? `, sitting inside (field of view ${Math.round(S.fov)}, look ${S.look.yaw.toFixed(2)},${S.look.pitch.toFixed(2)})` : ""}`,
     `Counts: ${countRows(entry).map((r) => `${r.label.toLowerCase()} ${r.value}/${r.max} ${r.value <= r.max ? "OK" : "OVER"}`).join(", ")}`,
     `Size: width ${size.x.toFixed(2)}, height ${size.y.toFixed(2)}, length ${size.z.toFixed(2)} crates`,
     `Check: ${problemText(problems)}`,
@@ -641,7 +705,7 @@ function refreshTop(): void {
     $(id).classList.toggle("on", S.page === page);
   }
   assetSelect.innerHTML = "";
-  for (const kind of ["ship", "outpost", "station", "reference"] as const) {
+  for (const kind of ["ship", "outpost", "station", "cockpit", "reference"] as const) {
     const list = ALL.filter((e) => e.kind === kind);
     if (list.length === 0) continue;
     const group = el("optgroup", { label: kind === "reference" ? "Test and reference" : `${kind[0]!.toUpperCase()}${kind.slice(1)}s` });
@@ -692,7 +756,20 @@ function refreshPanel(): void {
   const entry = findEntry(S.asset)!;
   panel.appendChild(el("div", { class: "note" }, `${entry.name}: ${entry.description}`));
 
-  let row = section("Look");
+  let row: HTMLDivElement;
+  if (entry.kind === "cockpit") {
+    row = section("Sit inside (pilot's eye)");
+    row.appendChild(button(S.sit ? "Sitting inside" : "Sit inside", S.sit, () => {
+      S.look = { yaw: 0, pitch: 0 };
+      set("sit", !S.sit, false);
+    }));
+    row.appendChild(button("Window cut-out", S.cut, () => set("cut", !S.cut)));
+    row.appendChild(button("Look ahead", false, () => ((S.look = { yaw: 0, pitch: 0 }), saveAddress())));
+    row = section(`Field of view: ${Math.round(S.fov)} degrees`);
+    for (const f of [45, 55, 60, 70, 80]) row.appendChild(button(String(f), Math.round(S.fov) === f, () => set("fov", f, false)));
+    if (S.sit) panel.appendChild(el("p", { class: "note" }, "Drag to look around, scroll or pinch to change the field of view."));
+  }
+  row = section("Look");
   row.appendChild(button("Normal", S.mode === "normal", () => set("mode", "normal")));
   row.appendChild(button("Wireframe", S.mode === "wire", () => set("mode", "wire")));
   row.appendChild(button("Flat colours", S.mode === "flat", () => set("mode", "flat")));
@@ -1064,7 +1141,12 @@ assetSelect.addEventListener("change", () => {
   S.asset = assetSelect.value;
   S.variant = 0;
   S.cam = null;
+  if (findEntry(S.asset)?.kind === "cockpit") {
+    S.sit = true;
+    S.look = { yaw: 0, pitch: 0 };
+  }
   rebuild();
+  layout();
 });
 
 if (window.innerWidth <= 760) panel.classList.add("folded");

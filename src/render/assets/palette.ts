@@ -38,6 +38,15 @@ export const PAL = {
   lightGreen: 0x7dff8a,
   glass: 0x9fe6ff,
   cyan: 0x3fe0ff,
+  // Cockpits (stage C1): screens are flat and unshaded so text can be drawn on them later.
+  screenTeal: 0x1f8a80,
+  screenAmber: 0xc07a22,
+  lampWarm: 0xffd28a,
+  seat: 0x6e4a3a,
+  dogTan: 0xc8955a,
+  dogDark: 0x5e3f28,
+  dogNose: 0x1c1a1c,
+  windowLight: 0x8a93a8, // mid grey: the window-light material colour multiplies it
 } as const;
 
 export type PalKey = keyof typeof PAL;
@@ -65,6 +74,12 @@ export const SWATCHES: Swatch[] = [
   { key: "lightRed", hex: PAL.lightRed, name: "Red light", use: "Blinking beacons", glow: true },
   { key: "lightGreen", hex: PAL.lightGreen, name: "Green light", use: "Pad and bay lights", glow: true },
   { key: "cyan", hex: PAL.cyan, name: "Cyan light", use: "Passenger hub light strips and sign", glow: true },
+  { key: "screenTeal", hex: PAL.screenTeal, name: "Teal screen", use: "Cockpit screens (text goes on top)", glow: true },
+  { key: "screenAmber", hex: PAL.screenAmber, name: "Amber screen", use: "Cockpit fuel screen", glow: true },
+  { key: "lampWarm", hex: PAL.lampWarm, name: "Warm lamp", use: "The little cockpit lamp", glow: true },
+  { key: "seat", hex: PAL.seat, name: "Seat", use: "Cockpit seats and cushions" },
+  { key: "dogTan", hex: PAL.dogTan, name: "Dog", use: "The co-pilot" },
+  { key: "dogDark", hex: PAL.dogDark, name: "Dog dark", use: "Ears, patch" },
   { key: "glass", hex: PAL.glass, name: "Glass", use: "Cockpit bubbles, domes", glow: true },
 ];
 

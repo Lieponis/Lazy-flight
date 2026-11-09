@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import * as THREE from 'three';
 import { ASSETS } from '../src/render/assets/registry';
-import { bayIntrusions, checkEntry, checkModel, countModel } from '../src/render/assets/checker';
+import { bayIntrusions, checkEntry, checkModel, countModel, windowBlockers } from '../src/render/assets/checker';
 import { ModelKit } from '../src/render/assets/kit';
 import { BROKEN_DEMO, SCALE_TEST } from '../src/render/assets/reference';
 import { RULES } from '../src/render/assets/style';
@@ -69,6 +69,60 @@ describe('station bays', () => {
     k.box('wall across the bay', 20, 20, 0.2, 'hullMid', { at: [0, 0, z] });
     m.group.add(k.finish().group);
     expect(bayIntrusions(m)).toContain('wall across the bay');
+  });
+});
+
+describe('cockpits (stage C1)', () => {
+  const cockpits = ASSETS.filter((a) => a.kind === 'cockpit');
+  const partNames = (m: ReturnType<(typeof cockpits)[number]['build']>): string[] => {
+    const names: string[] = [];
+    m.group.traverse((o) => {
+      const parts = ((o as THREE.Mesh).geometry?.userData.parts ?? []) as { name: string }[];
+      names.push(...parts.map((p) => p.name));
+    });
+    return names;
+  };
+
+  it('there are exactly the three cockpits, with unique ids', () => {
+    expect(cockpits.map((c) => c.id).sort()).toEqual(['cockpit-cargo-hauler', 'cockpit-passenger-liner', 'cockpit-scout']);
+  });
+
+  it('each has the eye at its origin looking forward, sized screens, a window and a window-light mesh', () => {
+    for (const entry of cockpits) {
+      const m = entry.build();
+      expect(m.anchors.eye!.pos.length(), entry.id).toBe(0);
+      expect(m.anchors.eye!.dir.z, entry.id).toBe(-1);
+      for (const s of ['screenInfo', 'screenMap', 'screenFuel']) {
+        expect(m.anchors[s]!.size!.w, `${entry.id} ${s}`).toBeGreaterThan(0.3);
+        expect(m.anchors[s]!.size!.h, `${entry.id} ${s}`).toBeGreaterThan(0.2);
+      }
+      expect(m.windowOpening!.poly.length, entry.id).toBeGreaterThanOrEqual(4);
+      expect(m.windowLight, entry.id).toBeDefined();
+      expect(countModel(m).triangles, entry.id).toBeLessThanOrEqual(2000);
+    }
+  });
+
+  it('nothing inside blocks any window', () => {
+    for (const entry of cockpits) expect(windowBlockers(entry.build()), entry.id).toEqual([]);
+  });
+
+  it('the window rule catches something put in front of the window', () => {
+    const m = cockpits[0]!.build();
+    const k = new ModelKit();
+    k.box('cup in the way', 0.3, 0.3, 0.3, 'orange', { at: [0.3, 0.4, -1.5] });
+    m.group.add(k.finish().group);
+    expect(windowBlockers(m)).toContain('cup in the way');
+    expect(checkModel(m, 'cockpit').some((p) => p.text.includes('block the window'))).toBe(true);
+  });
+
+  it('the dog sits in the Hauler and the Liner only', () => {
+    for (const entry of cockpits) {
+      const m = entry.build();
+      const hasDog = partNames(m).some((n) => n.startsWith('dog'));
+      const wanted = entry.id !== 'cockpit-scout';
+      expect(hasDog, entry.id).toBe(wanted);
+      expect(m.anchors.dog !== undefined, entry.id).toBe(wanted);
+    }
   });
 });
 

@@ -14,6 +14,7 @@
 //   blinkA, blinkB = lights that blink in turn (two small meshes)
 //   flame  = engine flames (one mesh, grows backwards along +Z)
 //   ring   = a part that spins (one mesh, turns around its own origin)
+//   light  = cockpits: surfaces lit by the window (one mesh, own material so its colour can be tinted)
 
 import * as THREE from "three";
 import { faceShade } from "../helpers";
@@ -22,7 +23,7 @@ import { BLINK_ON, BLINK_PERIOD, FLAME_PARKED, LIGHT_DIR } from "./style";
 import type { Anchors, AssetAnimation, AssetModel } from "./types";
 
 export type ColorName = PalKey | "tint" | "tintDark";
-export type Layer = "body" | "glow" | "blinkA" | "blinkB" | "flame" | "ring";
+export type Layer = "body" | "glow" | "blinkA" | "blinkB" | "flame" | "ring" | "light";
 
 export interface PartOptions {
   at?: readonly [number, number, number];
@@ -70,7 +71,8 @@ interface PendingPart {
 }
 
 export class ModelKit {
-  private parts: Record<Layer, PendingPart[]> = { body: [], glow: [], blinkA: [], blinkB: [], flame: [], ring: [] };
+  private parts: Record<Layer, PendingPart[]> = { body: [], glow: [], blinkA: [], blinkB: [], flame: [], ring: [], light: [] };
+  private window: { z: number; poly: [number, number][] } | undefined;
   private origins: Partial<Record<Layer, THREE.Vector3>> = {};
   private anchors: Anchors = {};
   private spinSpeed = 0;
@@ -287,7 +289,7 @@ export class ModelKit {
     const at = o.at ?? [0, 0, 0];
     m.setPosition(at[0], at[1], at[2]);
     g.applyMatrix4(m);
-    const shaded = !(layer === "glow" || layer === "blinkA" || layer === "blinkB" || layer === "flame");
+    const shaded = !(layer === "glow" || layer === "blinkA" || layer === "blinkB" || layer === "flame" || layer === "light");
     this.parts[layer].push({ name, geometry: g, hex: this.color(color), shaded });
     return this;
   }
@@ -297,6 +299,66 @@ export class ModelKit {
   /** A named point. `dir` = the way it faces (default: forward, -Z). */
   anchor(name: string, at: readonly [number, number, number], dir: readonly [number, number, number] = [0, 0, -1]): this {
     this.anchors[name] = { pos: new THREE.Vector3(...at), dir: new THREE.Vector3(...dir).normalize() };
+    return this;
+  }
+
+  /** A named point with a size (cockpit screens): `dir` = the way the screen faces. */
+  screenAnchor(name: string, at: readonly [number, number, number], dir: readonly [number, number, number], w: number, h: number): this {
+    this.anchor(name, at, dir);
+    this.anchors[name]!.size = { w, h };
+    return this;
+  }
+
+  /**
+   * Cockpits: a wall at z (zFront to zBack, zFront < zBack) filling the rectangle `outer` (x0, y0, x1, y1)
+   * except for the window `hole` (a convex shape, counter-clockwise points). Built from flat wedges around the hole.
+   * Records the opening so the checker can make sure nothing blocks it.
+   */
+  windowWall(
+    name: string,
+    hole: readonly [number, number][],
+    outer: readonly [number, number, number, number],
+    zFront: number,
+    zBack: number,
+    color: ColorName,
+  ): this {
+    const [x0, y0, x1, y1] = outer;
+    const cx = hole.reduce((a, p) => a + p[0], 0) / hole.length;
+    const cy = hole.reduce((a, p) => a + p[1], 0) / hole.length;
+    const corners: [number, number][] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+    const ang = (p: readonly [number, number]): number => Math.atan2(p[1] - cy, p[0] - cx);
+    const dirs = [...hole.map(ang), ...corners.map(ang)].map((a) => (a + Math.PI * 2) % (Math.PI * 2)).sort((a, b) => a - b);
+    const uniq = dirs.filter((a, i) => i === 0 || a - dirs[i - 1]! > 1e-6);
+    // Where a ray from the hole's middle at angle a leaves a convex shape (given as a closed point list).
+    const hit = (shape: readonly (readonly [number, number])[], a: number): [number, number] => {
+      const dx = Math.cos(a);
+      const dy = Math.sin(a);
+      let best = Infinity;
+      for (let i = 0; i < shape.length; i++) {
+        const p = shape[i]!;
+        const q = shape[(i + 1) % shape.length]!;
+        const ex = q[0] - p[0];
+        const ey = q[1] - p[1];
+        const den = dx * ey - dy * ex;
+        if (Math.abs(den) < 1e-12) continue;
+        const t = ((p[0] - cx) * ey - (p[1] - cy) * ex) / den;
+        const u = ((p[0] - cx) * dy - (p[1] - cy) * dx) / den;
+        if (t > 1e-9 && u >= -1e-9 && u <= 1 + 1e-9) best = Math.min(best, t);
+      }
+      return [cx + dx * best, cy + dy * best];
+    };
+    for (let i = 0; i < uniq.length; i++) {
+      const a = uniq[i]!;
+      const b = uniq[(i + 1) % uniq.length]!;
+      let quad: [number, number][] = [hit(hole, a), hit(hole, b), hit(corners, b), hit(corners, a)];
+      const area = quad.reduce((s, p, j) => {
+        const q = quad[(j + 1) % 4]!;
+        return s + p[0] * q[1] - q[0] * p[1];
+      }, 0);
+      if (area < 0) quad = quad.reverse();
+      if (Math.abs(area) > 1e-6) this.prism(`${name} ${i + 1}`, quad, zFront, zBack, color);
+    }
+    this.window = { z: zBack, poly: hole.map((p) => [p[0], p[1]] as [number, number]) };
     return this;
   }
 
@@ -342,6 +404,12 @@ export class ModelKit {
       animation.flames.push(flame);
     }
     const ring = make(["ring"], "ring", this.origins.ring ?? new THREE.Vector3());
+    let windowLight: THREE.Mesh | undefined;
+    if (this.parts.light.length > 0) {
+      windowLight = new THREE.Mesh(mergeParts(this.parts.light), makeAssetMaterial());
+      windowLight.name = "windowLight";
+      group.add(windowLight);
+    }
     if (ring && this.spinSpeed !== 0) animation.spinners.push({ object: ring, axis: this.spinAxis, speed: this.spinSpeed });
 
     const startQuats = animation.spinners.map((s) => s.object.quaternion.clone());
@@ -356,7 +424,10 @@ export class ModelKit {
       });
     };
     update(0);
-    return { group, anchors: this.anchors, animation, update };
+    const model: AssetModel = { group, anchors: this.anchors, animation, update };
+    if (this.window) model.windowOpening = this.window;
+    if (windowLight) model.windowLight = windowLight;
+    return model;
   }
 }
 
