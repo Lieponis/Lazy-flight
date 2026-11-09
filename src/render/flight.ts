@@ -40,6 +40,8 @@ import {
   stationPlanetCentre,
   resolveShipId,
   rotateY,
+  shakeAmount,
+  shakeOffset,
   type Vec3,
 } from "./integration";
 import { buildDockModel, buildShipModel, parkAtOrigin } from "./models3d";
@@ -61,6 +63,8 @@ import {
   FLIGHT_ORBIT_HEIGHT_DOCK,
   FLIGHT_ORBIT_HEIGHT_WARP,
   FLIGHT_ORBIT_RADIUS,
+  FLIGHT_SHAKE_START,
+  FLIGHT_SHAKE_STRENGTH,
   STARFIELD_COUNT,
   STATION_EXIT,
 } from "./settings";
@@ -347,6 +351,15 @@ export class FlightScreen implements Screen {
       const eye = this.ship.anchors.eye?.pos;
       camera.position.set(eye?.x ?? 0, (eye?.y ?? 0.45) + shipY, eye?.z ?? -0.4);
       camera.rotation.set(pitch, 0, 0);
+    }
+    // A light shake just before the jump.
+    const shake = shakeAmount(phase, p, FLIGHT_SHAKE_START);
+    if (shake > 0) {
+      const o = shakeOffset(this.clockT, shake * FLIGHT_SHAKE_STRENGTH);
+      camera.position.x += o.x;
+      camera.position.y += o.y;
+      camera.position.z += o.z;
+      if (this.mode === "cockpit") camera.rotation.z += o.x * 0.05;
     }
     camera.updateMatrixWorld();
   }

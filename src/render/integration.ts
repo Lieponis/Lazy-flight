@@ -266,3 +266,21 @@ export function stationExitTransform(pose: ExitPose): { rotX: number; position: 
 export function stationPlanetCentre(radius: number, altitude: number, straight: number): Vec3 {
   return { x: 0, y: -(radius + altitude), z: -straight };
 }
+
+// ------------------------------------------------------------------ camera shake before the jump
+
+/** 0 to 1: how strong the shake is. Builds up during the launch (from `start`, as a share of the launch) and is full when the white flash starts at 0.8. */
+export function shakeAmount(phase: FlightPhase, p: number, start: number): number {
+  if (phase !== "LAUNCH") return 0;
+  return smoothstep((p - start) / Math.max(0.01, 0.8 - start));
+}
+
+/** A small, jittery offset for time t (seconds). Always between -amount and +amount on every axis. */
+export function shakeOffset(t: number, amount: number): Vec3 {
+  const a = clamp(amount, 0, 1);
+  return {
+    x: a * 0.5 * (Math.sin(t * 47.1) + Math.sin(t * 31.7 + 1.3)) ,
+    y: a * 0.5 * (Math.sin(t * 53.3 + 2.1) + Math.sin(t * 27.9 + 0.4)),
+    z: a * 0.5 * (Math.sin(t * 41.9 + 0.7) + Math.sin(t * 36.1 + 2.6)),
+  };
+}

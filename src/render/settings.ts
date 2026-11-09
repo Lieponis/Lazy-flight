@@ -116,8 +116,12 @@ export const FLIGHT_APPROACH_FROM_STATION = { y: 0, z: 260 }; // stations: strai
  * `speedUpSeconds` (smaller = a more dramatic speed-up). `seconds` = the length of the launch these numbers are made for;
  * a launch that is squeezed (very short trips) plays the same picture faster.
  */
-export const STATION_EXIT = { seconds: 10, straight: 20, curveEnd: 260, growth: 0.5, slowSeconds: 4, slowSpeed: 14, speedUpSeconds: 0.8 };
+export const STATION_EXIT = { seconds: 10, straight: 20, curveEnd: 260, growth: 0.5, slowSeconds: 4, slowSpeed: 12, speedUpSeconds: 1.1 };
 
 /** Flight view: where the camera sits inside a station bay while you leave or arrive, relative to the ship (right, up, behind). */
 export const FLIGHT_BAY_CAMERA = { x: 3.2, y: 3.4, z: 4.8 };
 
+
+/** Flight view: the camera shakes a little before the jump (strength in scene units), building up from this point of the launch (0 to 1) to full at the flash. */
+export const FLIGHT_SHAKE_STRENGTH = 0.1;
+export const FLIGHT_SHAKE_START = 0.5;

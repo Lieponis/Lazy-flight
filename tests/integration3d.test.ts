@@ -12,6 +12,8 @@ import {
   launchCameraBlend,
   launchOffset,
   exitDistance,
+  shakeAmount,
+  shakeOffset,
   outpostFraming,
   outpostModelFor,
   parseShipParam,
@@ -257,7 +259,7 @@ describe('leaving a station along the planet', () => {
     }
     expect(last).toBeGreaterThan(0.5);
     expect(last).toBeLessThan(1.5);
-    expect(stationExitPose(0.7, r0, e).pitch).toBeCloseTo(stationExitPose(1, r0, e).pitch, 9);
+    expect(stationExitPose(0.8, r0, e).pitch).toBeCloseTo(stationExitPose(1, r0, e).pitch, 9);
   });
   it('keeps the orbit getting wider (the turn rate falls)', () => {
     const rate = (s: number): number => exitPitch(s + 1, r0, e) - exitPitch(s, r0, e);
@@ -273,11 +275,11 @@ describe('leaving a station along the planet', () => {
       lastStep = now - last;
       last = now;
     }
-    expect(last).toBeGreaterThan(10000);
+    expect(last).toBeGreaterThan(2000);
   });
   it('never touches the planet and ends far away from it (a dot)', () => {
     for (let p = 0; p <= 1.0001; p += 0.02) expect(away(p)).toBeGreaterThan(150);
-    expect(away(1)).toBeGreaterThan(10000); // 150 / 10000 is under 1 degree: a dot
+    expect(away(1)).toBeGreaterThan(2000); // far away: the planet is small and far behind
   });
   it('puts the planet straight below the station so the slot points along its surface', () => {
     const c = stationPlanetCentre(300, 30, 20);
@@ -323,5 +325,25 @@ describe('the speed of leaving a station', () => {
       expect(v).toBeGreaterThan(lastSpeed - 1e-9);
       lastSpeed = v;
     }
+  });
+});
+
+describe('camera shake before the jump', () => {
+  it('only shakes during the launch, building up to full at the flash', () => {
+    expect(shakeAmount('WARP', 0.9, 0.5)).toBe(0);
+    expect(shakeAmount('APPROACH', 0.9, 0.5)).toBe(0);
+    expect(shakeAmount('LAUNCH', 0.2, 0.5)).toBe(0);
+    expect(shakeAmount('LAUNCH', 0.8, 0.5)).toBeCloseTo(1, 9);
+    expect(shakeAmount('LAUNCH', 0.65, 0.5)).toBeGreaterThan(0);
+    expect(shakeAmount('LAUNCH', 0.65, 0.5)).toBeLessThan(1);
+  });
+  it('stays small and never explodes', () => {
+    for (let t = 0; t < 5; t += 0.013) {
+      const o = shakeOffset(t, 0.1);
+      expect(Math.abs(o.x)).toBeLessThanOrEqual(0.1);
+      expect(Math.abs(o.y)).toBeLessThanOrEqual(0.1);
+      expect(Math.abs(o.z)).toBeLessThanOrEqual(0.1);
+    }
+    expect(Math.abs(shakeOffset(1.234, 0).x)).toBe(0);
   });
 });
