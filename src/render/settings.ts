@@ -87,8 +87,8 @@ export const DOCKED_BAY_ANGLE_MAX_DEG = 65;
 export const DOCKED_BAY_SWAY = 0.14; // how far (radians) the camera slowly sways left and right by itself in the bay; 0 = still
 
 /** Docked at a STATION: the planet seen through the slot. Radius, and where it is relative to the slot mouth. */
-export const DOCKED_STATION_PLANET_RADIUS = 70;
-export const DOCKED_STATION_PLANET_AT = { x: 25, y: -45, z: -110 };
+export const DOCKED_STATION_PLANET_RADIUS = 45;
+export const DOCKED_STATION_PLANET_AT = { x: -15, y: -45, z: -150 };
 
 /** System view: how big the dock models are drawn, as a fraction of the planet's drawn radius (clamped to the min and max). */
 export const SYSTEM_OUTPOST_SCALE = 0.05;
