@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { Game, createClock, refuel, newGameState, shipCatalog, type BoardEntry, type GameState } from "../src/game";
+import {
+  Game,
+  createClock,
+  refuel,
+  newGameState,
+  rankInfos,
+  shipCatalog,
+  type BoardEntry,
+  type GameState,
+  type OutpostOffer,
+} from "../src/game";
 import { getJobBoard, getPlanetsOfSystem, listSystemsNear, type Job } from "../src/universe";
 import {
   blockedReason,
@@ -17,7 +27,14 @@ import {
   emergencyVisible,
   overlayAllowed,
   refuelButton,
+  neededRankText,
+  outpostPanelText,
+  ownedOutpostLine,
+  perksText,
+  rankRowText,
+  rankUpLine,
   shipCardText,
+  shortOutpostReason,
   shortShipReason,
   sortForDisplay,
   visibleControls,
@@ -262,6 +279,123 @@ describe("ui: emergency fuel button", () => {
     expect(emergencyVisible(true, false)).toBe(true);
     expect(emergencyVisible(false, false)).toBe(false);
     expect(emergencyVisible(true, true)).toBe(false);
+  });
+});
+
+describe("ui 5c: ranks", () => {
+  it("rank-too-low has a short reason and names the rank the job needs", () => {
+    expect(blockedReason("rank-too-low")).toBe("Rank too low");
+    expect(neededRankText({ kind: "TRADE", reward: 1000 })).toBe("Need rank: Crate Wrangler");
+    expect(neededRankText({ kind: "TRADE", reward: 5000 })).toBe("Need rank: Freight Baron");
+    expect(neededRankText({ kind: "PASSENGER", reward: 1000 })).toBe("Need rank: Seatbelt Sheriff");
+    expect(neededRankText({ kind: "SCAN", reward: 5000 })).toBe("");
+  });
+
+  it("a card blocked by rank shows the rank it needs (from the plain reward)", () => {
+    const entry: BoardEntry = {
+      job: fakeJob({ reward: 1100 }),
+      baseReward: 1000,
+      bonusPercent: 10,
+      fuelNeeded: 9,
+      tripSeconds: 200,
+      block: { code: "rank-too-low", text: "Needs rank Crate Wrangler in cargo (you are Box Pusher)." },
+    };
+    const c = jobCardText(entry, names, 1);
+    expect(c.takeable).toBe(false);
+    expect(c.reason).toBe("Need rank: Crate Wrangler");
+    expect(c.reasonDetail).toContain("you are Box Pusher");
+  });
+
+  it("rank rows: start, middle and top", () => {
+    const [cargo] = rankInfos({ TRADE: 0, PASSENGER: 0, TOUR: 0 });
+    expect(rankRowText(cargo!)).toMatchObject({
+      label: "CARGO",
+      rankName: "Box Pusher",
+      rankNumber: "RANK 1/3",
+      progress: 0,
+      next: "4 more jobs to Crate Wrangler",
+      bonus: "NO BONUS YET",
+      limit: "JOBS UP TO 800 CR",
+      done: "0 delivered",
+    });
+    const mid = rankRowText(rankInfos({ TRADE: 8, PASSENGER: 0, TOUR: 0 })[0]!); // rank 2 at 4, rank 3 at 12
+    expect(mid).toMatchObject({ rankNumber: "RANK 2/3", progress: 0.5, next: "4 more jobs to Freight Baron", bonus: "+5% PAY" });
+    const one = rankRowText(rankInfos({ TRADE: 3, PASSENGER: 0, TOUR: 0 })[0]!);
+    expect(one.next).toBe("1 more job to Crate Wrangler");
+    const top = rankRowText(rankInfos({ TRADE: 40, PASSENGER: 0, TOUR: 0 })[0]!);
+    expect(top).toMatchObject({ rankNumber: "RANK 3/3", progress: 1, next: "TOP RANK", bonus: "+10% PAY", limit: "ANY JOB" });
+  });
+
+  it("rank-up line for the Delivered card", () => {
+    expect(rankUpLine(null)).toBe("");
+    expect(rankUpLine({ kind: "TOUR", rankNumber: 2, rankName: "Tour Wrangler" })).toBe("RANK UP: Tour Wrangler (tours)");
+  });
+
+  it("the ranks screen is a docked-only menu", () => {
+    expect(visibleControls("docked", "ranks", false).dockButtons).toBe(false);
+    expect(overlayAllowed("docked", "ranks", false)).toBe("ranks");
+    expect(overlayAllowed("flight", "ranks", true)).toBe("none");
+  });
+});
+
+describe("ui 5c: outposts and perks", () => {
+  const perks = { fuelDiscountPercent: 20, deliveryBonusPercent: 10 };
+  const offer = (over: Partial<OutpostOffer> = {}): OutpostOffer => ({
+    dockId: "a/1",
+    dockName: "Rusty Pad",
+    systemName: "Kopipex",
+    isOutpost: true,
+    owned: false,
+    price: 12400,
+    canBuy: true,
+    reason: "",
+    perks,
+    ...over,
+  });
+
+  it("perks in plain words", () => {
+    expect(perksText(perks, "Kopipex")).toBe("FUEL -20% · PAY +10% on jobs ending in Kopipex");
+  });
+
+  it("an outpost for sale", () => {
+    expect(outpostPanelText(offer(), 20000)).toMatchObject({ show: true, owned: false, title: "OUTPOST FOR SALE", price: "12,400 CR", canBuy: true, reason: "" });
+  });
+
+  it("an outpost you cannot afford says how much is missing", () => {
+    const t = outpostPanelText(offer({ canBuy: false, reason: "Costs 12400 credits, you have 400." }), 400);
+    expect(t).toMatchObject({ canBuy: false, reason: "Need 12,000 CR more" });
+  });
+
+  it("an owned outpost shows YOUR OUTPOST and the perks", () => {
+    const t = outpostPanelText(offer({ owned: true, canBuy: false, reason: "You already own this outpost." }), 0);
+    expect(t).toMatchObject({ show: true, owned: true, title: "YOUR OUTPOST", price: "" });
+    expect(t.perks).toContain("Kopipex");
+  });
+
+  it("stations show no panel", () => {
+    expect(outpostPanelText(offer({ isOutpost: false, price: null, canBuy: false, reason: "Stations are not for sale. Only outposts are." }), 0).show).toBe(false);
+  });
+
+  it("shortens the game's outpost reasons", () => {
+    expect(shortOutpostReason("You cannot buy an outpost during a flight.", 1, 0)).toBe("Not during a flight");
+    expect(shortOutpostReason("You can only buy an outpost where you are docked.", 1, 0)).toBe("Dock here to buy it");
+    expect(shortOutpostReason("Something new.", 1, 0)).toBe("Something new.");
+  });
+
+  it("owned outposts list line", () => {
+    expect(ownedOutpostLine({ dockId: "a/1", dockName: "Rusty Pad", systemId: "a", systemName: "Kopipex" })).toBe("Rusty Pad · Kopipex");
+  });
+
+  it("job cards ending at your outpost's system get a +10% marker", () => {
+    const entry: BoardEntry = { job: fakeJob(), baseReward: 1350, bonusPercent: 10, fuelNeeded: 9, tripSeconds: 200, block: null };
+    expect(jobCardText(entry, names, 1, 10).outpostBonus).toBe("+10%");
+    expect(jobCardText(entry, names, 1).outpostBonus).toBe("");
+  });
+
+  it("the Refuel button shows the discount", () => {
+    const state = { ...newGameState("a/1"), fuel: 40, credits: 500 };
+    expect(refuelButton(refuel(state), 20).text).toBe("REFUEL +20 · 40 CR (-20%)");
+    expect(refuelButton(refuel(state)).text).toBe("REFUEL +20 · 40 CR");
   });
 });
 

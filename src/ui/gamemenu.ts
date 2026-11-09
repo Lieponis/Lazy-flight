@@ -24,6 +24,7 @@ export class GameMenu {
     private info: GameMenuInfo,
     private onNewGame: (choice: NewGameChoice) => void,
     private onClose: () => void,
+    private onRanks?: () => void,
   ) {
     this.root.setAttribute("role", "dialog");
     this.root.setAttribute("aria-label", "Menu");
@@ -33,6 +34,8 @@ export class GameMenu {
     titles.append(el("div", "ui-panel-title", "MENU"), el("div", "ui-panel-sub", "LAZY FREIGHT"));
     head.append(titles, button("CLOSE", "", () => this.onClose()));
     const body = el("div", "ui-menu-body");
+    // RANKS (part 5c): your ranks and the outposts you own.
+    if (this.onRanks) body.append(button("RANKS & OUTPOSTS", "ui-btn-primary ui-btn-wide", () => this.onRanks?.()));
     body.append(this.seedLine, this.saveLine, button("NEW GAME", "ui-btn-amber ui-btn-wide", () => this.askUniverse()));
     panel.append(head, body);
     this.root.append(panel);

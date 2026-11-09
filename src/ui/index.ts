@@ -26,6 +26,7 @@ import { GameMenu, showToast, type NewGameChoice } from "./gamemenu";
 import { JobsMenu } from "./jobsmenu";
 import { locationText, overlayAllowed, placeLabel, visibleControls, type Overlay } from "./logic";
 import { NavBar } from "./navbar";
+import { RanksScreen } from "./ranks";
 import { Shipyard } from "./shipyard";
 import { StatusStrip } from "./statusstrip";
 
@@ -99,7 +100,11 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     const { pathname, hash } = window.location;
     window.location.assign(pathname + addressWithSeed(window.location.search, newSeed) + hash);
   };
-  const menu = new GameMenu(layer, { seed: () => seed, savingWorks: () => saver.working }, startNewGame, closeOverlay);
+  const ranks = new RanksScreen(layer, game, closeOverlay);
+  const menu = new GameMenu(layer, { seed: () => seed, savingWorks: () => saver.working }, startNewGame, closeOverlay, () => {
+    overlay = "ranks"; // MENU -> RANKS & OUTPOSTS (part 5c)
+    refresh();
+  });
   if (plan.notice) showToast(layer, plan.notice);
 
   const nav = new NavBar(layer, {
@@ -152,6 +157,9 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     if (overlay === "menu") {
       if (!menu.opened) menu.open();
     } else menu.close();
+    if (overlay === "ranks") {
+      if (!ranks.opened) ranks.open();
+    } else ranks.close();
     if (overlay !== "arrival") arrivalCard.close();
     const controls = visibleControls(screen, overlay, flying);
     nav.apply(controls);
@@ -201,6 +209,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     syncFlight();
     jobs.render();
     shipyard.render();
+    ranks.render();
     refresh();
     maybeShowArrival();
   });

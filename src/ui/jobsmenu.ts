@@ -1,9 +1,20 @@
 // JOBS MENU: an overlay over the docked view. Header (dock name, Refuel, Close) and the job board as cards.
-// It only READS the game and calls game.accept(jobId) and game.refuel().
+// It only READS the game and calls game.accept(jobId), game.refuel(), game.emergencyRefuel() and game.buyOutpost().
+// Part 5c: an outpost panel at the top of the list (offer with BUY, or "YOUR OUTPOST"), the fuel discount on
+// the Refuel button, and a small "+10%" marker on jobs that end in a system where you own an outpost.
 
 import { refuel, type Game } from "../game";
 import { button, el } from "./dom";
-import { emergencyVisible, jobCardText, refuelButton, sortForDisplay, type JobCardText, type PlaceNames } from "./logic";
+import {
+  emergencyVisible,
+  formatCredits,
+  jobCardText,
+  outpostPanelText,
+  refuelButton,
+  sortForDisplay,
+  type JobCardText,
+  type PlaceNames,
+} from "./logic";
 import { Popup } from "./popup";
 
 export class JobsMenu {
@@ -96,21 +107,66 @@ export class JobsMenu {
     this.subtitle.textContent = `JOB BOARD · ${this.names.here()}`;
 
     this.emergencyBtn.hidden = !emergencyVisible(game.isStuck(), game.state.currentJob !== null);
-    const fuelBtn = refuelButton(refuel(game.state));
+    const fuelBtn = refuelButton(refuel(game.state), game.getPerks().fuelDiscountPercent);
     this.refuelBtn.textContent = fuelBtn.text;
     this.refuelBtn.disabled = fuelBtn.disabled;
     this.refuelHint.textContent = fuelBtn.disabled && !/full/i.test(fuelBtn.hint) ? fuelBtn.hint : "";
 
-    const cards = sortForDisplay(game.getBoard().map((entry) => jobCardText(entry, this.names, game.clock.speed)));
+    const cards = sortForDisplay(
+      game.getBoard().map((entry) =>
+        jobCardText(entry, this.names, game.clock.speed, game.getPerks(entry.job.destinationDockId).deliveryBonusPercent),
+      ),
+    );
+    const scrolled = this.list.scrollTop;
     this.list.replaceChildren();
+    const outpost = this.outpostPanel();
+    if (outpost) this.list.append(outpost);
     if (cards.length === 0) this.list.append(el("div", "ui-empty", "No jobs right now. Check back later."));
     for (const card of cards) this.list.append(this.card(card));
+    this.list.scrollTop = scrolled; // keep the place after refuelling or buying
+  }
+
+  /** The outpost of this dock: the offer with BUY, or "YOUR OUTPOST". Nothing at stations. */
+  private outpostPanel(): HTMLElement | null {
+    const game = this.game;
+    const dockId = game.state.currentDockId;
+    const offer = game.getOutpostOffer(dockId);
+    const t = outpostPanelText(offer, game.state.credits);
+    if (!t.show) return null;
+    const box = el("div", t.owned ? "ui-outpost ui-outpost-owned" : "ui-outpost");
+    const top = el("div", "ui-card-top");
+    top.append(el("span", "ui-chip", t.title), el("span", "ui-card-reward", t.price));
+    box.append(top, el("div", "ui-outpost-perks", t.perks));
+    if (!t.owned) {
+      const buy = button(`BUY OUTPOST · ${t.price}`, t.canBuy ? "ui-btn-primary ui-btn-wide" : "ui-btn-wide", () => {
+        // Two steps, like NEW GAME: ask first, then buy.
+        this.popup.show({
+          title: "BUY THIS OUTPOST?",
+          big: formatCredits(offer.price ?? 0),
+          text: `${offer.dockName} becomes yours. ${t.perks}.`,
+          buttons: [{ text: "YES, BUY", primary: true, onClick: () => this.buyOutpost(dockId) }, { text: "CANCEL" }],
+        });
+      });
+      buy.disabled = !t.canBuy;
+      box.append(buy);
+      if (t.reason) box.append(el("div", "ui-ship-reason", `✕ ${t.reason.toUpperCase()}`));
+    }
+    return box;
+  }
+
+  private buyOutpost(dockId: string): void {
+    const result = this.game.buyOutpost(dockId);
+    this.render();
+    if (result.ok) this.popup.show({ title: "OUTPOST BOUGHT", big: `-${formatCredits(result.price)}`, text: result.line });
+    else this.popup.show({ title: "NOT BOUGHT", text: result.reason, warning: true });
   }
 
   private card(c: JobCardText): HTMLElement {
     const box = el("div", c.takeable ? "ui-card" : "ui-card ui-card-blocked");
     const top = el("div", "ui-card-top");
-    top.append(el("span", "ui-chip", c.kind), el("span", "ui-card-reward", c.reward));
+    const reward = el("span", "ui-card-reward", c.reward);
+    if (c.outpostBonus) reward.prepend(el("span", "ui-bonus", `${c.outpostBonus} OUTPOST`)); // your outpost pays extra
+    top.append(el("span", "ui-chip", c.kind), reward);
     const title = el("div", "ui-card-title", c.title);
     const dest = el("div", "ui-card-dest", `→ ${c.destination}`);
     const facts = el("div", "ui-card-facts");

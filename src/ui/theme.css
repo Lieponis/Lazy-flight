@@ -653,3 +653,83 @@
   cursor: pointer;
   text-align: center;
 }
+
+/* ------------------------------------------------------------ part 5c: ranks, outposts, perks */
+
+/* The outpost panel at the top of the Jobs list (and the "your outposts" card on the Ranks screen). */
+.ui-outpost {
+  padding: 8px 10px;
+  border: 1px solid var(--ui-amber);
+  border-left: 3px solid var(--ui-amber);
+  background: rgba(255, 181, 71, 0.06);
+}
+
+.ui-outpost .ui-chip {
+  color: var(--ui-amber);
+  border-color: var(--ui-amber);
+}
+
+.ui-outpost-owned {
+  border-style: solid;
+  background: rgba(255, 181, 71, 0.1);
+}
+
+.ui-outpost-perks {
+  margin: 4px 0 2px;
+  color: var(--ui-text);
+  font-size: 18px;
+}
+
+.ui-owned {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--ui-line-dim);
+}
+
+.ui-owned-name {
+  font-size: 22px;
+}
+
+/* "+10% OUTPOST" next to a job's reward */
+.ui-bonus {
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: var(--ui-bg-solid);
+  background: var(--ui-amber);
+  padding: 0 4px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* Ranks screen */
+.ui-rank-number {
+  color: var(--ui-teal);
+  letter-spacing: 1px;
+}
+
+.ui-rank-bar {
+  margin-top: 6px;
+  height: 10px;
+  border: 1px solid var(--ui-line);
+  padding: 1px;
+}
+
+.ui-rank-fill {
+  height: 100%;
+  width: 0;
+  background: var(--ui-teal);
+}
+
+.ui-rank-next {
+  margin-top: 4px;
+  color: var(--ui-dim);
+  font-size: 18px;
+}
+
+/* Delivered card: the rank-up line */
+.ui-arrival-rank {
+  color: var(--ui-teal);
+  font-size: 22px;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
