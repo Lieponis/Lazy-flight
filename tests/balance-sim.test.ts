@@ -1,0 +1,109 @@
+// Agent 6b: balance simulator smoke test + regression tests for problems found in the QA pass.
+import { describe, expect, it } from "vitest";
+import { Game, createClock, newGameState, type GameState } from "../src/game";
+import { RANK_MAX_REWARD } from "../src/game/settings";
+import { findStartSystem } from "../src/render/start";
+import { getJobBoard, getPlanetsOfSystem, listSystemsNear, type Job } from "../src/universe";
+import { STRATEGIES, simulate } from "./sim/balance-sim";
+
+const SEED = 12345;
+const startDock = (): string => getPlanetsOfSystem(SEED, findStartSystem(SEED)!.id)[0]!.id;
+
+describe("balance simulator (smoke test; full report: npm run balance)", () => {
+  it("every strategy plays 30 game hours without errors and earns money", () => {
+    for (const s of STRATEGIES) {
+      const r = simulate(SEED, s, 30);
+      expect(r.jobsDone).toBeGreaterThan(3);
+      expect(r.earned).toBeGreaterThan(1000);
+      expect(r.creditsEnd).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("normal play never gets stuck (emergency fuel is only a safety net)", () => {
+    for (const s of STRATEGIES) for (const seed of [SEED, 777, 999]) expect(simulate(seed, s, 40).stuck).toBe(0);
+  });
+});
+
+describe("emergency fuel through normal rules", () => {
+  // Finding 6b: in normal play you cannot get stuck. Tried here: every takeable first job, then spending
+  // credits the normal ways (buy Scout, buy Liner, buy the outpost there). Never stuck: emergency fuel stays a
+  // pure safety net (it is tested with forced states in tests/game4b.test.ts).
+  it("one job and then spending your credits never leaves you stuck", () => {
+    let tries = 0;
+    for (const seed of [SEED, 777]) {
+      const start = getPlanetsOfSystem(seed, findStartSystem(seed)!.id)[0]!.id;
+      for (let h = 0; h < 120; h += 6) {
+        const t = { n: h * 3_600_000 };
+        const game = new Game(seed, start, createClock(1, () => t.n));
+        for (const e of game.getBoard().filter((x) => !x.block)) {
+          game.loadState(newGameState(start));
+          t.n = h * 3_600_000;
+          if (!game.accept(e.job.id).ok) continue;
+          t.n = game.state.travelEndMs!;
+          game.update();
+          const after: GameState = JSON.parse(JSON.stringify(game.state));
+          for (const spend of [() => {}, () => game.buyShip("scout"), () => game.buyShip("passenger-liner"), () => game.buyOutpost(game.state.currentDockId)]) {
+            game.loadState(after);
+            spend();
+            tries++;
+            expect(game.isStuck()).toBe(false);
+          }
+        }
+      }
+    }
+    expect(tries).toBeGreaterThan(200);
+  });
+});
+
+// ------------------------------------------------------------ BUG 6b-1 (src/game, reported to the Lead)
+// The board says a job can be taken, but ACCEPT refuses it with "Needs rank ...".
+// Cause: Game.accept() checks the job WITH the rank/outpost pay bonus added, and the rank limit is then
+// compared with the bigger reward. A job just under a rank limit is pushed over it by your own bonus.
+function jobJustUnderLimit(): Job | null {
+  const limit = RANK_MAX_REWARD.TRADE[1]; // rank 2 may take cargo jobs up to this reward
+  for (const system of listSystemsNear(SEED, { x: 0, y: 0, z: 0 }, 35)) {
+    for (const planet of getPlanetsOfSystem(SEED, system.id)) {
+      for (let slot = 0; slot < 60; slot += 6) {
+        for (const job of getJobBoard(SEED, planet.id, slot) ?? []) {
+          if (job.kind === "TRADE" && job.amount <= 30 && job.reward <= limit && job.reward * 1.05 > limit && job.totalDistance <= 25) {
+            return job;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+describe("BUG 6b-1: rank bonus pushes a job over the rank limit at Accept", () => {
+  const job = jobJustUnderLimit();
+  const setup = (): Game => {
+    const game = new Game(SEED, job!.originDockId, createClock(1, () => 0));
+    const state: GameState = { ...newGameState(job!.originDockId), fuel: 60, credits: 500 };
+    state.completedJobs = { TRADE: 4, PASSENGER: 0, TOUR: 0 }; // cargo rank 2: +5% pay
+    game.loadState(state);
+    return game;
+  };
+
+  it("such a job exists in seed 12345 (so players can meet it)", () => {
+    expect(job).not.toBeNull();
+  });
+
+  it("the board shows it as takeable", () => {
+    // Boards depend on the slot; the clock above is at 0, so look the job up by id via the same slot.
+    const game = setup();
+    const slot = Number(job!.id.split("#")[1]) * 6;
+    game.clock.now = () => slot * 3_600_000;
+    const entry = game.getBoard().find((e) => e.job.id === job!.id);
+    expect(entry?.block).toBeNull();
+  });
+
+  // it.fails = this test FAILS today because of the bug. When the Lead fixes Game.accept, vitest will
+  // report it as unexpectedly passing: then change it.fails to it.
+  it.fails("ACCEPT takes it (fails today: the bug)", () => {
+    const game = setup();
+    const slot = Number(job!.id.split("#")[1]) * 6;
+    game.clock.now = () => slot * 3_600_000;
+    expect(game.accept(job!.id).ok).toBe(true);
+  });
+});

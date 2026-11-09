@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "check": "npm run build && npm run test"
+    "check": "npm run build && npm run test",
+    "balance": "vite-node tests/sim/run-balance.ts"
   },
   "dependencies": {
     "three": "0.170.0"
