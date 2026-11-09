@@ -35,7 +35,7 @@ export const STARFIELD_COUNT = 260;
 // ---------------------------------------------------------------- the flight view (part 3b)
 
 /** Real seconds the take-off takes (only on trips long enough; short trips are squeezed). */
-export const FLIGHT_LAUNCH_SECONDS = 5;
+export const FLIGHT_LAUNCH_SECONDS = 10;
 
 /** Real seconds the approach to the destination takes. It starts this long before arrival. */
 export const FLIGHT_APPROACH_SECONDS = 10;
@@ -87,9 +87,10 @@ export const DOCKED_BAY_ANGLE_MAX_DEG = 65;
 export const DOCKED_BAY_SWAY = 0.14; // how far (radians) the camera slowly sways left and right by itself in the bay; 0 = still
 
 /** Docked at a STATION: the planet seen through the slot. Radius, and where it is relative to the slot mouth. */
-export const DOCKED_STATION_PLANET_RADIUS = 300;
-export const DOCKED_STATION_PLANET_ALTITUDE = 30; // from the bay floor down to the planet's surface. The station's slot points along the surface (a tangent).
-export const DOCKED_STATION_PLANET_DETAIL = 6; // facets of the planet (more = rounder)
+export const DOCKED_STATION_PLANET_RADIUS = 150;
+export const DOCKED_STATION_PLANET_ALTITUDE = 8; // from the bay floor down to the planet's surface (small, so the planet shows low in the opening). The slot points along the surface.
+export const DOCKED_STATION_PLANET_DETAIL = 5; // facets of the planet (more = rounder)
+export const FLIGHT_STATION_PLANET_ALTITUDE = 30; // the same in the flight view: higher, so the station never touches the planet
 
 /** System view: how big the dock models are drawn, as a fraction of the planet's drawn radius (clamped to the min and max). */
 export const SYSTEM_OUTPOST_SCALE = 0.05;
@@ -109,10 +110,12 @@ export const FLIGHT_APPROACH_FROM_STATION = { y: 0, z: 260 }; // stations: strai
 
 /**
  * Leaving a station: the ship flies straight out of the slot for `straight` units, then curves round the planet
- * (nose slowly turning down, like an orbit) and the orbit keeps getting wider (`growth`: higher = widens faster)
- * until the jump. `distance` = how far the ship flies in the whole launch.
+ * (nose slowly turning down, like an orbit) and the orbit keeps getting wider (`growth`: higher = widens faster).
+ * At `curveEnd` units it stops turning and flies straight along that heading, faster and faster, until the planet
+ * is a dot. `distance` = how far the ship has flown at the end of the launch; `power` = how strongly it speeds up
+ * (distance grows with progress to this power: 4 = slow start, very fast end).
  */
-export const STATION_EXIT = { distance: 260, straight: 20, growth: 0.5 };
+export const STATION_EXIT = { distance: 20000, straight: 20, curveEnd: 260, growth: 0.5, power: 4 };
 
 /** Flight view: where the camera sits inside a station bay while you leave or arrive, relative to the ship (right, up, behind). */
 export const FLIGHT_BAY_CAMERA = { x: 3.2, y: 3.4, z: 4.8 };
