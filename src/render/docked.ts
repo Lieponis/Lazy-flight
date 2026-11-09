@@ -26,13 +26,15 @@ import {
   bayBoxWorld,
   camFromPoint,
   clampToBox,
+  fitDistance,
+  fitFov,
   outpostFraming,
   relativeToParking,
   resolveShipId,
   stationPlanetCentre,
   type Box,
 } from "./integration";
-import { buildDockModel, buildShipModel, parkAtOrigin, type DockModel } from "./models3d";
+import { buildDockModel, buildShipModel, parkAtOrigin, shipRadius, type DockModel } from "./models3d";
 import type { AssetModel } from "./assets";
 import type { Screen } from "./screen";
 import {
@@ -52,6 +54,8 @@ import {
   DOCKED_STATION_PLANET_RADIUS,
   DOCKED_ZOOM_MAX,
   DOCKED_ZOOM_MIN,
+  SHIP_FIT_MARGIN,
+  SHIP_FIT_MAX_FOV,
   STARFIELD_COUNT,
   STATION_EXIT,
 } from "./settings";
@@ -219,6 +223,10 @@ export class DockedScreen implements Screen {
     return true;
   }
 
+  private shipR = 1;
+  private baseFov = 50; // the window's normal view; widened a little when the ship would not fit
+  private appliedFov = -1;
+
   private placeShip(): void {
     if (this.ship) {
       this.content.remove(this.ship.group);
@@ -229,6 +237,7 @@ export class DockedScreen implements Screen {
     ship.group.position.set(0, 0, 0); // its parking point is the scene's middle
     this.content.add(ship.group);
     this.ship = ship;
+    this.shipR = shipRadius(ship);
   }
 
   private buildOutpostScene(
@@ -301,12 +310,25 @@ export class DockedScreen implements Screen {
     this.ship?.update(this.clockT);
     this.dock?.model.update(this.clockT);
 
+    // The whole ship must always be in the picture, on any window shape.
+    const camera = this.camera;
+    if (camera.fov !== this.appliedFov) this.baseFov = camera.fov; // the window changed the view
+    const fit = fitDistance(this.shipR, this.baseFov, camera.aspect, SHIP_FIT_MARGIN);
+    if (!this.bay && this.controls.cam.dist < fit) this.controls.cam = { ...this.controls.cam, dist: Math.min(fit, this.controls.limits.maxDist) }; // outside: step back
     let cam = this.controls.cam;
     if (this.bay) cam = { ...cam, yaw: cam.yaw + Math.sin(this.clockT * 0.35) * DOCKED_BAY_SWAY }; // a slow sway, so the bay feels alive
     const p = camPosition(cam, this.target);
     const spot = this.bay ? clampToBox(p, this.bay, DOCKED_BAY_MARGIN) : p;
     this.camera.position.set(spot.x, spot.y, spot.z);
     this.camera.lookAt(this.tmp.copy(this.target));
+    // Inside a bay the camera cannot step back, so widen the view instead (never beyond the limit).
+    const d = Math.hypot(spot.x - this.target.x, spot.y - this.target.y, spot.z - this.target.z);
+    const fov = Math.min(SHIP_FIT_MAX_FOV, Math.max(this.baseFov, fitFov(this.shipR, Math.max(d, 0.1), camera.aspect, SHIP_FIT_MARGIN)));
+    if (Math.abs(camera.fov - fov) > 0.01) {
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+    }
+    this.appliedFov = camera.fov;
     this.camera.updateMatrixWorld();
   }
 }

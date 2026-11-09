@@ -33,6 +33,8 @@ import {
   stationModelFor,
   stationPlanetCentre,
   exitPitch,
+  fitDistance,
+  fitFov,
 } from '../src/render/integration';
 import { OUTPOST_IDS, STATION_IDS } from '../src/render/assets/pickers';
 import { BAY_SIZE, FLAME_FLYING, FLAME_PARKED, FLAME_WARP } from '../src/render/assets/style';
@@ -468,5 +470,31 @@ describe('arriving at a station (the departure backwards, slower)', () => {
     expect(arrivalShakeAmount(0.9, 1.8)).toBeCloseTo(0.5, 6);
     expect(arrivalShakeAmount(1.8, 1.8)).toBe(0);
     expect(arrivalShakeAmount(10, 1.8)).toBe(0);
+  });
+});
+
+describe('the whole ship always fits in the picture', () => {
+  it('a ball of that size fills the narrower side of the picture with a little margin', () => {
+    for (const aspect of [0.46, 1, 1.78]) {
+      const d = fitDistance(3, 50, aspect, 1.1);
+      const v = (50 * Math.PI) / 360;
+      const h = Math.atan(Math.tan(v) * aspect);
+      const half = Math.asin((3 * 1.1) / d); // half the angle the ball covers
+      expect(half).toBeLessThanOrEqual(Math.min(v, h) + 1e-9);
+      expect(half).toBeCloseTo(Math.min(v, h), 6);
+    }
+  });
+  it('a tall phone window needs the camera further back than a wide one', () => {
+    expect(fitDistance(3, 50, 0.46)).toBeGreaterThan(fitDistance(3, 50, 1.78));
+  });
+  it('a bigger ship needs a bigger distance', () => {
+    expect(fitDistance(6, 50, 1)).toBeGreaterThan(fitDistance(3, 50, 1));
+  });
+  it('the widened view makes the ship fit at a fixed distance', () => {
+    const fov = fitFov(3, 6, 0.46, 1.1);
+    expect(fitDistance(3, fov, 0.46, 1.1)).toBeLessThanOrEqual(6 + 1e-6);
+  });
+  it('a ship far away needs no widening beyond the normal view', () => {
+    expect(fitFov(3, 200, 1, 1.1)).toBeLessThan(50);
   });
 });

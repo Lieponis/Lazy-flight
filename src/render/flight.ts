@@ -32,10 +32,13 @@ import {
   bayBoxWorld,
   chaseBlend,
   clampToBox,
+  fitDistance,
+  fitFov,
   approachOffset,
   flameLength,
   launchCameraBlend,
   outpostExitPose,
+  lerp,
   lerp3,
   orbitPosition,
   stationEntryState,
@@ -47,10 +50,11 @@ import {
   rotateY,
   shakeAmount,
   shakeOffset,
+  smoothstep,
   type Box,
   type Vec3,
 } from "./integration";
-import { buildDockModel, buildShipModel, parkAtOrigin } from "./models3d";
+import { buildDockModel, buildShipModel, parkAtOrigin, shipRadius } from "./models3d";
 import {
   DOCKED_BAY_MARGIN,
   DOCKED_GROUND_DETAIL,
@@ -75,6 +79,8 @@ import {
   FLIGHT_ORBIT_RADIUS,
   FLIGHT_SHAKE_START,
   FLIGHT_SHAKE_STRENGTH,
+  SHIP_FIT_MARGIN,
+  SHIP_FIT_MAX_FOV,
   STARFIELD_COUNT,
   STATION_EXIT,
 } from "./settings";
@@ -128,6 +134,9 @@ export class FlightScreen implements Screen {
   readonly camera = new THREE.PerspectiveCamera(50, RENDER_WIDTH / RENDER_HEIGHT, 0.05, 40000);
 
   private ship: AssetModel = buildShipModel(FALLBACK_SHIP_ID);
+  private shipR = shipRadius(this.ship);
+  private baseFov = 50; // the window's normal view; the picture may widen a little so the whole ship fits
+  private appliedFov = -1;
   private shipId = FALLBACK_SHIP_ID;
   private cockpit = buildCockpit();
   private tunnel = buildTunnel();
@@ -191,6 +200,7 @@ export class FlightScreen implements Screen {
     this.scene.remove(this.ship.group);
     disposeAll(this.ship.group);
     this.ship = buildShipModel(id);
+    this.shipR = shipRadius(this.ship);
     this.ship.group.visible = visible;
     this.scene.add(this.ship.group);
   }
@@ -345,11 +355,13 @@ export class FlightScreen implements Screen {
 
   private placeCamera(phase: FlightPhase, p: number, phaseSeconds: number): void {
     const camera = this.camera;
-    if (camera.aspect !== this.lastAspect || camera.fov !== this.lastFov) {
+    if (camera.fov !== this.appliedFov) this.baseFov = camera.fov; // the window changed the view (see index.ts resize)
+    if (camera.aspect !== this.lastAspect || this.baseFov !== this.lastFov) {
       this.lastAspect = camera.aspect;
-      this.lastFov = camera.fov;
-      this.cockpit.layout(camera.aspect, camera.fov);
+      this.lastFov = this.baseFov;
+      this.cockpit.layout(camera.aspect, this.baseFov);
     }
+    let fov = this.baseFov;
     const shipY = this.ship.group.position.y;
     if (this.mode === "orbit") {
       this.ship.group.visible = true;
@@ -371,6 +383,15 @@ export class FlightScreen implements Screen {
         }
         rel = lerp3(rel, chase, phase === "DONE" ? 1 : chaseBlend(p, STATION_ENTRY.cameraBlend));
       }
+      // Keep the whole ship in the picture, on any window shape: move the camera back if it can, widen the view if it cannot (inside a bay).
+      let inBay = 0; // 1 = inside the bay, where the camera cannot move back
+      if (phase === "LAUNCH" && this.origin?.bayCamera) inBay = 1 - launchCameraBlend(this.origin.slide);
+      else if ((phase === "APPROACH" || phase === "DONE") && this.dest?.isStation && this.dest.entry) inBay = 1 - smoothstep((this.dest.entry.pose.slide - 4) / 8);
+      const vy = rel.y - 0.8;
+      const d0 = Math.hypot(rel.x, vy, rel.z);
+      const d1 = d0 > 1e-6 ? lerp(Math.max(d0, fitDistance(this.shipR, this.baseFov, camera.aspect, SHIP_FIT_MARGIN)), d0, inBay) : d0;
+      if (d0 > 1e-6) rel = { x: (rel.x * d1) / d0, y: 0.8 + (vy * d1) / d0, z: (rel.z * d1) / d0 };
+      fov = Math.min(SHIP_FIT_MAX_FOV, Math.max(this.baseFov, fitFov(this.shipR, d1, camera.aspect, SHIP_FIT_MARGIN)));
       camera.position.set(rel.x, rel.y + shipY, rel.z);
       camera.lookAt(0, shipY + 0.8, 0);
     } else {
@@ -382,6 +403,12 @@ export class FlightScreen implements Screen {
       camera.position.set(eye?.x ?? 0, (eye?.y ?? 0.45) + shipY, eye?.z ?? -0.4);
       camera.rotation.set(pitch, 0, 0);
     }
+    if (Math.abs(camera.fov - fov) > 0.01) {
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+    }
+    this.appliedFov = camera.fov;
+
     // A light shake just before the jump.
     // ...and when the ship drops out of warp at a station.
     const arriving = phase === "APPROACH" && this.dest?.isStation === true;

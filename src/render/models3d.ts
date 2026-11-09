@@ -32,3 +32,9 @@ export function buildDockModel(kind: DockKind, dockId: string, planet: Planet): 
 export function parkAtOrigin(dock: DockModel): void {
   dock.model.group.position.copy(dock.parking).negate();
 }
+
+/** How big the ship is for the camera: the radius of a ball that holds (nearly) all of it. Used to keep the ship in the picture. */
+export function shipRadius(model: AssetModel): number {
+  const size = new THREE.Box3().setFromObject(model.group).getSize(new THREE.Vector3());
+  return Math.max(1, 0.5 * Math.hypot(size.x, size.y, size.z) * 0.85);
+}

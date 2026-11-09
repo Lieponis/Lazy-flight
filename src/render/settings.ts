@@ -169,3 +169,7 @@ export const FLIGHT_APPROACH_SECONDS_STATION = 16;
 
 /** Arriving at a station: the camera shakes as the ship drops out of warp, calming down over this many seconds. */
 export const FLIGHT_ARRIVAL_SHAKE_SECONDS = 1.8;
+
+/** Keeping the ship in the picture: the room left round it (1.1 = 10 percent), and the widest the view may get when the camera cannot move back (degrees). */
+export const SHIP_FIT_MARGIN = 1.1;
+export const SHIP_FIT_MAX_FOV = 100;

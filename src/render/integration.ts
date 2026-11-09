@@ -408,3 +408,22 @@ export function chaseBlend(p: number, share: number): number {
 export function arrivalShakeAmount(secondsIn: number, calmSeconds: number): number {
   return 1 - smoothstep(secondsIn / Math.max(0.01, calmSeconds));
 }
+
+// ------------------------------------------------------------------ keeping the ship in the picture
+
+/**
+ * The distance at which a ball of `radius` (the ship) just fits in the picture, with `margin` to spare, for a camera with this
+ * vertical field of view (degrees) and window shape (width / height). Tall phone windows give a bigger number than wide ones.
+ */
+export function fitDistance(radius: number, fovDeg: number, aspect: number, margin = 1.1): number {
+  const v = (Math.max(1, fovDeg) * Math.PI) / 360;
+  const h = Math.atan(Math.tan(v) * Math.max(0.1, aspect));
+  return (radius * margin) / Math.sin(Math.min(v, h));
+}
+
+/** The vertical field of view (degrees) at which a ball of `radius` fits in the picture when the camera is `dist` away. */
+export function fitFov(radius: number, dist: number, aspect: number, margin = 1.1): number {
+  const alpha = Math.asin(clamp((radius * margin) / Math.max(1e-6, dist), 0, 1));
+  const v = Math.atan(Math.tan(alpha) / Math.min(1, Math.max(0.1, aspect)));
+  return (2 * v * 180) / Math.PI;
+}
