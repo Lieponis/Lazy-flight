@@ -1,7 +1,7 @@
 // Plain functions with no drawing: the words and numbers the menus show, and which buttons show where.
 // Kept here so they can be tested without a browser (tests/ui.test.ts).
 
-import { formatDuration, type BlockCode, type BoardEntry, type RefuelResult } from "../game";
+import { formatDuration, type BlockCode, type BoardEntry, type RefuelResult, type ShipCatalogEntry } from "../game";
 import type { JobKind } from "../universe";
 
 // ------------------------------------------------------------ numbers
@@ -77,7 +77,7 @@ const SHORT_REASONS: Record<BlockCode, string> = {
   "no-cabin": "Needs a passenger cabin",
   "cabin-too-small": "Cabin too small",
   "cargo-too-large": "Cargo too large",
-  "tank-too-small": "Fuel tank too small",
+  "tank-too-small": "Too far for this tank",
   "not-enough-fuel": "Not enough fuel",
 };
 
@@ -155,11 +155,11 @@ export function refuelButton(preview: RefuelResult): RefuelButton {
 // ------------------------------------------------------------ which controls show where
 
 export type ScreenName = "docked" | "starmap" | "system" | "flight";
-export type Overlay = "none" | "jobs" | "arrival";
+export type Overlay = "none" | "jobs" | "shipyard" | "arrival";
 
 export interface Controls {
   statusStrip: boolean;
-  /** JOBS and MAP */
+  /** JOBS, SHIPYARD and MAP */
   dockButtons: boolean;
   /** System | Galaxy switch and CLOSE */
   mapBar: boolean;
@@ -182,4 +182,58 @@ export function visibleControls(screen: ScreenName, overlay: Overlay, flying: bo
 export function overlayAllowed(screen: ScreenName, overlay: Overlay, flying: boolean): Overlay {
   if (flying || screen !== "docked") return "none";
   return overlay;
+}
+
+// ------------------------------------------------------------ shipyard
+
+/** What the button area of a ship card shows. */
+export type ShipAction = "active" | "switch" | "buy" | "blocked";
+
+export interface ShipCardText {
+  id: string;
+  name: string;
+  description: string;
+  /** "CARGO 30 · CABIN 0 · TANK 60" */
+  stats: { cargo: string; cabin: string; tank: string };
+  /** "1,500 CR", or "OWNED" when you have it. */
+  price: string;
+  /** "FUEL 40/60" for ships you own, otherwise "". */
+  fuel: string;
+  action: ShipAction;
+  /** Short plain reason when it cannot be bought or switched to, otherwise "". */
+  reason: string;
+}
+
+/** Turns the game's shipyard reason into short plain words. */
+export function shortShipReason(reason: string, price: number, credits: number): string {
+  if (!reason) return "";
+  if (/^Costs \d+ credits/.test(reason)) return `Need ${formatCredits(Math.max(0, price - credits))} more`;
+  if (/during a flight/i.test(reason)) return "Not during a flight";
+  if (/already own/i.test(reason)) return "Owned";
+  return reason;
+}
+
+export function shipCardText(entry: ShipCatalogEntry, credits: number): ShipCardText {
+  const { ship } = entry;
+  let action: ShipAction = "blocked";
+  if (entry.active) action = "active";
+  else if (entry.canSwitch) action = "switch";
+  else if (entry.canBuy) action = "buy";
+  let reason = "";
+  if (action === "blocked") reason = entry.owned ? "Not during a flight" : shortShipReason(entry.reason, ship.price, credits);
+  return {
+    id: ship.id,
+    name: ship.name,
+    description: ship.description,
+    stats: { cargo: String(ship.cargoCapacity), cabin: ship.cabinCapacity > 0 ? String(ship.cabinCapacity) : "NONE", tank: String(ship.fuelTankSize) },
+    price: entry.owned ? "OWNED" : formatCredits(ship.price),
+    fuel: entry.owned && entry.fuel !== null ? `FUEL ${formatFuel(entry.fuel, ship.fuelTankSize)}` : "",
+    action,
+    reason,
+  };
+}
+
+/** The emergency button shows only when the game says you are stuck, and never during a flight. */
+export function emergencyVisible(stuck: boolean, onJob: boolean): boolean {
+  return stuck && !onJob;
 }

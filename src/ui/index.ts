@@ -1,4 +1,4 @@
-// Starts the menus (status strip, JOBS/MAP buttons, Jobs menu, map switch, arrival card)
+// Starts the menus (status strip, JOBS/SHIPYARD/MAP buttons, Jobs menu, Shipyard, map switch, arrival card)
 // and connects the game to the render layer. Called once from src/main.ts after the render layer is running.
 // This is the only place where the game and the screens meet; src/render never imports src/game.
 
@@ -13,6 +13,7 @@ import { ArrivalCard } from "./arrival";
 import { JobsMenu } from "./jobsmenu";
 import { locationText, overlayAllowed, placeLabel, visibleControls, type Overlay } from "./logic";
 import { NavBar } from "./navbar";
+import { Shipyard } from "./shipyard";
 import { StatusStrip } from "./statusstrip";
 
 export function startUi(api: RenderApi, parent: HTMLElement): Game {
@@ -43,11 +44,16 @@ export function startUi(api: RenderApi, parent: HTMLElement): Game {
     refresh();
   };
   const jobs = new JobsMenu(layer, game, { dockName, systemNameOfDock, here: () => game.currentSystemName() }, closeOverlay);
+  const shipyard = new Shipyard(layer, game, closeOverlay);
   const arrivalCard = new ArrivalCard(layer, closeOverlay);
 
   const nav = new NavBar(layer, {
     jobs: () => {
       overlay = "jobs";
+      refresh();
+    },
+    shipyard: () => {
+      overlay = "shipyard";
       refresh();
     },
     map: () => {
@@ -84,6 +90,9 @@ export function startUi(api: RenderApi, parent: HTMLElement): Game {
     if (overlay === "jobs") {
       if (!jobs.opened) jobs.open();
     } else jobs.close();
+    if (overlay === "shipyard") {
+      if (!shipyard.opened) shipyard.open();
+    } else shipyard.close();
     if (overlay !== "arrival") arrivalCard.close();
     nav.apply(visibleControls(screen, overlay, flying));
     refreshStrip();
@@ -122,7 +131,7 @@ export function startUi(api: RenderApi, parent: HTMLElement): Game {
   };
 
   game.subscribe(() => {
-    api.setShip(game.state.shipId); // follows ship purchases
+    api.setShip(game.state.shipId); // follows buying and switching ships (the docked view redraws the ship)
     api.setCurrentSystem(game.currentSystemId()); // the starmap ring and "you are here" follow the player
     if (game.lastArrival && game.lastArrival !== seenArrival) {
       seenArrival = game.lastArrival;
@@ -130,6 +139,7 @@ export function startUi(api: RenderApi, parent: HTMLElement): Game {
     }
     syncFlight();
     jobs.render();
+    shipyard.render();
     refresh();
     maybeShowArrival();
   });
@@ -144,7 +154,9 @@ export function startUi(api: RenderApi, parent: HTMLElement): Game {
   window.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     const screen = api.state.get().screen;
-    if (overlay !== "none") closeOverlay();
+    if (jobs.messageOpen) jobs.closeMessage();
+    else if (shipyard.messageOpen) shipyard.closeMessage();
+    else if (overlay !== "none") closeOverlay();
     else if (screen === "system" || screen === "starmap") api.showDocked(game.state.currentDockId);
   });
 

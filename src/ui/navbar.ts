@@ -1,4 +1,4 @@
-// The bottom bar. In the docked view: JOBS and MAP. On the maps: the System | Galaxy switch and CLOSE.
+// The bottom bar. In the docked view: JOBS, SHIPYARD and MAP. On the maps: the System | Galaxy switch and CLOSE.
 // During flight it is hidden (the flight screen has its own bar).
 
 import { button, el, publishRoom } from "./dom";
@@ -6,6 +6,7 @@ import type { Controls } from "./logic";
 
 export interface NavActions {
   jobs(): void;
+  shipyard(): void;
   map(): void;
   showSystem(): void;
   showGalaxy(): void;
@@ -23,6 +24,7 @@ export class NavBar {
   constructor(parent: HTMLElement, actions: NavActions) {
     this.dockGroup.append(
       button("JOBS", "ui-btn-big ui-btn-primary", actions.jobs),
+      button("SHIPYARD", "ui-btn-big", actions.shipyard),
       button("MAP", "ui-btn-big", actions.map),
     );
     const tabs = el("div", "ui-tabs");

@@ -70,7 +70,7 @@ describe("ships", () => {
   it("has the three ships with the exact ids and default numbers", () => {
     expect(SHIP_ORDER).toEqual(["cargo-hauler", "passenger-liner", "scout"]);
     expect(getShip("cargo-hauler")).toMatchObject({ cargoCapacity: 30, cabinCapacity: 0, fuelTankSize: 60, price: 0 });
-    expect(getShip("passenger-liner")).toMatchObject({ cargoCapacity: 6, cabinCapacity: 12, fuelTankSize: 70, price: 1500 });
+    expect(getShip("passenger-liner")).toMatchObject({ cargoCapacity: 6, cabinCapacity: 12, fuelTankSize: 100, price: 1500 });
     expect(getShip("scout")).toMatchObject({ cargoCapacity: 10, cabinCapacity: 2, fuelTankSize: 110, price: 1200 });
     for (const id of SHIP_ORDER) expect(getShip(id).description.length).toBeGreaterThan(5);
   });
@@ -84,7 +84,7 @@ describe("buying ships", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.state.credits).toBe(500);
-    expect(r.state.ownedShips["passenger-liner"]).toEqual({ fuel: 70 });
+    expect(r.state.ownedShips["passenger-liner"]).toEqual({ fuel: 100 });
     expect(r.state.shipId).toBe("cargo-hauler");
   });
 
@@ -138,7 +138,7 @@ describe("switching ships", () => {
     expect(toLiner.ok).toBe(true);
     if (!toLiner.ok) return;
     expect(toLiner.state.shipId).toBe("passenger-liner");
-    expect(toLiner.state.fuel).toBe(70); // the liner has its own full tank
+    expect(toLiner.state.fuel).toBe(100); // the liner has its own full tank
     expect(toLiner.state.credits).toBe(s.credits); // free
     expect(toLiner.state.ownedShips["cargo-hauler"]).toEqual({ fuel: 25 }); // the hauler remembers 25
     const back = switchShip({ ...toLiner.state, fuel: 41 }, "cargo-hauler");
@@ -256,11 +256,11 @@ describe("tours", () => {
 
 describe("tank too small", () => {
   it("gets its own block code, different from needing a refuel", () => {
-    // A long tour on the Liner (tank 70) when one exists, otherwise a made-up long cargo trip on the Hauler.
-    const tour = JOBS.find((j) => j.kind === "TOUR" && fuelCost(j.totalDistance) > 70 && j.amount <= 12);
+    // A long tour on the Liner (tank 100, was 70 before part 5b) when one exists, otherwise a made-up long cargo trip on the Hauler.
+    const tour = JOBS.find((j) => j.kind === "TOUR" && fuelCost(j.totalDistance) > 100 && j.amount <= 12);
     const job: Job = tour ?? { ...cargoJob(), totalDistance: 40 };
     const state: GameState = tour
-      ? { ...at(job), shipId: "passenger-liner", fuel: 70 }
+      ? { ...at(job), shipId: "passenger-liner", fuel: 100 }
       : { ...at(job), shipId: "cargo-hauler", fuel: 60 };
     const block = checkJob(state, job);
     expect(block?.code).toBe("tank-too-small");

@@ -3,13 +3,16 @@
 
 import { refuel, type Game } from "../game";
 import { button, el } from "./dom";
-import { jobCardText, refuelButton, sortForDisplay, type JobCardText, type PlaceNames } from "./logic";
+import { emergencyVisible, jobCardText, refuelButton, sortForDisplay, type JobCardText, type PlaceNames } from "./logic";
+import { Popup } from "./popup";
 
 export class JobsMenu {
   private root = el("div", "ui-overlay ui-jobs");
   private title = el("div", "ui-panel-title");
   private subtitle = el("div", "ui-panel-sub");
   private refuelBtn: HTMLButtonElement;
+  private emergencyBtn: HTMLButtonElement;
+  private popup: Popup;
   private refuelHint = el("div", "ui-hint");
   private notice = el("div", "ui-notice");
   private list = el("div", "ui-cards");
@@ -33,7 +36,14 @@ export class JobsMenu {
       this.notice.textContent = result.ok ? "" : result.reason;
       this.render();
     });
-    head.append(titles, this.refuelBtn, button("CLOSE", "", () => this.onClose()));
+    // Free fuel, shown only when the game says you are stuck (Agent 4's safety net).
+    this.emergencyBtn = button("EMERGENCY FUEL", "ui-btn-red", () => {
+      const result = this.game.emergencyRefuel();
+      this.render();
+      if (result.ok) this.popup.show({ title: "EMERGENCY FUEL", big: `+${result.units} FUEL`, text: result.line });
+      else this.popup.show({ title: "NO FREE FUEL", text: result.reason, warning: true });
+    });
+    head.append(titles, this.emergencyBtn, this.refuelBtn, button("CLOSE", "", () => this.onClose()));
     panel.append(head, this.refuelHint, this.notice, this.list);
     this.root.append(panel);
     this.root.hidden = true;
@@ -42,6 +52,16 @@ export class JobsMenu {
       if (e.target === this.root) this.onClose();
     });
     parent.appendChild(this.root);
+    this.popup = new Popup(parent);
+  }
+
+  /** True while the emergency fuel message is showing (Esc closes that first). */
+  get messageOpen(): boolean {
+    return this.popup.opened;
+  }
+
+  closeMessage(): void {
+    this.popup.close();
   }
 
   open(): void {
@@ -55,6 +75,7 @@ export class JobsMenu {
   close(): void {
     this.isOpen = false;
     this.root.hidden = true;
+    this.popup.close();
   }
 
   get opened(): boolean {
@@ -74,6 +95,7 @@ export class JobsMenu {
     this.title.textContent = this.names.dockName(game.state.currentDockId);
     this.subtitle.textContent = `JOB BOARD · ${this.names.here()}`;
 
+    this.emergencyBtn.hidden = !emergencyVisible(game.isStuck(), game.state.currentJob !== null);
     const fuelBtn = refuelButton(refuel(game.state));
     this.refuelBtn.textContent = fuelBtn.text;
     this.refuelBtn.disabled = fuelBtn.disabled;

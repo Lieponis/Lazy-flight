@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { Game, createClock, refuel, newGameState, type BoardEntry } from "../src/game";
+import { Game, createClock, refuel, newGameState, shipCatalog, type BoardEntry, type GameState } from "../src/game";
 import { getJobBoard, getPlanetsOfSystem, listSystemsNear, type Job } from "../src/universe";
 import {
   blockedReason,
@@ -14,8 +14,11 @@ import {
   jobCardText,
   kindLabel,
   locationText,
+  emergencyVisible,
   overlayAllowed,
   refuelButton,
+  shipCardText,
+  shortShipReason,
   sortForDisplay,
   visibleControls,
 } from "../src/ui/logic";
@@ -88,6 +91,7 @@ describe("ui: words", () => {
     expect(blockedReason("no-cabin")).toBe("Needs a passenger cabin");
     expect(blockedReason("cargo-too-large")).toBe("Cargo too large");
     expect(blockedReason("not-enough-fuel")).toBe("Not enough fuel");
+    expect(blockedReason("tank-too-small")).toBe("Too far for this tank");
     expect(blockedReason("something-new")).toBe("Not available");
   });
 
@@ -196,10 +200,66 @@ describe("ui: which controls show on which screen", () => {
     expect(visibleControls("docked", "none", true).dockButtons).toBe(false);
   });
 
+  it("the shipyard is a docked-only menu like Jobs", () => {
+    expect(visibleControls("docked", "shipyard", false).dockButtons).toBe(false);
+    expect(overlayAllowed("docked", "shipyard", false)).toBe("shipyard");
+    expect(overlayAllowed("system", "shipyard", false)).toBe("none");
+    expect(overlayAllowed("flight", "shipyard", true)).toBe("none");
+  });
+
   it("menus only stay open in the docked view", () => {
     expect(overlayAllowed("docked", "jobs", false)).toBe("jobs");
     expect(overlayAllowed("flight", "jobs", true)).toBe("none");
     expect(overlayAllowed("starmap", "arrival", false)).toBe("none");
+  });
+});
+
+describe("ui: shipyard cards", () => {
+  const rich = (): GameState => ({ ...newGameState("a/1"), credits: 2000 });
+  const card = (state: GameState, id: string) => shipCardText(shipCatalog(state).find((e) => e.ship.id === id)!, state.credits);
+
+  it("the starter ship is ACTIVE with its fuel", () => {
+    const c = card({ ...rich(), fuel: 42 }, "cargo-hauler");
+    expect(c).toMatchObject({ name: "Cargo Hauler", action: "active", price: "OWNED", fuel: "FUEL 42/60", reason: "" });
+    expect(c.stats).toEqual({ cargo: "30", cabin: "NONE", tank: "60" });
+  });
+
+  it("a ship you can afford can be bought", () => {
+    const c = card(rich(), "passenger-liner");
+    expect(c).toMatchObject({ action: "buy", price: "1,500 CR", fuel: "", reason: "" });
+    expect(c.stats).toEqual({ cargo: "6", cabin: "12", tank: "100" });
+  });
+
+  it("a ship you cannot afford says how much is missing", () => {
+    const c = card({ ...rich(), credits: 200 }, "passenger-liner");
+    expect(c.action).toBe("blocked");
+    expect(c.reason).toBe("Need 1,300 CR more");
+  });
+
+  it("an owned, parked ship can be switched to and shows its own fuel", () => {
+    const s: GameState = { ...rich(), ownedShips: { scout: { fuel: 33 } } };
+    expect(card(s, "scout")).toMatchObject({ action: "switch", price: "OWNED", fuel: "FUEL 33/110" });
+  });
+
+  it("nothing can be bought or switched during a flight", () => {
+    const flying = { ...rich(), ownedShips: { scout: { fuel: 33 } }, currentJob: { id: "x" } } as unknown as GameState;
+    expect(card(flying, "scout")).toMatchObject({ action: "blocked", reason: "Not during a flight" });
+    expect(card(flying, "passenger-liner")).toMatchObject({ action: "blocked", reason: "Not during a flight" });
+  });
+
+  it("shortens the game's reasons", () => {
+    expect(shortShipReason("Costs 1500 credits, you have 1499.", 1500, 1499)).toBe("Need 1 CR more");
+    expect(shortShipReason("You already own this ship.", 0, 0)).toBe("Owned");
+    expect(shortShipReason("", 0, 0)).toBe("");
+    expect(shortShipReason("Something new.", 0, 0)).toBe("Something new.");
+  });
+});
+
+describe("ui: emergency fuel button", () => {
+  it("shows only when stuck and not on a job", () => {
+    expect(emergencyVisible(true, false)).toBe(true);
+    expect(emergencyVisible(false, false)).toBe(false);
+    expect(emergencyVisible(true, true)).toBe(false);
   });
 });
 

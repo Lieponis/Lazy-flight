@@ -33,7 +33,7 @@ export const SHIPS: Record<string, ShipDef> = {
     price: 1500,
     cargoCapacity: 6,
     cabinCapacity: 12,
-    fuelTankSize: 70,
+    fuelTankSize: 100, // was 70; raised by Andy's decision (5b) so more tours fit
   },
   scout: {
     id: "scout",
