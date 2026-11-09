@@ -1,0 +1,2 @@
+# Agent 8, C1 reset (2026-11-10)
+Removed the three rejected cockpit designs (cockpit-cargo-hauler, cockpit-passenger-liner, cockpit-scout: src/render/assets/cockpits.ts, their registry entries and their tests); kept the generic tooling: the "Sit inside" viewer mode (field of view, window cut-out), the "faces block the window opening" checker rule, the cockpit anchor and budget rules (eye, screenInfo, screenMap, screenFuel, windowLight, dog), and the kit helpers (window openings, beams, convex blocks, levers), now tested on a bare test frame.

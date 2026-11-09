@@ -10,13 +10,11 @@
 //
 // Stage S1: the three ships. Stage S2: the four outposts. Stage S3: the four stations.
 
-import { buildCockpitHauler, buildCockpitLiner, buildCockpitScout } from "./cockpits";
 import { buildOutpostComms, buildOutpostDepot, buildOutpostDomes, buildOutpostHub } from "./outposts";
 import { buildStationCargo, buildStationRefinery, buildStationRing, buildStationStarport } from "./stations";
 import { buildCargoHauler, buildPassengerLiner, buildScout } from "./ships";
 import type { AssetEntry, AssetKind } from "./types";
 
-const COCKPIT_ANCHORS = ["eye", "screenInfo", "screenMap", "screenFuel", "windowLight"] as const;
 const OUTPOST_ANCHORS = ["parking", "beacon", "entrance"] as const;
 const STATION_ANCHORS = ["parking", "dockEntrance", "bayCamera"] as const;
 const SHIP_ANCHORS_TWIN = ["parking", "eye", "nose", "engineL", "engineR"] as const;
@@ -141,39 +139,6 @@ export const ASSETS: readonly AssetEntry[] = [
     build: buildStationRefinery,
     anchorNames: STATION_ANCHORS,
     triangles: 1374,
-    status: "DRAFT",
-  },
-  {
-    id: "cockpit-cargo-hauler",
-    name: "Cargo Hauler cockpit",
-    kind: "cockpit",
-    description: "Snug fighter canopy: glass front, sides and overhead, leaning sides, pillars converging on the nose; dark grey and orange, throttles, a mug, the dog asleep on the co-pilot seat.",
-    variants: 1,
-    build: buildCockpitHauler,
-    anchorNames: [...COCKPIT_ANCHORS, "dog"],
-    triangles: 1316,
-    status: "DRAFT",
-  },
-  {
-    id: "cockpit-passenger-liner",
-    name: "Passenger Liner cockpit",
-    kind: "cockpit",
-    description: "Low wrap-around band of angled windows under a solid roof; dark with cyan glow strips, blue seats, a little plant, the dog asleep on the co-pilot seat.",
-    variants: 1,
-    build: buildCockpitLiner,
-    anchorNames: [...COCKPIT_ANCHORS, "dog"],
-    triangles: 1378,
-    status: "DRAFT",
-  },
-  {
-    id: "cockpit-scout",
-    name: "Scout cockpit",
-    kind: "cockpit",
-    description: "Compact overhead canopy with diagonal struts, dark and red, two joysticks; a toolbox on the co-pilot seat (no dog).",
-    variants: 1,
-    build: buildCockpitScout,
-    anchorNames: COCKPIT_ANCHORS,
-    triangles: 956,
     status: "DRAFT",
   },
 ];

@@ -72,68 +72,38 @@ describe('station bays', () => {
   });
 });
 
-describe('cockpits (stage C1)', () => {
-  const cockpits = ASSETS.filter((a) => a.kind === 'cockpit');
-  const partNames = (m: ReturnType<(typeof cockpits)[number]['build']>): string[] => {
-    const names: string[] = [];
-    m.group.traverse((o) => {
-      const parts = ((o as THREE.Mesh).geometry?.userData.parts ?? []) as { name: string }[];
-      names.push(...parts.map((p) => p.name));
-    });
-    return names;
-  };
-
-  it('there are exactly the three cockpits, with unique ids', () => {
-    expect(cockpits.map((c) => c.id).sort()).toEqual(['cockpit-cargo-hauler', 'cockpit-passenger-liner', 'cockpit-scout']);
-  });
-
-  it('each has the eye at its origin looking forward, sized screens, a window and a window-light mesh', () => {
-    for (const entry of cockpits) {
-      const m = entry.build();
-      expect(m.anchors.eye!.pos.length(), entry.id).toBe(0);
-      expect(m.anchors.eye!.dir.z, entry.id).toBeLessThan(-0.95); // forward, a little down over the console
-      for (const s of ['screenInfo', 'screenMap', 'screenFuel']) {
-        expect(m.anchors[s]!.size!.w, `${entry.id} ${s}`).toBeGreaterThan(0.3);
-        expect(m.anchors[s]!.size!.h, `${entry.id} ${s}`).toBeGreaterThan(0.2);
-      }
-      expect(m.windowOpenings!.length, entry.id).toBeGreaterThanOrEqual(3); // front and both sides at least
-      expect(m.windowLight, entry.id).toBeDefined();
-      expect(countModel(m).triangles, entry.id).toBeLessThanOrEqual(3000);
-    }
-  });
-
-  it('nothing inside blocks any window', () => {
-    for (const entry of cockpits) expect(windowBlockers(entry.build()), entry.id).toEqual([]);
-  });
-
-  it('the window rule catches something put in front of the window', () => {
-    const m = cockpits[0]!.build();
+describe('cockpit tooling (kept after the C1 reset; no cockpit designs exist)', () => {
+  /** A bare test frame, not a design: one window opening in front of the eye and a desk below it. */
+  function testCockpit(extra?: (k: ModelKit) => void) {
     const k = new ModelKit();
-    k.box('cup in the way', 0.3, 0.3, 0.3, 'orange', { at: [0.2, 0.3, -1.2] });
-    m.group.add(k.finish().group);
-    expect(windowBlockers(m)).toContain('cup in the way');
-    expect(checkModel(m, 'cockpit').some((p) => p.text.includes('block the window'))).toBe(true);
+    k.windowOpening('front glass', [[-1, 0, -2], [1, 0, -2], [1, 1, -2], [-1, 1, -2]]);
+    k.box('desk', 2, 0.3, 0.6, 'hullMid', { at: [0, -0.6, -1.5] });
+    k.screenAnchor('screenInfo', [-0.5, -0.4, -1.4], [0, 0.5, 1], 0.4, 0.3);
+    k.screenAnchor('screenMap', [0, -0.4, -1.4], [0, 0.5, 1], 0.4, 0.3);
+    k.screenAnchor('screenFuel', [0.5, -0.4, -1.4], [0, 0.5, 1], 0.4, 0.3);
+    k.box('sill light', 2, 0.05, 0.1, 'windowLight', { at: [0, -0.43, -1.75], layer: 'light' });
+    k.anchor('windowLight', [0, 0.5, -2], [0, 0, 1]);
+    k.anchor('eye', [0, 0, 0], [0, 0, -1]);
+    extra?.(k);
+    return k.finish();
+  }
+
+  it('there are no cockpit designs in the registry', () => {
+    expect(ASSETS.filter((a) => a.kind === 'cockpit')).toEqual([]);
   });
 
-  it('levers and joysticks are there to be nudged, and the glass goes round the pilot', () => {
-    for (const entry of cockpits) {
-      const m = entry.build();
-      expect(m.animation.levers.length, entry.id).toBeGreaterThanOrEqual(2);
-      const names = m.windowOpenings!.map((w) => w.name);
-      expect(names, entry.id).toContain('front glass');
-      expect(names.some((n) => n.startsWith('left')), entry.id).toBe(true);
-      expect(names.some((n) => n.startsWith('right')), entry.id).toBe(true);
-    }
+  it('the window rule passes a clear window and catches something in front of it', () => {
+    expect(windowBlockers(testCockpit())).toEqual([]);
+    const blocked = testCockpit((k) => k.box('cup in the way', 0.3, 0.3, 0.3, 'orange', { at: [0.2, 0.3, -1.2] }));
+    expect(windowBlockers(blocked)).toContain('cup in the way');
+    expect(checkModel(blocked, 'cockpit').some((p) => p.text.includes('block the window'))).toBe(true);
   });
 
-  it('the dog sits in the Hauler and the Liner only', () => {
-    for (const entry of cockpits) {
-      const m = entry.build();
-      const hasDog = partNames(m).some((n) => n.startsWith('dog'));
-      const wanted = entry.id !== 'cockpit-scout';
-      expect(hasDog, entry.id).toBe(wanted);
-      expect(m.anchors.dog !== undefined, entry.id).toBe(wanted);
-    }
+  it('screen anchors keep their size, and the window-light mesh can be tinted', () => {
+    const m = testCockpit();
+    expect(m.anchors.screenMap!.size).toEqual({ w: 0.4, h: 0.3 });
+    expect(m.windowLight).toBeDefined();
+    for (const name of RULES.cockpit.requiredAnchors) expect(m.anchors[name], name).toBeDefined();
   });
 });
 
