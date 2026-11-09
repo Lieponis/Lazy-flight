@@ -28,6 +28,11 @@ export interface AssetAnimation {
   spinners: { object: THREE.Object3D; axis: THREE.Vector3; speed: number }[];
   /** Engine flames. Scale them along Z (length) for launch and warp. Kept short when parked. */
   flames: THREE.Mesh[];
+  /**
+   * Cockpits: levers and joysticks (for looks only, the cockpit is a view). Turn `object` around `axis`
+   * by up to `maxAngle` radians, for example a nudge at launch and in the warp. Nothing moves them yet.
+   */
+  levers: { object: THREE.Object3D; axis: THREE.Vector3; maxAngle: number }[];
 }
 
 export interface AssetModel {
@@ -37,10 +42,10 @@ export interface AssetModel {
   /** Moves the declared animations to time `t` (seconds since start). Cheap. */
   update(t: number): void;
   /**
-   * Cockpits only: the window opening, a flat shape (x, y points) on the plane z = `z`, in model space.
-   * Everything seen through it is outside. The checker makes sure nothing inside blocks it.
+   * Cockpits only: the window openings (front, sides, roof...), each a ring of 3D points in model space.
+   * Everything seen through them is outside. The checker makes sure nothing inside blocks them.
    */
-  windowOpening?: { z: number; poly: [number, number][] };
+  windowOpenings?: { name: string; points: [number, number, number][] }[];
   /**
    * Cockpits only: the mesh lit by light coming in through the window. Its material colour starts white;
    * set `windowLight.material.color` to tint it (for example by the nearest planet's colour).

@@ -138,33 +138,26 @@ export function bayIntrusions(model: AssetModel): string[] {
  * before reaching the window is a blocker. Window struts (parts named "strut ...") are allowed: they are the frame.
  */
 export function windowBlockers(model: AssetModel): string[] {
-  const win = model.windowOpening;
+  const openings = model.windowOpenings;
   const eye = model.anchors.eye?.pos;
-  if (!win || !eye) return [];
+  if (!openings || openings.length === 0 || !eye) return [];
   model.group.updateMatrixWorld(true);
-  const cx = win.poly.reduce((a, p) => a + p[0], 0) / win.poly.length;
-  const cy = win.poly.reduce((a, p) => a + p[1], 0) / win.poly.length;
-  const inside = (x: number, y: number): boolean => {
-    let ok = true;
-    win.poly.forEach((p, i) => {
-      const q = win.poly[(i + 1) % win.poly.length]!;
-      if ((q[0] - p[0]) * (y - p[1]) - (q[1] - p[1]) * (x - p[0]) < 0) ok = false;
-    });
-    return ok;
-  };
-  const xs = win.poly.map((p) => p[0]);
-  const ys = win.poly.map((p) => p[1]);
-  const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  // Points spread over every opening: fan triangles from its middle, a grid in each, pulled 8% towards the middle
+  // so the window's own edge (and the frame on it) does not count.
   const targets: THREE.Vector3[] = [];
-  for (let i = 0; i <= 14; i++) {
-    for (let j = 0; j <= 10; j++) {
-      const x = minX + ((maxX - minX) * i) / 14;
-      const y = minY + ((maxY - minY) * j) / 10;
-      // Pull each point 6% towards the middle so the window's own edge does not count.
-      const px = cx + (x - cx) * 0.94;
-      const py = cy + (y - cy) * 0.94;
-      if (inside(x, y)) targets.push(new THREE.Vector3(px, py, win.z));
-    }
+  for (const w of openings) {
+    const pts = w.points.map((p) => new THREE.Vector3(...p));
+    const mid = pts.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(pts.length);
+    pts.forEach((p, i) => {
+      const q = pts[(i + 1) % pts.length]!;
+      const n = 6;
+      for (let u = 0; u <= n; u++) {
+        for (let v = 0; u + v <= n; v++) {
+          const pt = mid.clone().multiplyScalar(1 - (u + v) / n).addScaledVector(p, u / n).addScaledVector(q, v / n);
+          targets.push(mid.clone().lerp(pt, 0.92));
+        }
+      }
+    });
   }
   const found = new Set<string>();
   const ray = new THREE.Ray();
@@ -292,7 +285,7 @@ export function checkModel(model: AssetModel, kind: AssetKind, entry?: AssetEntr
 
   // 7. Cockpits: the window must show the outside.
   if (kind === "cockpit") {
-    if (!model.windowOpening) err("This cockpit has no window opening recorded.");
+    if (!model.windowOpenings || model.windowOpenings.length === 0) err("This cockpit has no window opening recorded.");
     const blocking = windowBlockers(model);
     if (blocking.length > 0) err(`Faces block the window opening: ${blocking.join(", ")}.`);
   }

@@ -17,6 +17,7 @@
 //   light  = cockpits: surfaces lit by the window (one mesh, own material so its colour can be tinted)
 
 import * as THREE from "three";
+import { ConvexGeometry } from "three/examples/jsm/geometries/ConvexGeometry.js";
 import { faceShade } from "../helpers";
 import { PAL, safeTint, safeTintDark, type PalKey } from "./palette";
 import { BLINK_ON, BLINK_PERIOD, FLAME_PARKED, LIGHT_DIR } from "./style";
@@ -29,6 +30,8 @@ export interface PartOptions {
   at?: readonly [number, number, number];
   /** Turn in radians around x, y, z (applied in that order). */
   rot?: readonly [number, number, number];
+  /** A turn given as a quaternion (used instead of `rot` when set). */
+  q?: THREE.Quaternion;
   layer?: Layer;
 }
 
@@ -72,7 +75,8 @@ interface PendingPart {
 
 export class ModelKit {
   private parts: Record<Layer, PendingPart[]> = { body: [], glow: [], blinkA: [], blinkB: [], flame: [], ring: [], light: [] };
-  private window: { z: number; poly: [number, number][] } | undefined;
+  private windows: { name: string; points: [number, number, number][] }[] = [];
+  private leverSpecs: { name: string; pivot: THREE.Vector3; axis: THREE.Vector3; maxAngle: number; build: (k: ModelKit) => void }[] = [];
   private origins: Partial<Record<Layer, THREE.Vector3>> = {};
   private anchors: Anchors = {};
   private spinSpeed = 0;
@@ -285,7 +289,8 @@ export class ModelKit {
     g.deleteAttribute("uv");
     const m = new THREE.Matrix4();
     const r = o.rot ?? [0, 0, 0];
-    m.makeRotationFromEuler(new THREE.Euler(r[0], r[1], r[2], "XYZ"));
+    if (o.q) m.makeRotationFromQuaternion(o.q);
+    else m.makeRotationFromEuler(new THREE.Euler(r[0], r[1], r[2], "XYZ"));
     const at = o.at ?? [0, 0, 0];
     m.setPosition(at[0], at[1], at[2]);
     g.applyMatrix4(m);
@@ -358,7 +363,44 @@ export class ModelKit {
       if (area < 0) quad = quad.reverse();
       if (Math.abs(area) > 1e-6) this.prism(`${name} ${i + 1}`, quad, zFront, zBack, color);
     }
-    this.window = { z: zBack, poly: hole.map((p) => [p[0], p[1]] as [number, number]) };
+    this.windowOpening(name, hole.map((p) => [p[0], p[1], zBack] as [number, number, number]));
+    return this;
+  }
+
+  /** Records a window opening (a ring of 3D points). Nothing is built: an opening is empty space. */
+  windowOpening(name: string, points: readonly (readonly [number, number, number])[]): this {
+    this.windows.push({ name, points: points.map((p) => [p[0], p[1], p[2]] as [number, number, number]) });
+    return this;
+  }
+
+  /** A square beam (pillar, strut, rail) from point a to point b, `t` thick. */
+  beam(name: string, a: readonly [number, number, number], b: readonly [number, number, number], t: number, color: ColorName, o: { layer?: Layer } = {}): this {
+    const A = new THREE.Vector3(...a);
+    const B = new THREE.Vector3(...b);
+    const len = A.distanceTo(B);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
+    const mid = A.clone().add(B).multiplyScalar(0.5);
+    return this.add(name, new THREE.BoxGeometry(t, len, t), color, { at: [mid.x, mid.y, mid.z], q, layer: o.layer });
+  }
+
+  /** Any convex solid from a list of corner points (faces always point outwards). */
+  convex(name: string, points: readonly (readonly [number, number, number])[], color: ColorName, o: { layer?: Layer } = {}): this {
+    return this.add(name, new ConvexGeometry(points.map((p) => new THREE.Vector3(...p))), color, { layer: o.layer });
+  }
+
+  /** A flat slab: a 4-point face pushed `t` along `push` (the outward direction). */
+  slab(name: string, face: readonly (readonly [number, number, number])[], push: readonly [number, number, number], t: number, color: ColorName): this {
+    const n = new THREE.Vector3(...push).normalize().multiplyScalar(t);
+    const pts = face.flatMap((p) => [p, [p[0] + n.x, p[1] + n.y, p[2] + n.z] as const]);
+    return this.convex(name, pts, color);
+  }
+
+  /**
+   * A lever or joystick: built by `build` around its own pivot (0, 0, 0), placed at `pivot`, turning around `axis`.
+   * Its meshes share the model's material. The game may turn it up to `maxAngle` radians.
+   */
+  lever(name: string, pivot: readonly [number, number, number], axis: readonly [number, number, number], maxAngle: number, build: (k: ModelKit) => void): this {
+    this.leverSpecs.push({ name, pivot: new THREE.Vector3(...pivot), axis: new THREE.Vector3(...axis).normalize(), maxAngle, build });
     return this;
   }
 
@@ -381,7 +423,7 @@ export class ModelKit {
   finish(): AssetModel {
     const group = new THREE.Group();
     const material = makeAssetMaterial();
-    const animation: AssetAnimation = { blinkers: [], spinners: [], flames: [] };
+    const animation: AssetAnimation = { blinkers: [], spinners: [], flames: [], levers: [] };
 
     const make = (layers: Layer[], label: string, origin?: THREE.Vector3): THREE.Mesh | null => {
       const list = layers.flatMap((l) => this.parts[l]);
@@ -404,6 +446,18 @@ export class ModelKit {
       animation.flames.push(flame);
     }
     const ring = make(["ring"], "ring", this.origins.ring ?? new THREE.Vector3());
+    for (const spec of this.leverSpecs) {
+      const sub = new ModelKit({ tint: this.tint });
+      spec.build(sub);
+      const part = sub.finish();
+      const mesh = part.group.children[0] as THREE.Mesh;
+      (mesh.material as THREE.Material).dispose();
+      mesh.material = material;
+      mesh.name = spec.name;
+      mesh.position.copy(spec.pivot);
+      group.add(mesh);
+      animation.levers.push({ object: mesh, axis: spec.axis, maxAngle: spec.maxAngle });
+    }
     let windowLight: THREE.Mesh | undefined;
     if (this.parts.light.length > 0) {
       windowLight = new THREE.Mesh(mergeParts(this.parts.light), makeAssetMaterial());
@@ -425,7 +479,7 @@ export class ModelKit {
     };
     update(0);
     const model: AssetModel = { group, anchors: this.anchors, animation, update };
-    if (this.window) model.windowOpening = this.window;
+    if (this.windows.length > 0) model.windowOpenings = this.windows;
     if (windowLight) model.windowLight = windowLight;
     return model;
   }

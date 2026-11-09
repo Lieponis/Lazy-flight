@@ -96,9 +96,9 @@ describe('cockpits (stage C1)', () => {
         expect(m.anchors[s]!.size!.w, `${entry.id} ${s}`).toBeGreaterThan(0.3);
         expect(m.anchors[s]!.size!.h, `${entry.id} ${s}`).toBeGreaterThan(0.2);
       }
-      expect(m.windowOpening!.poly.length, entry.id).toBeGreaterThanOrEqual(4);
+      expect(m.windowOpenings!.length, entry.id).toBeGreaterThanOrEqual(3); // front and both sides at least
       expect(m.windowLight, entry.id).toBeDefined();
-      expect(countModel(m).triangles, entry.id).toBeLessThanOrEqual(2000);
+      expect(countModel(m).triangles, entry.id).toBeLessThanOrEqual(3000);
     }
   });
 
@@ -109,10 +109,19 @@ describe('cockpits (stage C1)', () => {
   it('the window rule catches something put in front of the window', () => {
     const m = cockpits[0]!.build();
     const k = new ModelKit();
-    k.box('cup in the way', 0.3, 0.3, 0.3, 'orange', { at: [0.3, 0.4, -1.5] });
+    k.box('cup in the way', 0.3, 0.3, 0.3, 'orange', { at: [0.2, 0.3, -1.2] });
     m.group.add(k.finish().group);
     expect(windowBlockers(m)).toContain('cup in the way');
     expect(checkModel(m, 'cockpit').some((p) => p.text.includes('block the window'))).toBe(true);
+  });
+
+  it('levers and joysticks are there to be nudged, and the glass goes round the pilot', () => {
+    for (const entry of cockpits) {
+      const m = entry.build();
+      expect(m.animation.levers.length, entry.id).toBeGreaterThanOrEqual(2);
+      const names = m.windowOpenings!.map((w) => w.name);
+      expect(names, entry.id).toEqual(expect.arrayContaining(['front glass', 'left glass', 'right glass']));
+    }
   });
 
   it('the dog sits in the Hauler and the Liner only', () => {

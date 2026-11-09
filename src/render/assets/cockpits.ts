@@ -1,148 +1,199 @@
-// THE THREE COCKPIT INTERIORS (stage C1). A view only: no steering, no free flight, no combat.
+// THE THREE COCKPIT INTERIORS (stage C1, revision 1). A view only: no steering, no free flight, no combat.
 // Origin = the pilot's eye, looking to -Z, up +Y, 1 unit = 1 crate. Agent 3 places the cockpit at the ship's `eye` anchor.
-// Design source: docs/cockpit-design-brief.md (approved by Andy).
+// Design source: docs/cockpit-design-brief.md, plus Andy's revision-1 answers (2026-11-10, his reference pictures):
+// low-poly and chunky, glass wrapping around the pilot instead of a box with a hole, a curved wall of screens,
+// controls for looks (levers Agent 3 may nudge later), the co-pilot seat beside the pilot (the dog shows at the right edge),
+// half glass and half cockpit, colours and mood per ship, up to 3000 triangles.
 //
-// Same bones for all three: the window wall at z -2.3, the dashboard desk and the screen bank in front, the pilot seat
-// behind the eye, a second seat on the right wall. Different frame, window and dashboard styling:
-//   cockpit-cargo-hauler     wide and practical: three flat panes split by two struts, dark metal, orange and hazard stripes
-//   cockpit-passenger-liner  elegant: one wide panoramic strip, white and cream, blue trim, a little plant
-//   cockpit-scout            cramped: a rounded canopy, heavy side bulkheads, low ceiling, red trim, no dog
-// The dog (co-pilot, asleep) sits on the second seat in the Hauler and the Liner only.
+// Same bones for all three: the curved screen console in front, the pilot seat behind the eye, the co-pilot seat ahead-right.
+// Different glass cage, frame and colours:
+//   cockpit-cargo-hauler     fighter-style wrap-around: glass front, sides and overhead, diagonal pillars; dark grey and orange
+//   cockpit-passenger-liner  bright bridge: windows front and sides, solid roof with cyan glow strips; white and cyan
+//   cockpit-scout            overhead canopy: glass over the head, diagonal struts, two joysticks; dark and red
 
 import * as THREE from "three";
 import { ModelKit, type ColorName } from "./kit";
 import type { AssetModel, BuildOptions } from "./types";
 
+type V3 = [number, number, number];
+
 // ------------------------------------------------------------------ the shared bones
 
-const WALL_X = 1.9; // side walls (inside face)
 const FLOOR_Y = -1.4;
-const WIN_Z = -2.3; // inside face of the window wall; the window opening is on this plane
-const WIN_T = 0.15; // window wall thickness
-const BACK_Z = 1.0;
-const DESK = { x: 1.1, zNear: -1.2, zFar: -1.9, yNear: -0.62, yFar: -0.42 };
-const BANK = { yBottom: -0.45, zBottom: -1.88, yTop: -0.08, zTop: -2.15 };
-const DESK_TILT = Math.atan((DESK.yFar - DESK.yNear) / (DESK.zNear - DESK.zFar));
-const SEAT2 = { x: 1.5, z: -1.85 }; // the second seat (dog seat), on the right wall, far enough forward to be seen
+const SILL_Y = -0.2; // where the glass starts (the "belt line")
+const CAGE_BACK_Z = 0.5; // the glass ends here; behind it is a short closed cabin
+const CABIN_BACK_Z = 1.3;
+const ARC = { r1: 1.3, r2: 1.85, yIn: -0.62, yOut: -0.3, angles: [-52, -30, -10, 10, 24] }; // the curved console, degrees
+const COPILOT = { x: 1.15, z: -1.3 }; // the co-pilot seat, ahead-right so the dog shows at the edge of the view
 
-/** Height of the desk top at depth z. */
-const deskY = (z: number): number => DESK.yNear + ((DESK.zNear - z) / (DESK.zNear - DESK.zFar)) * (DESK.yFar - DESK.yNear);
+/** A point on the console arc: angle in degrees (0 = straight ahead, + = right), distance r, height y. */
+const arc = (deg: number, r: number, y: number): V3 => {
+  const a = (deg * Math.PI) / 180;
+  return [Math.sin(a) * r, y, -Math.cos(a) * r];
+};
+
+interface Cage {
+  sf: [number, number]; // front sill corner: half width, z
+  sb: [number, number]; // back sill corner: half width, z (z = CAGE_BACK_Z)
+  tf: V3; // front top corner (right side): x, y, z
+  tb: V3; // back top corner (right side)
+  roofGlass: boolean;
+  frontStruts: number; // extra struts splitting the front glass
+  sideStrut: "middle" | "diagonal" | "none";
+}
 
 interface CockpitStyle {
-  ceiling: number;
-  window: [number, number][]; // the opening, counter-clockwise, on the plane z = WIN_Z
-  frame: ColorName;
-  walls: ColorName;
-  desk: ColorName;
-  bank: ColorName;
+  cage: Cage;
+  frame: ColorName; // pillars and rails
+  frameT: number; // pillar thickness
+  hull: ColorName; // lower walls, cabin
+  floor: ColorName;
+  console: ColorName;
   trim: ColorName;
   switches: ColorName[];
+  seat: ColorName;
   dog: boolean;
 }
 
-function room(k: ModelKit, s: CockpitStyle): void {
-  const len = BACK_Z - (WIN_Z - WIN_T);
-  const zc = (BACK_Z + WIN_Z - WIN_T) / 2;
-  const h = s.ceiling - FLOOR_Y;
-  k.box("floor", WALL_X * 2 + 0.3, 0.15, len, "underside", { at: [0, FLOOR_Y - 0.075, zc] });
-  k.box("ceiling", WALL_X * 2 + 0.3, 0.15, len, s.walls, { at: [0, s.ceiling + 0.075, zc] });
-  for (const side of [1, -1]) k.box(`wall ${side > 0 ? "right" : "left"}`, 0.15, h, len, s.walls, { at: [side * (WALL_X + 0.075), (s.ceiling + FLOOR_Y) / 2, zc] });
-  k.box("back wall", WALL_X * 2, h, 0.15, s.walls, { at: [0, (s.ceiling + FLOOR_Y) / 2, BACK_Z + 0.075] });
-  k.windowWall("window frame", s.window, [-WALL_X, FLOOR_Y, WALL_X, s.ceiling], WIN_Z - WIN_T, WIN_Z, s.frame);
-}
+const mirror = (p: V3): V3 => [-p[0], p[1], p[2]];
 
-function dashboard(k: ModelKit, s: CockpitStyle): void {
-  const { x, zNear, zFar, yNear, yFar } = DESK;
-  k.hull8("desk", [
-    [-x, FLOOR_Y, zFar], [x, FLOOR_Y, zFar], [x, FLOOR_Y, zNear], [-x, FLOOR_Y, zNear],
-    [-x, yFar, zFar], [x, yFar, zFar], [x, yNear, zNear], [-x, yNear, zNear],
-  ], s.desk);
-  k.box("desk edge trim", x * 2, 0.08, 0.08, s.trim, { at: [0, yNear - 0.02, zNear + 0.02] });
-  k.hull8("screen bank", [
-    [-x, BANK.yBottom, WIN_Z], [x, BANK.yBottom, WIN_Z], [x, BANK.yBottom, BANK.zBottom], [-x, BANK.yBottom, BANK.zBottom],
-    [-x, BANK.yTop, WIN_Z], [x, BANK.yTop, WIN_Z], [x, BANK.yTop, BANK.zTop], [-x, BANK.yTop, BANK.zTop],
-  ], s.bank);
+function cage(k: ModelKit, s: CockpitStyle): void {
+  const c = s.cage;
+  const SFR: V3 = [c.sf[0], SILL_Y, c.sf[1]];
+  const SBR: V3 = [c.sb[0], SILL_Y, c.sb[1]];
+  const TFR = c.tf;
+  const TBR = c.tb;
+  const [SFL, SBL, TFL, TBL] = [SFR, SBR, TFR, TBR].map(mirror) as [V3, V3, V3, V3];
+  const t = s.frameT;
 
-  // Three flat, unshaded screens on the bank's sloped face, with anchors for Agent 5's text.
-  const dy = BANK.yTop - BANK.yBottom;
-  const dz = BANK.zBottom - BANK.zTop;
-  const n = new THREE.Vector3(0, dz, dy).normalize(); // the way the face looks (up and towards the pilot)
-  const tilt = -Math.asin(n.y);
-  const mid = { y: (BANK.yBottom + BANK.yTop) / 2, z: (BANK.zBottom + BANK.zTop) / 2 };
-  const screens: [string, string, number, number, ColorName][] = [
-    ["screen info", "screenInfo", -0.62, 0.7, "screenTeal"],
-    ["screen map", "screenMap", 0.15, 0.75, "screenTeal"],
-    ["screen fuel", "screenFuel", 0.82, 0.4, "screenAmber"],
+  // The openings (empty space; the checker keeps them clear).
+  k.windowOpening("front glass", [SFL, SFR, TFR, TFL]);
+  k.windowOpening("right glass", [SFR, SBR, TBR, TFR]);
+  k.windowOpening("left glass", [SBL, SFL, TFL, TBL]);
+  if (c.roofGlass) k.windowOpening("roof glass", [TFL, TFR, TBR, TBL]);
+
+  // The frame: every edge of the glass cage is a pillar or rail ("strut": allowed in front of the glass).
+  const edges: [string, V3, V3][] = [
+    ["sill front", SFL, SFR], ["sill right", SFR, SBR], ["sill left", SFL, SBL],
+    ["pillar front right", SFR, TFR], ["pillar front left", SFL, TFL],
+    ["top front", TFL, TFR], ["top right", TFR, TBR], ["top left", TFL, TBL],
+    ["pillar back right", SBR, TBR], ["pillar back left", SBL, TBL], ["top back", TBL, TBR],
   ];
-  const sh = 0.3;
-  for (const [part, anchor, sx, sw, color] of screens) {
-    const at: [number, number, number] = [sx, mid.y + n.y * 0.012, mid.z + n.z * 0.012];
-    k.box(part, sw, sh, 0.03, color, { at, rot: [tilt, 0, 0], layer: "glow" });
-    k.screenAnchor(anchor, [sx, mid.y + n.y * 0.03, mid.z + n.z * 0.03], [0, n.y, n.z], sw, sh);
+  for (const [name, a, b] of edges) k.beam(`strut ${name}`, a, b, t, s.frame);
+  const lerp = (a: V3, b: V3, f: number): V3 => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+  for (let i = 1; i <= c.frontStruts; i++) {
+    const f = i / (c.frontStruts + 1);
+    k.beam(`strut front ${i}`, lerp(SFL, SFR, f), lerp(TFL, TFR, f), t * 0.8, s.frame);
+  }
+  for (const side of [1, -1]) {
+    const m = side > 0 ? (p: V3): V3 => p : mirror;
+    if (c.sideStrut === "middle") k.beam(`strut side ${side}`, m(lerp(SFR, SBR, 0.5)), m(lerp(TFR, TBR, 0.5)), t * 0.8, s.frame);
+    if (c.sideStrut === "diagonal") k.beam(`strut side ${side}`, m(SFR), m(lerp(TFR, TBR, 0.6)), t * 0.9, s.frame);
+  }
+  if (c.roofGlass) k.beam("strut roof spine", [0, TFR[1] + 0.02, TFR[2]], [0, TBR[1] + 0.02, TBR[2]], t * 0.8, s.frame);
+  else {
+    k.slab("roof", [TFL, TFR, TBR, TBL], [0, 1, 0.15], 0.12, s.hull);
   }
 
-  // A busy desk: switches, dials, blinking lights and little coloured "labels" (funny ones, no text needed).
-  const rows = [-1.32, -1.52, -1.72];
-  let i = 0;
-  rows.forEach((z, r) => {
-    for (let c = -4; c <= 4; c++) {
-      const xx = c * 0.21;
-      const y = deskY(z);
-      const kind = (r * 7 + c * 3 + 11) % 5;
-      const rot: [number, number, number] = [DESK_TILT, 0, 0];
-      const name = `switch ${++i}`;
-      if (kind === 0) k.box(name, 0.07, 0.06, 0.1, s.switches[i % s.switches.length]!, { at: [xx, y + 0.03, z], rot });
-      else if (kind === 1) k.cyl(`dial ${i}`, 0.07, 0.07, 0.04, 6, "metalDark", { at: [xx, y + 0.02, z], rot });
-      else if (kind === 2) k.box(`light ${i}`, 0.06, 0.04, 0.06, (["lightGreen", "lightRed", "engine"] as const)[i % 3], { at: [xx, y + 0.02, z], rot, layer: i % 2 ? "blinkA" : "blinkB" });
-      else if (kind === 3) k.box(`label ${i}`, 0.15, 0.015, 0.06, (["pink", "teal", "yellow", "orange"] as const)[i % 4], { at: [xx, y + 0.008, z], rot });
-      else k.box(`button ${i}`, 0.09, 0.03, 0.09, s.switches[(i + 1) % s.switches.length]!, { at: [xx, y + 0.015, z], rot });
+  // Below the glass: lower walls, the nose under the console, the floor.
+  const f = (p: V3): V3 => [p[0], FLOOR_Y, p[2]];
+  k.slab("lower wall right", [SFR, SBR, f(SBR), f(SFR)], [1, 0, 0], 0.12, s.hull);
+  k.slab("lower wall left", [SBL, SFL, f(SFL), f(SBL)], [-1, 0, 0], 0.12, s.hull);
+  k.slab("lower nose", [SFL, SFR, f(SFR), f(SFL)], [0, 0, -1], 0.12, s.hull);
+  k.slab("floor", [f(SFL), f(SFR), f(SBR), f(SBL)], [0, -1, 0], 0.12, s.floor);
+  k.convex("floor extension", [f(SBL), f(SBR), [SBR[0], FLOOR_Y, CABIN_BACK_Z], [SBL[0], FLOOR_Y, CABIN_BACK_Z],
+    [SBL[0], FLOOR_Y - 0.12, CAGE_BACK_Z], [SBR[0], FLOOR_Y - 0.12, CAGE_BACK_Z], [SBR[0], FLOOR_Y - 0.12, CABIN_BACK_Z], [SBL[0], FLOOR_Y - 0.12, CABIN_BACK_Z]], s.floor);
+
+  // The short closed cabin behind the glass (seen only when looking back).
+  const back = (p: V3): V3 => [p[0], p[1], CABIN_BACK_Z];
+  k.slab("cabin roof", [TBL, TBR, back(TBR), back(TBL)], [0, 1, 0], 0.12, s.hull);
+  k.slab("cabin right", [SBR, back(SBR), back(TBR), TBR], [1, 0, 0], 0.12, s.hull);
+  k.slab("cabin left", [SBL, back(SBL), back(TBL), TBL], [-1, 0, 0], 0.12, s.hull);
+  k.slab("cabin right low", [SBR, back(SBR), [SBR[0], FLOOR_Y, CABIN_BACK_Z], f(SBR)], [1, 0, 0], 0.12, s.hull);
+  k.slab("cabin left low", [SBL, back(SBL), [SBL[0], FLOOR_Y, CABIN_BACK_Z], f(SBL)], [-1, 0, 0], 0.12, s.hull);
+  k.slab("cabin back wall", [[-SBR[0], FLOOR_Y, CABIN_BACK_Z], [SBR[0], FLOOR_Y, CABIN_BACK_Z], [TBR[0], TBR[1], CABIN_BACK_Z], [-TBR[0], TBR[1], CABIN_BACK_Z]], [0, 0, 1], 0.12, s.hull);
+
+  k.anchor("windowLight", [0, (SILL_Y + TFR[1]) / 2, (SFR[2] + TFR[2]) / 2], [0, 0, 1]);
+}
+
+/** The curved wall of screens in front of the pilot, with a busy top. */
+function consoleArc(k: ModelKit, s: CockpitStyle): void {
+  const { r1, r2, yIn, yOut, angles } = ARC;
+  const eye = new THREE.Vector3(0, 0, 0);
+  const screenNames: (null | [string, string, ColorName])[] = [
+    ["screen radar", "", "screenTeal"],
+    ["screen info", "screenInfo", "screenTeal"],
+    ["screen map", "screenMap", "screenTeal"],
+    ["screen fuel", "screenFuel", "screenAmber"],
+  ];
+  let n = 0;
+  for (let i = 0; i + 1 < angles.length; i++) {
+    const a0 = angles[i]!;
+    const a1 = angles[i + 1]!;
+    k.convex(`console ${i + 1}`, [
+      arc(a0, r1, FLOOR_Y), arc(a1, r1, FLOOR_Y), arc(a0, r2, FLOOR_Y), arc(a1, r2, FLOOR_Y),
+      arc(a0, r1, yIn), arc(a1, r1, yIn), arc(a0, r2, yOut), arc(a1, r2, yOut),
+    ], s.console);
+    // A coloured trim line along the near edge.
+    k.beam(`console trim ${i + 1}`, arc(a0 + 0.5, r1 + 0.02, yIn + 0.02), arc(a1 - 0.5, r1 + 0.02, yIn + 0.02), 0.05, s.trim);
+    // The screen stands on the console, facing the pilot.
+    const mid = (a0 + a1) / 2;
+    const width = 2 * 1.62 * Math.sin((((a1 - a0) / 2) * Math.PI) / 180) * 0.86;
+    const h = 0.3;
+    const centre = new THREE.Vector3(...arc(mid, 1.66, -0.33));
+    const m = new THREE.Matrix4().lookAt(eye, centre, new THREE.Vector3(0, 1, 0));
+    const q = new THREE.Quaternion().setFromRotationMatrix(m);
+    const look = eye.clone().sub(centre).normalize();
+    const spec = screenNames[i];
+    if (spec) {
+      k.box(`${spec[0]} frame`, width + 0.08, h + 0.08, 0.04, "metalDark", { at: centre.clone().addScaledVector(look, -0.02).toArray() as V3, q });
+      k.box(spec[0], width, h, 0.03, spec[2], { at: centre.toArray() as V3, q, layer: "glow" });
+      if (spec[1]) {
+        const p = centre.clone().addScaledVector(look, 0.02);
+        k.screenAnchor(spec[1], [p.x, p.y, p.z], [look.x, look.y, look.z], width, h);
+      }
     }
-  });
-  // Small knobs along the bank, between and under the screens.
-  for (const bx of [-1.02, -0.19, 0.57, 1.06]) {
-    k.box(`bank knob ${bx}`, 0.06, 0.06, 0.05, "lightGreen", { at: [bx, mid.y, mid.z + 0.02], rot: [tilt, 0, 0], layer: bx > 0 ? "blinkA" : "blinkB" });
+    // Switches, lights and little coloured labels along the top, near the pilot.
+    for (let j = 0; j < 4; j++) {
+      const deg = a0 + ((a1 - a0) * (j + 0.5)) / 4;
+      const r = r1 + 0.12;
+      const y = yIn + ((r - r1) / (r2 - r1)) * (yOut - yIn);
+      const at = arc(deg, r, y + 0.03);
+      const kind = (i * 4 + j) % 5;
+      n++;
+      if (kind === 0) k.box(`switch ${n}`, 0.08, 0.06, 0.08, s.switches[n % s.switches.length]!, { at });
+      else if (kind === 1) k.box(`light ${n}`, 0.07, 0.05, 0.07, (["lightGreen", "lightRed", "engine"] as const)[n % 3], { at, layer: n % 2 ? "blinkA" : "blinkB" });
+      else if (kind === 2) k.box(`label ${n}`, 0.14, 0.02, 0.06, (["pink", "teal", "yellow", "orange"] as const)[n % 4], { at });
+      else if (kind === 3) k.cyl(`dial ${n}`, 0.06, 0.06, 0.05, 6, "metalDark", { at });
+      else k.box(`button ${n}`, 0.09, 0.04, 0.09, s.switches[(n + 1) % s.switches.length]!, { at });
+    }
+    // Light from the window falls on the far edge of the console (tinted later by planet colour).
+    k.beam(`window light ${i + 1}`, arc(a0 + 1, r2 - 0.08, yOut + 0.01), arc(a1 - 1, r2 - 0.08, yOut + 0.01), 0.1, "windowLight", { layer: "light" });
   }
-
-  // Left side console with a few buttons.
-  const cw = WALL_X - x;
-  k.box("left console", cw, 0.85, 1.1, s.desk, { at: [-x - cw / 2, FLOOR_Y + 0.425, -1.75] });
-  for (let j = 0; j < 4; j++) {
-    k.box(`left console button ${j + 1}`, 0.1, 0.03, 0.1, s.switches[j % s.switches.length]!, { at: [-1.3 - (j % 2) * 0.25, FLOOR_Y + 0.865, -1.5 - Math.floor(j / 2) * 0.3] });
-  }
-
-  // The little warm lamp at the right end of the desk, leaning towards the second seat.
-  const lz = -1.8;
-  k.cyl("lamp base", 0.08, 0.1, 0.04, 6, "metalDark", { at: [0.98, deskY(lz) + 0.02, lz] });
-  k.box("lamp arm", 0.04, 0.32, 0.04, "metalDark", { at: [1.02, deskY(lz) + 0.17, lz], rot: [0, 0, -0.3] });
-  k.cone("lamp shade", 0.09, 0.12, 6, "metalDark", { at: [1.1, deskY(lz) + 0.34, lz], rot: [0, 0, -2.2] });
-  k.cone("lamp glow", 0.07, 0.04, 6, "lampWarm", { at: [1.16, deskY(lz) + 0.3, lz], rot: [0, 0, -2.2], layer: "glow" });
-
-  // Surfaces lit by the window (their own mesh: Agent 3 can tint it by planet colour).
-  k.box("window light sill", x * 2, 0.02, 0.14, "windowLight", { at: [0, BANK.yTop + 0.01, (WIN_Z + BANK.zTop) / 2], layer: "light" });
-  k.box("window light left console", cw - 0.1, 0.02, 0.9, "windowLight", { at: [-x - cw / 2, FLOOR_Y + 0.86, -1.75], layer: "light" });
-  k.anchor("windowLight", [0, 0.5, WIN_Z], [0, 0, 1]);
 }
 
-function seats(k: ModelKit): void {
-  // Pilot seat, behind the eye.
-  k.box("pilot seat base", 0.6, 0.45, 0.6, "metalDark", { at: [0, FLOOR_Y + 0.225, 0.4] });
-  k.box("pilot seat cushion", 0.8, 0.15, 0.8, "seat", { at: [0, FLOOR_Y + 0.525, 0.4] });
-  k.box("pilot seat back", 0.8, 1.1, 0.15, "seat", { at: [0, -0.3, 0.86] });
-  // Second seat, on the right wall.
-  k.box("second seat base", 0.5, 0.52, 0.6, "metalDark", { at: [SEAT2.x, FLOOR_Y + 0.26, SEAT2.z] });
-  k.box("second seat cushion", 0.6, 0.15, 0.75, "seat", { at: [SEAT2.x, FLOOR_Y + 0.6, SEAT2.z] });
-  k.box("second seat back", 0.12, 0.65, 0.75, "seat", { at: [WALL_X - 0.06, -0.45, SEAT2.z] });
+function seats(k: ModelKit, s: CockpitStyle): void {
+  // Pilot seat, behind the eye (seen only when looking back).
+  k.box("pilot seat base", 0.5, 0.5, 0.5, "metalDark", { at: [0, FLOOR_Y + 0.25, 0.45] });
+  k.box("pilot seat cushion", 0.75, 0.16, 0.75, s.seat, { at: [0, FLOOR_Y + 0.58, 0.45] });
+  k.box("pilot seat back", 0.75, 1.1, 0.16, s.seat, { at: [0, -0.3, 0.88] });
+  // Co-pilot seat, ahead and to the right.
+  const { x, z } = COPILOT;
+  k.box("copilot seat base", 0.45, 0.5, 0.45, "metalDark", { at: [x, FLOOR_Y + 0.25, z] });
+  k.box("copilot seat cushion", 0.62, 0.15, 0.7, s.seat, { at: [x, FLOOR_Y + 0.575, z] });
+  // A low bucket-seat back, so it never hides the side glass.
+  k.box("copilot seat back", 0.62, 0.38, 0.14, s.seat, { at: [x, FLOOR_Y + 0.84, z + 0.4] });
 }
 
-/** The co-pilot: an original low-poly dog, curled up asleep on the second seat, head on its paws at the near end (towards the pilot). */
+/** The co-pilot: an original low-poly dog, curled up asleep on the co-pilot seat, head on its paws, facing the pilot. */
 function dog(k: ModelKit): void {
-  const top = FLOOR_Y + 0.675; // top of the cushion
-  const bx = SEAT2.x + 0.05;
-  const bz = SEAT2.z - 0.05;
-  k.add("dog body", new THREE.IcosahedronGeometry(0.25, 1).scale(1.0, 0.56, 1.35), "dogTan", { at: [bx, top + 0.13, bz] });
-  k.add("dog back patch", new THREE.IcosahedronGeometry(0.11, 0).scale(1.1, 0.6, 1.3), "dogDark", { at: [bx + 0.04, top + 0.24, bz - 0.12] });
-  const hx = bx - 0.18;
-  const hz = bz + 0.3;
+  const top = FLOOR_Y + 0.65; // top of the cushion
+  const bx = COPILOT.x + 0.06;
+  const bz = COPILOT.z - 0.02;
+  k.add("dog body", new THREE.IcosahedronGeometry(0.24, 1).scale(1.0, 0.56, 1.3), "dogTan", { at: [bx, top + 0.13, bz] });
+  k.add("dog back patch", new THREE.IcosahedronGeometry(0.11, 0).scale(1.1, 0.6, 1.3), "dogDark", { at: [bx + 0.04, top + 0.24, bz - 0.1] });
+  const hx = bx - 0.17;
+  const hz = bz + 0.24;
   const hy = top + 0.12;
   k.add("dog head", new THREE.IcosahedronGeometry(0.13, 1).scale(1.0, 0.9, 1.0), "dogTan", { at: [hx, hy, hz] });
   k.box("dog snout", 0.13, 0.08, 0.1, "dogTan", { at: [hx - 0.13, hy - 0.03, hz] });
@@ -153,81 +204,96 @@ function dog(k: ModelKit): void {
     k.box(`dog paw ${s}`, 0.16, 0.06, 0.07, "dogTan", { at: [hx - 0.08, top + 0.03, hz + s * 0.07 + 0.02] });
   }
   k.box("dog collar", 0.05, 0.1, 0.18, "teal", { at: [hx + 0.11, hy - 0.02, hz - 0.06] });
-  k.box("dog tail", 0.08, 0.07, 0.28, "dogTan", { at: [bx + 0.15, top + 0.05, bz - 0.25], rot: [0, 0.7, 0] });
-  k.box("dog tail tip", 0.07, 0.06, 0.1, "hullWhite", { at: [bx + 0.02, top + 0.05, bz - 0.38], rot: [0, 1.2, 0] });
+  k.box("dog tail", 0.08, 0.07, 0.26, "dogTan", { at: [bx + 0.14, top + 0.05, bz - 0.24], rot: [0, 0.7, 0] });
+  k.box("dog tail tip", 0.07, 0.06, 0.1, "hullWhite", { at: [bx + 0.02, top + 0.05, bz - 0.36], rot: [0, 1.2, 0] });
   k.anchor("dog", [bx, top + 0.13, bz], [-1, 0, 0]);
+}
+
+/** Two throttle levers on the console, for looks. They turn around their base (Agent 3 may nudge them in flight). */
+function throttles(k: ModelKit, knob: ColorName): void {
+  for (const [i, deg] of [[1, -6], [2, -1]] as const) {
+    const r = ARC.r1 + 0.1;
+    const y = ARC.yIn + ((r - ARC.r1) / (ARC.r2 - ARC.r1)) * (ARC.yOut - ARC.yIn);
+    k.lever(`throttle ${i}`, arc(deg, r, y + 0.02), [1, 0, 0], 0.5, (l) => {
+      l.box("lever stick", 0.04, 0.22, 0.04, "metalDark", { at: [0, 0.11, 0], rot: [0.35, 0, 0] });
+      l.box("lever knob", 0.09, 0.06, 0.06, knob, { at: [0, 0.22, 0.04] });
+    });
+  }
 }
 
 function buildCockpit(s: CockpitStyle, extras: (k: ModelKit) => void): AssetModel {
   const k = new ModelKit();
-  room(k, s);
-  dashboard(k, s);
-  seats(k);
+  cage(k, s);
+  consoleArc(k, s);
+  seats(k, s);
   if (s.dog) dog(k);
   extras(k);
   k.anchor("eye", [0, 0, 0], [0, 0, -1]);
   return k.finish();
 }
 
-// ------------------------------------------------------------------ Cargo Hauler: wide and practical
-
-const HAULER_WINDOW: [number, number][] = [
-  [-1.25, -0.05], [1.25, -0.05], [1.45, 0.15], [1.45, 1.05], [1.25, 1.25], [-1.25, 1.25], [-1.45, 1.05], [-1.45, 0.15],
-];
+// ------------------------------------------------------------------ Cargo Hauler: fighter-style wrap-around, dark, orange
 
 export function buildCockpitHauler(_o: BuildOptions = {}): AssetModel {
   return buildCockpit(
-    { ceiling: 1.45, window: HAULER_WINDOW, frame: "metalDark", walls: "hullMid", desk: "hullDark", bank: "metalDark", trim: "orange", switches: ["red", "yellow", "orange", "hullLight"], dog: true },
+    {
+      cage: { sf: [1.15, -2.45], sb: [1.9, CAGE_BACK_Z], tf: [0.7, 0.95, -2.0], tb: [1.25, 1.45, CAGE_BACK_Z], roofGlass: true, frontStruts: 2, sideStrut: "middle" },
+      frame: "metalDark", frameT: 0.2, hull: "hullDark", floor: "underside", console: "frame", trim: "orange",
+      switches: ["orange", "yellow", "red", "hullLight"], seat: "seat", dog: true,
+    },
     (k) => {
-      // Two struts split the window into three flat panes.
-      for (const x of [-0.5, 0.5]) k.box(`strut ${x}`, 0.12, 1.3, 0.12, "metalDark", { at: [x, 0.6, WIN_Z - 0.06] });
-      // Hazard stripes along the top of the frame, and a warning light.
-      for (let j = 0; j < 9; j++) k.box(`hazard stripe ${j}`, 0.2, 0.1, 0.03, j % 2 ? "yellow" : "frame", { at: [-0.9 + j * 0.225, 1.36, WIN_Z + 0.015] });
-      k.box("warning light", 0.12, 0.08, 0.06, "lightRed", { at: [1.15, 1.36, WIN_Z + 0.03], layer: "blinkA" });
-      // A big coffee mug on the left console.
-      k.cyl("mug", 0.08, 0.07, 0.16, 6, "orange", { at: [-1.6, FLOOR_Y + 0.93, -1.95] });
-      k.box("mug handle", 0.03, 0.08, 0.06, "orange", { at: [-1.5, FLOOR_Y + 0.93, -1.95] });
+      throttles(k, "orange");
+      // A big orange mug on the console, a hazard stripe along the front sill.
+      k.cyl("mug", 0.07, 0.06, 0.14, 6, "orange", { at: arc(-44, 1.5, -0.42) });
+      for (let j = 0; j < 7; j++) k.beam(`hazard ${j}`, [-0.9 + j * 0.3, SILL_Y - 0.14, -2.4], [-0.78 + j * 0.3, SILL_Y - 0.14, -2.4], 0.06, j % 2 ? "yellow" : "frame");
     },
   );
 }
 
-// ------------------------------------------------------------------ Passenger Liner: elegant, panoramic
-
-const LINER_WINDOW: [number, number][] = [
-  [-1.6, -0.05], [1.6, -0.05], [1.75, 0.08], [1.8, 0.47], [1.75, 0.87], [1.6, 1.0], [-1.6, 1.0], [-1.75, 0.87], [-1.8, 0.47], [-1.75, 0.08],
-];
+// ------------------------------------------------------------------ Passenger Liner: bright bridge, white and cyan
 
 export function buildCockpitLiner(_o: BuildOptions = {}): AssetModel {
   return buildCockpit(
-    { ceiling: 1.5, window: LINER_WINDOW, frame: "paintWhite", walls: "hullLight", desk: "paintWhite", bank: "hullMid", trim: "blue", switches: ["blue", "hullLight", "yellow"], dog: true },
+    {
+      cage: { sf: [1.4, -2.5], sb: [2.0, CAGE_BACK_Z], tf: [1.25, 1.1, -2.35], tb: [1.85, 1.5, CAGE_BACK_Z], roofGlass: false, frontStruts: 2, sideStrut: "middle" },
+      frame: "paintWhite", frameT: 0.18, hull: "hullWhite", floor: "paintGrey", console: "paintWhite", trim: "cyan",
+      switches: ["blue", "teal", "hullLight", "yellow"], seat: "blue", dog: true,
+    },
     (k) => {
-      // A slim blue trim line along the frame under the window, and a little potted plant.
-      k.box("frame trim", 3.4, 0.05, 0.03, "blue", { at: [0, -0.07, WIN_Z + 0.015] });
-      k.cyl("plant pot", 0.08, 0.06, 0.12, 6, "hullWhite", { at: [-1.6, FLOOR_Y + 0.91, -1.95] });
-      k.cone("plant", 0.12, 0.22, 5, "teal", { at: [-1.6, FLOOR_Y + 1.08, -1.95] });
+      throttles(k, "cyan");
+      // Cyan glow strips under the solid roof, along both sides and across the front.
+      k.beam("roof glow front", [-0.9, 1.11, -2.0], [0.9, 1.11, -2.0], 0.06, "cyan", { layer: "glow" });
+      for (const s of [1, -1]) k.beam(`roof glow side ${s}`, [s * 1.1, 1.08, -2.1], [s * 1.65, 1.38, 0.3], 0.06, "cyan", { layer: "glow" });
+      k.beam("roof glow centre", [0, 1.18, -1.9], [0, 1.45, 0.3], 0.1, "cyan", { layer: "glow" });
+      // A little potted plant on the left console.
+      k.cyl("plant pot", 0.07, 0.05, 0.11, 6, "hullWhite", { at: arc(-44, 1.5, -0.42) });
+      k.cone("plant", 0.11, 0.2, 5, "teal", { at: arc(-44, 1.5, -0.27) });
     },
   );
 }
 
-// ------------------------------------------------------------------ Scout: cramped, rounded canopy, no dog
-
-const SCOUT_WINDOW: [number, number][] = Array.from({ length: 16 }, (_, i) => {
-  const a = (i / 16) * Math.PI * 2 - Math.PI / 2;
-  return [Math.cos(a) * 1.2, 0.58 + Math.sin(a) * 0.62] as [number, number];
-});
+// ------------------------------------------------------------------ Scout: overhead canopy, joysticks, dark and red
 
 export function buildCockpitScout(_o: BuildOptions = {}): AssetModel {
   return buildCockpit(
-    { ceiling: 1.3, window: SCOUT_WINDOW, frame: "metalDark", walls: "underside", desk: "metalDark", bank: "underside", trim: "red", switches: ["red", "teal", "hullLight"], dog: false },
+    {
+      cage: { sf: [0.9, -2.2], sb: [1.5, CAGE_BACK_Z], tf: [0.3, 0.7, -1.75], tb: [0.95, 1.25, CAGE_BACK_Z], roofGlass: true, frontStruts: 0, sideStrut: "diagonal" },
+      frame: "underside", frameT: 0.22, hull: "metalDark", floor: "underside", console: "underside", trim: "red",
+      switches: ["red", "teal", "hullLight"], seat: "red", dog: false,
+    },
     (k) => {
-      // Heavy bulkheads crowd in from both sides above the consoles: the cramped feel.
-      for (const s of [1, -1]) {
-        k.box(`bulkhead ${s > 0 ? "right" : "left"}`, 0.45, 1.5, 1.7, "metalDark", { at: [s * (WALL_X - 0.225), 0.55, -1.45] });
-        k.box(`bulkhead stripe ${s > 0 ? "right" : "left"}`, 0.03, 0.08, 1.6, "red", { at: [s * (WALL_X - 0.465), 0.2, -1.45] });
+      // Two joysticks on pedestals, left and right, for looks (they turn around their base).
+      for (const side of [1, -1]) {
+        k.box(`joystick pedestal ${side}`, 0.18, 0.75, 0.18, "metalDark", { at: [side * 0.48, FLOOR_Y + 0.375, -1.05] });
+        k.lever(`joystick ${side > 0 ? "right" : "left"}`, [side * 0.48, FLOOR_Y + 0.76, -1.05], [1, 0, 0], 0.35, (l) => {
+          l.box("stick", 0.06, 0.28, 0.06, "metalDark", { at: [0, 0.14, 0] });
+          l.box("grip", 0.1, 0.14, 0.1, "red", { at: [0, 0.32, 0] });
+          l.box("button", 0.05, 0.03, 0.05, "yellow", { at: [0, 0.4, 0] });
+        });
       }
-      // No dog here: the second seat holds a strapped-down toolbox.
-      k.box("toolbox", 0.45, 0.3, 0.6, "teal", { at: [SEAT2.x, FLOOR_Y + 0.825, SEAT2.z] });
-      k.box("toolbox strap", 0.48, 0.32, 0.08, "yellow", { at: [SEAT2.x, FLOOR_Y + 0.825, SEAT2.z] });
+      // No dog on the Scout: the co-pilot seat holds a strapped-down toolbox.
+      k.box("toolbox", 0.42, 0.28, 0.55, "teal", { at: [COPILOT.x, FLOOR_Y + 0.79, COPILOT.z] });
+      k.box("toolbox strap", 0.45, 0.3, 0.08, "yellow", { at: [COPILOT.x, FLOOR_Y + 0.79, COPILOT.z] });
     },
   );
 }

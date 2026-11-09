@@ -397,20 +397,24 @@ function buildHelpers(): void {
       floatingLabels.push({ text: name, pos: a.pos.clone(), color: anchorColor(name) });
     }
   }
-  if (S.cut && model?.windowOpening) {
-    // The window opening: magenta outline and a faint fill. Everything inside it shows the outside.
-    const w = model.windowOpening;
-    const pts = w.poly.map(([x, y]) => new THREE.Vector3(x, y, w.z + 0.01));
-    const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xff3dd6, depthTest: false }));
-    line.renderOrder = 20;
-    const shape = new THREE.Shape(w.poly.map(([x, y]) => new THREE.Vector2(x, y)));
-    const fill = new THREE.Mesh(
-      new THREE.ShapeGeometry(shape),
-      new THREE.MeshBasicMaterial({ color: 0xff3dd6, transparent: true, opacity: 0.18, depthTest: false, side: THREE.DoubleSide }),
-    );
-    fill.position.z = w.z + 0.01;
-    fill.renderOrder = 19;
-    helpers.add(line, fill);
+  if (S.cut && model?.windowOpenings) {
+    // The window openings: magenta outlines and a faint fill. Everything inside them shows the outside.
+    for (const w of model.windowOpenings) {
+      const pts = w.points.map(([x, y, z]) => new THREE.Vector3(x, y, z));
+      const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xff3dd6, depthTest: false }));
+      line.renderOrder = 20;
+      const mid = pts.reduce((acc, p) => acc.add(p), new THREE.Vector3()).divideScalar(pts.length);
+      const fan: number[] = [];
+      pts.forEach((p, i) => {
+        const q = pts[(i + 1) % pts.length]!;
+        fan.push(mid.x, mid.y, mid.z, p.x, p.y, p.z, q.x, q.y, q.z);
+      });
+      const fillGeo = new THREE.BufferGeometry();
+      fillGeo.setAttribute("position", new THREE.Float32BufferAttribute(fan, 3));
+      const fill = new THREE.Mesh(fillGeo, new THREE.MeshBasicMaterial({ color: 0xff3dd6, transparent: true, opacity: 0.18, depthTest: false, side: THREE.DoubleSide }));
+      fill.renderOrder = 19;
+      helpers.add(line, fill);
+    }
   }
   sizeInfo.textContent = `Width ${size.x.toFixed(1)} · Height ${size.y.toFixed(1)} · Length ${size.z.toFixed(1)} crates`;
 }
