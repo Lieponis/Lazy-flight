@@ -116,7 +116,7 @@ export const ASSETS: readonly AssetEntry[] = [
     variants: 1,
     build: buildStationStarport,
     anchorNames: STATION_ANCHORS,
-    triangles: 874,
+    triangles: 822,
     status: "DRAFT",
   },
   {

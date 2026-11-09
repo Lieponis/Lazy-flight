@@ -10,7 +10,7 @@
 //   station-cargo      Cargo terminal     industrial  command block with the slot, long spine, container racks, cranes
 //   station-refinery   Fuel refinery      industrial  docking block, round tanks with bands, pipes, a burning flare stack
 
-import { ModelKit, type ColorName } from "./kit";
+import { ModelKit, type ColorName, type LoftSection } from "./kit";
 import { BAY_SIZE, RING_SPIN_SPEED } from "./style";
 import type { AssetModel, BuildOptions } from "./types";
 
@@ -33,14 +33,15 @@ interface Block {
 /**
  * A big faceted block whose front face has the docking slot cut into it.
  * The front face is made of six flat pieces around the opening.
+ * `more` = extra cross-sections behind the block, so a whole hull can be ONE piece. Never build a hull from
+ * several pieces in a row around the bay: each piece has a closed end wall, and that wall would cut across the bay.
  */
-function slotBlock(k: ModelKit, name: string, b: Block, color: ColorName, faceColor: ColorName): void {
+function slotBlock(k: ModelKit, name: string, b: Block, color: ColorName, faceColor: ColorName, more: LoftSection[] = []): void {
   // The face pieces only fit if the block is clearly bigger than the slot (the checker catches it otherwise).
   if (b.h / 2 - Math.max(b.ct, b.cb) <= SY || b.w / 2 <= SX) throw new Error(`${name}: too small for the docking slot`);
-  k.loft(name, [
-    { z: b.zFront, w: b.w, h: b.h, y: 0, ct: b.ct, cb: b.cb },
-    { z: b.zBack, w: b.w, h: b.h, y: 0, ct: b.ct, cb: b.cb },
-  ], color, { openFront: true });
+  const first: LoftSection = { z: b.zFront, w: b.w, h: b.h, y: 0, ct: b.ct, cb: b.cb };
+  const sections = more.length > 0 ? [first, ...more] : [first, { ...first, z: b.zBack }];
+  k.loft(name, sections, color, { openFront: true });
   const hw = b.w / 2;
   const hh = b.h / 2;
   const A: [number, number] = [-hw + b.cb, -hh];
@@ -149,20 +150,13 @@ export function buildStationRing(_o: BuildOptions = {}): AssetModel {
 export function buildStationStarport(_o: BuildOptions = {}): AssetModel {
   const k = new ModelKit();
   const zMouth = -17;
-  // A huge faceted block: narrow faces front and back, widest in the middle.
-  slotBlock(k, "front", { zFront: zMouth, zBack: -9, w: 24, h: 24, ct: 7, cb: 7 }, "paintWhite", "paintGrey");
-  k.loft("middle", [
+  // A huge faceted block: narrow faces front and back, widest in the middle. One single piece (fix 2026-11-09:
+  // it used to be three pieces whose end walls cut across the bay).
+  slotBlock(k, "hull", { zFront: zMouth, zBack: 17, w: 24, h: 24, ct: 7, cb: 7 }, "paintWhite", "paintGrey", [
     { z: -9, w: 36, h: 36, y: 0, ct: 10.5, cb: 10.5 },
-    { z: 9, w: 36, h: 36, y: 0, ct: 10.5, cb: 10.5 },
-  ], "paintWhite");
-  k.loft("front shoulder", [
-    { z: -16.4, w: 24, h: 24, y: 0, ct: 7, cb: 7 },
-    { z: -9, w: 36, h: 36, y: 0, ct: 10.5, cb: 10.5 },
-  ], "paintWhite");
-  k.loft("back", [
     { z: 9, w: 36, h: 36, y: 0, ct: 10.5, cb: 10.5 },
     { z: 17, w: 24, h: 24, y: 0, ct: 7, cb: 7 },
-  ], "paintWhite");
+  ]);
   bay(k, zMouth, "cyan", "yellow");
   // Slot frame glow and company marks.
   for (const s of [1, -1]) {

@@ -2,7 +2,7 @@
 // Used by the viewer ("Check this asset", "Check all assets") and by the tests.
 
 import * as THREE from "three";
-import { RULES, SPIN_ANCHOR } from "./style";
+import { BAY_SIZE, RULES, SPIN_ANCHOR } from "./style";
 import type { PartInfo } from "./kit";
 import type { AssetEntry, AssetKind, AssetModel } from "./types";
 
@@ -96,6 +96,43 @@ function partsOf(mesh: THREE.Mesh): WorldPart[] {
 }
 
 /**
+ * Stations: names of parts that cut into the bay room (the camera sits inside it).
+ * The room is BAY_SIZE big, from the slot mouth (dockEntrance) inwards, with the parking point in the middle of its floor.
+ * The bay's own floor, walls, ceiling, marks and lights (parts named "bay ...") are allowed.
+ */
+export function bayIntrusions(model: AssetModel): string[] {
+  const park = model.anchors.parking?.pos;
+  const mouth = model.anchors.dockEntrance?.pos;
+  if (!park || !mouth) return [];
+  const room = new THREE.Box3(
+    new THREE.Vector3(park.x - BAY_SIZE.width / 2, park.y, mouth.z),
+    new THREE.Vector3(park.x + BAY_SIZE.width / 2, park.y + BAY_SIZE.height, mouth.z + BAY_SIZE.depth),
+  ).expandByScalar(-0.05);
+  model.group.updateMatrixWorld(true);
+  const found = new Set<string>();
+  const tri = new THREE.Triangle();
+  model.group.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const pos = mesh.geometry.getAttribute("position");
+    const infos: PartInfo[] = (mesh.geometry.userData.parts as PartInfo[] | undefined) ?? [{ name: mesh.name, start: 0, count: pos.count / 3 }];
+    for (const info of infos) {
+      if (info.name.startsWith("bay ")) continue;
+      for (let t = info.start; t < info.start + info.count; t++) {
+        tri.a.fromBufferAttribute(pos, t * 3).applyMatrix4(mesh.matrixWorld);
+        tri.b.fromBufferAttribute(pos, t * 3 + 1).applyMatrix4(mesh.matrixWorld);
+        tri.c.fromBufferAttribute(pos, t * 3 + 2).applyMatrix4(mesh.matrixWorld);
+        if (room.intersectsTriangle(tri)) {
+          found.add(info.name);
+          break;
+        }
+      }
+    }
+  });
+  return [...found];
+}
+
+/**
  * Checks one model. `kind` decides the budgets. `entry` (optional) lets it compare the declared numbers.
  * Returns an empty list when everything is fine.
  */
@@ -178,6 +215,12 @@ export function checkModel(model: AssetModel, kind: AssetKind, entry?: AssetEntr
     }
     const loose = parts.filter((_, i) => !joined.has(i)).map((p) => p.label.split(":")[1]);
     if (loose.length > 0) err(`Parts float away from the body (they touch nothing): ${loose.join(", ")}.`);
+  }
+
+  // 6. Stations: nothing may cut across the bay, where the docked camera sits.
+  if (kind === "station") {
+    const cutting = bayIntrusions(model);
+    if (cutting.length > 0) err(`Parts cut across the inside of the docking bay: ${cutting.join(", ")}.`);
   }
 
   return problems;

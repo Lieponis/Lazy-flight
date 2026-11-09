@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import * as THREE from 'three';
 import { ASSETS } from '../src/render/assets/registry';
-import { checkEntry, checkModel, countModel } from '../src/render/assets/checker';
+import { bayIntrusions, checkEntry, checkModel, countModel } from '../src/render/assets/checker';
 import { ModelKit } from '../src/render/assets/kit';
 import { BROKEN_DEMO, SCALE_TEST } from '../src/render/assets/reference';
 import { RULES } from '../src/render/assets/style';
@@ -51,6 +51,24 @@ describe('registry', () => {
       }
       expect(checkEntry(entry).flatMap((r) => r.problems.filter((p) => p.level === 'error'))).toEqual([]);
     }
+  });
+});
+
+describe('station bays', () => {
+  const stations = ASSETS.filter((a) => a.kind === 'station');
+
+  it('nothing but the bay floor, walls, ceiling, marks and lights is inside any station bay', () => {
+    expect(stations.length).toBeGreaterThan(0);
+    for (const entry of stations) expect(bayIntrusions(entry.build()), entry.id).toEqual([]);
+  });
+
+  it('the bay test itself catches a face across the bay', () => {
+    const m = stations[0]!.build();
+    const k = new ModelKit();
+    const z = m.anchors.dockEntrance!.pos.z + 6;
+    k.box('wall across the bay', 20, 20, 0.2, 'hullMid', { at: [0, 0, z] });
+    m.group.add(k.finish().group);
+    expect(bayIntrusions(m)).toContain('wall across the bay');
   });
 });
 
