@@ -611,3 +611,45 @@
     padding: 6px 4px;
   }
 }
+
+/* ------------------------------------------------------------ menu (Agent 6a: saving) */
+.ui-strip-menu {
+  font-size: 18px;
+  min-height: 36px;
+  padding: 2px 10px;
+}
+
+.ui-gamemenu .ui-panel {
+  max-width: 420px;
+}
+
+.ui-menu-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 12px 14px;
+}
+
+.ui-menu-line {
+  font-size: 20px;
+  color: var(--ui-text);
+}
+
+.ui-toast {
+  position: fixed;
+  z-index: 60;
+  top: calc(var(--ui-top-reserve) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 6px 12px;
+  box-sizing: border-box;
+  font-family: var(--ui-font);
+  font-size: 19px;
+  color: var(--ui-amber);
+  background: var(--ui-bg-panel);
+  border: 1px solid var(--ui-amber);
+  pointer-events: auto;
+  cursor: pointer;
+  text-align: center;
+}

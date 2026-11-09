@@ -1,6 +1,6 @@
-// STATUS STRIP: always on top. Credits, fuel (number and bar), location.
+// STATUS STRIP: always on top. Credits, fuel (number and bar), location, and a small MENU button (docked only).
 
-import { el, publishRoom } from "./dom";
+import { button, el, publishRoom } from "./dom";
 import { formatCredits, formatFuel, fuelFraction, fuelIsLow } from "./logic";
 
 export interface StatusInfo {
@@ -18,17 +18,28 @@ export class StatusStrip {
   private fuelBar = el("span", "ui-fuelbar");
   private location = el("span", "ui-strip-loc");
   private last = "";
+  private menuBtn: HTMLButtonElement | null = null;
 
-  constructor(parent: HTMLElement) {
+  constructor(parent: HTMLElement, onMenu?: () => void) {
     const creditBox = el("span", "ui-strip-item");
     creditBox.append(el("span", "ui-strip-key", "CR"), this.credits);
     const fuelBox = el("span", "ui-strip-item");
     this.fuelBar.append(this.fuelFill);
     fuelBox.append(el("span", "ui-strip-key", "FUEL"), this.fuelText, this.fuelBar);
     this.root.append(creditBox, fuelBox, this.location);
+    if (onMenu) {
+      this.menuBtn = button("MENU", "ui-strip-menu", onMenu);
+      this.menuBtn.hidden = true;
+      this.root.append(this.menuBtn);
+    }
     this.root.setAttribute("aria-live", "polite");
     parent.appendChild(this.root);
     publishRoom(this.root, "--ui-top-reserve", "top");
+  }
+
+  /** Show or hide the MENU button (shown with the docked buttons). */
+  showMenuButton(show: boolean): void {
+    if (this.menuBtn) this.menuBtn.hidden = !show;
   }
 
   set(info: StatusInfo): void {

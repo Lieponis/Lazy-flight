@@ -158,3 +158,29 @@ describe('filling the whole window', () => {
     expect(cameraFov(0.5, 50)).toBeGreaterThan(50);
   });
 });
+
+// Agent 6a (saving): the game hands its seed to the render layer through startRender(..., { seed }).
+import { resolveRenderSeed } from "../src/render/helpers";
+import { findStartSystem } from "../src/render/start";
+import { getPlanetsOfSystem as planetsOf } from "../src/universe";
+
+describe("resolveRenderSeed (seed handed in by the game)", () => {
+  it("a given whole-number seed wins over ?seed= in the address", () => {
+    expect(resolveRenderSeed(777, "?seed=5", 12345)).toBe(777);
+  });
+  it("anything else falls back to today's behaviour", () => {
+    expect(resolveRenderSeed(undefined, "?seed=5", 12345)).toBe(5);
+    expect(resolveRenderSeed(undefined, "", 12345)).toBe(12345);
+    expect(resolveRenderSeed(1.5, "", 12345)).toBe(12345);
+    expect(resolveRenderSeed(Number.NaN, "?seed=9", 12345)).toBe(9);
+    expect(resolveRenderSeed("777", "", 12345)).toBe(12345);
+  });
+  it("the same seed through the option gives the same universe", () => {
+    const viaOption = resolveRenderSeed(777, "", 12345);
+    const viaAddress = resolveRenderSeed(undefined, "?seed=777", 12345);
+    const a = findStartSystem(viaOption);
+    const b = findStartSystem(viaAddress);
+    expect(a).toEqual(b);
+    expect(planetsOf(viaOption, a!.id)).toEqual(planetsOf(viaAddress, b!.id));
+  });
+});

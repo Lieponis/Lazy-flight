@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import './style.css';
 import { BACKGROUND_COLOR } from './settings';
 import { startRender } from './render';
-import { startUi } from './ui';
+import { chooseStart, startUi } from './ui';
 
 // Draws at a tiny resolution and stretches the picture up without smoothing (the chunky pixel look).
 // The two screens (starmap and system view) live in src/render.
@@ -34,5 +34,6 @@ renderer.setPixelRatio(1); // never render more pixels than the small hidden pic
 renderer.setClearColor(BACKGROUND_COLOR);
 app.appendChild(renderer.domElement);
 
-const api = startRender(renderer, app);
-startUi(api, app); // the menus: status strip, JOBS, MAP, Jobs menu, arrival card (src/ui)
+const start = chooseStart(); // continue the save or start a new game: this picks the ONE seed for everything
+const api = startRender(renderer, app, { seed: start.plan.seed });
+startUi(api, app, start); // the menus: status strip, JOBS, MAP, Jobs menu, arrival card (src/ui)

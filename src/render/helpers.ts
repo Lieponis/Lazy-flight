@@ -20,6 +20,15 @@ export function parseSeedParam(search: string, fallback: Seed): Seed {
   return Number(match[1]);
 }
 
+/**
+ * The seed the render layer uses: a seed handed in by the game (src/ui) wins when it is a valid whole number;
+ * otherwise the old behaviour (?seed= in the address, else the fallback). Added for saving (Agent 6a, Lead approved).
+ */
+export function resolveRenderSeed(given: unknown, search: string, fallback: Seed): Seed {
+  if (typeof given === "number" && Number.isSafeInteger(given)) return given;
+  return parseSeedParam(search, fallback);
+}
+
 /** Where the camera sits when it looks at the middle (0,0,0) from an angle. */
 export function orbitCameraPosition(yaw: number, pitch: number, dist: number): { x: number; y: number; z: number } {
   return {

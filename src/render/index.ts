@@ -10,7 +10,7 @@ import type * as THREE from "three";
 import { getPlanetsOfSystem, getSystem, parseDockId, type StarSystem } from "../universe";
 import type { FlightInfo } from "./flightplan";
 import { Hud } from "./hud";
-import { cameraFov, parseSeedParam, renderSizeFor } from "./helpers";
+import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
 import { parseShipParam, resolveShipId } from "./integration";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import type { Screen } from "./screen";
@@ -47,8 +47,13 @@ export interface RenderApi {
   setShip(shipId: string): void;
 }
 
-export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement): RenderApi {
-  const seed = parseSeedParam(window.location.search, START_SEED); // suggestion: ?seed=777 in the address
+/** Options for startRender. seed: the universe seed chosen by the game (saving); without it, ?seed= or 12345. */
+export interface RenderOptions {
+  seed?: number;
+}
+
+export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, options: RenderOptions = {}): RenderApi {
+  const seed = resolveRenderSeed(options.seed, window.location.search, START_SEED);
   const current = findStartSystem(seed);
   if (!current) throw new Error("Could not find a starting system in this universe.");
 

@@ -155,7 +155,7 @@ export function refuelButton(preview: RefuelResult): RefuelButton {
 // ------------------------------------------------------------ which controls show where
 
 export type ScreenName = "docked" | "starmap" | "system" | "flight";
-export type Overlay = "none" | "jobs" | "shipyard" | "arrival";
+export type Overlay = "none" | "jobs" | "shipyard" | "menu" | "arrival";
 
 export interface Controls {
   statusStrip: boolean;
