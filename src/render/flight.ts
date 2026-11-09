@@ -52,6 +52,7 @@ import {
   FLIGHT_BAY_CAMERA,
   FLIGHT_DOCKED_HOLD_SECONDS,
   FLIGHT_LAUNCH_FAR,
+  FLIGHT_LAUNCH_FAR_STATION,
   FLIGHT_LAUNCH_SECONDS,
   FLIGHT_LINE_SECONDS,
   FLIGHT_MIN_WARP_SECONDS,
@@ -278,7 +279,7 @@ export class FlightScreen implements Screen {
 
     // The docks slide past the ship. The ship's parking spot and the dock's parking spot are the same point at the two ends.
     if (phase === "LAUNCH" && this.origin) {
-      const o = launchOffset(p, FLIGHT_LAUNCH_FAR);
+      const o = launchOffset(p, this.origin.isStation ? FLIGHT_LAUNCH_FAR_STATION : FLIGHT_LAUNCH_FAR);
       this.origin.group.position.set(o.x, o.y, o.z);
     } else if ((phase === "APPROACH" || phase === "DONE") && this.dest) {
       const o = approachOffset(phase === "DONE" ? 1 : p, this.dest.isStation ? FLIGHT_APPROACH_FROM_STATION : FLIGHT_APPROACH_FROM_OUTPOST);

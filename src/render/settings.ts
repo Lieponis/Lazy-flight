@@ -104,7 +104,8 @@ export const FLIGHT_ORBIT_HEIGHT_WARP = 3;
 /** Flight view: how far the origin dock slides away during the launch, and how far ahead the destination dock starts. */
 export const FLIGHT_LAUNCH_FAR = { y: 240, z: 260 };
 export const FLIGHT_APPROACH_FROM_OUTPOST = { y: 60, z: 200 };
-export const FLIGHT_APPROACH_FROM_STATION = { y: 6, z: 260 };
+export const FLIGHT_APPROACH_FROM_STATION = { y: 0, z: 260 }; // stations: straight in, no up or down
+export const FLIGHT_LAUNCH_FAR_STATION = { y: 0, z: 260 }; // stations: the ship flies straight out through the opening
 
 /** Flight view: where the camera sits inside a station bay while you leave or arrive, relative to the ship (right, up, behind). */
 export const FLIGHT_BAY_CAMERA = { x: 3.2, y: 3.4, z: 4.8 };
