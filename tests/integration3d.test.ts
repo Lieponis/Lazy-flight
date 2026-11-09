@@ -11,6 +11,8 @@ import {
   insideBox,
   launchCameraBlend,
   launchOffset,
+  lookBackBlend,
+  lookBackCamera,
   outpostFraming,
   outpostModelFor,
   parseShipParam,
@@ -293,5 +295,23 @@ describe('leaving a station along the planet', () => {
       expect(Math.abs(landed.y)).toBeLessThan(1e-6);
       expect(Math.abs(landed.z)).toBeLessThan(1e-6);
     }
+  });
+});
+
+describe('looking back at the planet', () => {
+  it('only starts after the curve and is complete before the speed-up', () => {
+    expect(lookBackBlend(0)).toBe(0);
+    expect(lookBackBlend(120)).toBe(0);
+    expect(lookBackBlend(270)).toBe(1);
+    expect(lookBackBlend(5000)).toBe(1);
+  });
+  it('puts the camera on the far side of the ship, so the planet is behind the ship', () => {
+    const dir = { x: 0, y: 0, z: 1 }; // planet straight behind the ship
+    const c = lookBackCamera(dir, 13, 0, 3);
+    expect(c.z).toBeCloseTo(-13, 9); // camera in front of the ship
+    expect(c.y).toBeCloseTo(3, 9);
+    const side = lookBackCamera(dir, 13, 0.4, 3);
+    expect(Math.abs(side.x)).toBeGreaterThan(4); // off to one side, so the ship does not hide the planet
+    expect(Math.hypot(side.x, side.z)).toBeCloseTo(13, 9);
   });
 });
