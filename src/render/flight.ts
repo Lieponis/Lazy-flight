@@ -32,6 +32,8 @@ import {
   approachOffset,
   flameLength,
   launchCameraBlend,
+  lookBackBlend,
+  lookBackCamera,
   launchOffset,
   lerp3,
   orbitPosition,
@@ -56,6 +58,8 @@ import {
   FLIGHT_DOCKED_HOLD_SECONDS,
   FLIGHT_LAUNCH_FAR,
   FLIGHT_LAUNCH_SECONDS,
+  FLIGHT_LOOKBACK_HEIGHT,
+  FLIGHT_LOOKBACK_YAW,
   FLIGHT_LINE_SECONDS,
   FLIGHT_MIN_WARP_SECONDS,
   FLIGHT_ORBIT_HEIGHT_DOCK,
@@ -96,6 +100,8 @@ interface Body {
   bayCamera: Vec3 | null;
   /** Stations you leave: how far the ship has flown out so far. */
   slide: number;
+  /** Stations you leave: the planet below them (the camera looks back at it). */
+  planet: THREE.Object3D | null;
 }
 
 export interface FlightScreenOptions {
@@ -124,6 +130,7 @@ export class FlightScreen implements Screen {
   private hudTimer = 0;
   private lastAspect = 0;
   private lastFov = 0;
+  private planetAt = new THREE.Vector3();
 
   private flash = document.createElement("div");
   private hudRoot = document.createElement("div");
@@ -333,8 +340,19 @@ export class FlightScreen implements Screen {
       const station = phase === "LAUNCH" ? this.origin : phase === "APPROACH" || phase === "DONE" ? this.dest : null;
       if (station && station.bayCamera) {
         const bay = rotateY(station.bayCamera, Math.sin(this.clockT * 0.35) * 0.14);
-        if (phase === "LAUNCH") rel = lerp3(bay, rel, launchCameraBlend(station.slide));
-        else rel = lerp3(rel, bay, approachCameraBlend(-station.group.position.z));
+        if (phase === "LAUNCH") {
+          rel = lerp3(bay, rel, launchCameraBlend(station.slide));
+          if (station.planet) {
+            // Flying away from the planet: the camera moves to the far side of the ship and looks back at the planet shrinking.
+            station.group.updateMatrixWorld(true);
+            station.planet.getWorldPosition(this.planetAt);
+            const len = this.planetAt.length();
+            if (len > 1e-6) {
+              const dir = { x: this.planetAt.x / len, y: this.planetAt.y / len, z: this.planetAt.z / len };
+              rel = lerp3(rel, lookBackCamera(dir, FLIGHT_ORBIT_RADIUS, FLIGHT_LOOKBACK_YAW, FLIGHT_LOOKBACK_HEIGHT), lookBackBlend(station.slide));
+            }
+          }
+        } else rel = lerp3(rel, bay, approachCameraBlend(-station.group.position.z));
       }
       camera.position.set(rel.x, rel.y + shipY, rel.z);
       camera.lookAt(0, shipY + 0.8, 0);
@@ -396,6 +414,7 @@ export class FlightScreen implements Screen {
     group.add(built.model.group);
     const isStation = dock.kind === "STATION";
     let bayCamera: Vec3 | null = null;
+    let planetMesh: THREE.Object3D | null = null;
     if (!isStation) {
       const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, WORLD_LIGHT, DOCKED_GROUND_DETAIL);
       ground.position.y = -DOCKED_GROUND_RADIUS - built.parking.y - 0.12;
@@ -407,13 +426,14 @@ export class FlightScreen implements Screen {
         const c = stationPlanetCentre(DOCKED_STATION_PLANET_RADIUS, FLIGHT_STATION_PLANET_ALTITUDE, STATION_EXIT.straight);
         world.position.set(c.x, c.y, c.z);
         group.add(world);
+        planetMesh = world;
       }
       const turn = arriving ? Math.PI : 0;
       group.rotation.y = turn;
       bayCamera = rotateY(FLIGHT_BAY_CAMERA, turn);
     }
     group.visible = false;
-    return { group, model: built.model, isStation, bayCamera, slide: 0 };
+    return { group, model: built.model, isStation, bayCamera, slide: 0, planet: planetMesh };
   }
 
   private clearBodies(): void {

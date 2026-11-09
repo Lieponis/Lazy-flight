@@ -119,3 +119,7 @@ export const STATION_EXIT = { distance: 20000, straight: 20, curveEnd: 260, grow
 
 /** Flight view: where the camera sits inside a station bay while you leave or arrive, relative to the ship (right, up, behind). */
 export const FLIGHT_BAY_CAMERA = { x: 3.2, y: 3.4, z: 4.8 };
+
+/** Flight view, leaving a station: the camera looks back at the planet shrinking. Turn (radians) off to one side, and extra height. */
+export const FLIGHT_LOOKBACK_YAW = 0.4;
+export const FLIGHT_LOOKBACK_HEIGHT = 3;

@@ -255,3 +255,18 @@ export function stationExitTransform(pose: ExitPose): { rotX: number; position: 
 export function stationPlanetCentre(radius: number, altitude: number, straight: number): Vec3 {
   return { x: 0, y: -(radius + altitude), z: -straight };
 }
+
+/**
+ * After the curve the ship flies away from the planet. To keep the planet in the picture the camera moves to the far side
+ * of the ship and looks back, with the planet behind the ship (a little to one side so the ship does not hide it).
+ * 0 = normal orbit camera, 1 = looking back. `slide` = how far the ship has flown.
+ */
+export function lookBackBlend(slide: number): number {
+  return smoothstep((slide - 120) / 150);
+}
+
+/** The look-back camera spot relative to the ship. `towardPlanet` = unit direction from the ship to the planet. */
+export function lookBackCamera(towardPlanet: Vec3, radius: number, yaw: number, height: number): Vec3 {
+  const away = rotateY({ x: -towardPlanet.x * radius, y: 0, z: -towardPlanet.z * radius }, yaw);
+  return { x: away.x, y: -towardPlanet.y * radius * 0.5 + height, z: away.z };
+}
