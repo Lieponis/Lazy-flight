@@ -195,16 +195,27 @@ export function orbitPosition(angle: number, radius: number, height: number): Ve
 // ------------------------------------------------------------------ leaving a station along the planet
 
 export interface ExitSettings {
-  /** How far the ship has flown at the very end of the launch. */
-  distance: number;
+  /** The launch length (seconds) these numbers are made for. */
+  seconds: number;
   /** Straight out of the slot for this far. */
   straight: number;
   /** The turning stops here; after it the ship flies straight along its last heading. */
   curveEnd: number;
   /** How fast the orbit widens (0 = a perfect circle round the planet). */
   growth: number;
-  /** Speeding up: distance flown = distance * progress ^ power. */
-  power: number;
+  /** Gentle speed-up for this many seconds, reaching `slowSpeed` units per second. */
+  slowSeconds: number;
+  slowSpeed: number;
+  /** After that the speed multiplies by e (about 2.7) every this many seconds. */
+  speedUpSeconds: number;
+}
+
+/** How far the ship has flown at progress p (0 to 1) of the launch: a slow start, then faster and faster. */
+export function exitDistance(p: number, e: ExitSettings): number {
+  const t = clamp(p, 0, 1) * e.seconds;
+  if (t <= e.slowSeconds) return (0.5 * e.slowSpeed * t * t) / e.slowSeconds;
+  const sSlow = 0.5 * e.slowSpeed * e.slowSeconds;
+  return sSlow + e.slowSpeed * e.speedUpSeconds * (Math.exp((t - e.slowSeconds) / e.speedUpSeconds) - 1);
 }
 
 export interface ExitPose {
@@ -226,7 +237,7 @@ export function exitPitch(s: number, r0: number, e: ExitSettings): number {
 /** Where the ship is at progress p (0 to 1) of a launch from a station. `r0` = distance from the ship's start height down to the planet's centre. */
 export function stationExitPose(p: number, r0: number, e: ExitSettings): ExitPose {
   const q = clamp(p, 0, 1);
-  const slide = e.distance * q ** e.power; // speeds up more and more
+  const slide = exitDistance(q, e);
   const curved = Math.min(slide, e.curveEnd);
   const steps = 64;
   const ds = curved / steps;
@@ -254,19 +265,4 @@ export function stationExitTransform(pose: ExitPose): { rotX: number; position: 
 /** Where the planet's centre is, relative to the ship's parking spot: straight below, so the slot points along the surface. */
 export function stationPlanetCentre(radius: number, altitude: number, straight: number): Vec3 {
   return { x: 0, y: -(radius + altitude), z: -straight };
-}
-
-/**
- * After the curve the ship flies away from the planet. To keep the planet in the picture the camera moves to the far side
- * of the ship and looks back, with the planet behind the ship (a little to one side so the ship does not hide it).
- * 0 = normal orbit camera, 1 = looking back. `slide` = how far the ship has flown.
- */
-export function lookBackBlend(slide: number): number {
-  return smoothstep((slide - 120) / 150);
-}
-
-/** The look-back camera spot relative to the ship. `towardPlanet` = unit direction from the ship to the planet. */
-export function lookBackCamera(towardPlanet: Vec3, radius: number, yaw: number, height: number): Vec3 {
-  const away = rotateY({ x: -towardPlanet.x * radius, y: 0, z: -towardPlanet.z * radius }, yaw);
-  return { x: away.x, y: -towardPlanet.y * radius * 0.5 + height, z: away.z };
 }

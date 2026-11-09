@@ -109,17 +109,15 @@ export const FLIGHT_APPROACH_FROM_OUTPOST = { y: 60, z: 200 };
 export const FLIGHT_APPROACH_FROM_STATION = { y: 0, z: 260 }; // stations: straight in, no up or down
 
 /**
- * Leaving a station: the ship flies straight out of the slot for `straight` units, then curves round the planet
- * (nose slowly turning down, like an orbit) and the orbit keeps getting wider (`growth`: higher = widens faster).
- * At `curveEnd` units it stops turning and flies straight along that heading, faster and faster, until the planet
- * is a dot. `distance` = how far the ship has flown at the end of the launch; `power` = how strongly it speeds up
- * (distance grows with progress to this power: 4 = slow start, very fast end).
+ * Leaving a station. The ship flies straight out of the slot (`straight` units), then curves round the planet
+ * (nose slowly turning down, like an orbit, the orbit widening: `growth`), and at `curveEnd` units it stops turning
+ * and flies straight along that heading until the planet is a dot.
+ * The speed: gentle for `slowSeconds` (reaching `slowSpeed` units per second), then it multiplies by e every
+ * `speedUpSeconds` (smaller = a more dramatic speed-up). `seconds` = the length of the launch these numbers are made for;
+ * a launch that is squeezed (very short trips) plays the same picture faster.
  */
-export const STATION_EXIT = { distance: 20000, straight: 20, curveEnd: 260, growth: 0.5, power: 4 };
+export const STATION_EXIT = { seconds: 10, straight: 20, curveEnd: 260, growth: 0.5, slowSeconds: 4, slowSpeed: 14, speedUpSeconds: 0.8 };
 
 /** Flight view: where the camera sits inside a station bay while you leave or arrive, relative to the ship (right, up, behind). */
 export const FLIGHT_BAY_CAMERA = { x: 3.2, y: 3.4, z: 4.8 };
 
-/** Flight view, leaving a station: the camera looks back at the planet shrinking. Turn (radians) off to one side, and extra height. */
-export const FLIGHT_LOOKBACK_YAW = 0.4;
-export const FLIGHT_LOOKBACK_HEIGHT = 3;

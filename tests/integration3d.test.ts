@@ -11,8 +11,7 @@ import {
   insideBox,
   launchCameraBlend,
   launchOffset,
-  lookBackBlend,
-  lookBackCamera,
+  exitDistance,
   outpostFraming,
   outpostModelFor,
   parseShipParam,
@@ -28,7 +27,7 @@ import {
 import { OUTPOST_IDS, STATION_IDS } from '../src/render/assets/pickers';
 import { BAY_SIZE, FLAME_FLYING, FLAME_PARKED, FLAME_WARP } from '../src/render/assets/style';
 import { camPosition } from '../src/render/dockedcam';
-import { DOCKED_BAY_MARGIN } from '../src/render/settings';
+import { DOCKED_BAY_MARGIN, STATION_EXIT } from '../src/render/settings';
 
 describe('which ship is drawn', () => {
   it('uses the ids of the three ship designs', () => {
@@ -231,7 +230,7 @@ describe('flight: camera inside a station bay', () => {
 });
 
 describe('leaving a station along the planet', () => {
-  const e = { distance: 20000, straight: 20, curveEnd: 260, growth: 0.5, power: 4 };
+  const e = STATION_EXIT;
   const r0 = 180; // planet radius 150 + altitude 30
   const centre = stationPlanetCentre(150, 30, e.straight);
   const away = (p: number): number => {
@@ -243,10 +242,11 @@ describe('leaving a station along the planet', () => {
     expect(start.slide).toBe(0);
     expect(start.pitch).toBe(0);
     expect(Math.abs(start.pos.z)).toBe(0);
-    const early = stationExitPose(0.15, r0, e); // about 10 units: still straight
+    const early = stationExitPose(0.2, r0, e); // 2 seconds in: still inside the bay, straight
     expect(early.pitch).toBe(0);
     expect(Math.abs(early.pos.y)).toBeLessThan(1e-9);
-    expect(early.pos.z).toBeLessThan(-5);
+    expect(early.pos.z).toBeLessThan(-3);
+    expect(early.pos.z).toBeGreaterThan(-12); // a slow start: under 12 units in the first 2 seconds
   });
   it('turns slowly towards the planet, more and more, and stops turning at the end of the curve', () => {
     let last = -1;
@@ -257,7 +257,7 @@ describe('leaving a station along the planet', () => {
     }
     expect(last).toBeGreaterThan(0.5);
     expect(last).toBeLessThan(1.5);
-    expect(stationExitPose(0.6, r0, e).pitch).toBeCloseTo(stationExitPose(1, r0, e).pitch, 9);
+    expect(stationExitPose(0.7, r0, e).pitch).toBeCloseTo(stationExitPose(1, r0, e).pitch, 9);
   });
   it('keeps the orbit getting wider (the turn rate falls)', () => {
     const rate = (s: number): number => exitPitch(s + 1, r0, e) - exitPitch(s, r0, e);
@@ -273,7 +273,7 @@ describe('leaving a station along the planet', () => {
       lastStep = now - last;
       last = now;
     }
-    expect(last).toBeCloseTo(20000, 6);
+    expect(last).toBeGreaterThan(10000);
   });
   it('never touches the planet and ends far away from it (a dot)', () => {
     for (let p = 0; p <= 1.0001; p += 0.02) expect(away(p)).toBeGreaterThan(150);
@@ -298,20 +298,30 @@ describe('leaving a station along the planet', () => {
   });
 });
 
-describe('looking back at the planet', () => {
-  it('only starts after the curve and is complete before the speed-up', () => {
-    expect(lookBackBlend(0)).toBe(0);
-    expect(lookBackBlend(120)).toBe(0);
-    expect(lookBackBlend(270)).toBe(1);
-    expect(lookBackBlend(5000)).toBe(1);
+describe('the speed of leaving a station', () => {
+  const e = STATION_EXIT;
+  it('takes its time to leave the bay: not out of the slot before 3 seconds', () => {
+    expect(exitDistance(0.3 * 0.99, e)).toBeLessThan(e.straight); // just under 3 seconds
+    expect(exitDistance(0.45, e)).toBeGreaterThan(e.straight); // 4.5 seconds: out
   });
-  it('puts the camera on the far side of the ship, so the planet is behind the ship', () => {
-    const dir = { x: 0, y: 0, z: 1 }; // planet straight behind the ship
-    const c = lookBackCamera(dir, 13, 0, 3);
-    expect(c.z).toBeCloseTo(-13, 9); // camera in front of the ship
-    expect(c.y).toBeCloseTo(3, 9);
-    const side = lookBackCamera(dir, 13, 0.4, 3);
-    expect(Math.abs(side.x)).toBeGreaterThan(4); // off to one side, so the ship does not hide the planet
-    expect(Math.hypot(side.x, side.z)).toBeCloseTo(13, 9);
+  it('is gentle at first: under 20 units per second for the first 4 seconds', () => {
+    for (let t = 0; t < 4; t += 0.25) {
+      const v = (exitDistance((t + 0.25) / e.seconds, e) - exitDistance(t / e.seconds, e)) / 0.25;
+      expect(v).toBeLessThan(e.slowSpeed + 0.01);
+    }
+  });
+  it('has no jump in speed where the gentle part ends', () => {
+    const k = e.slowSeconds / e.seconds;
+    const before = (exitDistance(k, e) - exitDistance(k - 0.001, e)) / 0.001;
+    const after = (exitDistance(k + 0.001, e) - exitDistance(k, e)) / 0.001;
+    expect(Math.abs(after - before) / before).toBeLessThan(0.02);
+  });
+  it('goes faster and faster up to the end', () => {
+    let lastSpeed = 0;
+    for (let t = 0; t < 9.5; t += 0.5) {
+      const v = exitDistance((t + 0.5) / e.seconds, e) - exitDistance(t / e.seconds, e);
+      expect(v).toBeGreaterThan(lastSpeed - 1e-9);
+      lastSpeed = v;
+    }
   });
 });
