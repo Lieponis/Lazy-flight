@@ -191,3 +191,58 @@ export function approachCameraBlend(ahead: number): number {
 export function orbitPosition(angle: number, radius: number, height: number): Vec3 {
   return { x: Math.sin(angle) * radius, y: height, z: Math.cos(angle) * radius };
 }
+
+// ------------------------------------------------------------------ leaving a station along the planet
+
+export interface ExitSettings {
+  /** How far the ship flies in the whole launch. */
+  distance: number;
+  /** Straight out of the slot for this far. */
+  straight: number;
+  /** How fast the orbit widens (0 = a perfect circle round the planet). */
+  growth: number;
+}
+
+export interface ExitPose {
+  /** How far the ship has flown. */
+  slide: number;
+  /** How far the nose has turned down, in radians. */
+  pitch: number;
+  /** Where the ship is, in the station's own frame, measured from its parking spot (forward is -Z, up is +Y). */
+  pos: Vec3;
+}
+
+/** The turn angle after flying `s` units: 0 while straight, then the circle of radius r0 that slowly widens. */
+export function exitPitch(s: number, r0: number, e: ExitSettings): number {
+  const d = Math.max(0, s - e.straight);
+  if (d <= 0 || r0 <= 0) return 0;
+  return e.growth > 1e-9 ? Math.log(1 + (e.growth * d) / r0) / e.growth : d / r0;
+}
+
+/** Where the ship is at progress p (0 to 1) of a launch from a station. `r0` = distance from the ship's start height down to the planet's centre. */
+export function stationExitPose(p: number, r0: number, e: ExitSettings): ExitPose {
+  const q = clamp(p, 0, 1);
+  const slide = e.distance * q * q; // speeds up
+  const steps = 64;
+  const ds = slide / steps;
+  let y = 0;
+  let z = 0;
+  for (let i = 0; i < steps; i++) {
+    const a = exitPitch((i + 0.5) * ds, r0, e);
+    z -= Math.cos(a) * ds;
+    y -= Math.sin(a) * ds;
+  }
+  return { slide, pitch: exitPitch(slide, r0, e), pos: { x: 0, y, z } };
+}
+
+/** The station group's turn (about X) and position so that the ship, which never moves, ends up at `pose`. */
+export function stationExitTransform(pose: ExitPose): { rotX: number; position: Vec3 } {
+  const c = Math.cos(pose.pitch);
+  const s = Math.sin(pose.pitch);
+  return { rotX: pose.pitch, position: { x: -pose.pos.x, y: -(pose.pos.y * c - pose.pos.z * s), z: -(pose.pos.y * s + pose.pos.z * c) } };
+}
+
+/** Where the planet's centre is, relative to the ship's parking spot: straight below, so the slot points along the surface. */
+export function stationPlanetCentre(radius: number, altitude: number, straight: number): Vec3 {
+  return { x: 0, y: -(radius + altitude), z: -straight };
+}

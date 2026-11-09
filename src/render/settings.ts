@@ -87,8 +87,9 @@ export const DOCKED_BAY_ANGLE_MAX_DEG = 65;
 export const DOCKED_BAY_SWAY = 0.14; // how far (radians) the camera slowly sways left and right by itself in the bay; 0 = still
 
 /** Docked at a STATION: the planet seen through the slot. Radius, and where it is relative to the slot mouth. */
-export const DOCKED_STATION_PLANET_RADIUS = 45;
-export const DOCKED_STATION_PLANET_AT = { x: -15, y: -45, z: -150 };
+export const DOCKED_STATION_PLANET_RADIUS = 300;
+export const DOCKED_STATION_PLANET_ALTITUDE = 30; // from the bay floor down to the planet's surface. The station's slot points along the surface (a tangent).
+export const DOCKED_STATION_PLANET_DETAIL = 6; // facets of the planet (more = rounder)
 
 /** System view: how big the dock models are drawn, as a fraction of the planet's drawn radius (clamped to the min and max). */
 export const SYSTEM_OUTPOST_SCALE = 0.05;
@@ -105,7 +106,13 @@ export const FLIGHT_ORBIT_HEIGHT_WARP = 3;
 export const FLIGHT_LAUNCH_FAR = { y: 240, z: 260 };
 export const FLIGHT_APPROACH_FROM_OUTPOST = { y: 60, z: 200 };
 export const FLIGHT_APPROACH_FROM_STATION = { y: 0, z: 260 }; // stations: straight in, no up or down
-export const FLIGHT_LAUNCH_FAR_STATION = { y: 0, z: 260 }; // stations: the ship flies straight out through the opening
+
+/**
+ * Leaving a station: the ship flies straight out of the slot for `straight` units, then curves round the planet
+ * (nose slowly turning down, like an orbit) and the orbit keeps getting wider (`growth`: higher = widens faster)
+ * until the jump. `distance` = how far the ship flies in the whole launch.
+ */
+export const STATION_EXIT = { distance: 260, straight: 20, growth: 0.5 };
 
 /** Flight view: where the camera sits inside a station bay while you leave or arrive, relative to the ship (right, up, behind). */
 export const FLIGHT_BAY_CAMERA = { x: 3.2, y: 3.4, z: 4.8 };

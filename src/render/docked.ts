@@ -29,6 +29,7 @@ import {
   outpostFraming,
   relativeToParking,
   resolveShipId,
+  stationPlanetCentre,
   type Box,
 } from "./integration";
 import { buildDockModel, buildShipModel, parkAtOrigin, type DockModel } from "./models3d";
@@ -46,11 +47,13 @@ import {
   DOCKED_DRIFT_SPEED,
   DOCKED_GROUND_DETAIL,
   DOCKED_GROUND_RADIUS,
-  DOCKED_STATION_PLANET_AT,
+  DOCKED_STATION_PLANET_ALTITUDE,
+  DOCKED_STATION_PLANET_DETAIL,
   DOCKED_STATION_PLANET_RADIUS,
   DOCKED_ZOOM_MAX,
   DOCKED_ZOOM_MIN,
   STARFIELD_COUNT,
+  STATION_EXIT,
 } from "./settings";
 import { disposeAll, makePlanetMesh } from "./systemview";
 
@@ -263,10 +266,10 @@ export class DockedScreen implements Screen {
     if (!entrance || !bayCam) throw new Error(`${model.id} has no dockEntrance or bayCamera anchor`);
     this.bay = bayBoxWorld(entrance, model.parking);
 
-    // The planet, seen through the slot (ahead of the mouth, a little below and to the side).
-    const mouth = relativeToParking(entrance, model.parking);
-    const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, 3);
-    world.position.set(mouth.x + DOCKED_STATION_PLANET_AT.x, mouth.y + DOCKED_STATION_PLANET_AT.y, mouth.z + DOCKED_STATION_PLANET_AT.z);
+    // The planet lies below the station, so the slot points along its surface (a tangent), like in orbit.
+    const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, DOCKED_STATION_PLANET_DETAIL);
+    const c = stationPlanetCentre(DOCKED_STATION_PLANET_RADIUS, DOCKED_STATION_PLANET_ALTITUDE, STATION_EXIT.straight);
+    world.position.set(c.x, c.y, c.z);
     this.content.add(world);
 
     // The camera starts at the design's suggested spot in the back corner and may move around the ship, but only inside the bay.
