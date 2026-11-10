@@ -34,25 +34,10 @@ interface Face {
   mesh: THREE.Mesh;
 }
 
-/** Where the cockpit's middle line is, across, measured from the pilot's eye (the eye is in the left seat). */
-export const COCKPIT_CENTRE_X = 0.6;
-
 type ScreenName = "screenInfo" | "screenMap" | "screenFuel" | "screenRightWing";
 
-/**
- * The right wing screen has no anchor of its own, but the cockpit is exactly left/right symmetrical, so it is the fuel screen mirrored
- * (suggestion for Agent 8: give it a real anchor). Andy wants it amber like the fuel screen.
- */
-function mirroredFuelAnchor(model: AssetModel): { pos: THREE.Vector3; dir: THREE.Vector3; size?: { w: number; h: number } } | undefined {
-  const a = model.anchors.screenFuel;
-  if (!a) return undefined;
-  // The pilot sits in the LEFT seat, so the eye (the origin) is not on the cockpit's middle line: that line is 0.6 crates to the right
-  // (Agent 8's EYE.x is -0.6 in cockpitBase.ts). Mirror across it, not across the eye.
-  return { pos: new THREE.Vector3(2 * COCKPIT_CENTRE_X - a.pos.x, a.pos.y, a.pos.z), dir: new THREE.Vector3(-a.dir.x, a.dir.y, a.dir.z), size: a.size };
-}
-
 function makeFace(model: AssetModel, name: ScreenName): Face | null {
-  const a = name === "screenRightWing" ? mirroredFuelAnchor(model) : model.anchors[name];
+  const a = model.anchors[name];
   if (!a || !a.size) return null;
   const canvas = document.createElement("canvas");
   canvas.width = SCREEN_PIXEL_WIDTH;
