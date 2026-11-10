@@ -171,7 +171,7 @@ export function windowBlockers(model: AssetModel): string[] {
     const pos = mesh.geometry.getAttribute("position");
     const infos: PartInfo[] = (mesh.geometry.userData.parts as PartInfo[] | undefined) ?? [{ name: mesh.name, start: 0, count: pos.count / 3 }];
     for (const info of infos) {
-      if (info.name.startsWith("strut")) continue;
+      if (info.name.startsWith("strut") || info.name.includes("may cover window")) continue; // allowed on purpose
       let blocked = false;
       for (let t = info.start; t < info.start + info.count && !blocked; t++) {
         a.fromBufferAttribute(pos, t * 3).applyMatrix4(mesh.matrixWorld);

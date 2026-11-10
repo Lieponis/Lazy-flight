@@ -46,7 +46,7 @@ src/render/assets/cockpitBase.ts, shown in the viewer only (reference group), no
 | Step | What | Status | Decided |
 |---|---|---|---|
 | 1 | Shell and window cut-out | APPROVED by Andy | six zero-thickness surfaces (front wall, back wall, floor, two side walls, lofted roof); shapes measured from the drawing; window follows the front view most closely (option C), no sharp corners |
-| 2 | Dashboard panels | waiting for Andy | option B (as drawn, softened): wrap-round dashboard (middle + two wings) with leg room and centre stack, centre console in two sections with a round end, overhead panel; eye higher (1.45) and closer to the dashboard, field of view 50 |
+| 2 | Dashboard panels | rework done, waiting for Andy | option B (as drawn, softened): wrap-round dashboard (middle + two wings) at the drawing's height, flat light top meeting the shell with no gap, light upright face and dark leg room (right angles); side columns; centre console joined to the dashboard; overhead panel from the window's edge to the back; exactly left/right symmetric; eye higher (1.45) and closer to the dashboard; field of view 50; viewer drag reversed |
 | 3-6 | Seats, instruments and lights, screens, dog | not started | |
 
 Known: Andy's drawings disagree between views in places (window; dashboard lip vs the low roof at the nose sides),

@@ -248,15 +248,19 @@ function buildShell(): AssetModel {
 
   // ---------------------------------------------------------------- STEP 2: PANELS (option B: as drawn, softened)
   // Measured from "Cockpit panels". Shares of the length, like the shell.
-  // DASHBOARD: wraps round the nose (straight middle + two angled wings). Its side profile, from the front wall
-  // back to the lip facing the pilot, then under the lip to the leg-room face. d = 0 front .. 1 lip; h = height.
-  // The soft corners (option B) are the extra points either side of the top and of the lip.
-  const DASH_PROFILE: V2[] = [[0, 0.239], [0.686, 0.337], [0.813, 0.334], [0.967, 0.26], [0.956, 0.236], [0.63, 0.178], [0.63, 0]];
-  const DASH_LIGHT = 4; // profile pieces 0..3 are the light top and face; the rest is the dark underside and leg-room face
+  // DECIDED (Andy, step 2 rework): dashboard at the drawing's height; its light-grey top is flat (at a right angle to
+  // the upright faces) and runs forward until it meets the cabin's shell, with no gap; side columns; the centre
+  // console joins the dashboard; the overhead panel comes forward to the window's edge but never crosses it.
+  //
+  // DASHBOARD seen from the side, back part: flat light top -> soft lip -> light upright face (faces the pilot)
+  // -> flat dark underside (leg room) -> dark upright leg-room face down to the floor.
+  const DASH_TOP = 0.35; // height of the flat top (drawing height)
+  const KNEE_TOP = 0.178; // height of the leg-room opening
+  const KNEE_DEPTH = 0.63; // the leg-room face, as a share of the way from the nose to the lip
+  const SOFT = 0.03; // the soft lip, crates
   const LIP_MIDDLE = 0.23; // how far back the middle section reaches (top view)
   const LIP_WING_END: V2 = [0.375, 0.4]; // where the wings' back edge meets the cabin side (along, across)
   const MID_HALF = 0.2; // half width of the straight middle section
-  const DASH_MAX = 0.315; // the dashboard stays just below the window's lower edge (front view), so it never blocks it
   const lipOf = (u: number): number => {
     const a = Math.abs(u);
     if (a <= MID_HALF) return LIP_MIDDLE;
@@ -274,69 +278,122 @@ function buildShell(): AssetModel {
     }
     return 1;
   };
+  /** Height (crates) of the dashboard's flat top at a floor point: the drawing height, or just under the shell. */
+  const shelf = (x: number, v: number): number => Math.max(0, Math.min(DASH_TOP * LENGTH, roofHeightAt(x, v) - 0.004));
   // Where the wing's back edge reaches the nose outline: the dashboard's outer end.
   let uEnd = MID_HALF;
   while (uEnd < 0.47 && noseOf(uEnd + 0.002) < lipOf(uEnd + 0.002)) uEnd += 0.002;
   const US = [-uEnd, -0.36, -0.32, -0.28, -0.24, -MID_HALF, -0.1, 0, 0.1, MID_HALF, 0.24, 0.28, 0.32, 0.36, uEnd];
-  const dashPoint = (u: number, d: number, h: number): V3 => {
-    const v = noseOf(u) + d * (lipOf(u) - noseOf(u));
-    const x = u * LENGTH;
-    const top = Math.max(0, roofHeightAt(x, v) - 0.04); // stay just under the roof near the nose sides
-    return [x, Math.min(h, DASH_MAX) * LENGTH > top ? top : Math.min(h, DASH_MAX) * LENGTH, zOf(v)];
-  };
+  const DS = [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.88]; // along the top, from the nose (0) to just before the lip (1)
+  const softV = SOFT / LENGTH;
   for (let i = 0; i + 1 < US.length; i++) {
-    for (let k = 0; k + 1 < DASH_PROFILE.length; k++) {
-      const [d0, h0] = DASH_PROFILE[k]!;
-      const [d1, h1] = DASH_PROFILE[k + 1]!;
-      const quad = [dashPoint(US[i]!, d0, h0), dashPoint(US[i]!, d1, h1), dashPoint(US[i + 1]!, d1, h1), dashPoint(US[i + 1]!, d0, h0)];
-      emit(k < DASH_LIGHT ? "interior dashboard" : "interior dashboard underside", quad);
+    const col = (u: number): V3[] => {
+      const x = u * LENGTH;
+      const n0 = noseOf(u);
+      const lip = lipOf(u);
+      const along = (d: number): number => n0 + d * (lip - n0);
+      const pts: V3[] = DS.map((d) => [x, shelf(x, along(d)), zOf(along(d))]);
+      const vTopEnd = lip - softV;
+      const hTop = shelf(x, vTopEnd);
+      pts.push([x, hTop, zOf(vTopEnd)]); // end of the flat top
+      const hLip = Math.max(Math.min(hTop - SOFT, shelf(x, lip)), KNEE_TOP * LENGTH);
+      pts.push([x, hLip, zOf(lip)]); // the soft lip
+      pts.push([x, KNEE_TOP * LENGTH, zOf(lip)]); // bottom of the light upright face
+      const vKnee = along(KNEE_DEPTH);
+      pts.push([x, KNEE_TOP * LENGTH, zOf(vKnee)]); // under the dashboard
+      pts.push([x, 0, zOf(vKnee)]); // the leg-room face reaches the floor
+      return pts;
+    };
+    const A = col(US[i]!);
+    const B = col(US[i + 1]!);
+    const towards = new THREE.Vector3(0, 1.4, zOf(0.6));
+    for (let k = 0; k + 1 < A.length; k++) {
+      const name = k < DS.length + 2 ? "interior dashboard (may cover window edge)" : "interior dashboard underside";
+      emit(name, [A[k]!, A[k + 1]!, B[k + 1]!, B[k]!], towards);
     }
   }
-  // The centre stack: three light plates on the leg-room face of the middle section, floor up to the dashboard.
+  // The centre stack: light plates on the leg-room face of the middle section, above the centre console.
   {
-    const vFace = 0.63 * LIP_MIDDLE + 0.004;
+    const vFace = KNEE_DEPTH * LIP_MIDDLE + 0.003;
     const half = 0.07 * LENGTH;
-    for (const [a, b] of [[0.004, 0.075], [0.083, 0.152], [0.16, 0.172]] as const) {
+    for (const [a, b] of [[0.105, 0.138], [0.144, 0.172]] as const) {
       emit("interior centre stack", [[-half, a * LENGTH, zOf(vFace)], [half, a * LENGTH, zOf(vFace)], [half, b * LENGTH, zOf(vFace)], [-half, b * LENGTH, zOf(vFace)]]);
     }
   }
 
-  // CENTRE CONSOLE: a low block between the seats, two sections, rounded back end, softened top edges.
+  // SIDE COLUMNS: one along each side, from the end of the dashboard's wing back past the pilot's knees.
+  // Upright inner face; flat top at the drawing height, or just under the shell where the roof is lower.
+  {
+    const COL_IN = 0.39; // inner face, across (share of length)
+    const COL_TOP = 0.277;
+    const v0 = lipOf(COL_IN);
+    const v1 = 0.6;
+    const vs = [v0, v0 + 0.04, v0 + 0.08, 0.5, 0.55, v1];
+    const xIn = COL_IN * LENGTH;
+    const topAt = (x: number, v: number): number => Math.max(0, Math.min(COL_TOP * LENGTH, roofHeightAt(x, v) - 0.004));
+    const away = new THREE.Vector3(0, 0.6, zOf(0.5));
+    for (const side of [-1, 1] as const) {
+      for (let i = 0; i + 1 < vs.length; i++) {
+        const a = vs[i]!;
+        const b = vs[i + 1]!;
+        const sx = side * xIn;
+        // inner face
+        emit("interior side columns", [[sx, 0, zOf(a)], [sx, 0, zOf(b)], [sx, topAt(sx, b), zOf(b)], [sx, topAt(sx, a), zOf(a)]], away);
+        // top: from the inner edge out to the cabin side, in two strips
+        const outA = side * (halfWidth(a) - 0.002);
+        const outB = side * (halfWidth(b) - 0.002);
+        const midA = (sx + outA) / 2;
+        const midB = (sx + outB) / 2;
+        const strip = (pa: number, pb: number, qa: number, qb: number): void =>
+          emit("interior side columns", [[pa, topAt(pa, a), zOf(a)], [pb, topAt(pb, b), zOf(b)], [qb, topAt(qb, b), zOf(b)], [qa, topAt(qa, a), zOf(a)]], new THREE.Vector3(0, 5, zOf(0.5)));
+        strip(sx, sx, midA, midB);
+        strip(midA, midB, outA, outB);
+      }
+      // back end, facing the back of the cabin
+      const sx = side * xIn;
+      const out = side * (halfWidth(v1) - 0.002);
+      const mid = (sx + out) / 2;
+      emit("interior side columns", [[sx, 0, zOf(v1)], [out, 0, zOf(v1)], [out, topAt(out, v1), zOf(v1)], [mid, topAt(mid, v1), zOf(v1)], [sx, topAt(sx, v1), zOf(v1)]], new THREE.Vector3(0, 0.5, zOf(1)));
+    }
+  }
+
+  // CENTRE CONSOLE: a low block between the seats, joined to the dashboard's leg-room face, two sections,
+  // rounded back end, softened top edges.
   {
     const half = 0.08 * LENGTH;
     const soft = 0.03; // chamfer, crates
-    const heightAt = (v: number): number => (v < 0.39 ? 0.1 + ((v - 0.238) / (0.39 - 0.238)) * (0.067 - 0.1) : 0.066) * LENGTH;
+    const vFront = KNEE_DEPTH * LIP_MIDDLE; // on the dashboard's leg-room face
+    const heightAt = (v: number): number => (v < 0.39 ? 0.1 + ((v - vFront) / (0.39 - vFront)) * (0.067 - 0.1) : 0.066) * LENGTH;
     // Outline seen from above: (x, v), going round. The back end is a half round.
-    const outline: V2[] = [[-half, 0.238], [half, 0.238]];
+    const ring: V2[] = [[-half, vFront], [half, vFront]];
     for (let i = 0; i <= 6; i++) {
       const a = (i / 6) * Math.PI;
-      outline.push([half * Math.cos(a), 0.544 + (Math.sin(a) * half) / LENGTH]);
+      ring.push([half * Math.cos(a), 0.544 + (Math.sin(a) * half) / LENGTH]);
     }
-    const ring = outline; // front-left, front-right, then the round end from right to left
     const n = ring.length;
-    const inset = (p: V2): V2 => {
+    // The soft top edge: pulled in sideways and at the round end, but not at the front (it meets the dashboard).
+    const inset = (p: V2, i: number): V2 => {
       const [x, v] = p;
-      const cx = 0;
-      const cv = 0.4;
-      const dx = x - cx;
-      const dv = (v - cv) * LENGTH;
+      if (i < 2) return [x - Math.sign(x) * soft, v];
+      const dx = x;
+      const dv = (v - 0.544) * LENGTH;
       const len = Math.hypot(dx, dv) || 1;
       return [x - (dx / len) * soft, v - ((dv / len) * soft) / LENGTH];
     };
-    for (let i = 0; i < n; i++) {
+    const top = ring.map(inset);
+    const mid = new THREE.Vector3(0, 0.1, zOf(0.4));
+    for (let i = 1; i < n; i++) {
+      // Sides and round end (the front, i = 0, sits against the dashboard and is not needed).
       const a = ring[i]!;
       const b = ring[(i + 1) % n]!;
-      const ai = inset(a);
-      const bi = inset(b);
+      const ai = top[i]!;
+      const bi = top[(i + 1) % n]!;
       const ha = heightAt(a[1]);
       const hb = heightAt(b[1]);
-      // Side face up to the chamfer, then the chamfer strip.
-      const mid = new THREE.Vector3(0, 0.1, zOf(0.4));
       emitAway("interior centre console", [[a[0], 0, zOf(a[1])], [b[0], 0, zOf(b[1])], [b[0], hb - soft, zOf(b[1])], [a[0], ha - soft, zOf(a[1])]], mid);
       emitAway("interior centre console", [[a[0], ha - soft, zOf(a[1])], [b[0], hb - soft, zOf(b[1])], [bi[0], heightAt(bi[1]), zOf(bi[1])], [ai[0], heightAt(ai[1]), zOf(ai[1])]], mid);
     }
     // The top, split into two sections by a dark line at v = 0.374.
-    const top = ring.map(inset);
     const split = 0.374;
     const front = top.filter((p) => p[1] <= split);
     const back = top.filter((p) => p[1] > split);
@@ -349,14 +406,28 @@ function buildShell(): AssetModel {
     emit("interior console line", [[-hx, heightAt(split) - 0.003, zOf(split - 0.004)], [hx, heightAt(split) - 0.003, zOf(split - 0.004)], [hx, heightAt(split) - 0.003, zOf(split + 0.004)], [-hx, heightAt(split) - 0.003, zOf(split + 0.004)]], new THREE.Vector3(0, 5, zOf(0.4)));
   }
 
-  // OVERHEAD PANEL: a strip hanging under the middle of the roof, from about halfway back to the back wall.
+  // OVERHEAD PANEL: a strip hanging under the middle of the roof, from the window's edge back to the back wall.
   // Seen from the front: a narrow light face underneath, sloping sides up to the roof.
   {
-    const vs = [0.52, 0.56, 0.62, 0.7, 0.78, 0.86, 0.93, 0.957];
     const bottomHalf = 0.06 * LENGTH;
     const topHalf = 0.12 * LENGTH;
     const drop = 0.05 * LENGTH;
-    const taper = (v: number): number => Math.min(1, (v - 0.52) / 0.05);
+    const TAPER = 0.05;
+    const vEnd = 0.957;
+    const solidAt = (x: number, v: number): boolean => windowField(x, roofHeightAt(x, v), v) > 0.015;
+    const fits = (start: number): boolean => {
+      for (let v = start; v <= vEnd; v += 0.005) {
+        const w = topHalf * Math.min(1, (v - start) / TAPER) + 0.03;
+        for (const x of [0, w / 2, w]) if (!solidAt(x, v) || !solidAt(-x, v)) return false;
+      }
+      return true;
+    };
+    let vStart = 0.2;
+    while (vStart < 0.9 && !fits(vStart)) vStart += 0.005;
+    const taper = (v: number): number => Math.min(1, (v - vStart) / TAPER);
+    const vs = [vStart, vStart + 0.02, vStart + TAPER];
+    for (let v = vStart + TAPER + 0.07; v < vEnd - 0.03; v += 0.07) vs.push(v);
+    vs.push(vEnd);
     const sect = (v: number): V3[] => {
       const t = taper(v);
       const xb = bottomHalf * t;
@@ -373,8 +444,7 @@ function buildShell(): AssetModel {
       emit("interior overhead panel sides", [a[2]!, b[2]!, b[3]!, a[3]!], below);
       emit("interior overhead panel", [a[1]!, b[1]!, b[2]!, a[2]!], below);
     }
-    const end = sect(0.957);
-    emit("interior overhead panel sides", end, new THREE.Vector3(0, 0, zOf(0.5)));
+    emit("interior overhead panel sides", sect(vEnd), new THREE.Vector3(0, 0, zOf(0.5)));
   }
 
   const colours = {
@@ -384,7 +454,8 @@ function buildShell(): AssetModel {
     "interior right wall": "hullDark",
     "interior front wall": "hullDark",
     "interior back wall": "hullDark",
-    "interior dashboard": "hullLight",
+    "interior dashboard (may cover window edge)": "hullLight",
+    "interior side columns": "hullMid",
     "interior dashboard underside": "frame",
     "interior centre stack": "hullLight",
     "interior centre console": "hullMid",
