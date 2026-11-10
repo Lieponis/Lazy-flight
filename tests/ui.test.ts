@@ -43,6 +43,7 @@ import {
   shortUpgradeReason,
   upgradeRowText,
   upgradeSummary,
+  upgradeTracksFor,
   sortForDisplay,
   visibleControls,
 } from "../src/ui/logic";
@@ -428,7 +429,7 @@ describe("ui 5d: upgrades and real numbers", () => {
     expect(c.stats.cargo).toBe("33"); // 30 + 10%
     expect(c.fuel).toBe("FUEL 50/72");
     expect(c.upgradable).toBe(true);
-    expect(c.upgradeLevels).toBe("3/20");
+    expect(c.upgradeLevels).toBe("3/15"); // the Hauler has no cabin: no comfort track
   });
 
   it("ships you do not own have no upgrades button", () => {
@@ -464,9 +465,17 @@ describe("ui 5d: upgrades and real numbers", () => {
     expect(shortUpgradeReason("", 1, 0)).toBe("");
   });
 
-  it("upgrade summary counts all four tracks", () => {
+  it("upgrade summary counts the tracks the ship can use", () => {
     expect(upgradeSummary({ tank: 0, hold: 0, engines: 0, comfort: 0 })).toBe("0/20");
     expect(upgradeSummary({ tank: 5, hold: 2, engines: 1, comfort: 0 })).toBe("8/20");
+    expect(upgradeSummary({ tank: 5, hold: 2, engines: 1, comfort: 3 }, 5, 0)).toBe("8/15"); // no cabin: comfort not counted
+  });
+
+  it("no Passenger Comfort for a ship without a cabin (Andy)", () => {
+    expect(upgradeTracksFor(0)).toEqual(["tank", "hold", "engines"]);
+    expect(upgradeTracksFor(12)).toEqual(["tank", "hold", "engines", "comfort"]);
+    const liner = shipCatalog({ ...rich(), ownedShips: { "passenger-liner": { fuel: 50 } } }).find((e) => e.ship.id === "passenger-liner")!;
+    expect(shipCardText(liner, 0).upgradeLevels).toBe("0/20");
   });
 
   it("efficient engines lower the fuel a trip burns (the number the cockpit and cards use)", () => {

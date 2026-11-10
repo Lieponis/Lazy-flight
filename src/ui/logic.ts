@@ -273,7 +273,7 @@ export function shipCardText(entry: ShipCatalogEntry, credits: number): ShipCard
     action,
     reason,
     upgradable: entry.owned,
-    upgradeLevels: entry.owned ? upgradeSummary(entry.upgrades) : "",
+    upgradeLevels: entry.owned ? upgradeSummary(entry.upgrades, 5, entry.stats.cabinCapacity) : "",
   };
 }
 
@@ -381,10 +381,19 @@ export function ownedOutpostLine(o: OwnedOutpost): string {
 
 // ------------------------------------------------------------ ship upgrades (5d)
 
-/** "3/20": levels bought out of all four tracks. */
-export function upgradeSummary(levels: { tank: number; hold: number; engines: number; comfort: number }, maxLevel = 5): string {
-  const done = levels.tank + levels.hold + levels.engines + levels.comfort;
-  return `${done}/${maxLevel * 4}`;
+/**
+ * Which upgrade tracks make sense for a ship. Passenger Comfort only helps a ship with a cabin
+ * (Andy, 5d: the Cargo Hauler has no seats, so it does not get the comfort upgrade).
+ */
+export function upgradeTracksFor(cabinCapacity: number): ("tank" | "hold" | "engines" | "comfort")[] {
+  return cabinCapacity > 0 ? ["tank", "hold", "engines", "comfort"] : ["tank", "hold", "engines"];
+}
+
+/** "3/15" or "3/20": levels bought out of the tracks this ship can use. */
+export function upgradeSummary(levels: { tank: number; hold: number; engines: number; comfort: number }, maxLevel = 5, cabinCapacity = 1): string {
+  const tracks = upgradeTracksFor(cabinCapacity);
+  const done = tracks.reduce((sum, t) => sum + levels[t], 0);
+  return `${done}/${maxLevel * tracks.length}`;
 }
 
 /** Turns the game's upgrade reason into short plain words. */

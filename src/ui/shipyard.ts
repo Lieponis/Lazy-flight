@@ -6,7 +6,7 @@
 
 import type { Game } from "../game";
 import { button, el } from "./dom";
-import { formatCredits, shipCardText, upgradeRowText, type ShipCardText } from "./logic";
+import { formatCredits, shipCardText, upgradeRowText, upgradeTracksFor, type ShipCardText } from "./logic";
 import { Popup } from "./popup";
 import { shipPictures } from "./shippreview";
 
@@ -99,7 +99,8 @@ export class Shipyard {
   private upgrades(shipId: string, shipName: string): HTMLElement {
     const wrap = el("div", "ui-upgrades");
     const credits = this.game.state.credits;
-    for (const offer of this.game.getUpgradeOffers(shipId)) {
+    const tracks: string[] = upgradeTracksFor(this.game.getShipStats(shipId).cabinCapacity); // no comfort without a cabin
+    for (const offer of this.game.getUpgradeOffers(shipId).filter((o) => tracks.includes(o.track))) {
       const t = upgradeRowText(offer, credits);
       const row = el("div", t.maxed ? "ui-upgrade ui-upgrade-max" : "ui-upgrade");
       const top = el("div", "ui-card-top");
