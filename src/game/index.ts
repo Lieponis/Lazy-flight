@@ -57,6 +57,7 @@ export {
 export type { BuyOutpostResult, DockFacts } from "./outposts";
 export {
   UPGRADE_TRACKS,
+  upgradeTracksOf,
   UPGRADE_TRACK_NAMES,
   buyUpgrade,
   cleanUpgrades,

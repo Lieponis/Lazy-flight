@@ -110,10 +110,21 @@ function ownsShipHere(state: GameState, shipId: string): boolean {
   return shipId === state.shipId || shipId in state.ownedShips;
 }
 
+/** Does the ship have a cabin (in the shipyard; a hold upgrade never creates one)? Comfort needs a cabin. */
+function hasCabin(shipId: string): boolean {
+  return getShip(shipId).cabinCapacity > 0;
+}
+
+/** The tracks a ship can use: all four, or three for a ship without a cabin (no Passenger Comfort). */
+export function upgradeTracksOf(shipId: string): UpgradeTrack[] {
+  return isShipId(shipId) && !hasCabin(shipId) ? UPGRADE_TRACKS.filter((t) => t !== "comfort") : UPGRADE_TRACKS;
+}
+
 /** Why this level cannot be bought right now ("" when it can). */
 export function upgradeBlock(state: GameState, shipId: string, track: string): string {
   if (!isShipId(shipId)) return "There is no such ship.";
   if (!isUpgradeTrack(track)) return "There is no such upgrade.";
+  if (track === "comfort" && !hasCabin(shipId)) return "This ship has no cabin, so passenger comfort does nothing.";
   if (!ownsShipHere(state, shipId)) return "You do not own this ship.";
   if (state.currentJob) return "You cannot buy an upgrade during a flight.";
   const level = upgradeLevels(state, shipId)[track];
@@ -175,11 +186,14 @@ function effectText(shipId: string, track: UpgradeTrack, levels: ShipUpgrades): 
   }
 }
 
-/** The four rows for one ship (default: the active ship). Works for any ship you own; others get "You do not own this ship.". */
+/**
+ * The rows for one ship (default: the active ship): four, or three for a ship without a cabin (no Passenger Comfort).
+ * Works for any ship you own; others get "You do not own this ship.".
+ */
 export function upgradeOffers(state: GameState, shipId: string = state.shipId): UpgradeOffer[] {
   const valid = isShipId(shipId);
   const levels = valid ? upgradeLevels(state, shipId) : noUpgrades();
-  return UPGRADE_TRACKS.map((track) => {
+  return upgradeTracksOf(shipId).map((track) => {
     const reason = upgradeBlock(state, shipId, track);
     return {
       track,
