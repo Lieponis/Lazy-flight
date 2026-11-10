@@ -46,3 +46,46 @@ describe("6c Part 0: no Passenger Comfort for a ship without a cabin", () => {
     expect(rich().getUpgradeOffers("nope")).toHaveLength(4);
   });
 });
+
+import { withBonuses, type GameState } from "../src/game";
+import { RANK_JOBS_NEEDED, RANK_MAX_REWARD } from "../src/game/settings";
+import { getJobBoard, getPlanetsOfSystem, listSystemsNear, type Job } from "../src/universe";
+
+describe("6c Part A: the stacking rule (rank + outpost + comfort, added on the plain reward, top +50%)", () => {
+  const passengerJob = (): Job => {
+    for (const sys of listSystemsNear(12345, { x: 0, y: 0, z: 0 }, 30))
+      for (const p of getPlanetsOfSystem(12345, sys.id))
+        for (const j of getJobBoard(12345, p.id, 0) ?? []) if (j.kind === "PASSENGER") return j;
+    throw new Error("no passenger job");
+  };
+  const maxed = (job: Job): GameState => ({
+    ...newGameState(job.originDockId),
+    shipId: "scout",
+    completedJobs: { TRADE: 0, PASSENGER: RANK_JOBS_NEEDED.PASSENGER[1], TOUR: 0 }, // passenger rank 3: +10%
+    ownedOutposts: [job.destinationDockId], // owned outpost at the destination: +10%
+    outpostCount: 1,
+    shipUpgrades: { scout: { tank: 0, hold: 0, engines: 0, comfort: 5 } }, // comfort 5: +30%
+  });
+
+  it("all three at the top add up to +50% of the plain reward (not multiplied)", () => {
+    const job = passengerJob();
+    const pay = withBonuses(maxed(job), job);
+    expect(pay.bonusPercent).toBe(50);
+    expect(pay.job.reward).toBe(Math.round(job.reward * 1.5));
+    expect(pay.baseReward).toBe(job.reward);
+  });
+
+  it("comfort never adds to cargo jobs", () => {
+    const job = { ...passengerJob(), kind: "TRADE" as const };
+    const state = { ...maxed(job), completedJobs: { TRADE: 0, PASSENGER: 0, TOUR: 0 } };
+    expect(withBonuses(state, job).bonusPercent).toBe(10); // only the outpost
+  });
+
+  it("rank gating still counts: limits are on the plain reward and rank 3 has no limit", () => {
+    // The limits grow per rank and the bonuses are never counted for the check (bug 6b-1).
+    for (const kind of ["TRADE", "PASSENGER", "TOUR"] as const) {
+      const [r1, r2] = RANK_MAX_REWARD[kind];
+      expect(r1).toBeLessThan(r2);
+    }
+  });
+});

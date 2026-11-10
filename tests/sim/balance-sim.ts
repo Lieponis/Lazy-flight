@@ -5,7 +5,7 @@
 // Run the full report:   npm run balance
 // A small version runs in tests/balance-sim.test.ts as part of npm run check.
 
-import { Game, createClock, fuelCost, getShip, type BoardEntry } from "../../src/game";
+import { Game, createClock, fuelCost, getShip, upgradeTracksOf, type BoardEntry, type UpgradeTrack } from "../../src/game";
 import { findStartSystem } from "../../src/render/start";
 import { getPlanetsOfSystem, type Job } from "../../src/universe";
 import { JOB_BOARD_REFRESH_SLOTS } from "../../src/universe/settings";
@@ -29,6 +29,11 @@ export interface Strategy {
   score(entry: BoardEntry): number;
   /** Fill the tank before every job (lazy) or only when needed. */
   alwaysFillTank: boolean;
+  /**
+   * Upgrades (4d): null = never buys any. Otherwise buys the cheapest next level on the ships it owns
+   * (active ship first) when credits >= price x `factor` + `reserve`. Outposts and ships come first.
+   */
+  upgrades: { reserve: number; factor: number; afterFirstOutpost?: boolean } | null;
 }
 
 /** Thinking time per docked decision (open Jobs, read, tap Accept). */
@@ -37,13 +42,25 @@ const THINK_MS = 30_000;
 export const STRATEGIES: Strategy[] = [
   {
     name: "sensible",
-    about: "comes back when the ship lands; best pay per minute; buys Liner then Scout; buys the first outpost it can afford (keeps 500 cr)",
+    about: "comes back when the ship lands; best pay per minute; buys Liner then Scout; buys the first outpost it can afford, then upgrades, cheapest level first (keeps 500 cr)",
     returnDelayMs: () => 0,
     usesAllShips: true,
     shipsToBuy: ["passenger-liner", "scout"],
     outpostReserve: 500,
     score: (e) => (e.job.reward - e.fuelNeeded * 2) / (e.tripSeconds + 60),
     alwaysFillTank: false,
+    upgrades: { reserve: 500, factor: 1 },
+  },
+  {
+    name: "planner",
+    about: "like sensible, but saves for the first outpost and only then starts buying upgrades",
+    returnDelayMs: () => 0,
+    usesAllShips: true,
+    shipsToBuy: ["passenger-liner", "scout"],
+    outpostReserve: 500,
+    score: (e) => (e.job.reward - e.fuelNeeded * 2) / (e.tripSeconds + 60),
+    alwaysFillTank: false,
+    upgrades: { reserve: 500, factor: 1, afterFirstOutpost: true },
   },
   {
     name: "casual",
@@ -54,26 +71,29 @@ export const STRATEGIES: Strategy[] = [
     outpostReserve: 500,
     score: (e) => (e.job.reward - e.fuelNeeded * 2) / (e.tripSeconds + 60),
     alwaysFillTank: false,
+    upgrades: { reserve: 500, factor: 1 },
   },
   {
     name: "spender",
-    about: "comes back when the ship lands; biggest reward; buys ships and outposts the moment it can (no reserve); refuels only when needed",
+    about: "comes back when the ship lands; biggest reward; buys ships, outposts and upgrades the moment it can (no reserve); refuels only when needed",
     returnDelayMs: () => 0,
     usesAllShips: true,
     shipsToBuy: ["scout", "passenger-liner"],
     outpostReserve: 0,
     score: (e) => e.job.reward,
     alwaysFillTank: false,
+    upgrades: { reserve: 0, factor: 1 },
   },
   {
     name: "lazy",
-    about: "comes back when the ship lands; always takes the biggest reward it can; fills the tank every time; never buys anything",
+    about: "comes back when the ship lands; always takes the biggest reward it can; fills the tank every time; never buys ships or outposts; buys an upgrade for its one ship only when it has twice the price",
     returnDelayMs: () => 0,
     usesAllShips: false,
     shipsToBuy: [],
     outpostReserve: null,
     score: (e) => e.job.reward,
     alwaysFillTank: true,
+    upgrades: { reserve: 0, factor: 2 },
   },
 ];
 
@@ -117,6 +137,18 @@ export interface RunResult {
   jobsToOutpost: number | null;
   /** Jobs delivered when credits first reached 1500. */
   jobsTo1500: number | null;
+  /** Upgrades: hours until the first level of each track (any ship), until one full track, until every track of one ship is full. */
+  firstLevelHours: Record<UpgradeTrack, number | null>;
+  hoursToFullTrack: number | null;
+  hoursToAllTracksOneShip: number | null;
+  /** Hours until the first upgrade of any kind, and jobs done by then. */
+  hoursToFirstUpgrade: number | null;
+  upgradeLevelsBought: number;
+  spentOnUpgrades: number;
+  spentOnFuel: number;
+  /** Tour board lines seen with the ACTIVE ship that were blocked as too far for its (real) tank. */
+  tourLinesSeen: number;
+  tourLinesTooFar: number;
   /** Jobs taken by kind. */
   kinds: Record<string, number>;
 }
@@ -132,7 +164,7 @@ function startDockOf(seed: number): string {
 function takeable(game: Game, entry: BoardEntry): boolean {
   if (!entry.block) return true;
   if (entry.block.code !== "not-enough-fuel") return false;
-  const tank = getShip(game.state.shipId).fuelTankSize;
+  const tank = game.getShipStats().fuelTankSize;
   const units = Math.floor(game.state.credits / 2); // close enough: discounts only make fuel cheaper
   return entry.fuelNeeded <= Math.min(tank, game.state.fuel + units);
 }
@@ -141,7 +173,8 @@ function takeable(game: Game, entry: BoardEntry): boolean {
  * tripScale: WHAT-IF only. 1 = the real rules. 0.25 = every trip takes a quarter of the time
  * (as if TRAVEL_SECONDS_PER_LY were 4x smaller). Money per job does not change.
  */
-export function simulate(seed: number, strategy: Strategy, hours: number, tripScale = 1): RunResult {
+export function simulate(seed: number, strategyIn: Strategy, hours: number, tripScale = 1, withUpgrades = true): RunResult {
+  const strategy: Strategy = withUpgrades ? strategyIn : { ...strategyIn, upgrades: null };
   let t = 1_000 * HOUR; // any start time; slots and boards follow from it
   const t0 = t;
   const end = t0 + hours * HOUR;
@@ -175,6 +208,15 @@ export function simulate(seed: number, strategy: Strategy, hours: number, tripSc
     toursSeen: 0,
     toursTooFarForLiner: 0,
     acceptRefused: 0,
+    firstLevelHours: { tank: null, hold: null, engines: null, comfort: null },
+    hoursToFullTrack: null,
+    hoursToAllTracksOneShip: null,
+    hoursToFirstUpgrade: null,
+    upgradeLevelsBought: 0,
+    spentOnUpgrades: 0,
+    spentOnFuel: 0,
+    tourLinesSeen: 0,
+    tourLinesTooFar: 0,
     outpostVisits: 0,
     outpostPricesSeen: [],
     jobsToOutpost: null,
@@ -249,12 +291,44 @@ export function simulate(seed: number, strategy: Strategy, hours: number, tripSc
       }
     }
 
+    // Upgrades: cheapest next level among owned ships (active ship first on a tie), one at a time.
+    if (strategy.upgrades && !(strategy.upgrades.afterFirstOutpost && r.hoursToOutpost === null)) {
+      const { reserve, factor } = strategy.upgrades;
+      const owned = [game.state.shipId, ...Object.keys(game.state.ownedShips)];
+      const ships = strategy.usesAllShips ? owned : [game.state.shipId];
+      for (;;) {
+        let pick: { ship: string; track: UpgradeTrack; price: number } | null = null;
+        for (const ship of ships) {
+          for (const o of game.getUpgradeOffers(ship)) {
+            if (o.nextPrice === null) continue;
+            if (!pick || o.nextPrice < pick.price) pick = { ship, track: o.track, price: o.nextPrice };
+          }
+        }
+        if (!pick || game.state.credits < pick.price * factor + reserve) break;
+        const res = game.buyUpgrade(pick.ship, pick.track);
+        if (!res.ok) break;
+        r.upgradeLevelsBought++;
+        r.spentOnUpgrades += res.price;
+        if (r.hoursToFirstUpgrade === null) r.hoursToFirstUpgrade = hoursNow();
+        if (r.firstLevelHours[pick.track] === null) r.firstLevelHours[pick.track] = hoursNow();
+        const levels = game.state.shipUpgrades[pick.ship]!;
+        if (r.hoursToFullTrack === null && levels[pick.track] >= 5) r.hoursToFullTrack = hoursNow();
+        if (r.hoursToAllTracksOneShip === null && upgradeTracksOf(pick.ship).every((t) => levels[t] >= 5)) {
+          r.hoursToAllTracksOneShip = hoursNow();
+        }
+      }
+    }
+
     // Count what the board looks like with the active ship.
     const board = game.getBoard();
     r.boardsSeen++;
     for (const e of board) {
       const code = e.block ? e.block.code : "ok";
       r.blocks[code] = (r.blocks[code] ?? 0) + 1;
+      if (e.job.kind === "TOUR" && game.getShipStats().cabinCapacity > 0) {
+        r.tourLinesSeen++;
+        if (code === "tank-too-small") r.tourLinesTooFar++;
+      }
       if (e.job.kind === "TOUR" && !toursCounted.has(e.job.id)) {
         toursCounted.add(e.job.id);
         r.toursSeen++;
@@ -278,7 +352,11 @@ export function simulate(seed: number, strategy: Strategy, hours: number, tripSc
 
     if (best) {
       if (game.state.shipId !== best.ship) game.switchShip(best.ship);
-      if (strategy.alwaysFillTank || game.state.fuel < best.fuel) game.refuel();
+      if (strategy.alwaysFillTank || game.state.fuel < best.fuel) {
+        const before = game.state.credits;
+        game.refuel();
+        r.spentOnFuel += before - game.state.credits;
+      }
       if (delivered.has(best.job.id)) r.repeatJobs++;
       const res = game.accept(best.job.id);
       if (!res.ok) {

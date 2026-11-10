@@ -62,6 +62,39 @@ const prices = visits.flatMap((r) => r.outpostPricesSeen).sort((a, b) => a - b);
 const decisions = visits.reduce((a, r) => a + r.boardsSeen, 0);
 console.log(`\nOutposts (sensible): docked at a surface outpost in ${visits.reduce((a, r) => a + r.outpostVisits, 0)} of ${decisions} stops; prices seen min ${prices[0] ?? "-"}, median ${prices[Math.floor(prices.length / 2)] ?? "-"}, max ${prices[prices.length - 1] ?? "-"}.`);
 
+// ------------------------------------------------------------ upgrades (6c)
+const UP_HOURS = Number(process.argv[4] ?? 100);
+console.log(`\n## Upgrades (${UP_HOURS} game hours per run, medians; "never" = most runs did not get there)\n`);
+console.log("| strategy | 1st upgrade (h) | 1st tank | 1st hold | 1st engines | 1st comfort | a full track (h) | all tracks, one ship (h) | levels bought | spent on upgrades | credits at end |");
+console.log("|---|---|---|---|---|---|---|---|---|---|---|");
+const up: RunResult[] = [];
+const noUp: RunResult[] = [];
+for (const s of STRATEGIES)
+  for (const seed of SEEDS) {
+    up.push(simulate(seed, s, UP_HOURS, TRIP_SCALE, true));
+    noUp.push(simulate(seed, s, UP_HOURS, TRIP_SCALE, false));
+  }
+for (const s of STRATEGIES) {
+  const rs = up.filter((r) => r.strategy === s.name);
+  const f = (k: "tank" | "hold" | "engines" | "comfort"): string => fmt(median(rs.map((r) => r.firstLevelHours[k])));
+  console.log(
+    `| ${s.name} | ${fmt(median(rs.map((r) => r.hoursToFirstUpgrade)))} | ${f("tank")} | ${f("hold")} | ${f("engines")} | ${f("comfort")} | ${fmt(median(rs.map((r) => r.hoursToFullTrack)))} | ${fmt(median(rs.map((r) => r.hoursToAllTracksOneShip)))} | ${fmt(median(rs.map((r) => r.upgradeLevelsBought)), 0)} | ${fmt(median(rs.map((r) => r.spentOnUpgrades)), 0)} | ${fmt(median(rs.map((r) => r.creditsEnd)), 0)} |`,
+  );
+}
+console.log(`\n### With vs without upgrades (same players, ${UP_HOURS} h)\n`);
+console.log("| strategy | cr/hour without | cr/hour with | fuel spent without | fuel spent with | tour lines too far without | with | credits at end without | with |");
+console.log("|---|---|---|---|---|---|---|---|---|");
+for (const s of STRATEGIES) {
+  const a = noUp.filter((r) => r.strategy === s.name);
+  const b = up.filter((r) => r.strategy === s.name);
+  const share = (rs: RunResult[]): string => {
+    const seen = rs.reduce((x, r) => x + r.tourLinesSeen, 0);
+    return seen ? `${((100 * rs.reduce((x, r) => x + r.tourLinesTooFar, 0)) / seen).toFixed(0)}% of ${seen}` : "-";
+  };
+  const m = (rs: RunResult[], f: (r: RunResult) => number, d = 0): string => fmt(median(rs.map(f)), d);
+  console.log(`| ${s.name} | ${m(a, (r) => r.creditsPerHour)} | ${m(b, (r) => r.creditsPerHour)} | ${m(a, (r) => r.spentOnFuel)} | ${m(b, (r) => r.spentOnFuel)} | ${share(a)} | ${share(b)} | ${m(a, (r) => r.creditsEnd)} | ${m(b, (r) => r.creditsEnd)} |`);
+}
+
 console.log(`\n## Per seed (sensible)\n`);
 console.log("| seed | cr/hour | to 1500 | first ship | outpost (h) | price | credits at end | waits |");
 console.log("|---|---|---|---|---|---|---|---|");
