@@ -485,8 +485,8 @@ export class FlightScreen implements Screen {
     if (this.mode === "cockpit") {
       // The same facts on the cockpit's screens (only drawn while you are looking at them).
       this.screens.draw({
-        info: infoScreenData(info.destinationName, plan, COMPUTER_LINES, hashString(info.destinationDockId), COCKPIT_STATUS_SECONDS, COCKPIT_MESSAGE_SECONDS),
-        map: mapScreenData(fraction, hashString(info.destinationDockId)),
+        info: infoScreenData(info.destinationName, plan, COMPUTER_LINES, hashString(info.destinationDockId), COCKPIT_STATUS_SECONDS, COCKPIT_MESSAGE_SECONDS, fraction, info.stops),
+        map: mapScreenData(fraction, hashString(info.destinationDockId), 16, info.stops?.length ?? 0),
         fuel: fuelScreenData(info, fraction),
       });
     }

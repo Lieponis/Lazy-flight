@@ -41,6 +41,33 @@ export function twoLines(text: string, maxChars: number): [string, string] {
   return [t.slice(0, maxChars), shortText(t.slice(maxChars), maxChars)];
 }
 
+/** A tour's next stop. `number` counts from 1; `total` includes the final destination. */
+export interface NextStop {
+  number: number;
+  total: number;
+  name: string;
+  isFinal: boolean;
+}
+
+/** Where along the trip (0..1) each stop is: evenly spaced, the final destination at 1. The game flies tours straight to the last stop. */
+export function stopFractions(stopCount: number): number[] {
+  const n = Math.max(0, Math.floor(stopCount));
+  return Array.from({ length: n }, (_, i) => (i + 1) / n);
+}
+
+/**
+ * The next stop of a tour that the ship has not reached yet, by trip progress. Null when there is no tour (no stops, or just the one
+ * destination). Once the ship is (nearly) at the end the final destination is the next stop.
+ */
+export function nextStop(stops: readonly string[] | undefined, tripFraction: number): NextStop | null {
+  if (!stops || stops.length < 2) return null;
+  const f = Number.isFinite(tripFraction) ? Math.min(1, Math.max(0, tripFraction)) : 0;
+  const at = stopFractions(stops.length);
+  let i = at.findIndex((p) => p > f + 1e-9);
+  if (i < 0) i = stops.length - 1;
+  return { number: i + 1, total: stops.length, name: stops[i] ?? "", isFinal: i === stops.length - 1 };
+}
+
 export interface InfoScreenData {
   destination: string;
   countdown: string;
@@ -48,6 +75,8 @@ export interface InfoScreenData {
   /** "status" = destination, countdown and phase; "message" = a funny ship-computer line instead. */
   page: "status" | "message";
   message: string;
+  /** Tours only: the next stop (the status page then shows it instead of the plain destination). */
+  next: NextStop | null;
 }
 
 /** Which page the info screen shows `elapsedSeconds` into the trip, and which funny line (a new one every time the message page comes round). */
@@ -71,6 +100,8 @@ export function infoScreenData(
   salt = 0,
   statusSeconds = 15,
   messageSeconds = 10,
+  tripFraction = 0,
+  stops?: readonly string[],
 ): InfoScreenData {
   const remainingMs = plan.phase === "DONE" ? 0 : Math.max(0, plan.totalSeconds - plan.elapsedSeconds) * 1000;
   const { page, round } = infoPage(plan.elapsedSeconds, statusSeconds, messageSeconds);
@@ -78,6 +109,7 @@ export function infoScreenData(
   return {
     page: showMessage ? "message" : "status",
     message: lines[messageIndexFor(round, lines.length, salt)] ?? "",
+    next: plan.phase === "DONE" ? null : nextStop(stops, tripFraction),
     destination: destinationName.trim() || "UNKNOWN",
     countdown: formatCountdown(remainingMs),
     phase: PHASE_LABELS[plan.phase],
@@ -89,6 +121,8 @@ export interface Point {
   y: number;
 }
 export interface MapScreenData {
+  /** The tour's stops before the destination, on the route line (empty for ordinary jobs). */
+  stops: { at: Point; passed: boolean }[];
   origin: Point;
   destination: Point;
   ship: Point;
@@ -108,12 +142,15 @@ function seeded(seed: number): () => number {
   };
 }
 
-export function mapScreenData(tripFraction: number, starSeed: number, starCount = 16): MapScreenData {
+export function mapScreenData(tripFraction: number, starSeed: number, starCount = 16, stopCount = 0): MapScreenData {
   const f = Number.isFinite(tripFraction) ? Math.min(1, Math.max(0, tripFraction)) : 0;
   const rnd = seeded(starSeed);
   const stars: Point[] = [];
   for (let i = 0; i < starCount; i++) stars.push({ x: 0.04 + rnd() * 0.92, y: 0.16 + rnd() * 0.8 });
+  const lerpPoint = (t: number): Point => ({ x: MAP_ORIGIN.x + (MAP_DESTINATION.x - MAP_ORIGIN.x) * t, y: MAP_ORIGIN.y + (MAP_DESTINATION.y - MAP_ORIGIN.y) * t });
+  const stops = stopCount >= 2 ? stopFractions(stopCount).slice(0, -1).map((p) => ({ at: lerpPoint(p), passed: f >= p - 1e-9 })) : [];
   return {
+    stops,
     origin: MAP_ORIGIN,
     destination: MAP_DESTINATION,
     ship: { x: MAP_ORIGIN.x + (MAP_DESTINATION.x - MAP_ORIGIN.x) * f, y: MAP_ORIGIN.y + (MAP_DESTINATION.y - MAP_ORIGIN.y) * f },

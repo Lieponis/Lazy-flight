@@ -7,6 +7,8 @@ import {
   infoPage,
   infoScreenData,
   messageIndexFor,
+  nextStop,
+  stopFractions,
   mapScreenData,
   shortText,
   twoLines,
@@ -136,5 +138,60 @@ describe("cockpit screens: status page and funny messages", () => {
   it("arriving always shows the facts, and with no lines there are no messages", () => {
     expect(infoScreenData("X", plan({ phase: "DONE", elapsedSeconds: 12 }), lines, 0, 10, 5).page).toBe("status");
     expect(infoScreenData("X", plan({ elapsedSeconds: 12 }), [], 0, 10, 5).page).toBe("status");
+  });
+});
+
+describe("cockpit screens: tour stops", () => {
+  const tour = ["Alpha Station", "Beta Outpost", "Gamma Station"];
+  it("stops are spread evenly and the last one is at the end", () => {
+    expect(stopFractions(3)).toEqual([1 / 3, 2 / 3, 1]);
+    expect(stopFractions(1)).toEqual([1]);
+    expect(stopFractions(0)).toEqual([]);
+  });
+  it("the next stop changes as the ship passes each stop", () => {
+    expect(nextStop(tour, 0)?.name).toBe("Alpha Station");
+    expect(nextStop(tour, 0.2)?.number).toBe(1);
+    expect(nextStop(tour, 0.34)?.name).toBe("Beta Outpost");
+    expect(nextStop(tour, 0.7)?.name).toBe("Gamma Station");
+    expect(nextStop(tour, 0.7)?.isFinal).toBe(true);
+    expect(nextStop(tour, 1)?.name).toBe("Gamma Station");
+    expect(nextStop(tour, 0.2)?.total).toBe(3);
+    expect(nextStop(tour, 0.2)?.isFinal).toBe(false);
+  });
+  it("no stops, or just one, is not a tour", () => {
+    expect(nextStop(undefined, 0.5)).toBe(null);
+    expect(nextStop([], 0.5)).toBe(null);
+    expect(nextStop(["Only"], 0.5)).toBe(null);
+  });
+  it("two stops: the first, then the final", () => {
+    expect(nextStop(["A", "B"], 0.1)?.name).toBe("A");
+    expect(nextStop(["A", "B"], 0.6)?.name).toBe("B");
+    expect(nextStop(["A", "B"], 0.6)?.isFinal).toBe(true);
+  });
+  it("a broken progress does not break it", () => {
+    expect(nextStop(tour, Number.NaN)?.name).toBe("Alpha Station");
+    expect(nextStop(tour, 9)?.name).toBe("Gamma Station");
+  });
+  it("the info screen shows the next stop on tours only, and not once arrived", () => {
+    expect(infoScreenData("Gamma Station", plan(), [], 0, 15, 10, 0.4, tour).next?.name).toBe("Beta Outpost");
+    expect(infoScreenData("Gamma Station", plan(), [], 0, 15, 10, 0.4, ["Gamma Station"]).next).toBe(null);
+    expect(infoScreenData("X", plan(), [], 0, 15, 10, 0.4, undefined).next).toBe(null);
+    expect(infoScreenData("Gamma Station", plan({ phase: "DONE" }), [], 0, 15, 10, 1, tour).next).toBe(null);
+  });
+  it("the map shows the stops before the destination, and which ones the ship has passed", () => {
+    const m = mapScreenData(0.5, 1, 16, 3);
+    expect(m.stops.length).toBe(2);
+    expect(m.stops.map((s) => s.passed)).toEqual([true, false]);
+    expect(m.stops[0]!.at.x).toBeLessThan(m.stops[1]!.at.x);
+    expect(mapScreenData(0.5, 1, 16, 3).stops[1]!.at.x).toBeLessThan(m.destination.x);
+  });
+  it("ordinary jobs have no stop dots", () => {
+    expect(mapScreenData(0.5, 1).stops).toEqual([]);
+    expect(mapScreenData(0.5, 1, 16, 1).stops).toEqual([]);
+  });
+  it("long stop names are cut cleanly to two lines", () => {
+    const [a, b] = twoLines("The Extraordinarily Long Named Harbour Station", 11);
+    expect(a.length).toBeLessThanOrEqual(11);
+    expect(b.length).toBeLessThanOrEqual(11);
   });
 });

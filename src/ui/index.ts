@@ -189,6 +189,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
         originDockId: game.state.currentDockId,
         destinationDockId: job.destinationDockId,
         destinationName: dockName(job.destinationDockId),
+        stops: job.stops.map(dockName), // tours show their stops in the cockpit (one stop = not a tour)
         shipId: game.state.shipId,
         // For the cockpit's fuel screen: fuel left (the trip is already paid), the tank size, and what this trip burns.
         fuel: game.state.fuel,

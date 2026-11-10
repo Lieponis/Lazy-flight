@@ -152,15 +152,17 @@ function drawInfo(ctx: CanvasRenderingContext2D, w: number, h: number, d: InfoSc
     return;
   }
   ctx.font = `${BODY}px ${FONT}`;
-  const destLines = wrap(ctx, d.destination.toUpperCase(), w - 8 * k).slice(0, 2);
+  // Tours show the next stop (and the tour's end time) instead of the plain destination; the line count stays the same.
+  const heading = d.next ? `${d.next.isFinal ? "FINAL" : "NEXT"} STOP ${d.next.number}/${d.next.total}` : "TO";
+  const destLines = wrap(ctx, (d.next ? d.next.name : d.destination).toUpperCase(), w - 8 * k).slice(0, 2);
   drawBlock(
     ctx,
     w,
     h,
     [
-      { text: "TO", color: CYAN },
+      { text: heading, color: CYAN },
       ...destLines.map((text) => ({ text, color: LIGHT })),
-      { text: "ARRIVES IN", color: CYAN },
+      { text: d.next ? "TOUR ENDS IN" : "ARRIVES IN", color: CYAN },
       { text: d.countdown, color: LIGHT },
       { text: d.phase, color: CYAN },
     ],
@@ -200,6 +202,19 @@ function drawMap(ctx: CanvasRenderingContext2D, w: number, h: number, d: MapScre
   ctx.moveTo(ox, oy);
   ctx.lineTo(sx, sy);
   ctx.stroke();
+  // The tour's stops: a ring on the line, filled bright once the ship has passed it.
+  for (const stop of d.stops) {
+    const [tx, ty] = px(stop.at);
+    ctx.fillStyle = NAV_BACK;
+    ctx.fillRect(tx - 4 * k, ty - 4 * k, 8 * k, 8 * k);
+    ctx.strokeStyle = stop.passed ? LIGHT : CYAN;
+    ctx.lineWidth = 2 * k;
+    ctx.strokeRect(tx - 3 * k, ty - 3 * k, 6 * k, 6 * k);
+    if (stop.passed) {
+      ctx.fillStyle = LIGHT;
+      ctx.fillRect(tx - 1.5 * k, ty - 1.5 * k, 3 * k, 3 * k);
+    }
+  }
   // Start (cyan square), destination (big bright ring), ship (bright diamond with a dark edge).
   ctx.fillStyle = CYAN;
   ctx.fillRect(ox - 3.5 * k, oy - 3.5 * k, 7 * k, 7 * k);
