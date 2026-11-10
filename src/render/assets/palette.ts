@@ -43,6 +43,7 @@ export const PAL = {
   screenAmber: 0xc07a22,
   lampWarm: 0xffd28a,
   seat: 0x6e4a3a,
+  seatBlue: 0x2c4170, // Andy (C1 step 3): Airbus flight-deck seat blue
   dogTan: 0xc8955a,
   dogDark: 0x5e3f28,
   dogNose: 0x1c1a1c,
@@ -78,6 +79,7 @@ export const SWATCHES: Swatch[] = [
   { key: "screenAmber", hex: PAL.screenAmber, name: "Amber screen", use: "Cockpit fuel screen", glow: true },
   { key: "lampWarm", hex: PAL.lampWarm, name: "Warm lamp", use: "The little cockpit lamp", glow: true },
   { key: "seat", hex: PAL.seat, name: "Seat", use: "Cockpit seats and cushions" },
+  { key: "seatBlue", hex: PAL.seatBlue, name: "Seat blue", use: "Base cockpit seats (Airbus flight-deck blue)" },
   { key: "dogTan", hex: PAL.dogTan, name: "Dog", use: "The co-pilot" },
   { key: "dogDark", hex: PAL.dogDark, name: "Dog dark", use: "Ears, patch" },
   { key: "glass", hex: PAL.glass, name: "Glass", use: "Cockpit bubbles, domes", glow: true },

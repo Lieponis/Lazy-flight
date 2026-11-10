@@ -449,6 +449,72 @@ function buildShell(): AssetModel {
     emit("interior overhead panel sides", sect(vEnd), new THREE.Vector3(0, 0, zOf(0.5)));
   }
 
+
+  // ---------------------------------------------------------------- STEP 3: SEATS (option B)
+  // Measured from "Cockpit seat arrangment": pedestal, seat cushion with a cut-out at the front for the legs,
+  // a backrest leaning back, a separate headrest. DECIDED (Andy): option B, the drawn seats moved forward and a
+  // little inwards so the pilot's eye (step 2) sits just in front of the headrest; they clear the centre console.
+  // Colour: Airbus flight-deck blue. Shares of the length, like the shell, in the drawing's seat frame
+  // (b = along, from the drawing; c = height), then moved by SEAT_SHIFT.
+  {
+    const SEAT_SHIFT = -0.114; // along: forward, so the headrest sits just behind the eye
+    const SEAT_U = 0.182; // across: centre of each seat (just clear of the console)
+    const W = 0.195 / 2; // half width of the cushion
+    const soft = 0.025; // softened edges, crates
+    const P = (u: number, b: number, c: number): V3 => [u * LENGTH, c * LENGTH, zOf(b + SEAT_SHIFT)];
+    /** A block from 8 corners (4 bottom, then 4 top, same order), faces pointing out, top edges softened. */
+    const block = (name: string, bottom: V3[], top: V3[], soften = true): void => {
+      const all = [...bottom, ...top];
+      const c = all.reduce((acc, p) => acc.add(new THREE.Vector3(...p)), new THREE.Vector3()).divideScalar(8);
+      let up = top;
+      if (soften) {
+        // Pull the top face in by `soft` and lower its rim, making a slanted strip round the top edge.
+        const tc = top.reduce((acc, p) => acc.add(new THREE.Vector3(...p)), new THREE.Vector3()).divideScalar(4);
+        const inner = top.map((p) => {
+          const v = new THREE.Vector3(...p);
+          const toC = tc.clone().sub(v);
+          const len = toC.length();
+          return v.add(toC.multiplyScalar(Math.min(0.45, (soft * 1.4) / Math.max(len, 1e-6)))).toArray() as V3;
+        });
+        const rim = top.map((p, i) => {
+          const b = new THREE.Vector3(...bottom[i]!);
+          const t = new THREE.Vector3(...p);
+          const len = t.distanceTo(b);
+          return t.lerp(b, Math.min(0.4, soft / Math.max(len, 1e-6))).toArray() as V3;
+        });
+        for (let i = 0; i < 4; i++) emitAway(name, [rim[i]!, rim[(i + 1) % 4]!, inner[(i + 1) % 4]!, inner[i]!], c);
+        up = rim;
+        emitAway(name, inner, c);
+      } else emitAway(name, top, c);
+      for (let i = 0; i < 4; i++) emitAway(name, [bottom[i]!, bottom[(i + 1) % 4]!, up[(i + 1) % 4]!, up[i]!], c);
+      emitAway(name, bottom, c);
+    };
+    const box = (name: string, u0: number, u1: number, b0: number, b1: number, c0: number, c1: number, soften = true): void =>
+      block(name, [P(u0, b0, c0), P(u1, b0, c0), P(u1, b1, c0), P(u0, b1, c0)], [P(u0, b0, c1), P(u1, b0, c1), P(u1, b1, c1), P(u0, b1, c1)], soften);
+    /** A block leaning back: its bottom middle at (b, c), leaning `lean` (along per unit up), `depth` thick. */
+    const leaning = (name: string, u0: number, u1: number, b: number, c0: number, c1: number, lean: number, depth: number): void => {
+      const at = (u: number, front: boolean, c: number): V3 => P(u, b + (c - c0) * lean + (front ? -depth / 2 : depth / 2), c);
+      block(name, [at(u0, true, c0), at(u1, true, c0), at(u1, false, c0), at(u0, false, c0)], [at(u0, true, c1), at(u1, true, c1), at(u1, false, c1), at(u0, false, c1)]);
+    };
+    const NOTCH = { depth: 0.055, half: 0.036 }; // the cut-out at the cushion's front
+    const LEAN = (0.64 - 0.575) / (0.355 - 0.08);
+    for (const side of [-1, 1] as const) {
+      const u = side * SEAT_U;
+      const lo = u - W;
+      const hi = u + W;
+      // Pedestal (seat base), dark frame.
+      box("interior seat bases", u - W * 0.75, u + W * 0.75, 0.395, 0.555, 0, 0.051, false);
+      // Cushion: the back part full width, and two front prongs either side of the cut-out.
+      box("interior seats (may cover window)", lo, hi, 0.383 + NOTCH.depth, 0.566, 0.051, 0.122);
+      box("interior seats (may cover window)", lo, u - NOTCH.half, 0.383, 0.383 + NOTCH.depth + 0.002, 0.051, 0.122);
+      box("interior seats (may cover window)", u + NOTCH.half, hi, 0.383, 0.383 + NOTCH.depth + 0.002, 0.051, 0.122);
+      // Backrest, leaning back, slightly narrower than the cushion.
+      leaning("interior seats (may cover window)", u - W * 0.8, u + W * 0.8, 0.575, 0.1, 0.355, LEAN, 0.036);
+      // Headrest, above the backrest.
+      leaning("interior seats (may cover window)", u - 0.0465, u + 0.0465, 0.575 + (0.378 - 0.08) * LEAN, 0.378, 0.44, LEAN, 0.04);
+    }
+  }
+
   const colours = {
     "interior roof": "hullMid",
     "interior floor": "metalDark",
@@ -458,6 +524,8 @@ function buildShell(): AssetModel {
     "interior back wall": "hullDark",
     "interior dashboard (may cover window edge)": "hullLight",
     "interior side columns": "hullMid",
+    "interior seats (may cover window)": "seatBlue",
+    "interior seat bases": "frame",
     "interior dashboard underside": "frame",
     "interior centre stack": "hullLight",
     "interior centre console": "hullLight", // same as the dashboard (Andy)
