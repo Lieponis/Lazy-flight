@@ -54,5 +54,7 @@ src/render/assets/cockpitBase.ts, shown in the viewer only (reference group), no
 
 Next: put it into the game and draw on its screens, see docs/INTEGRATION-cockpit.md. Report: docs/report-agent-8-c1.md.
 
+Anchor task (2026-11-10): added `screenRightWing` (right wing screen, the mirror of `screenFuel`). Report: docs/report-agent-8-anchor.md.
+
 Known: Andy's drawings disagree between views in places (window; dashboard lip vs the low roof at the nose sides),
 so one view leads and the others are matched as closely as the shapes allow. Small zigzag shading steps on the curved roof.

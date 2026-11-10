@@ -31,6 +31,7 @@ Check the model at any time in the viewer: `/models.html?asset=cockpit-base&sit=
   | `screenInfo` | the screen straight ahead of the pilot |
   | `screenMap` | the middle screen |
   | `screenFuel` | the amber screen on the pilot's (left) wing |
+  | `screenRightWing` | the right wing screen: the exact mirror of `screenFuel` across the cockpit's middle line (added 2026-11-10) |
 
   Each screen anchor has `pos` (the screen's middle), `dir` (pointing into the cabin, towards the pilot) and `size` `{ w, h }` in crates.
 

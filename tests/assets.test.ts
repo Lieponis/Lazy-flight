@@ -1,3 +1,4 @@
+import { COCKPIT_BASE_WIP } from '../src/render/assets/cockpitBase';
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -104,6 +105,25 @@ describe('cockpit tooling (kept after the C1 reset; no cockpit designs exist)', 
     expect(m.anchors.screenMap!.size).toEqual({ w: 0.4, h: 0.3 });
     expect(m.windowLight).toBeDefined();
     for (const name of RULES.cockpit.requiredAnchors) expect(m.anchors[name], name).toBeDefined();
+  });
+});
+
+describe('base cockpit screen anchors', () => {
+  it('screenRightWing is the mirror of screenFuel across the cockpit middle line, facing into the cabin', () => {
+    const m = COCKPIT_BASE_WIP.build({});
+    const fuel = m.anchors.screenFuel!;
+    const right = m.anchors.screenRightWing!;
+    expect(right).toBeDefined();
+    // The eye (origin) sits in the left seat, 0.6 crates left of the cockpit's middle line.
+    expect(right.pos.x).toBeCloseTo(2 * 0.6 - fuel.pos.x, 5);
+    expect(right.pos.y).toBeCloseTo(fuel.pos.y, 5);
+    expect(right.pos.z).toBeCloseTo(fuel.pos.z, 5);
+    expect(right.dir.x).toBeCloseTo(-fuel.dir.x, 5);
+    expect(right.dir.z).toBeCloseTo(fuel.dir.z, 5);
+    expect(right.dir.x).toBeLessThan(0); // faces left, into the cabin
+    expect(right.size!.w).toBeCloseTo(fuel.size!.w, 5);
+    expect(right.size!.h).toBeCloseTo(fuel.size!.h, 5);
+    for (const name of ['screenInfo', 'screenMap', 'screenFuel', 'screenRightWing']) expect(m.anchors[name]?.size, name).toBeDefined();
   });
 });
 

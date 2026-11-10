@@ -710,7 +710,12 @@ function buildShell(): AssetModel {
       return { mid, dir, w: c[1]!.distanceTo(c[0]!), h: c[3]!.distanceTo(c[0]!), c };
     };
     const spot = (name: string): V3[] => screenSpots.find((x) => x.name === name)!.corners;
-    const jobs: [string, string][] = [["screenInfo", "screen middle left"], ["screenMap", "screen middle"], ["screenFuel", "screen left wing"]];
+    const jobs: [string, string][] = [
+      ["screenInfo", "screen middle left"],
+      ["screenMap", "screen middle"],
+      ["screenFuel", "screen left wing"],
+      ["screenRightWing", "screen right wing"], // Agent 8 anchor task (2026-11-10): the mirror of screenFuel
+    ];
     for (const [anchor, screen] of jobs) {
       const f = frameOf(spot(screen));
       kit.screenAnchor(anchor, f.mid.toArray() as V3, f.dir.toArray() as V3, f.w, f.h);
@@ -797,7 +802,7 @@ export const COCKPIT_BASE_WIP: AssetEntry = {
     "Steps 1-5: shell (six surfaces with no thickness, window cut out of the curved roof), panels (dashboard, side columns, centre console, overhead panel), two seats, instruments (six screens, throttle, flashing lights) and screen jobs (information ahead, map in the middle, amber fuel on the pilot's wing, made-up readouts on the rest), measured from Andy's drawings. The dog, lamp and window light come in step 6.",
   variants: 1,
   build: buildCockpitBase,
-  anchorNames: ["eye", "screenInfo", "screenMap", "screenFuel"],
+  anchorNames: ["eye", "screenInfo", "screenMap", "screenFuel", "screenRightWing"],
   eyeFov: EYE_FOV,
   triangles: 3000,
   status: "DRAFT",
