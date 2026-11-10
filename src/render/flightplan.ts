@@ -18,6 +18,12 @@ export interface FlightInfo {
   destinationName: string;
   /** The ship the player flies (an id like "scout"). The render layer draws that ship's design; unknown or missing = the Cargo Hauler. */
   shipId?: string;
+  /** Fuel left in the tank (the game has already paid for this trip). Optional: without it the cockpit's fuel screen shows dashes. */
+  fuel?: number;
+  /** The ship's tank size. Optional. */
+  fuelMax?: number;
+  /** Fuel this trip burns. Optional: with it the cockpit's fuel bar drains during the trip. */
+  fuelUsed?: number;
   /** Game seconds per real second (the ?speed=NUMBER setting). */
   speed: number;
   /** Returns the current progress, or null if no flight is running any more. */

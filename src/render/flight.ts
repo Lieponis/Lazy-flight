@@ -22,6 +22,8 @@ import {
   type PhaseSettings,
 } from "./flightplan";
 import { buildCockpitBase } from "./assets/cockpitBase";
+import { CockpitScreens } from "./cockpitscreens";
+import { fuelScreenData, infoScreenData, mapScreenData } from "./screendata";
 import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
 import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, fovForMagnification, shakeShare, startFov, zoomMagnification, type Look, type ViewMode } from "./cockpitview";
 import { pinchFactor, wheelFactor } from "./dockedcam";
@@ -156,6 +158,7 @@ export class FlightScreen implements Screen {
   // (so the room stays level while the view tilts and shakes). It is drawn through the lens (see render()).
   private cockpitModel = buildCockpitBase();
   private cockpitRig = new THREE.Group();
+  private screens = new CockpitScreens(this.cockpitModel); // trip info on the cockpit's three screens
   private lens: CockpitLens | null = null;
   private look: Look = { yaw: 0, pitch: 0 }; // where the pilot has turned his head (drag); resets when a flight starts or the view changes
   private homing = false; // true while the view glides back to straight ahead (double tap)
@@ -187,6 +190,7 @@ export class FlightScreen implements Screen {
     const bg = new THREE.BufferGeometry();
     bg.setAttribute("position", new THREE.BufferAttribute(starfieldPositions(STARFIELD_COUNT, 450), 3));
     this.scene.add(new THREE.Points(bg, new THREE.PointsMaterial({ color: 0x8890c8, size: 1, sizeAttenuation: false })));
+    this.screens.onFontLoaded = () => (this.hudTimer = 0); // redraw with the pixel font as soon as it is there
     this.cockpitRig.add(this.cockpitModel.group);
     this.cockpitRig.visible = false;
     this.scene.add(this.ship.group, this.tunnel.group, this.cockpitRig, this.camera);
@@ -476,6 +480,14 @@ export class FlightScreen implements Screen {
     this.title.textContent = `FLIGHT - ${PHASE_NAMES[plan.phase]}`;
     const arrives = plan.phase === "DONE" ? "Arrived!" : `Arrives in ${formatCountdown(remainingMs)}  (at ${clockTime})`;
     this.text.textContent = `To: ${info.destinationName}\n${arrives}\n> ${line}`;
+    if (this.mode === "cockpit") {
+      // The same facts on the cockpit's screens (only drawn while you are looking at them).
+      this.screens.draw({
+        info: infoScreenData(info.destinationName, plan),
+        map: mapScreenData(fraction, hashString(info.destinationDockId)),
+        fuel: fuelScreenData(info, fraction),
+      });
+    }
   }
 
   /**
@@ -495,6 +507,7 @@ export class FlightScreen implements Screen {
   dispose(): void {
     this.lens?.dispose();
     this.lens = null;
+    this.screens.dispose();
     this.scene.remove(this.cockpitRig);
     disposeAll(this.cockpitRig);
     this.flash.remove();
@@ -588,6 +601,7 @@ export class FlightScreen implements Screen {
   private toggleMode(): void {
     this.resetLook();
     this.mode = this.mode === "orbit" ? "cockpit" : "orbit";
+    this.hudTimer = 0; // draw the screens at once when the cockpit appears
     this.updateModeButton();
   }
 

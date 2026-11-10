@@ -4,7 +4,7 @@
 // This is the only place where the game and the screens meet; src/render never imports src/game.
 
 import "./theme.css";
-import { Game, createClock, getShip, parseSpeedParam, type Arrival } from "../game";
+import { Game, createClock, fuelCost, getShip, parseSpeedParam, type Arrival } from "../game";
 import { getDock, getPlanetsOfSystem, getSystem } from "../universe";
 import type { RenderApi } from "../render";
 import { START_SEED } from "../render/settings";
@@ -190,6 +190,10 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
         destinationDockId: job.destinationDockId,
         destinationName: dockName(job.destinationDockId),
         shipId: game.state.shipId,
+        // For the cockpit's fuel screen: fuel left (the trip is already paid), the tank size, and what this trip burns.
+        fuel: game.state.fuel,
+        fuelMax: getShip(game.state.shipId).fuelTankSize,
+        fuelUsed: fuelCost(job.totalDistance),
         speed: game.clock.speed,
         getProgress: () => game.progress(),
       });
