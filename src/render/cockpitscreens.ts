@@ -16,7 +16,6 @@ import {
   type MapScreenData,
 } from "./screendata";
 
-const TEAL = "#1f8a80";
 const STATUS_BLUE = "#14215e"; // the info screen: dark blue, for contrast with the light text
 const AMBER = "#c07a22";
 const LIGHT = "#e3e7ff";
