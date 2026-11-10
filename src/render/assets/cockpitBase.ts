@@ -15,6 +15,7 @@
 
 import * as THREE from "three";
 import { ModelKit } from "./kit";
+import { COCKPIT_FOV } from "./lens";
 import type { AssetEntry, AssetModel, BuildOptions } from "./types";
 
 type V3 = [number, number, number];
@@ -46,8 +47,9 @@ const WINDOW_FRONT: V2[] = [[0.097, 0.33], [0.077, 0.33], [0.056, 0.33], [0.036,
 
 /** Where the pilot's eye sits (left seat), from the floor. DECIDED (step 2): higher and closer to the dashboard. */
 const EYE = { x: -0.6, y: 1.45, v: 0.47 };
-/** Field of view from the pilot's seat, in degrees. DECIDED (step 2): narrower than the old 60. */
-export const EYE_FOV = 50;
+/** Field of view from the pilot's seat, degrees side to side. DECIDED (step 2, option C): about 70, seen through
+ *  the light cockpit lens (lens.ts), so the edges do not stretch. */
+export const EYE_FOV = COCKPIT_FOV;
 /** Rings along the length (closer together where the side walls start to rise). */
 const VS = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.47, 0.5, 0.54, 0.58, 0.63, 0.68, 0.74, 0.8, 0.87, 0.93, 1];
 const SPLIT = 2; // cells the window edge crosses are split 3 x 3, for a smooth edge

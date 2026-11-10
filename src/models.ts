@@ -29,6 +29,7 @@ import {
   RULES,
 } from "./render/assets/style";
 import type { AssetEntry, AssetModel } from "./render/assets/types";
+import { CockpitLens } from "./render/assets/lens";
 import { cameraFov, clamp, orbitCameraPosition, renderSizeFor, starfieldPositions } from "./render/helpers";
 import { buildCargoHauler } from "./render/ship";
 import { makeOutpost, makeStation } from "./render/systemview";
@@ -61,8 +62,10 @@ interface ViewState {
   cam: { yaw: number; pitch: number; dist: number } | null;
   /** Cockpits: camera at the pilot's eye. */
   sit: boolean;
-  /** Field of view (degrees, up-down) for "Sit inside". */
+  /** Field of view for "Sit inside", degrees side to side (top to bottom on a tall screen). */
   fov: number;
+  /** "Sit inside": draw through the cockpit lens (no stretched edges). */
+  lens: boolean;
   /** Show the window opening outline in "Sit inside". */
   cut: boolean;
   /** Where the pilot looks in "Sit inside": left-right and up-down, radians. */
@@ -101,6 +104,7 @@ function readAddress(): ViewState {
     sit: q.get("sit") === "1",
     fov: clamp(Number(q.get("fov")) || findEntry(asset)?.eyeFov || 60, 30, 100),
     cut: q.get("cut") === "1",
+    lens: q.get("lens") !== "0",
     look: (() => {
       const l = (q.get("look") ?? "").split(",").map(Number);
       return l.length === 2 && l.every(Number.isFinite) ? { yaw: l[0]!, pitch: l[1]! } : { yaw: 0, pitch: 0 };
@@ -130,6 +134,7 @@ function addressFor(s: ViewState): string {
   if (s.sit) {
     q.set("sit", "1");
     q.set("fov", String(s.fov));
+    if (!s.lens) q.set("lens", "0");
     q.set("look", `${s.look.yaw.toFixed(2)},${s.look.pitch.toFixed(2)}`);
   }
   if (s.cut) q.set("cut", "1");
@@ -556,6 +561,12 @@ view.addEventListener(
 
 // ------------------------------------------------------------------ layout and the game-resolution preview
 
+/** "Sit inside" fields of view are side to side on a wide screen; the camera wants top to bottom. */
+function sideToUpDown(fov: number, aspect: number): number {
+  if (aspect < 1) return fov;
+  return (2 * Math.atan(Math.tan((fov * Math.PI) / 360) / aspect) * 180) / Math.PI;
+}
+
 let frameW = 1;
 let frameH = 1;
 function layout(): void {
@@ -571,7 +582,7 @@ function layout(): void {
     const pr = Math.min(window.devicePixelRatio || 1, 2);
     rw = Math.round(vw * pr);
     rh = Math.round(vh * pr);
-    camera.fov = sitting() ? S.fov : GAME_CAMERA.fov;
+    camera.fov = sitting() ? sideToUpDown(S.fov, aspect) : GAME_CAMERA.fov;
     previewInfo.style.display = "none";
   } else {
     aspect = S.preview === "desktop" ? 16 / 9 : 9 / 19.5;
@@ -581,7 +592,7 @@ function layout(): void {
     const size = renderSizeFor(aspect, RENDER_WIDTH, RENDER_HEIGHT);
     rw = size.width;
     rh = size.height;
-    camera.fov = cameraFov(aspect, sitting() ? S.fov : GAME_CAMERA.fov);
+    camera.fov = sitting() ? sideToUpDown(S.fov, aspect) : cameraFov(aspect, GAME_CAMERA.fov);
     previewInfo.style.display = "block";
     previewInfo.textContent = `What a ${S.preview} player sees: ${rw} x ${rh} pixels, stretched without smoothing`;
   }
@@ -598,6 +609,7 @@ new ResizeObserver(layout).observe(view);
 // ------------------------------------------------------------------ the frame loop
 
 const clock = new THREE.Clock();
+let lens: CockpitLens | null = null;
 let animTime = 0;
 const labelEls: HTMLDivElement[] = [];
 
@@ -652,7 +664,10 @@ function tick(): void {
       const away = camera.getWorldDirection(new THREE.Vector3()).setY(0).normalize();
       bgPlanet.position.copy(camera.position).addScaledVector(away, 420).add(new THREE.Vector3(0, sitting() ? -60 : -170, 0));
     }
-    renderer.render(scene, camera);
+    if (sitting() && S.lens) {
+      lens ??= new CockpitLens(renderer);
+      lens.render(scene, camera, S.fov);
+    } else renderer.render(scene, camera);
     placeLabels();
   }
   requestAnimationFrame(tick);
@@ -774,8 +789,9 @@ function refreshPanel(): void {
     }));
     row.appendChild(button("Window cut-out", S.cut, () => set("cut", !S.cut)));
     row.appendChild(button("Look ahead", false, () => ((S.look = { yaw: 0, pitch: 0 }), saveAddress())));
-    row = section(`Field of view: ${Math.round(S.fov)} degrees`);
-    for (const f of [45, 50, 55, 60, 70, 80]) row.appendChild(button(String(f), Math.round(S.fov) === f, () => set("fov", f, false)));
+    row = section(`Field of view: ${Math.round(S.fov)} degrees side to side`);
+    for (const f of [50, 60, 70, 80, 90]) row.appendChild(button(String(f), Math.round(S.fov) === f, () => set("fov", f, false)));
+    row.appendChild(button(S.lens ? "Lens: on" : "Lens: off", S.lens, () => set("lens", !S.lens, false)));
     if (S.sit) panel.appendChild(el("p", { class: "note" }, "Drag to look around, scroll or pinch to change the field of view."));
   }
   row = section("Look");
