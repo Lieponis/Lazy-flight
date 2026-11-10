@@ -6,8 +6,8 @@
 M2 COMPLETE. Done and verified: Agents 1, 2, 3a, 3b, 3c, 4a, 5a, and Agent 8 (Asset Design, Viewer and Debug).
 Agent 8 DONE (2026-11-08): style guide, 11 designs kept by Andy (3 ships, 4 outposts, 4 stations), viewer /models.html with debug tools, 19 new tests (123 in total), Agent 8 ran npm run check after every batch, Andy approved every batch after green Actions. Lead check S4 passed (all triangle counts inside budgets: ships 540-684 of 1000, outposts 544-1048 of 1500, stations 854-1374 of 2500; all 11 IDs in the registry). Catalog statuses set to APPROVED.
 Not verified for Agent 8: frame rate on a real phone, viewer on a real phone.
-IN PROGRESS: Agent 4 part 4b (brief docs/briefs/agent-4b-brief.md): emergency refuel, 3 ships, passengers and tours, /game-debug.html.
-NEXT (can run in parallel with 4b, different files): Agent 3 part 3d = put Agent 8's designs into the docked view, system view and flight (brief docs/briefs/agent-3d-brief.md). Then 3e pixel look and cockpit redo, 5b Shipyard + emergency refuel button, 6a saving, 4c ranks + outposts, 7 polish.
+VERIFIED by Andy: 4b, 3d, 5b, 6a, 4c, 5c. DELIVERED, awaiting Andy's phone checklist: 6b QA/balance (report docs/report-agent-6b.md; Lead review passed; 328 tests; first ship 1.5 h, first outpost 9 h).
+NOW: Agent 3 stage C2a (new cockpit in flight view; brief docs/briefs/agent-3-c2a-brief.md). THEN C2b (trip info on cockpit screens; brief docs/briefs/agent-3-c2b-brief.md), 3e pixel look (on hold), 6b follow-ups (repeat-jobs fix, phone checklist), 7 polish. C1 DONE (Agent 8, base cockpit, report docs/report-agent-8-c1.md). Andy decisions to ask later: window light, dog, lamp, per-ship cockpits, HTML read-out in cockpit view.
 
 ## What works
 - Live pixelated spinning cube (desktop and phone confirmed by Andy). Auto-publish via GitHub Actions. One command: npm run check.
@@ -102,3 +102,13 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 
 ## Known issue (4b)
 - Balance: 29 of 44 sample tours need more fuel than the Passenger Liner tank (70). Lead suggestion: raise Liner tank to 100 in ships.ts, or decide in 4c balance pass. Andy to decide.
+- 3d known issues (Andy: both OK, not to be fixed: no outpost arrival shake; planet not visible from cockpit when leaving a station, it is behind the ship); reload starts a new game.
+- DECISION (Andy): Passenger Liner tank raised from 70 to 100 so more tours are playable. Done by Agent 5 in 5b (one-number change in ships.ts, update the 4b test if it checks 70).
+- DECISION (Lead, 6a): Agent 6 may change src/render/index.ts so startRender(renderer, parent, options?: { seed?: number }) uses the given seed, else behaves as before (?seed= or 12345). Nothing else in render. NEW GAME offers "Same universe" or "New random universe" (Andy). Game and render must always use the same seed.
+- 4c perks chosen by Agent 4: owned outpost = 20% cheaper fuel and +10% pay on jobs ending there, whole star system. Ranks: 3 per category, pay bonus 0/5/10%. Passive income suggestion NOT approved (out of scope unless Andy says).
+- SUGGESTIONS (not approved, not built): dog animations (tail wag, head follows sway, wakes at warp).
+- DECISION (Lead + Andy, 6b): TRAVEL_SECONDS_PER_LY 480 -> 60 (avg trip ~20 min, longest tour ~75 min, 4 h cap no longer triggers). Passenger Liner price 1500 -> 2500 (Scout 1200, outposts unchanged, Liner tank stays 100). Expected: first ship ~1.5 h, first outpost ~8 h for an attentive player (~4,800 cr/h). Agent 6 may fix bug 6b-1 in src/game (accept checks the job WITHOUT rank/outpost bonuses; bonus still paid on arrival) and turn its it.fails test into a normal test.
+- LATER (suggestions, not approved): more things to spend credits on after all outposts are bought; emergency fuel is unreachable in normal play and stays a safety net.
+- DECISION (Lead, 6b): repeat-jobs fix approved in src/game: hide job ids delivered in the current board period from that board (do not change JOB_BOARD_REFRESH_SLOTS or src/universe). package-lock.json: commit approved (pins tool versions). Stale zips to delete by hand (list in report-agent-6b.md section 6).
+- C1 PROCESS CHANGE (Andy: Agent 8 cockpit result far from his vision): thumbnail round (3 rough options A/B/C) before modelling, reference sheet from Andy, compare-to-reference after each batch. Guide: docs/GUIDE-visual-direction.md. Lead rewrites the C1 brief on request.
+- DECISIONS (Lead, C1 review): one base cockpit for all ships OK; 2,400 triangles OK (limit 3,000 for restart); lens.ts OK; seatBlue and 'may cover window' checker rule OK; cockpit stays OUT of the registry until Andy decides on window light (Agent 3 imports buildCockpitBase directly). Throttle animation = suggestion only.

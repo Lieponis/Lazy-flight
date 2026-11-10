@@ -34,3 +34,8 @@ Rules: a stage starts only after the previous one is live and approved. C1 can r
 - Phone speed: a 3D room plus planets can be heavy. Fix: tiny triangle budget, no real-time lights, test early in C2.
 - Window cutting: the outside must never be hidden behind inside faces. Fix: checker rule in C1 (same as the bay rule).
 - Old cockpit overlay (`src/render/cockpit.ts`) is replaced in C2; keep it until then.
+
+## UPDATE 2026-11-10 (after Agent 8's C1 report)
+- C1 DONE: one base cockpit for all three ships (Andy's instruction at the restart), about 2,400 triangles (budget for the restart is 3,000), 70-degree lens view, anchors screenInfo/screenMap/screenFuel. Dog, warm lamp, window light and per-ship differences are DEFERRED by Andy (suggestions, not built).
+- C2 is split: C2a = cockpit into the flight view (Agent 3, brief docs/briefs/agent-3-c2a-brief.md); C2b = trip info on the three screens (Agent 3, brief docs/briefs/agent-3-c2b-brief.md). C3 (Agent 5) is no longer needed: the screens are drawn in the render layer from flight info. Agent 5 is only needed if the HTML read-out should change.
+- 3e (pixel look) still on hold; its cockpit-frame item is replaced by this work.
