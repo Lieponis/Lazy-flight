@@ -11,6 +11,7 @@ import {
   SCREEN_PIXEL_WIDTH,
   canvasHeightFor,
   twoLines,
+  SCREEN_DESIGN_WIDTH,
   type FuelScreenData,
   type InfoScreenData,
   type MapScreenData,
@@ -21,6 +22,8 @@ const AMBER = "#c07a22";
 const LIGHT = "#e3e7ff";
 const CYAN = "#3fe0ff";
 const DARK = "#0e2a30";
+const NAV_BACK = "#0b3138"; // the route screen is darker than the others, for contrast
+const NAV_DIM = "#2f8fa3";
 const FONT = '"VT323", ui-monospace, Menlo, Consolas, monospace'; // the game's pixel font if it is loaded, else a plain monospace
 
 /** How far in front of the glowing screen the picture floats (crates). */
@@ -43,9 +46,10 @@ function makeFace(model: AssetModel, name: "screenInfo" | "screenMap" | "screenF
   if (!ctx) return null;
   ctx.imageSmoothingEnabled = false;
   const texture = new THREE.CanvasTexture(canvas);
-  texture.magFilter = THREE.NearestFilter;
-  texture.minFilter = THREE.NearestFilter;
-  texture.generateMipmaps = false;
+  texture.magFilter = THREE.LinearFilter; // smooth, not blocky: the picture is bigger than the screen's share of the game picture
+  texture.minFilter = THREE.LinearMipmapLinearFilter; // averaged down cleanly instead of dropping pixels (no broken letters)
+  texture.generateMipmaps = true;
+  texture.anisotropy = 4;
   texture.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.MeshBasicMaterial({ map: texture, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(a.size.w, a.size.h), material);
@@ -60,7 +64,7 @@ function makeFace(model: AssetModel, name: "screenInfo" | "screenMap" | "screenF
 function centred(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, px: number, maxWidth: number, color: string): void {
   let size = px;
   ctx.font = `${size}px ${FONT}`;
-  while (size > 10 && ctx.measureText(text).width > maxWidth) {
+  while (size > 8 && ctx.measureText(text).width > maxWidth) {
     size -= 1;
     ctx.font = `${size}px ${FONT}`;
   }
@@ -70,74 +74,132 @@ function centred(ctx: CanvasRenderingContext2D, text: string, x: number, y: numb
   ctx.fillText(text, x, y);
 }
 
+/** Breaks `text` into lines no wider than `maxWidth` at the current font. */
+function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/)) {
+    const test = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(test).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
 function drawInfo(ctx: CanvasRenderingContext2D, w: number, h: number, d: InfoScreenData): void {
+  const k = w / SCREEN_DESIGN_WIDTH; // everything is laid out on a 96-wide grid and scaled to the picture
   ctx.fillStyle = TEAL;
   ctx.fillRect(0, 0, w, h);
   const cx = w / 2;
-  centred(ctx, "TO", cx, h * 0.14, 18, w - 8, CYAN);
+  const maxW = w - 8 * k;
+  if (d.page === "message") {
+    // A funny line from the ship's computer, as big as it can be while still fitting.
+    centred(ctx, "SHIP COMPUTER", cx, h * 0.12, 16 * k, maxW, CYAN);
+    let size = 26 * k;
+    let lines: string[] = [];
+    for (; size >= 12 * k; size -= k) {
+      ctx.font = `${size}px ${FONT}`;
+      lines = wrap(ctx, d.message, maxW);
+      if (lines.length * size * 0.85 <= h * 0.74) break;
+    }
+    ctx.fillStyle = LIGHT;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    const lineH = size * 0.85;
+    let y = h * 0.2 + (h * 0.74 - lines.length * lineH) / 2 + lineH * 0.8;
+    for (const line of lines) {
+      ctx.fillText(line, cx, y);
+      y += lineH;
+    }
+    return;
+  }
+  centred(ctx, "TO", cx, h * 0.11, 18 * k, maxW, CYAN);
   const [l1, l2] = twoLines(d.destination, 11);
-  centred(ctx, l1, cx, h * 0.3, 24, w - 8, LIGHT);
-  if (l2) centred(ctx, l2, cx, h * 0.43, 24, w - 8, LIGHT);
-  centred(ctx, "ARRIVES IN", cx, h * 0.57, 16, w - 8, CYAN);
-  centred(ctx, d.countdown, cx, h * 0.75, 36, w - 8, LIGHT);
-  centred(ctx, d.phase, cx, h * 0.93, 22, w - 8, CYAN);
+  centred(ctx, l1, cx, h * 0.25, 24 * k, maxW, LIGHT);
+  if (l2) centred(ctx, l2, cx, h * 0.37, 24 * k, maxW, LIGHT);
+  centred(ctx, "ARRIVES IN", cx, h * 0.54, 16 * k, maxW, CYAN);
+  centred(ctx, d.countdown, cx, h * 0.77, 36 * k, maxW, LIGHT);
+  centred(ctx, d.phase, cx, h * 0.94, 22 * k, maxW, CYAN);
 }
 
 function drawMap(ctx: CanvasRenderingContext2D, w: number, h: number, d: MapScreenData): void {
-  ctx.fillStyle = TEAL;
+  const k = w / SCREEN_DESIGN_WIDTH;
+  ctx.fillStyle = NAV_BACK;
   ctx.fillRect(0, 0, w, h);
-  centred(ctx, "ROUTE", w / 2, h * 0.12, 18, w - 8, CYAN);
-  const px = (p: { x: number; y: number }): [number, number] => [Math.round(p.x * w), Math.round(p.y * h)];
-  // Stars: single pixels.
+  centred(ctx, "ROUTE", w / 2, h * 0.12, 18 * k, w - 8 * k, CYAN);
+  const px = (p: { x: number; y: number }): [number, number] => [p.x * w, p.y * h];
+  // Stars: little bright squares.
   ctx.fillStyle = LIGHT;
   for (const s of d.stars) {
     const [x, y] = px(s);
-    ctx.fillRect(x, y, 1, 1);
+    ctx.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(k)), Math.max(1, Math.round(k)));
   }
   const [ox, oy] = px(d.origin);
   const [dx, dy] = px(d.destination);
   const [sx, sy] = px(d.ship);
-  // The route: a dotted line, bright where the ship has already been.
-  const steps = 24;
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const x = Math.round(ox + (dx - ox) * t);
-    const y = Math.round(oy + (dy - oy) * t);
-    if (i % 2 === 0) {
-      const past = Math.hypot(x - ox, y - oy) <= Math.hypot(sx - ox, sy - oy);
-      ctx.fillStyle = past ? LIGHT : DARK;
-      ctx.fillRect(x, y, 1, 1);
-    }
-  }
-  // Start (cyan square), destination (ring), ship (bright diamond).
-  ctx.fillStyle = CYAN;
-  ctx.fillRect(ox - 2, oy - 2, 5, 5);
+  // The route: a thick line, bright where the ship has been, dim cyan still to go.
+  ctx.lineWidth = 2.5 * k;
+  ctx.lineCap = "butt";
+  ctx.strokeStyle = NAV_DIM;
+  ctx.setLineDash([4 * k, 3 * k]);
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(dx, dy);
+  ctx.stroke();
+  ctx.setLineDash([]);
   ctx.strokeStyle = LIGHT;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(dx - 3.5, dy - 3.5, 7, 7);
-  ctx.fillStyle = DARK;
-  ctx.fillRect(sx - 3, sy - 1, 7, 3);
-  ctx.fillRect(sx - 1, sy - 3, 3, 7);
+  ctx.beginPath();
+  ctx.moveTo(ox, oy);
+  ctx.lineTo(sx, sy);
+  ctx.stroke();
+  // Start (cyan square), destination (big bright ring), ship (bright diamond with a dark edge).
+  ctx.fillStyle = CYAN;
+  ctx.fillRect(ox - 3.5 * k, oy - 3.5 * k, 7 * k, 7 * k);
+  ctx.strokeStyle = LIGHT;
+  ctx.lineWidth = 2 * k;
+  ctx.strokeRect(dx - 5 * k, dy - 5 * k, 10 * k, 10 * k);
   ctx.fillStyle = LIGHT;
-  ctx.fillRect(sx - 2, sy, 5, 1);
-  ctx.fillRect(sx, sy - 2, 1, 5);
+  ctx.fillRect(dx - 1.5 * k, dy - 1.5 * k, 3 * k, 3 * k);
+  const r = 6 * k;
+  ctx.fillStyle = NAV_BACK;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy - r - k);
+  ctx.lineTo(sx + r + k, sy);
+  ctx.lineTo(sx, sy + r + k);
+  ctx.lineTo(sx - r - k, sy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#ffd24a"; // warm yellow: the one thing that moves
+  ctx.beginPath();
+  ctx.moveTo(sx, sy - r);
+  ctx.lineTo(sx + r, sy);
+  ctx.lineTo(sx, sy + r);
+  ctx.lineTo(sx - r, sy);
+  ctx.closePath();
+  ctx.fill();
 }
 
 function drawFuel(ctx: CanvasRenderingContext2D, w: number, h: number, d: FuelScreenData): void {
+  const k = w / SCREEN_DESIGN_WIDTH;
   ctx.fillStyle = AMBER;
   ctx.fillRect(0, 0, w, h);
-  centred(ctx, "FUEL", w / 2, h * 0.3, 26, w - 8, LIGHT);
-  const bx = 8;
-  const bw = w - 16;
+  centred(ctx, "FUEL", w / 2, h * 0.3, 26 * k, w - 8 * k, LIGHT);
+  const bx = 8 * k;
+  const bw = w - 16 * k;
   const by = Math.round(h * 0.42);
-  const bh = Math.max(8, Math.round(h * 0.2));
+  const bh = Math.max(8 * k, Math.round(h * 0.2));
   ctx.fillStyle = DARK;
-  ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
+  ctx.fillRect(bx - 2 * k, by - 2 * k, bw + 4 * k, bh + 4 * k);
   ctx.fillStyle = AMBER;
   ctx.fillRect(bx, by, bw, bh);
   ctx.fillStyle = LIGHT;
   ctx.fillRect(bx, by, Math.round(bw * d.fraction), bh);
-  centred(ctx, d.text, w / 2, h * 0.93, 26, w - 8, LIGHT);
+  centred(ctx, d.text, w / 2, h * 0.93, 26 * k, w - 8 * k, LIGHT);
 }
 
 export interface ScreenFrame {

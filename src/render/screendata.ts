@@ -6,8 +6,12 @@
 
 import { formatCountdown, type FlightPhase, type FlightPlan } from "./flightplan";
 
-/** Pixel width of every screen's picture (about the size a screen has on the game's small picture). */
-export const SCREEN_PIXEL_WIDTH = 96;
+/**
+ * Pixel width of every screen's picture. Twice the size a screen has on the game's small picture, and drawn smoothly (mipmapped), so the
+ * text is clean instead of broken up (Andy: less pixelated). The drawing is laid out on a 96-wide grid and scaled up to this.
+ */
+export const SCREEN_PIXEL_WIDTH = 192;
+export const SCREEN_DESIGN_WIDTH = 96;
 
 /** Picture height for a screen of `w` x `h` crates, so the picture is never stretched. Kept between 32 and 160 pixels. */
 export function canvasHeightFor(widthPixels: number, w: number, h: number): number {
@@ -41,11 +45,39 @@ export interface InfoScreenData {
   destination: string;
   countdown: string;
   phase: string;
+  /** "status" = destination, countdown and phase; "message" = a funny ship-computer line instead. */
+  page: "status" | "message";
+  message: string;
 }
 
-export function infoScreenData(destinationName: string, plan: FlightPlan): InfoScreenData {
+/** Which page the info screen shows `elapsedSeconds` into the trip, and which funny line (a new one every time the message page comes round). */
+export function infoPage(elapsedSeconds: number, statusSeconds: number, messageSeconds: number): { page: "status" | "message"; round: number } {
+  const cycle = Math.max(1, statusSeconds + messageSeconds);
+  const t = Math.max(0, Number.isFinite(elapsedSeconds) ? elapsedSeconds : 0);
+  const round = Math.floor(t / cycle);
+  return { page: t - round * cycle < statusSeconds ? "status" : "message", round };
+}
+
+/** Which funny line goes with round `round`. `salt` makes different trips start at different lines. */
+export function messageIndexFor(round: number, lineCount: number, salt: number): number {
+  if (lineCount <= 0) return 0;
+  return (((Math.floor(round) + salt) % lineCount) + lineCount) % lineCount;
+}
+
+export function infoScreenData(
+  destinationName: string,
+  plan: FlightPlan,
+  lines: readonly string[] = [],
+  salt = 0,
+  statusSeconds = 10,
+  messageSeconds = 5,
+): InfoScreenData {
   const remainingMs = plan.phase === "DONE" ? 0 : Math.max(0, plan.totalSeconds - plan.elapsedSeconds) * 1000;
+  const { page, round } = infoPage(plan.elapsedSeconds, statusSeconds, messageSeconds);
+  const showMessage = page === "message" && plan.phase !== "DONE" && lines.length > 0; // the arrival always shows the facts
   return {
+    page: showMessage ? "message" : "status",
+    message: lines[messageIndexFor(round, lines.length, salt)] ?? "",
     destination: destinationName.trim() || "UNKNOWN",
     countdown: formatCountdown(remainingMs),
     phase: PHASE_LABELS[plan.phase],

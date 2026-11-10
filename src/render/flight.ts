@@ -90,6 +90,8 @@ import {
   COCKPIT_SHAKE_FACTOR,
   COCKPIT_DEFAULT_ZOOM_OUT,
   COCKPIT_FOV_CAP,
+  COCKPIT_MESSAGE_SECONDS,
+  COCKPIT_STATUS_SECONDS,
   COCKPIT_ZOOM_RANGE,
   SHIP_FIT_MARGIN,
   SHIP_FIT_MAX_FOV,
@@ -483,7 +485,7 @@ export class FlightScreen implements Screen {
     if (this.mode === "cockpit") {
       // The same facts on the cockpit's screens (only drawn while you are looking at them).
       this.screens.draw({
-        info: infoScreenData(info.destinationName, plan),
+        info: infoScreenData(info.destinationName, plan, COMPUTER_LINES, hashString(info.destinationDockId), COCKPIT_STATUS_SECONDS, COCKPIT_MESSAGE_SECONDS),
         map: mapScreenData(fraction, hashString(info.destinationDockId)),
         fuel: fuelScreenData(info, fraction),
       });
@@ -607,6 +609,11 @@ export class FlightScreen implements Screen {
 
   private updateModeButton(): void {
     this.modeButton.textContent = this.mode === "orbit" ? "Cockpit view" : "Orbit view";
+    // In the cockpit the trip facts and the funny lines are on the screens, so the text box and the title go away (the bar and the button stay).
+    const hideText = this.mode === "cockpit";
+    this.text.style.display = hideText ? "none" : "";
+    this.title.style.display = hideText ? "none" : "";
+    this.modeButton.style.marginLeft = hideText ? "auto" : "";
   }
 
   // ------------------------------------------------------------ the planets at each end

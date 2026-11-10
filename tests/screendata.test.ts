@@ -4,7 +4,9 @@ import {
   SCREEN_PIXEL_WIDTH,
   canvasHeightFor,
   fuelScreenData,
+  infoPage,
   infoScreenData,
+  messageIndexFor,
   mapScreenData,
   shortText,
   twoLines,
@@ -96,9 +98,43 @@ describe("cockpit screens: fuel", () => {
 
 describe("cockpit screens: picture size", () => {
   it("keeps the shape of the screen so the picture is never stretched", () => {
-    expect(canvasHeightFor(SCREEN_PIXEL_WIDTH, 1, 1.2)).toBe(Math.round(SCREEN_PIXEL_WIDTH * 1.2));
+    expect(canvasHeightFor(96, 1, 1.2)).toBe(Math.round(96 * 1.2));
     expect(canvasHeightFor(96, 1, 100)).toBe(160);
     expect(canvasHeightFor(96, 100, 1)).toBe(32);
     expect(canvasHeightFor(96, 0, 0)).toBe(96);
+  });
+});
+
+describe("cockpit screens: status page and funny messages", () => {
+  const lines = ["one", "two", "three"];
+  it("shows the facts for the first part of each round and a funny line for the rest", () => {
+    expect(infoPage(0, 10, 5)).toEqual({ page: "status", round: 0 });
+    expect(infoPage(9.9, 10, 5)).toEqual({ page: "status", round: 0 });
+    expect(infoPage(10, 10, 5)).toEqual({ page: "message", round: 0 });
+    expect(infoPage(14.9, 10, 5)).toEqual({ page: "message", round: 0 });
+    expect(infoPage(15, 10, 5)).toEqual({ page: "status", round: 1 });
+    expect(infoPage(-3, 10, 5).page).toBe("status");
+  });
+  it("every round brings a different line and the list wraps round", () => {
+    expect(messageIndexFor(0, 3, 0)).toBe(0);
+    expect(messageIndexFor(1, 3, 0)).toBe(1);
+    expect(messageIndexFor(3, 3, 0)).toBe(0);
+    expect(messageIndexFor(0, 3, 2)).toBe(2);
+    expect(messageIndexFor(5, 0, 0)).toBe(0);
+  });
+  it("the info screen gets the line for the current round", () => {
+    const d = infoScreenData("X", plan({ elapsedSeconds: 12 }), lines, 0, 10, 5);
+    expect(d.page).toBe("message");
+    expect(d.message).toBe("one");
+    expect(infoScreenData("X", plan({ elapsedSeconds: 27 }), lines, 0, 10, 5).message).toBe("two");
+  });
+  it("the status page still has the destination, time and phase during a message round", () => {
+    const d = infoScreenData("Kopi", plan({ elapsedSeconds: 12 }), lines, 0, 10, 5);
+    expect(d.destination).toBe("Kopi");
+    expect(d.phase).toBe("WARP");
+  });
+  it("arriving always shows the facts, and with no lines there are no messages", () => {
+    expect(infoScreenData("X", plan({ phase: "DONE", elapsedSeconds: 12 }), lines, 0, 10, 5).page).toBe("status");
+    expect(infoScreenData("X", plan({ elapsedSeconds: 12 }), [], 0, 10, 5).page).toBe("status");
   });
 });

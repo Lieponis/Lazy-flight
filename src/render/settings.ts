@@ -131,6 +131,9 @@ export const COCKPIT_SHAKE_FACTOR = 0.2;
 export const COCKPIT_LOOK_YAW_MAX_DEG = 110;
 export const COCKPIT_LOOK_PITCH_MIN_DEG = -40;
 export const COCKPIT_LOOK_PITCH_MAX_DEG = 55;
+/** The cockpit's info screen shows the trip facts for this many seconds, then a funny ship-computer message for this many, and so on. */
+export const COCKPIT_STATUS_SECONDS = 10;
+export const COCKPIT_MESSAGE_SECONDS = 5;
 /** The cockpit starts (and double tap returns) zoomed OUT this many times compared with the approved 70-degree view (Andy: 1.5 to 2 times). */
 export const COCKPIT_DEFAULT_ZOOM_OUT = 1.75;
 /** From that start the player can zoom in and out this many times (wheel or pinch). */
