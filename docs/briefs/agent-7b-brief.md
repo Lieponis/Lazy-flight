@@ -13,5 +13,8 @@ A title screen shown when the game opens: game name, a funny tagline, CONTINUE (
 5. Tests for pure logic; layer rules stay (render never imports ui). Allowed: `src/ui` (new title file, glue in `src/ui/index.ts`), `index.html` title text, tests, docs. Not allowed: src/game, src/universe, src/save rules, src/render/assets.
 6. `npm run check` must pass; push to main.
 
+## Added task (approved by Andy 2026-11-11): speaker button
+Add a small SPEAKER button (sound on / off, shows muted state clearly, e.g. red when muted) at the right end of the top strip next to the MENU button when docked, and IN PLACE OF the MENU button during flight (MENU opens only when docked, so in flight the speaker is the only button there). One tap toggles the same mute as MENU > SETTINGS (shared state, `lazy-freight.sound`). Phone: big enough to tap, upright and sideways, does not overlap the status text. You may edit `src/ui/statusstrip.ts`, `src/ui/theme.css` and the glue in `src/ui/index.ts` / `src/ui/sound.ts` for this. Show Andy options A/B/C of the button look first. A second music track is NOT approved.
+
 ## Andy checks
 Open the live game on desktop and phone: title shows, CONTINUE and NEW GAME work, reload keeps the save, sound starts on first tap.
