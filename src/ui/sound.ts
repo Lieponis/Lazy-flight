@@ -63,6 +63,9 @@ export function startSound(game: Game, layer: HTMLElement, storage: PrefsStorage
   const unlock = (): void => engine.unlock();
   for (const type of ["mousedown", "pointerup", "click", "touchend", "keydown"]) window.addEventListener(type, unlock, { capture: true, passive: true });
   document.addEventListener("visibilitychange", () => engine.setHidden(document.hidden));
+  // iPhone: switching apps can also leave / restore the page this way (back-forward cache).
+  window.addEventListener("pagehide", () => engine.setHidden(true));
+  window.addEventListener("pageshow", () => engine.setHidden(document.hidden));
 
   // ------------------------------------------------------------ buttons: click, and bonk when blocked
   layer.addEventListener(

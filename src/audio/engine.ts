@@ -13,6 +13,16 @@ import { makeNoiseBuffer, makeReverb, Music, playSound, startBed, type Bed, type
 
 type AudioCtor = typeof AudioContext;
 
+/**
+ * iPhone / iPad (every browser there is Safari inside) and Safari on a Mac. After switching apps and back, their sound
+ * engine can stay broken (Andy's iPhone Air, 2026-11-11); only a NEW one works, so there we rebuild it on the next tap.
+ */
+export function isAppleWebKit(ua: string, maxTouchPoints = 0): boolean {
+  if (/iP(hone|ad|od)/.test(ua)) return true;
+  if (/Macintosh/.test(ua) && maxTouchPoints > 1) return true; // iPad asking for the desktop site
+  return /Safari/.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|Edg|OPR|Android/.test(ua);
+}
+
 function audioConstructor(): AudioCtor | null {
   const w = globalThis as unknown as { AudioContext?: AudioCtor; webkitAudioContext?: AudioCtor };
   return w.AudioContext ?? w.webkitAudioContext ?? null;
@@ -30,11 +40,18 @@ export class SoundEngine {
   private hidden = false;
   private sleepTimer: ReturnType<typeof setTimeout> | null = null;
   private failed = false;
+  private musicTimer: ReturnType<typeof setInterval> | null = null;
+  /** Safari / iPhone after coming back: the next tap builds a fresh sound engine. */
+  private rebuildOnTap = false;
+  private readonly apple: boolean;
   /** Set when the tab comes back: the next tap restarts the sound output (see kick()). */
   private needsKick = false;
   private lastKickMs = 0;
 
-  constructor(private prefs: SoundPrefs) {}
+  constructor(private prefs: SoundPrefs) {
+    const nav = (globalThis as { navigator?: Navigator }).navigator;
+    this.apple = nav ? isAppleWebKit(nav.userAgent ?? "", nav.maxTouchPoints ?? 0) : false;
+  }
 
   /** True once sound is running (after the first tap). */
   get started(): boolean {
@@ -59,6 +76,11 @@ export class SoundEngine {
         this.failed = true;
         return;
       }
+    } else if (this.rebuildOnTap && !this.hidden) {
+      this.rebuildOnTap = false;
+      this.needsKick = false;
+      this.rebuild();
+      return;
     } else if (this.needsKick && !this.hidden) {
       // First tap after coming back to the tab: restart the output inside the tap, where every browser allows it.
       this.needsKick = false;
@@ -104,13 +126,45 @@ export class SoundEngine {
     this.fxBus.gain.setTargetAtTime(g.effects, t, VOLUME_GLIDE_S / 3);
   }
 
+  /** Throws the old sound engine away and builds a new one (inside a tap, so the browser allows it). Music starts afresh. */
+  private rebuild(): void {
+    const old = this.ctx;
+    const Ctor = audioConstructor();
+    if (!Ctor) return;
+    if (this.musicTimer !== null) clearInterval(this.musicTimer);
+    if (this.sleepTimer !== null) clearTimeout(this.sleepTimer);
+    this.musicTimer = null;
+    this.sleepTimer = null;
+    this.music = null;
+    this.bed = null;
+    this.bedKind = null;
+    this.kit = null;
+    this.ctx = null;
+    try {
+      old?.close().catch(() => undefined);
+    } catch {
+      // already closed
+    }
+    try {
+      this.build(new Ctor());
+    } catch {
+      this.failed = true;
+      return;
+    }
+    this.wake();
+  }
+
   private build(ctx: AudioContext): void {
     this.ctx = ctx;
     // iPhone: a phone call, Siri or another app can stop our sound without hiding the tab. Then the next tap restarts it.
     ctx.addEventListener("statechange", () => {
       const st = ctx.state as string;
       const wanted = !this.hidden && !isSilent(this.prefs);
-      if (wanted && (st === "interrupted" || (st === "suspended" && Date.now() - this.lastKickMs > 1000))) this.needsKick = true;
+      if (this.ctx !== ctx || !wanted) return;
+      if (st === "interrupted" || (st === "suspended" && Date.now() - this.lastKickMs > 1000)) {
+        if (this.apple) this.rebuildOnTap = true;
+        else this.needsKick = true;
+      }
     });
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14;
@@ -145,7 +199,7 @@ export class SoundEngine {
     this.music.out.connect(this.musicBus);
     this.music.setMood(this.mood === "warp");
     this.applyBed();
-    setInterval(() => this.music?.tick(busGains(this.prefs).music > 0), 250);
+    this.musicTimer = setInterval(() => this.music?.tick(busGains(this.prefs).music > 0), 250);
     this.music.tick(busGains(this.prefs).music > 0);
   }
 
@@ -194,6 +248,17 @@ export class SoundEngine {
       return;
     }
     // Back on the tab: try at once (enough in Chrome); the next tap restarts the output for sure (Safari, iPhone).
+    if (!this.ctx) return; // sound never started: the first tap starts it as usual
+    if (this.apple) {
+      // Safari / iPhone: the old engine may look fine but stay silent. Keep it quiet; the next tap builds a new one.
+      this.rebuildOnTap = true;
+      try {
+        this.ctx?.suspend().catch(() => undefined);
+      } catch {
+        // ignore
+      }
+      return;
+    }
     this.needsKick = true;
     this.kick();
   }

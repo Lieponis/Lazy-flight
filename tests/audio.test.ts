@@ -234,3 +234,15 @@ describe("flight cues", () => {
     expect(funnyLineStarted(10, 40)).toBe(false); // a long gap (tab hidden): no blip
   });
 });
+
+describe("Safari / iPhone detection (sound engine is rebuilt after an app switch there)", () => {
+  it("knows iPhone, iPad and Mac Safari, and not Chrome or Android", async () => {
+    const { isAppleWebKit } = await import("../src/audio/engine");
+    expect(isAppleWebKit("Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1")).toBe(true);
+    expect(isAppleWebKit("Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0 Mobile/15E148 Safari/604.1")).toBe(true);
+    expect(isAppleWebKit("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Safari/605.1.15")).toBe(true);
+    expect(isAppleWebKit("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Safari/605.1.15", 5)).toBe(true);
+    expect(isAppleWebKit("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36")).toBe(false);
+    expect(isAppleWebKit("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36")).toBe(false);
+  });
+});
