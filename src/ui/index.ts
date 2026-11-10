@@ -28,6 +28,7 @@ import { locationText, overlayAllowed, placeLabel, visibleControls, type Overlay
 import { NavBar } from "./navbar";
 import { RanksScreen } from "./ranks";
 import { Shipyard } from "./shipyard";
+import { startSound } from "./sound";
 import { StatusStrip } from "./statusstrip";
 
 /** How this page starts: continue the save, or a new game. Decided once, before anything is drawn. */
@@ -101,10 +102,19 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     window.location.assign(pathname + addressWithSeed(window.location.search, newSeed) + hash);
   };
   const ranks = new RanksScreen(layer, game, closeOverlay);
-  const menu = new GameMenu(layer, { seed: () => seed, savingWorks: () => saver.working }, startNewGame, closeOverlay, () => {
-    overlay = "ranks"; // MENU -> RANKS & OUTPOSTS (part 5c)
-    refresh();
-  });
+  // Sound and music (Agent 7a): settings are kept under their own storage key (they survive NEW GAME).
+  const sound = startSound(game, layer, storage);
+  const menu = new GameMenu(
+    layer,
+    { seed: () => seed, savingWorks: () => saver.working },
+    startNewGame,
+    closeOverlay,
+    () => {
+      overlay = "ranks"; // MENU -> RANKS & OUTPOSTS (part 5c)
+      refresh();
+    },
+    { get: sound.getPrefs, set: sound.setPrefs }, // MENU -> SETTINGS (7a)
+  );
   if (plan.notice) showToast(layer, plan.notice);
 
   const nav = new NavBar(layer, {
@@ -176,6 +186,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     pendingArrival = null;
     overlay = "arrival";
     arrivalCard.open(a, placeLabel(dockName(a.dockId), systemNameOfDock(a.dockId)));
+    sound.arrivalShown(a); // ka-ching (and the rank-up jingle)
     refresh();
   }
 
@@ -246,6 +257,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     game.update();
     jobs.tick();
     refreshStrip();
+    sound.tick(); // flight sounds and the music's mood follow the trip
   };
   window.setInterval(check, 250);
   document.addEventListener("visibilitychange", check);

@@ -635,6 +635,37 @@
   color: var(--ui-text);
 }
 
+/* MENU -> SETTINGS (Agent 7a): the main page and the settings page swap places. */
+.ui-menu-body[hidden] {
+  display: none;
+}
+
+.ui-settings {
+  gap: 4px;
+  padding-top: 10px;
+  overflow-y: auto;
+  touch-action: pan-y;
+  min-height: 0;
+}
+
+.ui-settings-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.ui-settings-mute {
+  flex: 1;
+}
+
+.ui-slider {
+  width: 100%;
+  height: 30px; /* a big target for thumbs */
+  margin: 0;
+  accent-color: var(--ui-teal);
+  cursor: pointer;
+}
+
 .ui-toast {
   position: fixed;
   z-index: 60;

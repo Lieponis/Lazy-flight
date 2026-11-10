@@ -1,9 +1,28 @@
 // MENU: a small overlay over the docked view, same style as the Jobs menu.
 // Shows the universe seed and whether saving works, and NEW GAME:
 //   NEW GAME -> "Same universe" or "New random universe" -> "Really start over?" -> the page starts again.
+// SETTINGS (Agent 7a, Andy's choice): a mute button and two volume sliders (music, sound effects).
 
+import type { SoundPrefs } from "../audio";
 import { button, el } from "./dom";
 import { Popup } from "./popup";
+
+/** MENU -> SETTINGS reads and changes the sound settings through these (src/ui/sound.ts). */
+export interface SoundSettingsHooks {
+  get(): SoundPrefs;
+  /** `save` false while a slider is still moving, true when it is let go. */
+  set(prefs: SoundPrefs, save: boolean): void;
+}
+
+/** "MUSIC 50%" style label for a slider (0..1). */
+export function volumeLabel(name: string, value: number): string {
+  return `${name} ${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`;
+}
+
+/** Text of the mute button. */
+export function muteButtonText(muted: boolean): string {
+  return muted ? "SOUND: OFF" : "SOUND: ON";
+}
 
 export interface GameMenuInfo {
   seed: () => number | string;
@@ -18,6 +37,11 @@ export class GameMenu {
   private saveLine = el("div", "ui-menu-line");
   private popup: Popup;
   private isOpen = false;
+  private sub = el("div", "ui-panel-sub", "LAZY FREIGHT");
+  private mainView = el("div", "ui-menu-body");
+  private settingsView = el("div", "ui-menu-body ui-settings");
+  private muteBtn: HTMLButtonElement | null = null;
+  private sliders: { key: "music" | "effects"; name: string; input: HTMLInputElement; label: HTMLElement }[] = [];
 
   constructor(
     parent: HTMLElement,
@@ -25,19 +49,23 @@ export class GameMenu {
     private onNewGame: (choice: NewGameChoice) => void,
     private onClose: () => void,
     private onRanks?: () => void,
+    private sound?: SoundSettingsHooks,
   ) {
     this.root.setAttribute("role", "dialog");
     this.root.setAttribute("aria-label", "Menu");
     const panel = el("div", "ui-panel");
     const head = el("div", "ui-panel-head");
     const titles = el("div", "ui-panel-titles");
-    titles.append(el("div", "ui-panel-title", "MENU"), el("div", "ui-panel-sub", "LAZY FREIGHT"));
+    titles.append(el("div", "ui-panel-title", "MENU"), this.sub);
     head.append(titles, button("CLOSE", "", () => this.onClose()));
-    const body = el("div", "ui-menu-body");
+    const body = this.mainView;
     // RANKS (part 5c): your ranks and the outposts you own.
     if (this.onRanks) body.append(button("RANKS & OUTPOSTS", "ui-btn-primary ui-btn-wide", () => this.onRanks?.()));
+    if (this.sound) body.append(button("SETTINGS", "ui-btn-primary ui-btn-wide", () => this.showSettings(true)));
     body.append(this.seedLine, this.saveLine, button("NEW GAME", "ui-btn-amber ui-btn-wide", () => this.askUniverse()));
-    panel.append(head, body);
+    if (this.sound) this.buildSettings(this.sound);
+    this.settingsView.hidden = true;
+    panel.append(head, body, this.settingsView);
     this.root.append(panel);
     this.root.hidden = true;
     this.root.addEventListener("click", (e) => {
@@ -45,6 +73,59 @@ export class GameMenu {
     });
     parent.appendChild(this.root);
     this.popup = new Popup(parent);
+  }
+
+  private buildSettings(sound: SoundSettingsHooks): void {
+    const v = this.settingsView;
+    this.muteBtn = button(muteButtonText(false), "ui-settings-mute", () => {
+      const p = sound.get();
+      sound.set({ ...p, muted: !p.muted }, true);
+      this.renderSettings();
+    });
+    this.muteBtn.setAttribute("aria-label", "Mute or unmute all sound");
+    const row = el("div", "ui-settings-row");
+    row.append(button("BACK", "", () => this.showSettings(false)), this.muteBtn);
+    v.append(row);
+    for (const [key, name] of [
+      ["music", "MUSIC"],
+      ["effects", "SOUND EFFECTS"],
+    ] as const) {
+      const label = el("label", "ui-menu-line ui-slider-label");
+      const input = el("input", "ui-slider");
+      input.type = "range";
+      input.min = "0";
+      input.max = "100";
+      input.step = "1";
+      input.setAttribute("aria-label", name);
+      const read = (): SoundPrefs => ({ ...sound.get(), [key]: Number(input.value) / 100 });
+      input.addEventListener("input", () => {
+        sound.set(read(), false);
+        label.textContent = volumeLabel(name, Number(input.value) / 100);
+      });
+      input.addEventListener("change", () => sound.set(read(), true));
+      v.append(label, input);
+      this.sliders.push({ key, name, input, label });
+    }
+  }
+
+  private showSettings(on: boolean): void {
+    this.mainView.hidden = on;
+    this.settingsView.hidden = !on;
+    this.sub.textContent = on ? "SETTINGS · SOUND" : "LAZY FREIGHT";
+    if (on) this.renderSettings();
+  }
+
+  private renderSettings(): void {
+    if (!this.sound) return;
+    const p = this.sound.get();
+    if (this.muteBtn) {
+      this.muteBtn.textContent = muteButtonText(p.muted);
+      this.muteBtn.classList.toggle("ui-btn-red", p.muted); // red while muted, so it is easy to notice
+    }
+    for (const s of this.sliders) {
+      s.input.value = String(Math.round(p[s.key] * 100));
+      s.label.textContent = volumeLabel(s.name, p[s.key]);
+    }
   }
 
   private askUniverse(): void {
@@ -80,6 +161,7 @@ export class GameMenu {
   open(): void {
     this.isOpen = true;
     this.root.hidden = false;
+    this.showSettings(false); // MENU always opens on its main page
     this.render();
   }
 
