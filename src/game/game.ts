@@ -1,6 +1,7 @@
 // The Game object: holds the state and the clock, and is what the panel talks to.
 // Rules live in rules.ts; this file only connects them to the universe and the clock.
 
+import { getShip } from "./ships";
 import { getDock, getJobBoard, getSystem, hashString, type Job, type Seed } from "../universe";
 import { buyShip, shipCatalog, switchShip, type ShipCatalogEntry } from "./fleet";
 import { OUTPOST_LINES } from "./debriefs";
@@ -15,6 +16,8 @@ import {
   type DockFacts,
 } from "./outposts";
 import { rankInfos, type RankInfo } from "./ranks";
+import { UPGRADE_LINES } from "./debriefs";
+import { buyUpgrade, shipStats, upgradeOffers, type ShipStats, type UpgradeOffer } from "./upgrades";
 import type { GameClock } from "./clock";
 import { slotOf } from "./clock";
 import { OUTPOST_DELIVERY_BONUS_PERCENT, OUTPOST_FUEL_DISCOUNT_PERCENT } from "./settings";
@@ -22,7 +25,7 @@ import {
   acceptJob,
   checkJob,
   emergencyRefuel,
-  fuelCost,
+  tripFuelCost,
   isStuck,
   refuel,
   settleArrival,
@@ -122,7 +125,7 @@ export class Game {
         job,
         baseReward,
         bonusPercent,
-        fuelNeeded: fuelCost(job.totalDistance),
+        fuelNeeded: tripFuelCost(this.state, job.totalDistance),
         tripSeconds: tripSeconds(job.totalDistance),
         block: checkJob(this.state, plain),
       };
@@ -192,6 +195,32 @@ export class Game {
     this.state = result.state;
     this.changed();
     return { ok: true };
+  }
+
+  // ------------------------------------------------------------ ship upgrades (4d)
+
+  /** The real numbers of a ship you own (default: the active ship): cargo, cabin, tank, fuel burn, comfort bonus. */
+  getShipStats(shipId?: string): ShipStats {
+    return shipStats(this.state, shipId ?? this.state.shipId);
+  }
+
+  /** The four upgrade rows (level, price of the next level, what it does, can you buy it, why not) for a ship (default: active). */
+  getUpgradeOffers(shipId?: string): UpgradeOffer[] {
+    return upgradeOffers(this.state, shipId ?? this.state.shipId);
+  }
+
+  /** Buy the next level of one track ("tank", "hold", "engines" or "comfort") of a ship you own. Any dock, not in flight. */
+  buyUpgrade(shipId: string, track: string): { ok: true; price: number; level: number; line: string } | { ok: false; reason: string } {
+    const result = buyUpgrade(this.state, shipId, track);
+    if (!result.ok) return result;
+    this.state = result.state;
+    const offerName = upgradeOffers(this.state, shipId).find((o) => o.track === track)?.name ?? "Upgrade";
+    const line = (UPGRADE_LINES[hashString(`${shipId}|${track}|${result.level}`) % UPGRADE_LINES.length] ?? "Upgrade fitted.")
+      .split("{ship}").join(getShip(shipId).name)
+      .split("{upgrade}").join(offerName)
+      .split("{level}").join(String(result.level));
+    this.changed();
+    return { ok: true, price: result.price, level: result.level, line };
   }
 
   // ------------------------------------------------------------ ranks and outposts (4c)

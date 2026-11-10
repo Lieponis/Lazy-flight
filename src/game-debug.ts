@@ -121,10 +121,10 @@ let dockCache: { id: string; text: string }[] = [];
 /** Docks near the start, with how many passenger and tour jobs the active ship could take there with a full tank. */
 function dockList(): { id: string; text: string }[] {
   const slot = game.currentSlot();
-  const key = `${seed}|${slot}|${game.state.shipId}|${game.state.ownedOutposts.join(",")}`;
+  const key = `${seed}|${slot}|${game.state.shipId}|${game.state.ownedOutposts.join(",")}|${JSON.stringify(game.state.shipUpgrades)}`;
   if (key === dockCacheKey) return dockCache;
   const list: { id: string; text: string }[] = [];
-  const tank = getShip(game.state.shipId).fuelTankSize;
+  const tank = game.getShipStats().fuelTankSize;
   for (const system of listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 30).slice(0, 25)) {
     for (const planet of getPlanetsOfSystem(seed, system.id)) {
       const dock = generateDock(seed, planet);
@@ -164,11 +164,11 @@ function render(): void {
   countdownEl = null;
 
   // Status
-  const owned = [`${ship.name} (active, fuel ${s.fuel}/${ship.fuelTankSize})`];
-  for (const [id, entry] of Object.entries(s.ownedShips)) owned.push(`${getShip(id).name} (fuel ${entry.fuel}/${getShip(id).fuelTankSize})`);
+  const owned = [`${ship.name} (active, fuel ${s.fuel}/${game.getShipStats().fuelTankSize})`];
+  for (const [id, entry] of Object.entries(s.ownedShips)) owned.push(`${getShip(id).name} (fuel ${entry.fuel}/${game.getShipStats(id).fuelTankSize})`);
   const status = h("div", { class: "box" });
   status.append(
-    h("div", {}, `Credits: ${s.credits}   |   Fuel: ${s.fuel}/${ship.fuelTankSize}   |   Active ship: ${ship.name}`),
+    h("div", {}, `Credits: ${s.credits}   |   Fuel: ${s.fuel}/${game.getShipStats().fuelTankSize}   |   Active ship: ${ship.name}`),
     h("div", {}, `Owned ships: ${owned.join("; ")}`),
     h("div", {}, `Dock: ${dockLabel(s.currentDockId)}   |   Game speed: x${speed}   |   Time slot: ${game.currentSlot()}`),
   );
@@ -234,7 +234,7 @@ function render(): void {
   }
 
   // Ship catalog
-  app.append(h("h2", {}, "3. Ship catalog"));
+  app.append(h("h2", {}, "3. Ship catalog (numbers include upgrades)"));
   const shipTable = h("table");
   shipTable.append(h("tr", {}, ...["Ship", "Price", "Cargo", "Cabin", "Tank", "Owned", "Active", "Can buy", "Reason", ""].map((t) => h("th", {}, t))));
   for (const entry of game.getShipCatalog()) {
@@ -253,9 +253,9 @@ function render(): void {
     tr.append(
       h("td", {}, `${entry.ship.name} - ${entry.ship.description}`),
       h("td", {}, String(entry.ship.price)),
-      h("td", {}, String(entry.ship.cargoCapacity)),
-      h("td", {}, String(entry.ship.cabinCapacity)),
-      h("td", {}, String(entry.ship.fuelTankSize)),
+      h("td", {}, String(entry.stats.cargoCapacity)),
+      h("td", {}, String(entry.stats.cabinCapacity)),
+      h("td", {}, String(entry.stats.fuelTankSize)),
       h("td", {}, entry.owned ? `yes (fuel ${entry.fuel ?? "?"})` : "no"),
       h("td", {}, entry.active ? "ACTIVE" : ""),
       h("td", {}, entry.canBuy ? "yes" : "no"),
@@ -266,8 +266,43 @@ function render(): void {
   }
   app.append(h("div", { class: "scroll" }, shipTable));
 
+  // Upgrades
+  app.append(h("h2", {}, "4. Ship upgrades (every ship you own keeps its own)"));
+  app.append(h("div", { class: "note" }, "Use TEST: add 50000 credits (section 2) first. Prices: 1500, 4000, 9000, 18000, 35000 per level."));
+  for (const entry of game.getShipCatalog().filter((e) => e.owned)) {
+    const st = entry.stats;
+    const levels = entry.upgrades;
+    app.append(
+      h("div", { class: "box" },
+        `${entry.ship.name}${entry.active ? " (ACTIVE)" : ""}: cargo ${st.cargoCapacity}, cabin ${st.cabinCapacity}, tank ${st.fuelTankSize}, fuel burn ${st.fuelBurnPercent}% of normal, comfort pay +${st.comfortBonusPercent}%   [levels: tank ${levels.tank}, hold ${levels.hold}, engines ${levels.engines}, comfort ${levels.comfort}]`,
+      ),
+    );
+    const upTable = h("table");
+    upTable.append(h("tr", {}, ...["Upgrade", "Level", "Next level does", "Price", "Reason", ""].map((t) => h("th", {}, t))));
+    for (const o of game.getUpgradeOffers(entry.ship.id)) {
+      const act = h("td");
+      act.append(
+        button("Buy level", () => {
+          const r = game.buyUpgrade(entry.ship.id, o.track);
+          say(r.ok ? `${r.line} (${r.price} cr)` : r.reason);
+        }, { disabled: !o.canBuy }),
+      );
+      upTable.append(
+        h("tr", {},
+          h("td", {}, o.name),
+          h("td", {}, `${o.level} / ${o.maxLevel}`),
+          h("td", {}, o.effect),
+          h("td", {}, o.nextPrice === null ? "-" : String(o.nextPrice)),
+          h("td", {}, o.reason),
+          act,
+        ),
+      );
+    }
+    app.append(h("div", { class: "scroll" }, upTable));
+  }
+
   // Dock chooser
-  app.append(h("h2", {}, "4. Where am I? (TEST teleport)"));
+  app.append(h("h2", {}, "5. Where am I? (TEST teleport)"));
   const chooser = h("div", { class: "box" });
   const select = h("select");
   for (const d of dockList()) {
@@ -292,7 +327,7 @@ function render(): void {
   app.append(chooser);
 
   // Ranks
-  app.append(h("h2", {}, "5. Ranks"));
+  app.append(h("h2", {}, "6. Ranks"));
   const rankTable = h("table");
   rankTable.append(h("tr", {}, ...["Category", "Jobs done", "Rank", "Next rank", "Jobs to go", "Pay bonus", "Biggest job allowed"].map((t) => h("th", {}, t))));
   for (const r of game.getRanks()) {
@@ -330,7 +365,7 @@ function render(): void {
   app.append(h("div", { class: "scroll" }, rankTable), rankRow);
 
   // Outposts
-  app.append(h("h2", {}, "6. Outposts"));
+  app.append(h("h2", {}, "7. Outposts"));
   const offer = game.getOutpostOffer(s.currentDockId);
   const perks = game.getPerks();
   const outBox = h("div", { class: "box" });
@@ -352,7 +387,7 @@ function render(): void {
   app.append(outBox);
 
   // Job board
-  app.append(h("h2", {}, `7. Job board of ${dockLabel(s.currentDockId)}`));
+  app.append(h("h2", {}, `8. Job board of ${dockLabel(s.currentDockId)}`));
   const board: BoardEntry[] = game.getBoard();
   if (flying) app.append(h("p", { class: "note" }, "No board while you are flying."));
   else if (board.length === 0) app.append(h("p", { class: "note" }, "This board is empty."));

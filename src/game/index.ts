@@ -16,6 +16,7 @@ export {
   emergencyRefuel,
   affordableFuelUnits,
   fuelCost,
+  tripFuelCost,
   fuelUnitCents,
   isStuck,
   refuel,
@@ -54,3 +55,19 @@ export {
   systemOfDock,
 } from "./outposts";
 export type { BuyOutpostResult, DockFacts } from "./outposts";
+export {
+  UPGRADE_TRACKS,
+  UPGRADE_TRACK_NAMES,
+  buyUpgrade,
+  cleanUpgrades,
+  clampFuelToTanks,
+  isUpgradeTrack,
+  noUpgrades,
+  shipStats,
+  statsFor,
+  upgradeBlock,
+  upgradeLevels,
+  upgradeOffers,
+  upgradePrice,
+} from "./upgrades";
+export type { BuyUpgradeResult, ShipStats, ShipUpgrades, UpgradeOffer, UpgradeTrack } from "./upgrades";

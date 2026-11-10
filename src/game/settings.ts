@@ -99,3 +99,23 @@ export const OUTPOST_FUEL_DISCOUNT_PERCENT = 20;
  * percent extra.
  */
 export const OUTPOST_DELIVERY_BONUS_PERCENT = 10;
+
+// ---------------------------------------------------------------- SHIP UPGRADES (4 tracks, 5 levels, per ship)
+
+/** Highest level of every upgrade track (level 0 = the ship as it comes from the shipyard). */
+export const UPGRADE_MAX_LEVEL = 5;
+
+/** Credits for level 1, 2, 3, 4 and 5 of a track (the same for every track and every ship). */
+export const UPGRADE_PRICES: [number, number, number, number, number] = [1500, 4000, 9000, 18000, 35000];
+
+/** FUEL TANK track: every level makes the tank this many percent bigger (of the ship's base tank). */
+export const UPGRADE_TANK_PERCENT_PER_LEVEL = 10;
+
+/** HOLD / CABIN track: every level makes the cargo bay AND the cabin this many percent bigger. A ship with no cabin stays without one. */
+export const UPGRADE_HOLD_PERCENT_PER_LEVEL = 10;
+
+/** EFFICIENT ENGINES track: every level burns this many percent less fuel per light year. */
+export const UPGRADE_ENGINE_PERCENT_PER_LEVEL = 6;
+
+/** PASSENGER COMFORT track: every level adds this many percent pay on passenger and tour jobs (added to the rank and outpost bonuses). */
+export const UPGRADE_COMFORT_PERCENT_PER_LEVEL = 6;

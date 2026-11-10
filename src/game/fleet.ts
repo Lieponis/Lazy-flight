@@ -2,6 +2,7 @@
 
 import { SHIP_ORDER, getShip, isShipId, type ShipDef } from "./ships";
 import type { GameState } from "./state";
+import { clampFuelToTanks, shipStats, upgradeLevels, type ShipStats, type ShipUpgrades } from "./upgrades";
 
 export type FleetResult = { ok: true; state: GameState } | { ok: false; reason: string };
 
@@ -33,6 +34,10 @@ export interface ShipCatalogEntry {
   canSwitch: boolean;
   /** This ship's fuel if you own it, otherwise null. */
   fuel: number | null;
+  /** The real numbers of this ship with its upgrades (the shipyard base numbers if you do not own it). */
+  stats: ShipStats;
+  /** Its upgrade levels (all 0 if you do not own it). */
+  upgrades: ShipUpgrades;
 }
 
 function buyBlock(state: GameState, id: string): string {
@@ -57,6 +62,8 @@ export function shipCatalog(state: GameState): ShipCatalogEntry[] {
       reason,
       canSwitch: owned && id !== state.shipId && !state.currentJob,
       fuel: shipFuel(state, id),
+      stats: shipStats(state, id),
+      upgrades: upgradeLevels(state, id),
     };
   });
 }
@@ -86,5 +93,5 @@ export function switchShip(state: GameState, id: string): FleetResult {
   const others = { ...state.ownedShips };
   delete others[id];
   others[state.shipId] = { fuel: state.fuel };
-  return { ok: true, state: { ...state, shipId: id, fuel: target.fuel, ownedShips: others } };
+  return { ok: true, state: clampFuelToTanks({ ...state, shipId: id, fuel: target.fuel, ownedShips: others }) };
 }

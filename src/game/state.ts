@@ -5,6 +5,7 @@ import type { Job } from "../universe";
 import { emptyCompletedJobs, RANK_KINDS, type CompletedJobs } from "./ranks";
 import { STARTER_SHIP_ID, STARTING_CREDITS } from "./settings";
 import { getShip, isShipId } from "./ships";
+import { cleanUpgrades, noUpgrades, statsFor, type ShipUpgrades } from "./upgrades";
 
 export interface GameState {
   credits: number;
@@ -17,6 +18,11 @@ export interface GameState {
    * You own the active ship plus every ship listed here. Empty at the start.
    */
   ownedShips: Record<string, { fuel: number }>;
+  /**
+   * The upgrade levels (0 to 5) of every ship you own, by ship id: { "scout": { tank: 2, hold: 0, engines: 1, comfort: 0 } }.
+   * A ship with no entry has level 0 everywhere. Upgrades stay with their ship (see upgrades.ts).
+   */
+  shipUpgrades: Record<string, ShipUpgrades>;
   /** How many jobs of each kind you have delivered (this decides your ranks, see ranks.ts). */
   completedJobs: CompletedJobs;
   /** The ids of the outposts you own (your home bases), in the order you bought them. */
@@ -49,6 +55,7 @@ export function newGameState(startDockId: string): GameState {
     fuel: getShip(STARTER_SHIP_ID).fuelTankSize,
     shipId: STARTER_SHIP_ID,
     ownedShips: {},
+    shipUpgrades: {},
     completedJobs: emptyCompletedJobs(),
     ownedOutposts: [],
     outpostCount: 0,
@@ -67,17 +74,26 @@ function finiteOr(value: unknown, fallback: number): number {
 /**
  * Turns saved data (maybe from an old version, maybe missing parts) into a safe GameState.
  * Missing ownedShips = you own only the active ship. Unknown ships are dropped.
+ * Missing shipUpgrades (saves from before upgrades) = every ship at level 0; bad levels are repaired.
  * Missing completedJobs / ownedOutposts (saves from before ranks and outposts) = no ranks yet, no outposts.
  */
 export function normalizeState(raw: Partial<GameState> & { currentDockId: string }): GameState {
   const shipId = typeof raw.shipId === "string" && isShipId(raw.shipId) ? raw.shipId : STARTER_SHIP_ID;
-  const tank = getShip(shipId).fuelTankSize;
-  const owned: Record<string, { fuel: number }> = {};
   const source = raw.ownedShips && typeof raw.ownedShips === "object" ? raw.ownedShips : {};
-  for (const id of Object.keys(source)) {
-    if (!isShipId(id) || id === shipId) continue;
+  const ownedIds = Object.keys(source).filter((id) => isShipId(id) && id !== shipId);
+  // Upgrade levels first, because the real tank size depends on them. Only ships you own can have upgrades.
+  const rawUpgrades: Partial<Record<string, unknown>> =
+    raw.shipUpgrades && typeof raw.shipUpgrades === "object" ? (raw.shipUpgrades as Partial<Record<string, unknown>>) : {};
+  const upgrades: Record<string, ShipUpgrades> = {};
+  for (const id of [shipId, ...ownedIds]) {
+    if (rawUpgrades[id] !== undefined) upgrades[id] = cleanUpgrades(rawUpgrades[id]);
+  }
+  const tankOf = (id: string): number => statsFor(id, upgrades[id] ?? noUpgrades()).fuelTankSize;
+  const tank = tankOf(shipId);
+  const owned: Record<string, { fuel: number }> = {};
+  for (const id of ownedIds) {
     const entry = source[id];
-    const shipTank = getShip(id).fuelTankSize;
+    const shipTank = tankOf(id);
     owned[id] = { fuel: Math.min(shipTank, Math.max(0, Math.round(finiteOr(entry?.fuel, shipTank)))) };
   }
   const completed = emptyCompletedJobs();
@@ -96,6 +112,7 @@ export function normalizeState(raw: Partial<GameState> & { currentDockId: string
     fuel: Math.min(tank, Math.max(0, Math.round(finiteOr(raw.fuel, tank)))),
     shipId,
     ownedShips: owned,
+    shipUpgrades: upgrades,
     completedJobs: completed,
     ownedOutposts,
     outpostCount: ownedOutposts.length,

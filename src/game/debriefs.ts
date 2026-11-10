@@ -57,3 +57,12 @@ export const OUTPOST_LINES: string[] = [
   "Congratulations, landlord! {name} cost {price} credits. The kettle works. Probably.",
   "Signed, stamped, paid ({price} credits). {name} is your home base.",
 ];
+
+// Lines for buying a ship upgrade. {ship} = the ship, {upgrade} = the track name, {level} = the new level.
+export const UPGRADE_LINES: string[] = [
+  "The {ship} now has {upgrade} level {level}. A mechanic polished it and kept the leftover bolts as a souvenir.",
+  "{upgrade} level {level} fitted to the {ship}. It purrs. Slightly louder than before, but it purrs.",
+  "Done! {upgrade} {level} for the {ship}. The invoice was longer than the manual.",
+  "The {ship} proudly wears {upgrade} level {level}. It would like you to notice.",
+  "Level {level} {upgrade} installed. The {ship} did a tiny happy wobble on the pad.",
+];

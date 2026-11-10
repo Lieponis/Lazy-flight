@@ -19,7 +19,7 @@ import {
   SAME_SYSTEM_TRIP_SECONDS,
   TRAVEL_SECONDS_PER_LY,
 } from "./settings";
-import { getShip } from "./ships";
+import { shipStats } from "./upgrades";
 import type { GameState } from "./state";
 import { boardPeriodOf, hashString, type Job } from "../universe";
 import { slotOf } from "./clock";
@@ -34,10 +34,20 @@ export function tripSeconds(distanceLy: number): number {
   return Math.min(Math.round(seconds), MAX_TRIP_SECONDS);
 }
 
-/** Whole units of fuel a trip of this many light years burns. Grows with distance. */
-export function fuelCost(distanceLy: number): number {
+/**
+ * Whole units of fuel a trip of this many light years burns. Grows with distance.
+ * `burnPercent` is 100 for a ship without engine upgrades (see tripFuelCost for the real ship).
+ */
+export function fuelCost(distanceLy: number, burnPercent = 100): number {
   const d = Math.max(0, Number.isFinite(distanceLy) ? distanceLy : 0);
-  return Math.max(MIN_FUEL_PER_TRIP, Math.ceil(d * FUEL_PER_LY));
+  const exact = burnPercent === 100 ? d * FUEL_PER_LY : (d * FUEL_PER_LY * burnPercent) / 100;
+  // The tiny subtraction stops a number like 12.000000000000002 from rounding up to 13.
+  return Math.max(MIN_FUEL_PER_TRIP, Math.ceil(burnPercent === 100 ? exact : exact - 1e-9));
+}
+
+/** The fuel this trip burns for the ACTIVE ship (efficient engines burn less). */
+export function tripFuelCost(state: GameState, distanceLy: number): number {
+  return fuelCost(distanceLy, shipStats(state).fuelBurnPercent);
 }
 
 // ------------------------------------------------------------ can the player take a job?
@@ -65,7 +75,7 @@ export interface Block {
 
 /** Null if the player can take the job right now, otherwise the reason it is blocked. */
 export function checkJob(state: GameState, job: Job): Block | null {
-  const ship = getShip(state.shipId);
+  const ship = shipStats(state); // the real numbers: shipyard values plus upgrades
   if (state.currentJob) return { code: "busy", text: "You already have a job. Finish it first." };
   if (job.originDockId !== state.currentDockId) return { code: "wrong-dock", text: "This job is from another dock." };
 
@@ -91,7 +101,7 @@ export function checkJob(state: GameState, job: Job): Block | null {
     }
   }
 
-  const need = fuelCost(job.totalDistance);
+  const need = tripFuelCost(state, job.totalDistance);
   if (need > ship.fuelTankSize) {
     return { code: "tank-too-small", text: `Too far for this ship's tank: needs ${need} fuel, the tank holds ${ship.fuelTankSize}.` };
   }
@@ -108,16 +118,20 @@ export interface PayInfo {
   job: Job;
   /** The reward before any bonus. */
   baseReward: number;
-  /** Total bonus in percent (rank + outpost). */
+  /** Total bonus in percent (rank + outpost + passenger comfort), all added up and counted on the plain reward. */
   bonusPercent: number;
 }
 
 /**
- * What the player really gets paid for a job: the plain reward plus the rank bonus of that job kind
- * plus the outpost bonus if the job ends in a system where the player owns an outpost.
+ * What the player really gets paid for a job: the plain reward plus the rank bonus of that job kind,
+ * plus the outpost bonus if the job ends in a system where the player owns an outpost,
+ * plus the passenger-comfort bonus of the active ship (passenger and tour jobs only).
+ * The three percents are ADDED, and the sum is taken of the plain reward (they never multiply each other).
  */
 export function withBonuses(state: GameState, job: Job): PayInfo {
-  const bonusPercent = rankBonusPercent(job.kind, state.completedJobs) + deliveryBonusPercentAt(state, job.destinationDockId);
+  const comfort = job.kind === "PASSENGER" || job.kind === "TOUR" ? shipStats(state).comfortBonusPercent : 0;
+  const bonusPercent =
+    rankBonusPercent(job.kind, state.completedJobs) + deliveryBonusPercentAt(state, job.destinationDockId) + comfort;
   if (bonusPercent <= 0) return { job, baseReward: job.reward, bonusPercent: 0 };
   return { job: { ...job, reward: Math.round(job.reward * (1 + bonusPercent / 100)) }, baseReward: job.reward, bonusPercent };
 }
@@ -132,7 +146,7 @@ export function acceptJob(state: GameState, job: Job, nowMs: number): AcceptResu
     ok: true,
     state: {
       ...state,
-      fuel: state.fuel - fuelCost(job.totalDistance),
+      fuel: state.fuel - tripFuelCost(state, job.totalDistance),
       currentJob: job,
       travelStartMs: nowMs,
       travelEndMs: nowMs + tripSeconds(job.totalDistance) * 1000,
@@ -275,7 +289,7 @@ export function affordableFuelUnits(state: GameState): number {
 /** Buy fuel at the dock's price until the tank is full or the credits run out. Only while docked. */
 export function refuel(state: GameState): RefuelResult {
   if (state.currentJob) return { ok: false, reason: "You can only refuel while docked." };
-  const tank = getShip(state.shipId).fuelTankSize;
+  const tank = shipStats(state).fuelTankSize;
   const missing = tank - state.fuel;
   if (missing <= 0) return { ok: false, reason: "The tank is already full." };
   const units = Math.min(missing, affordableFuelUnits(state));
@@ -293,7 +307,7 @@ export function refuel(state: GameState): RefuelResult {
  */
 export function isStuck(state: GameState, jobs: readonly Job[]): boolean {
   if (state.currentJob) return false;
-  const tank = getShip(state.shipId).fuelTankSize;
+  const tank = shipStats(state).fuelTankSize;
   const bestFuel = Math.min(tank, state.fuel + affordableFuelUnits(state));
   let fuelBlocked = false;
   for (const job of jobs) {
@@ -301,7 +315,7 @@ export function isStuck(state: GameState, jobs: readonly Job[]): boolean {
     if (!block) return false; // you can take a job right now
     if (block.code === "not-enough-fuel") {
       fuelBlocked = true;
-      if (fuelCost(job.totalDistance) <= bestFuel) return false; // refuelling would fix it
+      if (tripFuelCost(state, job.totalDistance) <= bestFuel) return false; // refuelling would fix it
     }
   }
   return fuelBlocked;
@@ -316,7 +330,7 @@ export function emergencyRefuel(state: GameState, jobs: readonly Job[]): Emergen
   if (!isStuck(state, jobs)) {
     return { ok: false, reason: "You are not stuck. Take a job, or buy fuel with your credits." };
   }
-  const tank = getShip(state.shipId).fuelTankSize;
+  const tank = shipStats(state).fuelTankSize;
   const units = Math.min(EMERGENCY_REFUEL_AMOUNT, tank - state.fuel);
   if (units <= 0) return { ok: false, reason: "The tank is already full." };
   const pick = hashString(`${state.currentDockId}|${state.fuel}|${state.credits}`) % EMERGENCY_LINES.length;
