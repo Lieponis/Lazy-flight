@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cockpitRoomVisible, dragLook, ownShipVisible, pilotEye, renderPathFor, shakeShare, zoomFov } from "../src/render/cockpitview";
+import { cockpitRoomVisible, dragLook, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, shakeShare, zoomFov } from "../src/render/cockpitview";
 
 describe("cockpit view: what is drawn and how", () => {
   it("cockpit view goes through the lens, orbit view is the normal picture", () => {
@@ -45,5 +45,17 @@ describe("cockpit view: looking around, zooming, shaking", () => {
   it("the cockpit shakes less than the orbit camera", () => {
     expect(shakeShare("orbit", 0.2)).toBe(1);
     expect(shakeShare("cockpit", 0.2)).toBe(0.2);
+  });
+});
+
+describe("cockpit view: double tap", () => {
+  it("two quick taps are a double tap, slow ones or the first one are not", () => {
+    expect(isDoubleTap(1000, 1200)).toBe(true);
+    expect(isDoubleTap(1000, 1500)).toBe(false);
+    expect(isDoubleTap(0, 100)).toBe(false);
+  });
+  it("a press that barely moved is a tap, a drag is not", () => {
+    expect(isTap(3)).toBe(true);
+    expect(isTap(40)).toBe(false);
   });
 });

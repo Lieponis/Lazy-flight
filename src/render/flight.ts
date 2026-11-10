@@ -23,7 +23,7 @@ import {
 } from "./flightplan";
 import { buildCockpitBase } from "./assets/cockpitBase";
 import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
-import { cockpitRoomVisible, dragLook, ownShipVisible, pilotEye, renderPathFor, shakeShare, zoomFov, type Look, type ViewMode } from "./cockpitview";
+import { cockpitRoomVisible, dragLook, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, shakeShare, zoomFov, type Look, type ViewMode } from "./cockpitview";
 import { pinchFactor, wheelFactor } from "./dockedcam";
 import { starfieldPositions } from "./helpers";
 import type { Hud } from "./hud";
@@ -160,6 +160,8 @@ export class FlightScreen implements Screen {
   private zoom = COCKPIT_FOV; // the cockpit view's side-to-side field of view (wheel or pinch)
   private pointers = new Map<number, { x: number; y: number }>();
   private lastPinch = 0;
+  private moved = 0; // how far the finger or mouse travelled since it went down (a tap barely moves)
+  private lastTapMs = 0;
   private tunnel = buildTunnel();
   private origin: Body | null = null;
   private dest: Body | null = null;
@@ -276,7 +278,6 @@ export class FlightScreen implements Screen {
     el.addEventListener("pointermove", this.onMove);
     el.addEventListener("pointerup", this.onUp);
     el.addEventListener("pointercancel", this.onUp);
-    el.addEventListener("dblclick", this.resetLook);
     el.addEventListener("wheel", this.onWheel, { passive: false });
     this.opts.hud.setVisible(false);
     this.flash.style.display = "block";
@@ -290,7 +291,6 @@ export class FlightScreen implements Screen {
     el.removeEventListener("pointermove", this.onMove);
     el.removeEventListener("pointerup", this.onUp);
     el.removeEventListener("pointercancel", this.onUp);
-    el.removeEventListener("dblclick", this.resetLook);
     el.removeEventListener("wheel", this.onWheel);
     this.pointers.clear();
     this.flash.style.display = "none";
@@ -517,6 +517,7 @@ export class FlightScreen implements Screen {
       // not important
     }
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    this.moved = 0;
     if (this.pointers.size === 2) this.lastPinch = this.fingerDistance();
   };
 
@@ -527,6 +528,7 @@ export class FlightScreen implements Screen {
     const dy = e.clientY - p.y;
     p.x = e.clientX;
     p.y = e.clientY;
+    this.moved += Math.abs(dx) + Math.abs(dy);
     if (this.pointers.size === 1) {
       const h = Math.max(1, this.opts.host.clientHeight);
       const perPixel = ((this.zoom * Math.PI) / 180) / h; // dragging a screen height turns about one field of view
@@ -539,6 +541,16 @@ export class FlightScreen implements Screen {
   };
 
   private onUp = (e: PointerEvent): void => {
+    // Double tap or double click (works on phones too): look straight ahead again.
+    if (e.type === "pointerup" && this.mode === "cockpit" && this.pointers.size === 1 && isTap(this.moved)) {
+      const now = performance.now();
+      if (isDoubleTap(this.lastTapMs, now)) {
+        this.resetLook();
+        this.lastTapMs = 0;
+      } else {
+        this.lastTapMs = now;
+      }
+    }
     this.pointers.delete(e.pointerId);
     if (this.pointers.size < 2) this.lastPinch = 0;
   };

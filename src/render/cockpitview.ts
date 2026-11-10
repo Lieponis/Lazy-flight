@@ -55,3 +55,12 @@ export function zoomFov(fov: number, factor: number, min: number, max: number): 
 export function shakeShare(mode: ViewMode, cockpitFactor: number): number {
   return mode === "cockpit" ? cockpitFactor : 1;
 }
+
+/** A double tap (or click): the second tap comes soon after the first, and neither tap was a drag. */
+export function isDoubleTap(previousTapMs: number, nowMs: number, windowMs = 350): boolean {
+  return previousTapMs > 0 && nowMs - previousTapMs <= windowMs;
+}
+/** A press that barely moved counts as a tap (not a drag). */
+export function isTap(movedPixels: number, limit = 8): boolean {
+  return movedPixels <= limit;
+}
