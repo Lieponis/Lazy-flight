@@ -16,7 +16,6 @@ import {
   type MapScreenData,
 } from "./screendata";
 
-const STATUS_BLUE = "#14215e"; // the info screen: dark blue, for contrast with the light text
 const AMBER = "#c07a22";
 const LIGHT = "#e3e7ff";
 const CYAN = "#3fe0ff";
@@ -35,8 +34,20 @@ interface Face {
   mesh: THREE.Mesh;
 }
 
-function makeFace(model: AssetModel, name: "screenInfo" | "screenMap" | "screenFuel"): Face | null {
-  const a = model.anchors[name];
+type ScreenName = "screenInfo" | "screenMap" | "screenFuel" | "screenRightWing";
+
+/**
+ * The right wing screen has no anchor of its own, but the cockpit is exactly left/right symmetrical, so it is the fuel screen mirrored
+ * (suggestion for Agent 8: give it a real anchor). Andy wants it amber like the fuel screen.
+ */
+function mirroredFuelAnchor(model: AssetModel): { pos: THREE.Vector3; dir: THREE.Vector3; size?: { w: number; h: number } } | undefined {
+  const a = model.anchors.screenFuel;
+  if (!a) return undefined;
+  return { pos: new THREE.Vector3(-a.pos.x, a.pos.y, a.pos.z), dir: new THREE.Vector3(-a.dir.x, a.dir.y, a.dir.z), size: a.size };
+}
+
+function makeFace(model: AssetModel, name: ScreenName): Face | null {
+  const a = name === "screenRightWing" ? mirroredFuelAnchor(model) : model.anchors[name];
   if (!a || !a.size) return null;
   const canvas = document.createElement("canvas");
   canvas.width = SCREEN_PIXEL_WIDTH;
@@ -119,7 +130,7 @@ function drawBlock(ctx: CanvasRenderingContext2D, w: number, h: number, lines: {
 
 function drawInfo(ctx: CanvasRenderingContext2D, w: number, h: number, d: InfoScreenData): void {
   const k = w / SCREEN_DESIGN_WIDTH; // everything is laid out on a 96-wide grid and scaled to the picture
-  ctx.fillStyle = STATUS_BLUE;
+  ctx.fillStyle = NAV_BACK; // the same dark background as the route screen (Andy)
   ctx.fillRect(0, 0, w, h);
   const BODY = 19 * k; // one text size on both pages, so nothing overlaps
   if (d.page === "message") {
@@ -211,6 +222,23 @@ function drawMap(ctx: CanvasRenderingContext2D, w: number, h: number, d: MapScre
   ctx.fill();
 }
 
+/** The right wing screen: amber like the fuel screen, with a few quiet bars (a made-up readout, nothing to read). */
+function drawRightWing(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const k = w / SCREEN_DESIGN_WIDTH;
+  ctx.fillStyle = AMBER;
+  ctx.fillRect(0, 0, w, h);
+  const heights = [0.35, 0.6, 0.45, 0.8, 0.55];
+  const barW = 10 * k;
+  const gap = 6 * k;
+  const x0 = (w - (heights.length * barW + (heights.length - 1) * gap)) / 2;
+  const base = h * 0.85;
+  const top = h * 0.2;
+  ctx.fillStyle = DARK;
+  ctx.fillRect(x0 - 4 * k, base + 1 * k, heights.length * (barW + gap) - gap + 8 * k, 2 * k);
+  ctx.fillStyle = LIGHT;
+  heights.forEach((v, i) => ctx.fillRect(x0 + i * (barW + gap), base - (base - top) * v, barW, (base - top) * v));
+}
+
 function drawFuel(ctx: CanvasRenderingContext2D, w: number, h: number, d: FuelScreenData): void {
   const k = w / SCREEN_DESIGN_WIDTH;
   ctx.fillStyle = AMBER;
@@ -239,6 +267,8 @@ export class CockpitScreens {
   private info: Face | null;
   private map: Face | null;
   private fuel: Face | null;
+  private rightWing: Face | null;
+  private rightWingDrawn = false;
   /** Called once when the pixel font finishes loading, so the owner can redraw straight away. */
   onFontLoaded: (() => void) | null = null;
 
@@ -246,6 +276,7 @@ export class CockpitScreens {
     this.info = makeFace(model, "screenInfo");
     this.map = makeFace(model, "screenMap");
     this.fuel = makeFace(model, "screenFuel");
+    this.rightWing = makeFace(model, "screenRightWing");
     // The UI's CSS loads the VT323 font; wait for it before relying on it (the plain monospace is used meanwhile).
     try {
       void document.fonts?.load(`20px "VT323"`).then(() => this.onFontLoaded?.());
@@ -264,6 +295,11 @@ export class CockpitScreens {
       drawMap(this.map.ctx, this.map.canvas.width, this.map.canvas.height, frame.map);
       this.map.texture.needsUpdate = true;
     }
+    if (this.rightWing && !this.rightWingDrawn) {
+      drawRightWing(this.rightWing.ctx, this.rightWing.canvas.width, this.rightWing.canvas.height);
+      this.rightWing.texture.needsUpdate = true;
+      this.rightWingDrawn = true; // it never changes
+    }
     if (this.fuel) {
       drawFuel(this.fuel.ctx, this.fuel.canvas.width, this.fuel.canvas.height, frame.fuel);
       this.fuel.texture.needsUpdate = true;
@@ -272,6 +308,6 @@ export class CockpitScreens {
 
   /** The textures are not freed with the cockpit's geometry and materials, so free them here. */
   dispose(): void {
-    for (const face of [this.info, this.map, this.fuel]) face?.texture.dispose();
+    for (const face of [this.info, this.map, this.fuel, this.rightWing]) face?.texture.dispose();
   }
 }
