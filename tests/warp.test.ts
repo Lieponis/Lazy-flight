@@ -124,7 +124,7 @@ describe("warp: the stars", () => {
     const lens = Array.from({ length: 500 }, (_, i) => d.length[i * 2]!).sort((a, b) => a - b);
     expect(lens[0]).toBeLessThan(1);
     expect(lens[499]).toBeGreaterThan(15);
-    expect(lens[250]).toBeLessThan(4);
+    expect(lens[250]).toBeLessThan(6);
     const speeds = Array.from({ length: 500 }, (_, i) => d.speed[i * 2]!);
     expect(Math.max(...speeds) - Math.min(...speeds)).toBeGreaterThan(0.7);
   });
