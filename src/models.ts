@@ -99,7 +99,7 @@ function readAddress(): ViewState {
     park: q.get("park") === "1",
     buddy: findEntry(q.get("buddy") ?? "")?.id ?? "",
     sit: q.get("sit") === "1",
-    fov: clamp(Number(q.get("fov")) || 60, 30, 100),
+    fov: clamp(Number(q.get("fov")) || findEntry(asset)?.eyeFov || 60, 30, 100),
     cut: q.get("cut") === "1",
     look: (() => {
       const l = (q.get("look") ?? "").split(",").map(Number);
@@ -775,7 +775,7 @@ function refreshPanel(): void {
     row.appendChild(button("Window cut-out", S.cut, () => set("cut", !S.cut)));
     row.appendChild(button("Look ahead", false, () => ((S.look = { yaw: 0, pitch: 0 }), saveAddress())));
     row = section(`Field of view: ${Math.round(S.fov)} degrees`);
-    for (const f of [45, 55, 60, 70, 80]) row.appendChild(button(String(f), Math.round(S.fov) === f, () => set("fov", f, false)));
+    for (const f of [45, 50, 55, 60, 70, 80]) row.appendChild(button(String(f), Math.round(S.fov) === f, () => set("fov", f, false)));
     if (S.sit) panel.appendChild(el("p", { class: "note" }, "Drag to look around, scroll or pinch to change the field of view."));
   }
   row = section("Look");

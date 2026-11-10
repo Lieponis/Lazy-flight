@@ -39,4 +39,15 @@ All stations: origin = station centre, up +Y. An Elite-style docking slot in the
 | broken-demo | Broken on purpose | A shed with an inside-out roof, a floating antenna, too many triangles and missing anchors, so the problem checker can be seen working | about 2060 | parking |
 
 ## Cockpits (stage C1)
-RESET by Andy, no cockpit designs exist. Restart pending reference sheet.
+Restarted after Andy's reset: ONE base cockpit for all three ships, built one step at a time from Andy's drawings
+("Cockpit shell", "Cockpit windows", "Cockpit panels", ...). Work in progress: `cockpit-base` in
+src/render/assets/cockpitBase.ts, shown in the viewer only (reference group), not in the registry yet.
+
+| Step | What | Status | Decided |
+|---|---|---|---|
+| 1 | Shell and window cut-out | APPROVED by Andy | six zero-thickness surfaces (front wall, back wall, floor, two side walls, lofted roof); shapes measured from the drawing; window follows the front view most closely (option C), no sharp corners |
+| 2 | Dashboard panels | waiting for Andy | option B (as drawn, softened): wrap-round dashboard (middle + two wings) with leg room and centre stack, centre console in two sections with a round end, overhead panel; eye higher (1.45) and closer to the dashboard, field of view 50 |
+| 3-6 | Seats, instruments and lights, screens, dog | not started | |
+
+Known: Andy's drawings disagree between views in places (window; dashboard lip vs the low roof at the nose sides),
+so one view leads and the others are matched as closely as the shapes allow. Small zigzag shading steps on the curved roof.

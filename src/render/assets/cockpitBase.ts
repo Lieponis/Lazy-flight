@@ -44,8 +44,10 @@ const WINDOW: V2[] = [[0.793, 0.42], [0.761, 0.42], [0.729, 0.42], [0.697, 0.42]
 const WINDOW_SIDE: V2[] = [[0.182, 0.252], [0.155, 0.252], [0.127, 0.252], [0.099, 0.252], [0.072, 0.252], [0.044, 0.252], [0.018, 0.256], [0.034, 0.274], [0.055, 0.291], [0.076, 0.306], [0.097, 0.322], [0.118, 0.338], [0.139, 0.354], [0.161, 0.369], [0.183, 0.383], [0.205, 0.396], [0.227, 0.41], [0.249, 0.423], [0.272, 0.436], [0.294, 0.449], [0.318, 0.459], [0.34, 0.471], [0.364, 0.482], [0.387, 0.493], [0.411, 0.502], [0.436, 0.507], [0.461, 0.5], [0.488, 0.498], [0.514, 0.495], [0.541, 0.493], [0.568, 0.49], [0.595, 0.49], [0.623, 0.49], [0.649, 0.49], [0.676, 0.49], [0.703, 0.493], [0.729, 0.497], [0.755, 0.502], [0.779, 0.51], [0.804, 0.516], [0.829, 0.524], [0.853, 0.532], [0.878, 0.539], [0.903, 0.546], [0.929, 0.542], [0.952, 0.531], [0.97, 0.511], [0.977, 0.486], [0.977, 0.46], [0.965, 0.438], [0.944, 0.42], [0.921, 0.409], [0.898, 0.398], [0.874, 0.388], [0.852, 0.376], [0.827, 0.368], [0.803, 0.359], [0.779, 0.352], [0.754, 0.344], [0.73, 0.335], [0.705, 0.327], [0.68, 0.322], [0.655, 0.315], [0.629, 0.31], [0.604, 0.304], [0.579, 0.298], [0.553, 0.293], [0.528, 0.288], [0.501, 0.286], [0.475, 0.281], [0.449, 0.277], [0.423, 0.274], [0.396, 0.271], [0.37, 0.266], [0.344, 0.264], [0.316, 0.264], [0.289, 0.262], [0.263, 0.259], [0.236, 0.257], [0.209, 0.254]];
 const WINDOW_FRONT: V2[] = [[0.097, 0.33], [0.077, 0.33], [0.056, 0.33], [0.036, 0.332], [0.016, 0.332], [-0.004, 0.335], [-0.024, 0.332], [-0.044, 0.33], [-0.064, 0.33], [-0.085, 0.33], [-0.105, 0.332], [-0.125, 0.333], [-0.144, 0.337], [-0.164, 0.339], [-0.182, 0.344], [-0.201, 0.349], [-0.22, 0.354], [-0.238, 0.361], [-0.256, 0.367], [-0.273, 0.374], [-0.29, 0.383], [-0.307, 0.393], [-0.323, 0.404], [-0.338, 0.419], [-0.347, 0.436], [-0.349, 0.456], [-0.344, 0.474], [-0.333, 0.491], [-0.319, 0.504], [-0.304, 0.517], [-0.288, 0.528], [-0.27, 0.534], [-0.249, 0.534], [-0.229, 0.532], [-0.21, 0.528], [-0.192, 0.522], [-0.173, 0.517], [-0.154, 0.515], [-0.135, 0.51], [-0.115, 0.507], [-0.095, 0.505], [-0.075, 0.504], [-0.055, 0.502], [-0.036, 0.5], [-0.015, 0.5], [0.006, 0.5], [0.027, 0.5], [0.047, 0.5], [0.067, 0.502], [0.087, 0.505], [0.106, 0.507], [0.126, 0.51], [0.146, 0.512], [0.165, 0.515], [0.184, 0.519], [0.203, 0.524], [0.221, 0.529], [0.24, 0.534], [0.261, 0.534], [0.281, 0.532], [0.298, 0.523], [0.314, 0.512], [0.328, 0.498], [0.342, 0.482], [0.352, 0.466], [0.352, 0.445], [0.347, 0.426], [0.332, 0.412], [0.317, 0.398], [0.301, 0.387], [0.284, 0.378], [0.267, 0.37], [0.249, 0.364], [0.231, 0.356], [0.212, 0.352], [0.194, 0.347], [0.175, 0.342], [0.156, 0.337], [0.137, 0.335], [0.117, 0.332]];
 
-/** Where the pilot's eye sits (left seat, about mid-length), from the floor. Not decided yet: seats come later. */
-const EYE = { x: -0.9, y: 1.3, v: 0.5 };
+/** Where the pilot's eye sits (left seat), from the floor. DECIDED (step 2): higher and closer to the dashboard. */
+const EYE = { x: -0.6, y: 1.45, v: 0.47 };
+/** Field of view from the pilot's seat, in degrees. DECIDED (step 2): narrower than the old 60. */
+export const EYE_FOV = 50;
 /** Rings along the length (closer together where the side walls start to rise). */
 const VS = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.47, 0.5, 0.54, 0.58, 0.63, 0.68, 0.74, 0.8, 0.87, 0.93, 1];
 const SPLIT = 2; // cells the window edge crosses are split 3 x 3, for a smooth edge
@@ -75,6 +77,20 @@ function roofPoint(v: number, s: number, side: number): V3 {
   const sy = fy + (by - fy) * v;
   const w = wallTop(v);
   return [side * sx * halfWidth(v), w + (roofTop(v) - w) * sy, zOf(v)];
+}
+
+/** Height of the roof's inside above a floor point (x across in crates, v along), or 0 outside the cabin. */
+function roofHeightAt(x: number, v: number): number {
+  const hw = halfWidth(v);
+  if (Math.abs(x) >= hw) return wallTop(v);
+  let lo = 0; // s = 0: bottom edge (|x| = hw) .. s = 1: top middle (x = 0)
+  let hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (Math.abs(roofPoint(v, mid, 1)[0]) > Math.abs(x)) lo = mid;
+    else hi = mid;
+  }
+  return roofPoint(v, (lo + hi) / 2, 1)[1];
 }
 
 const inPoly = (p: V2, poly: readonly V2[]): boolean => {
@@ -224,6 +240,143 @@ function buildShell(): AssetModel {
   const backPoly: V3[] = [[0, 0, zOf(1)], [-halfWidth(1), 0, zOf(1)], ...back, [halfWidth(1), 0, zOf(1)]];
   emit("interior back wall", backPoly);
 
+  /** Like emit, but the faces point away from `from` (for the outside of a block standing in the cabin). */
+  const emitAway = (name: string, poly: V3[], from: THREE.Vector3): void => {
+    const c = poly.reduce((acc, p) => acc.add(new THREE.Vector3(...p)), new THREE.Vector3()).divideScalar(poly.length);
+    emit(name, poly, c.multiplyScalar(2).sub(from));
+  };
+
+  // ---------------------------------------------------------------- STEP 2: PANELS (option B: as drawn, softened)
+  // Measured from "Cockpit panels". Shares of the length, like the shell.
+  // DASHBOARD: wraps round the nose (straight middle + two angled wings). Its side profile, from the front wall
+  // back to the lip facing the pilot, then under the lip to the leg-room face. d = 0 front .. 1 lip; h = height.
+  // The soft corners (option B) are the extra points either side of the top and of the lip.
+  const DASH_PROFILE: V2[] = [[0, 0.239], [0.686, 0.337], [0.813, 0.334], [0.967, 0.26], [0.956, 0.236], [0.63, 0.178], [0.63, 0]];
+  const DASH_LIGHT = 4; // profile pieces 0..3 are the light top and face; the rest is the dark underside and leg-room face
+  const LIP_MIDDLE = 0.23; // how far back the middle section reaches (top view)
+  const LIP_WING_END: V2 = [0.375, 0.4]; // where the wings' back edge meets the cabin side (along, across)
+  const MID_HALF = 0.2; // half width of the straight middle section
+  const DASH_MAX = 0.315; // the dashboard stays just below the window's lower edge (front view), so it never blocks it
+  const lipOf = (u: number): number => {
+    const a = Math.abs(u);
+    if (a <= MID_HALF) return LIP_MIDDLE;
+    return LIP_MIDDLE + ((a - MID_HALF) / (LIP_WING_END[1] - MID_HALF)) * (LIP_WING_END[0] - LIP_MIDDLE);
+  };
+  /** Along-position of the nose outline at a given across-position (0 on the flat front). */
+  const noseOf = (u: number): number => {
+    const a = Math.abs(u);
+    if (a <= PLAN[0]!) return 0;
+    for (let i = 1; i < PLAN.length; i++) {
+      if (PLAN[i]! >= a) {
+        const t = (a - PLAN[i - 1]!) / (PLAN[i]! - PLAN[i - 1]!);
+        return (i - 1 + t) / (PLAN.length - 1);
+      }
+    }
+    return 1;
+  };
+  // Where the wing's back edge reaches the nose outline: the dashboard's outer end.
+  let uEnd = MID_HALF;
+  while (uEnd < 0.47 && noseOf(uEnd + 0.002) < lipOf(uEnd + 0.002)) uEnd += 0.002;
+  const US = [-uEnd, -0.36, -0.32, -0.28, -0.24, -MID_HALF, -0.1, 0, 0.1, MID_HALF, 0.24, 0.28, 0.32, 0.36, uEnd];
+  const dashPoint = (u: number, d: number, h: number): V3 => {
+    const v = noseOf(u) + d * (lipOf(u) - noseOf(u));
+    const x = u * LENGTH;
+    const top = Math.max(0, roofHeightAt(x, v) - 0.04); // stay just under the roof near the nose sides
+    return [x, Math.min(h, DASH_MAX) * LENGTH > top ? top : Math.min(h, DASH_MAX) * LENGTH, zOf(v)];
+  };
+  for (let i = 0; i + 1 < US.length; i++) {
+    for (let k = 0; k + 1 < DASH_PROFILE.length; k++) {
+      const [d0, h0] = DASH_PROFILE[k]!;
+      const [d1, h1] = DASH_PROFILE[k + 1]!;
+      const quad = [dashPoint(US[i]!, d0, h0), dashPoint(US[i]!, d1, h1), dashPoint(US[i + 1]!, d1, h1), dashPoint(US[i + 1]!, d0, h0)];
+      emit(k < DASH_LIGHT ? "interior dashboard" : "interior dashboard underside", quad);
+    }
+  }
+  // The centre stack: three light plates on the leg-room face of the middle section, floor up to the dashboard.
+  {
+    const vFace = 0.63 * LIP_MIDDLE + 0.004;
+    const half = 0.07 * LENGTH;
+    for (const [a, b] of [[0.004, 0.075], [0.083, 0.152], [0.16, 0.172]] as const) {
+      emit("interior centre stack", [[-half, a * LENGTH, zOf(vFace)], [half, a * LENGTH, zOf(vFace)], [half, b * LENGTH, zOf(vFace)], [-half, b * LENGTH, zOf(vFace)]]);
+    }
+  }
+
+  // CENTRE CONSOLE: a low block between the seats, two sections, rounded back end, softened top edges.
+  {
+    const half = 0.08 * LENGTH;
+    const soft = 0.03; // chamfer, crates
+    const heightAt = (v: number): number => (v < 0.39 ? 0.1 + ((v - 0.238) / (0.39 - 0.238)) * (0.067 - 0.1) : 0.066) * LENGTH;
+    // Outline seen from above: (x, v), going round. The back end is a half round.
+    const outline: V2[] = [[-half, 0.238], [half, 0.238]];
+    for (let i = 0; i <= 6; i++) {
+      const a = (i / 6) * Math.PI;
+      outline.push([half * Math.cos(a), 0.544 + (Math.sin(a) * half) / LENGTH]);
+    }
+    const ring = outline; // front-left, front-right, then the round end from right to left
+    const n = ring.length;
+    const inset = (p: V2): V2 => {
+      const [x, v] = p;
+      const cx = 0;
+      const cv = 0.4;
+      const dx = x - cx;
+      const dv = (v - cv) * LENGTH;
+      const len = Math.hypot(dx, dv) || 1;
+      return [x - (dx / len) * soft, v - ((dv / len) * soft) / LENGTH];
+    };
+    for (let i = 0; i < n; i++) {
+      const a = ring[i]!;
+      const b = ring[(i + 1) % n]!;
+      const ai = inset(a);
+      const bi = inset(b);
+      const ha = heightAt(a[1]);
+      const hb = heightAt(b[1]);
+      // Side face up to the chamfer, then the chamfer strip.
+      const mid = new THREE.Vector3(0, 0.1, zOf(0.4));
+      emitAway("interior centre console", [[a[0], 0, zOf(a[1])], [b[0], 0, zOf(b[1])], [b[0], hb - soft, zOf(b[1])], [a[0], ha - soft, zOf(a[1])]], mid);
+      emitAway("interior centre console", [[a[0], ha - soft, zOf(a[1])], [b[0], hb - soft, zOf(b[1])], [bi[0], heightAt(bi[1]), zOf(bi[1])], [ai[0], heightAt(ai[1]), zOf(ai[1])]], mid);
+    }
+    // The top, split into two sections by a dark line at v = 0.374.
+    const top = ring.map(inset);
+    const split = 0.374;
+    const front = top.filter((p) => p[1] <= split);
+    const back = top.filter((p) => p[1] > split);
+    const hx = top[1]![0];
+    const sectionA: V2[] = [...front, [hx, split - 0.004], [-hx, split - 0.004]];
+    const sectionB: V2[] = [[hx, split + 0.004], ...back, [-hx, split + 0.004]];
+    for (const sec of [sectionA, sectionB]) {
+      emit("interior centre console", sec.map(([x, v]) => [x, heightAt(v), zOf(v)] as V3), new THREE.Vector3(0, 5, zOf(0.4)));
+    }
+    emit("interior console line", [[-hx, heightAt(split) - 0.003, zOf(split - 0.004)], [hx, heightAt(split) - 0.003, zOf(split - 0.004)], [hx, heightAt(split) - 0.003, zOf(split + 0.004)], [-hx, heightAt(split) - 0.003, zOf(split + 0.004)]], new THREE.Vector3(0, 5, zOf(0.4)));
+  }
+
+  // OVERHEAD PANEL: a strip hanging under the middle of the roof, from about halfway back to the back wall.
+  // Seen from the front: a narrow light face underneath, sloping sides up to the roof.
+  {
+    const vs = [0.52, 0.56, 0.62, 0.7, 0.78, 0.86, 0.93, 0.957];
+    const bottomHalf = 0.06 * LENGTH;
+    const topHalf = 0.12 * LENGTH;
+    const drop = 0.05 * LENGTH;
+    const taper = (v: number): number => Math.min(1, (v - 0.52) / 0.05);
+    const sect = (v: number): V3[] => {
+      const t = taper(v);
+      const xb = bottomHalf * t;
+      const xt = Math.max(topHalf * t, 0.02);
+      const yb = roofHeightAt(xb, v) - drop * Math.max(t, 0.15);
+      return [[-xt, roofHeightAt(xt, v) - 0.005, zOf(v)], [-xb, yb, zOf(v)], [xb, yb, zOf(v)], [xt, roofHeightAt(xt, v) - 0.005, zOf(v)]];
+    };
+    const down = (v: number): THREE.Vector3 => new THREE.Vector3(0, 0, zOf(v));
+    for (let i = 0; i + 1 < vs.length; i++) {
+      const a = sect(vs[i]!);
+      const b = sect(vs[i + 1]!);
+      const below = down((vs[i]! + vs[i + 1]!) / 2);
+      emit("interior overhead panel sides", [a[0]!, b[0]!, b[1]!, a[1]!], below);
+      emit("interior overhead panel sides", [a[2]!, b[2]!, b[3]!, a[3]!], below);
+      emit("interior overhead panel", [a[1]!, b[1]!, b[2]!, a[2]!], below);
+    }
+    const end = sect(0.957);
+    emit("interior overhead panel sides", end, new THREE.Vector3(0, 0, zOf(0.5)));
+  }
+
   const colours = {
     "interior roof": "hullMid",
     "interior floor": "metalDark",
@@ -231,6 +384,13 @@ function buildShell(): AssetModel {
     "interior right wall": "hullDark",
     "interior front wall": "hullDark",
     "interior back wall": "hullDark",
+    "interior dashboard": "hullLight",
+    "interior dashboard underside": "frame",
+    "interior centre stack": "hullLight",
+    "interior centre console": "hullMid",
+    "interior console line": "frame",
+    "interior overhead panel": "hullLight",
+    "interior overhead panel sides": "hullMid",
   } as const;
   for (const [name, colour] of Object.entries(colours)) {
     const g = new THREE.BufferGeometry();
@@ -266,10 +426,11 @@ export const COCKPIT_BASE_WIP: AssetEntry = {
   name: "Cockpit base (work in progress)",
   kind: "cockpit",
   description:
-    "Step 1: six surfaces with no thickness (small front wall, back wall, floor, two side walls, curved roof with the window cut out), measured from Andy's drawings. Dashboard, seats, screens and lights come in later steps.",
+    "Steps 1-2: shell (six surfaces with no thickness, window cut out of the curved roof) and panels (dashboard, centre console, overhead panel), measured from Andy's drawings. Seats, screens, lights and dog come in later steps.",
   variants: 1,
   build: buildCockpitBase,
   anchorNames: ["eye"],
+  eyeFov: EYE_FOV,
   triangles: 3000,
   status: "DRAFT",
 };

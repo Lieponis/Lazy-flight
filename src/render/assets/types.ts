@@ -75,4 +75,6 @@ export interface AssetEntry {
   /** Triangle count of the largest variant (checked by the tests against the real number). */
   triangles: number;
   status: "DRAFT" | "APPROVED" | "INTEGRATED";
+  /** Cockpits only: field of view from the pilot's seat, in degrees (the viewer starts with it). */
+  eyeFov?: number;
 }
