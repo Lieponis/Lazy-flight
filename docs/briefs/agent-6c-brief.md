@@ -10,6 +10,7 @@ You are Agent 6 (Save / QA / Balance). Work on the CURRENT `main`. Read first: d
 1. Save/load and reload in every state with upgrades, sound settings (7a) and liveries/planet looks if present; old saves load.
 2. Phone checks: Andy has an iPhone Air; Android is untested, ask Andy whether he can borrow one. Give ONE short phone checklist (frame rate in docked view with a station, cockpit view, system view; sound start on first tap; Safari private tab).
 3. Look for regressions across all screens with the headless browser at phone and desktop sizes; add regression tests for every bug.
+3b. Sound (Agent 7a): on Android and desktop browsers check first tap starts sound, mute and sliders are remembered, no sound in a hidden tab, sound returns after an app switch. Add a regression test that fails if the flight phase timing used by src/ui/sound.ts drifts from the flight screen's (`planFlight`, `phaseDurations`) and one for the CSS class names the bonk detection relies on.
 4. `npm audit` flagged 6 weaknesses in old BUILD/TEST tools (Vite/Vitest, not shipped). Try the upgrade of those tools ONLY if `npm run check` and a real build stay green and it takes no code changes beyond config; otherwise leave it and say why.
 5. Cosmetic cleanup the Lead approves: rename the `tunnel` field in `flight.ts` (it holds the warp), remove dead code/unused settings you can prove unused (tests green), refresh the README and docs/WHERE-TO-LOOK.md if the map changed.
 
