@@ -69,8 +69,8 @@ export function infoScreenData(
   plan: FlightPlan,
   lines: readonly string[] = [],
   salt = 0,
-  statusSeconds = 10,
-  messageSeconds = 5,
+  statusSeconds = 15,
+  messageSeconds = 10,
 ): InfoScreenData {
   const remainingMs = plan.phase === "DONE" ? 0 : Math.max(0, plan.totalSeconds - plan.elapsedSeconds) * 1000;
   const { page, round } = infoPage(plan.elapsedSeconds, statusSeconds, messageSeconds);

@@ -10,7 +10,6 @@ import type { AssetModel } from "./assets";
 import {
   SCREEN_PIXEL_WIDTH,
   canvasHeightFor,
-  twoLines,
   SCREEN_DESIGN_WIDTH,
   type FuelScreenData,
   type InfoScreenData,
@@ -68,9 +67,18 @@ function centred(ctx: CanvasRenderingContext2D, text: string, x: number, y: numb
     size -= 1;
     ctx.font = `${size}px ${FONT}`;
   }
+  thick(ctx, text, x, y, color, size);
+}
+
+/** Text with a thin outline of its own colour, so the strokes stay visible when the screen is small on the picture. */
+function thick(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, size: number): void {
   ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1, size * 0.07);
+  ctx.lineJoin = "round";
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
+  ctx.strokeText(text, x, y);
   ctx.fillText(text, x, y);
 }
 
@@ -91,40 +99,59 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): st
   return lines;
 }
 
+/** Lines of text, all the same size (the biggest up to `maxSize` that fits the width and the height), centred as a block. */
+function drawBlock(ctx: CanvasRenderingContext2D, w: number, h: number, lines: { text: string; color: string }[], maxSize: number, top: number, bottom: number): void {
+  const maxW = w - 8 * (w / SCREEN_DESIGN_WIDTH);
+  const area = h * (bottom - top);
+  let size = maxSize;
+  for (; size > 8; size -= 1) {
+    ctx.font = `${size}px ${FONT}`;
+    if (lines.length * size * 0.9 <= area && lines.every((l) => ctx.measureText(l.text).width <= maxW)) break;
+  }
+  ctx.font = `${size}px ${FONT}`;
+  const lineH = size * 0.9;
+  let y = h * top + (area - lines.length * lineH) / 2 + lineH * 0.82;
+  for (const l of lines) {
+    thick(ctx, l.text, w / 2, y, l.color, size);
+    y += lineH;
+  }
+}
+
 function drawInfo(ctx: CanvasRenderingContext2D, w: number, h: number, d: InfoScreenData): void {
   const k = w / SCREEN_DESIGN_WIDTH; // everything is laid out on a 96-wide grid and scaled to the picture
   ctx.fillStyle = TEAL;
   ctx.fillRect(0, 0, w, h);
-  const cx = w / 2;
-  const maxW = w - 8 * k;
+  const BODY = 19 * k; // one text size on both pages, so nothing overlaps
   if (d.page === "message") {
-    // A funny line from the ship's computer, as big as it can be while still fitting.
-    centred(ctx, "SHIP COMPUTER", cx, h * 0.12, 16 * k, maxW, CYAN);
-    let size = 26 * k;
-    let lines: string[] = [];
-    for (; size >= 12 * k; size -= k) {
+    // A funny line from the ship's computer, wrapped to the screen.
+    ctx.font = `${BODY}px ${FONT}`;
+    let size = BODY;
+    let lines = wrap(ctx, d.message, w - 8 * k);
+    while (size > 12 * k && lines.length * size * 0.9 > h * 0.72) {
+      size -= k;
       ctx.font = `${size}px ${FONT}`;
-      lines = wrap(ctx, d.message, maxW);
-      if (lines.length * size * 0.85 <= h * 0.74) break;
+      lines = wrap(ctx, d.message, w - 8 * k);
     }
-    ctx.fillStyle = LIGHT;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic";
-    const lineH = size * 0.85;
-    let y = h * 0.2 + (h * 0.74 - lines.length * lineH) / 2 + lineH * 0.8;
-    for (const line of lines) {
-      ctx.fillText(line, cx, y);
-      y += lineH;
-    }
+    drawBlock(ctx, w, h, [{ text: "SHIP COMPUTER", color: CYAN }, ...lines.map((text) => ({ text, color: LIGHT }))], size, 0.04, 0.96);
     return;
   }
-  centred(ctx, "TO", cx, h * 0.11, 18 * k, maxW, CYAN);
-  const [l1, l2] = twoLines(d.destination, 11);
-  centred(ctx, l1, cx, h * 0.25, 24 * k, maxW, LIGHT);
-  if (l2) centred(ctx, l2, cx, h * 0.37, 24 * k, maxW, LIGHT);
-  centred(ctx, "ARRIVES IN", cx, h * 0.54, 16 * k, maxW, CYAN);
-  centred(ctx, d.countdown, cx, h * 0.77, 36 * k, maxW, LIGHT);
-  centred(ctx, d.phase, cx, h * 0.94, 22 * k, maxW, CYAN);
+  ctx.font = `${BODY}px ${FONT}`;
+  const destLines = wrap(ctx, d.destination.toUpperCase(), w - 8 * k).slice(0, 2);
+  drawBlock(
+    ctx,
+    w,
+    h,
+    [
+      { text: "TO", color: CYAN },
+      ...destLines.map((text) => ({ text, color: LIGHT })),
+      { text: "ARRIVES IN", color: CYAN },
+      { text: d.countdown, color: LIGHT },
+      { text: d.phase, color: CYAN },
+    ],
+    BODY,
+    0.04,
+    0.96,
+  );
 }
 
 function drawMap(ctx: CanvasRenderingContext2D, w: number, h: number, d: MapScreenData): void {
