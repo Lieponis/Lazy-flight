@@ -154,28 +154,38 @@ function seeded(seed: number): () => number {
 const LIGHT_COLOURS = ["lightRed", "lightGreen", "engine", "cyan", "window", "yellow"] as const;
 
 /**
- * The indicator lights (step 4), as one extra mesh that shares the model's material. Each light gets a random
- * colour and flashes at its own pace (on 0.4..3.4 seconds apart, on for 25..75% of that); off = dim, not black.
- * `update` changes only this mesh's colours, which is cheap.
+ * The indicator lights (step 4), as one extra mesh that shares the model's material. Each light is a coloured
+ * square on a dark surround (so it stands out on the light panels), raised a hair off its panel towards the cabin
+ * (`inside`). Each gets a random colour and flashes at its own pace (0.4..3.4 seconds, on for 25..75% of that);
+ * off = dim, not black. `update` changes only this mesh's colours, which is cheap.
  */
-function addFlashingLights(model: AssetModel, lights: { p: V3; a: V3; b: V3 }[], size: number): void {
+function addFlashingLights(model: AssetModel, lights: { p: V3; a: V3; b: V3 }[], size: number, rim: number, inside: THREE.Vector3): void {
   const rnd = seeded(20261110);
   const pos: number[] = [];
-  const col = new Float32Array(lights.length * 6 * 3);
+  const col = new Float32Array(lights.length * 12 * 3);
   const colours: THREE.Color[] = [];
   const timing: { period: number; phase: number; on: number }[] = [];
-  const h = size / 2;
-  for (const L of lights) {
-    const P = new THREE.Vector3(...L.p);
-    const A = new THREE.Vector3(...L.a).normalize().multiplyScalar(h);
-    const B = new THREE.Vector3(...L.b).normalize().multiplyScalar(h);
-    const c = [P.clone().sub(A).sub(B), P.clone().add(A).sub(B), P.clone().add(A).add(B), P.clone().sub(A).add(B)];
+  const surround = new THREE.Color(PAL.frame);
+  const square = (P: THREE.Vector3, A: THREE.Vector3, B: THREE.Vector3, h: number): void => {
+    const a = A.clone().multiplyScalar(h);
+    const b = B.clone().multiplyScalar(h);
+    const c = [P.clone().sub(a).sub(b), P.clone().add(a).sub(b), P.clone().add(a).add(b), P.clone().sub(a).add(b)];
     for (const i of [0, 1, 2, 0, 2, 3]) pos.push(c[i]!.x, c[i]!.y, c[i]!.z);
+  };
+  lights.forEach((L, n) => {
+    const P = new THREE.Vector3(...L.p);
+    const A = new THREE.Vector3(...L.a).normalize();
+    const B = new THREE.Vector3(...L.b).normalize();
+    const N = A.clone().cross(B);
+    if (N.dot(inside.clone().sub(P)) < 0) N.negate();
+    square(P.clone().addScaledVector(N, 0.004), A, B, size / 2 + rim); // dark surround
+    square(P.clone().addScaledVector(N, 0.007), A, B, size / 2); // the light
+    for (let v = 0; v < 6; v++) col.set([surround.r, surround.g, surround.b], (n * 12 + v) * 3);
     const key = LIGHT_COLOURS[Math.floor(rnd() * LIGHT_COLOURS.length)]!;
     colours.push(new THREE.Color(PAL[key]));
     const period = 0.4 + rnd() * 3;
     timing.push({ period, phase: rnd() * period, on: 0.25 + rnd() * 0.5 });
-  }
+  });
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   const colourAttr = new THREE.BufferAttribute(col, 3);
@@ -188,9 +198,9 @@ function addFlashingLights(model: AssetModel, lights: { p: V3; a: V3; b: V3 }[],
     lights.forEach((_, i) => {
       const T = timing[i]!;
       const lit = ((t + T.phase) % T.period) / T.period < T.on;
-      const k = lit ? 1 : 0.22;
+      const k = lit ? 1 : 0.3;
       const c = colours[i]!;
-      for (let v = 0; v < 6; v++) col.set([c.r * k, c.g * k, c.b * k], (i * 6 + v) * 3);
+      for (let v = 6; v < 12; v++) col.set([c.r * k, c.g * k, c.b * k], (i * 12 + v) * 3);
     });
     colourAttr.needsUpdate = true;
   };
@@ -315,7 +325,9 @@ function buildShell(): AssetModel {
 
   /** Indicator lights (step 4): centre, and the two directions its small square spreads along. */
   const lights: { p: V3; a: V3; b: V3 }[] = [];
-  const LIGHT = 0.034; // size of one light, crates
+  const LIGHT = 0.06; // size of one light, crates (Andy: bigger); each has a dark surround LIGHT_RIM wide
+  const LIGHT_RIM = 0.0125;
+  const LIGHT_HALF = LIGHT / 2 + LIGHT_RIM; // half size of a light with its surround, crates
 
   // ---------------------------------------------------------------- STEP 2: PANELS (option B: as drawn, softened)
   // Measured from "Cockpit panels". Shares of the length, like the shell.
@@ -516,12 +528,11 @@ function buildShell(): AssetModel {
       emit("interior overhead panel", [a[1]!, b[1]!, b[2]!, a[2]!], below);
     }
     emit("interior overhead panel sides", sect(vEnd), new THREE.Vector3(0, 0, zOf(0.5)));
-    // Lights on its underside: two rows.
-    for (const v of [0.1, 0.14, 0.18, 0.22, 0.26].map((d) => vStart + d)) {
-      for (const u of [-0.022, 0.022]) {
-        const x = u * LENGTH;
-        lights.push({ p: [x, roofHeightAt(Math.abs(bottomHalf * 0.5), v) - drop - 0.004, zOf(v)], a: [1, 0, 0], b: [0, 0, 1] });
-      }
+    // Lights on its flat underside: three columns, rows all the way along (Andy: more lights), inside its edges.
+    const step = 0.03; // between rows, share of the length (0.108 crates)
+    for (let v = vStart + TAPER + LIGHT_HALF / LENGTH + 0.01; v + LIGHT_HALF / LENGTH < vEnd - 0.01; v += step) {
+      const yb = roofHeightAt(bottomHalf, v) - drop;
+      for (const x of [-0.11, 0, 0.11]) lights.push({ p: [x, yb, zOf(v)], a: [1, 0, 0], b: [0, 0, 1] });
     }
   }
 
@@ -613,12 +624,12 @@ function buildShell(): AssetModel {
       screenSpots.push({ name, corners: area });
     };
     // Middle section: three screens side by side.
-    faceScreen("screen middle left", -0.188, -0.082, 0.7, 1.08);
-    faceScreen("screen middle", -0.052, 0.052, 0.7, 1.08);
-    faceScreen("screen middle right", 0.082, 0.188, 0.7, 1.08);
+    faceScreen("screen middle left", -0.185, -0.092, 0.7, 1.08);
+    faceScreen("screen middle", -0.045, 0.045, 0.7, 1.08);
+    faceScreen("screen middle right", 0.092, 0.185, 0.7, 1.08);
     // Wings: one smaller screen each, kept inside the face where the roof brings it down.
-    faceScreen("screen left wing", -0.31, -0.23, 0.72, 0.97);
-    faceScreen("screen right wing", 0.23, 0.31, 0.72, 0.97);
+    faceScreen("screen left wing", -0.31, -0.235, 0.72, 0.95);
+    faceScreen("screen right wing", 0.235, 0.31, 0.72, 0.95);
     // Centre console, front section: a screen lying on top (it follows the console's slope).
     const conH = (v: number): number => (v < 0.39 ? 0.1 + ((v - KNEE_DEPTH * LIP_MIDDLE) / (0.39 - KNEE_DEPTH * LIP_MIDDLE)) * (0.067 - 0.1) : 0.066) * LENGTH;
     const onTop = (u: number, v: number, lift: number): V3 => [u * LENGTH, conH(v) + lift, zOf(v)];
@@ -637,19 +648,32 @@ function buildShell(): AssetModel {
       const n = Math.hypot(1, dz);
       return [1 / n, 0, (Math.sign(u) * dz) / n];
     };
+    // The upright face's top edge at u (just under the soft lip), as built in step 2.
+    const faceTop = (u: number): number => {
+      const x = u * LENGTH;
+      const lip = lipOf(u);
+      return Math.max(Math.min(shelf(x, lip - SOFT / LENGTH) - SOFT, shelf(x, lip)), KNEE_TOP * LENGTH);
+    };
     const faceLight = (u: number, y: number): void => {
-      const p = onFace(u, y);
-      lights.push({ p: [p[0], p[1], p[2] + 0.008], a: along(u), b: [0, 1, 0] });
+      // Must sit inside the face: below its top edge (checked at both sides of the light) and above its bottom.
+      const du = LIGHT_HALF / LENGTH;
+      const top = Math.min(faceTop(u - du), faceTop(u + du)) - 0.01;
+      if (y + LIGHT_HALF > top || y - LIGHT_HALF < KNEE_TOP * LENGTH + 0.01 || Math.abs(u) + du > uEnd) {
+        throw new Error(`A light at ${u}, ${y} would stick out of the dashboard face.`); // never silently drop one
+      }
+      lights.push({ p: onFace(u, y), a: along(u), b: [0, 1, 0] });
     };
     for (const side of [-1, 1]) {
-      for (const u of [0.1, 0.125, 0.15, 0.175]) faceLight(side * u, 1.16);
-      for (const u of [0.067, 0.209]) for (const y of [0.78, 0.89, 1.0]) faceLight(side * u, y);
+      for (const u of [0.1, 0.125, 0.15, 0.175]) faceLight(side * u, 1.16); // row above each side screen
+      for (const u of [0.0685, 0.212]) for (const y of [0.78, 0.89, 1.0]) faceLight(side * u, y); // between screens
+      for (const u of [0.24, 0.265, 0.29]) faceLight(side * u, 1.03); // wing: row above the wing screen
+      for (const y of [0.76, 0.86]) faceLight(side * 0.338, y); // wing: beside the wing screen, outside
     }
     // On the centre stack, above the console.
     const stackV = KNEE_DEPTH * LIP_MIDDLE + 0.004;
-    for (const u of [-0.04, -0.02, 0, 0.02, 0.04]) lights.push({ p: [u * LENGTH, 0.58, zOf(stackV) + 0.008], a: [1, 0, 0], b: [0, 1, 0] });
+    for (const u of [-0.025, 0, 0.025]) lights.push({ p: [u * LENGTH, 0.57, zOf(stackV)], a: [1, 0, 0], b: [0, 1, 0] });
     // On the console's back section, round the throttle.
-    const topLight = (u: number, v: number): void => void lights.push({ p: [u * LENGTH, conH(v) + 0.004, zOf(v)], a: [1, 0, 0], b: [0, 0, 1] });
+    const topLight = (u: number, v: number): void => void lights.push({ p: [u * LENGTH, conH(v), zOf(v)], a: [1, 0, 0], b: [0, 0, 1] });
     for (const u of [-0.045, -0.015, 0.015, 0.045]) topLight(u, 0.4); // a row across, in front of the throttle
     for (const v of [0.51, 0.535, 0.56]) for (const u of [-0.025, 0, 0.025]) topLight(u, v); // a small grid behind
 
@@ -698,7 +722,7 @@ function buildShell(): AssetModel {
   windows.forEach((w, i) => kit.windowOpening(`window ${i + 1}`, w));
 
   const model = kit.finish();
-  addFlashingLights(model, lights, LIGHT);
+  addFlashingLights(model, lights, LIGHT, LIGHT_RIM, new THREE.Vector3(0, 1.0, zOf(0.6)));
   // Surfaces with no thickness: show them from both sides (from outside too, in the viewer).
   model.group.traverse((o) => {
     const mesh = o as THREE.Mesh;
