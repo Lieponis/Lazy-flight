@@ -2,7 +2,7 @@
 
 ## In short
 
-The new cockpit is built and checked in the model viewer, made from your drawings in five approved steps:
+The new cockpit is built and checked in the model viewer, made from Andy's drawings in five steps he approved:
 
 1. the shell and the window;
 2. the dashboard panels;
