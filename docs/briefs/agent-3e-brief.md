@@ -11,6 +11,9 @@ You are Agent 3 (rendering). Work on the CURRENT `main` (never an old zip). Read
 - No arrival shake at outposts; the cockpit view leaving a station does not show the planet. Both stay as they are.
 - The UI layer (src/ui, text, menus) is NOT pixelated.
 
+## Small first task (from the Lead, do it before Part 1, one commit)
+Agent 8 added the `screenRightWing` anchor to the base cockpit (identical position to your mirrored placement). In `src/render/cockpitscreens.ts`: (1) in `makeFace` use `model.anchors[name]` for every screen including `screenRightWing`; (2) delete `mirroredFuelAnchor()` and `COCKPIT_CENTRE_X` and any tests that use them; (3) check the right wing picture stays in the same place, Cockpit view looks unchanged, `npm run check` passes. Tell Andy in one line when done.
+
 ## Part 1: pixel look
 Add, all switchable in `src/render/settings.ts` with one number each (0 = off):
 - colour banding (fewer colour steps; default modest),
