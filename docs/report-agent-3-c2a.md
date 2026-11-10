@@ -10,17 +10,17 @@
 
 **3. Live link.** https://lieponis.github.io/Lazy-flight/
 
-**4. Known issues / not verified.** I could not run `npm run check` or Three.js (no network for installs); I only type-checked against a stand-in and ran the new tests with a stand-in runner. Real proof = green Actions run + Andy's click-test. Verified by Andy on desktop: look, shake, drag, zoom, double-tap glide. NOT verified: phone frame rate, phone upright/sideways, the other two ships, HalfFloat render target on older phones (the lens needs it; same as the viewer). `FlightScreen.dispose()` exists (frees lens and cockpit) but nothing calls it: the flight screen lives for the whole game, so there is no leak over many flights. Andy's wish "outside smaller, cockpit unchanged" needs a two-layer draw (lens.ts change, Agent 8 / Lead); the zoomed-out start view was used instead.
+**4. Known issues / not verified.** I could not run `npm run check` or Three.js (no network for installs); I only type-checked against a stand-in and ran the new tests with a stand-in runner. Real proof = green Actions run + Andy's click-test. Verified by Andy (2026-11-10): desktop (look, shake, drag, zoom, double-tap glide), phone, and all three ships. NOT verified: a measured phone frame rate (Andy: "phone good", by feel), HalfFloat render target on older phones (the lens needs it; same as the viewer). `FlightScreen.dispose()` exists (frees lens and cockpit) but nothing calls it: the flight screen lives for the whole game, so there is no leak over many flights. Andy asked once for "outside smaller, cockpit unchanged": that needs a two-layer draw (a lens.ts change); Andy dropped it ("no lens updates for now"), the zoomed-out start view is enough.
 
 **5. Cost.** Cockpit ~2,400 triangles, 4 meshes, 1 material = +4 draw calls. Removed the old overlay (about 9 boxes, 9 draw calls). The lens adds one extra pass: the whole scene is first drawn into a hidden picture (130% of the screen height, wider at wide views), then one 2-triangle quad. Expect the cost of drawing the scene about 1.3-2x in cockpit view, still at the tiny 320x180-class size. Not measured on a phone.
 
 **6. Settings** (`src/render/settings.ts`). `COCKPIT_SHAKE_FACTOR` 0.2; `COCKPIT_LOOK_*`; `COCKPIT_DEFAULT_ZOOM_OUT` 1.75; `COCKPIT_ZOOM_RANGE` 5; `COCKPIT_FOV_CAP` 150. Lens: `COCKPIT_FOV` 70, `COCKPIT_LENS` 0.35 (assets/lens.ts, unchanged).
 
-**7. Phone checklist for Andy.** Open `?speed=600` (also `&ship=scout`, `&ship=passenger-liner`). Start a trip, Cockpit view, phone upright then sideways. Look for: no stretched edges, space through the window, no own ship, lights flash, smooth. Try drag, pinch, double tap. Report: phone model, which ship, upright or sideways, a screenshot, and "smooth" or "stutters".
+**7. Phone checklist (done by Andy, kept for later regression checks).** Open `?speed=600` (also `&ship=scout`, `&ship=passenger-liner`). Start a trip, Cockpit view, phone upright then sideways. Look for: no stretched edges, space through the window, no own ship, lights flash, smooth. Try drag, pinch, double tap. Report: phone model, which ship, upright or sideways, a screenshot, and "smooth" or "stutters".
 
 **8. For the Lead / next stages.**
-- `src/render/cockpit.ts` (old overlay) is no longer used and is WAITING for Andy's approval to be removed in a follow-up.
-- C2b: put the trip read-out on the three screens (anchors `screenInfo`, `screenMap`, `screenFuel`; the cockpit model is `cockpitModel` in `flight.ts`). The HTML read-out stays for now.
+- `src/render/cockpit.ts` (old overlay) is REMOVED (Andy approved, 2026-11-10). Nothing imported it.
+- C2b (Andy is proceeding with avionics now): put the trip read-out on the three screens (anchors `screenInfo`, `screenMap`, `screenFuel`; the cockpit model is `cockpitModel` in `flight.ts`). The HTML read-out stays for now.
 - Per-ship cockpits, dog, lamp, window light: deferred by Andy, not built.
 
 **9. Suggestions (not built).** Throttle lever moving with the trip; a "Reset view" button for people who do not find double tap; remember zoom between flights.
