@@ -1,9 +1,9 @@
-# Integrating the base cockpit into the game (for the next agents)
+# Base cockpit: technical notes for integration
 
-Written by Agent 8 at the end of stage C1 (2026-11-10). Andy approved steps 1 to 5 of the base cockpit.
-This file tells the next agents how to (1) put the cockpit into the game's flight view and (2) draw the trip
-information on its screens. Andy has no programming experience: report to him in plain words, one step at a time,
-with a link he can click.
+Written by Agent 8 at the end of stage C1 (2026-11-10), as reference material for the Lead. Andy approved steps 1 to
+5 of the base cockpit. These notes describe how the cockpit could (1) go into the game's flight view and (2) show the
+trip information on its screens. They are not job assignments: the Lead decides who does what, when, and in which
+order.
 
 ## What exists
 
@@ -39,7 +39,7 @@ Check the model at any time in the viewer: `/models.html?asset=cockpit-base&sit=
     cheap: it only rewrites one small colour buffer.
   - `model.animation.levers` = the throttle and a small lever; each can be turned around its `axis` by up to `maxAngle`.
 
-## Part 1: put the cockpit into the flight view
+## Part 1: putting the cockpit into the flight view (how it could be done)
 
 1. **Build it once** in `FlightScreen`: `const cockpitModel = buildCockpitBase();`. Keep its group in a holder object
    (`cockpitRig = new THREE.Group()`) added to the scene. Hide the old overlay in cockpit mode (`this.cockpit.group.visible = false`
@@ -73,7 +73,7 @@ Check the model at any time in the viewer: `/models.html?asset=cockpit-base&sit=
      rate on a phone.
    - Send Andy the link.
 
-## Part 2: show the trip information on the screens
+## Part 2: showing the trip information on the screens (how it could be done)
 
 Today the trip information is HTML text over the view (`updateHud` in flight.ts: destination, arrival countdown and
 clock time, phase name, a "computer" line, progress bar). The screens should show it in the cockpit instead (ask
@@ -115,7 +115,7 @@ Andy whether the HTML read-out stays as well).
 6. **Check:** in cockpit view the information is readable at the game's pixel size on desktop and on a phone, and the
    fuel and the countdown change during the trip. Show Andy, one screen at a time if he wants changes.
 
-## Not built yet (Andy deferred them, do not build without asking him)
+## Not built yet (Andy deferred them)
 
 - **`windowLight` anchor and mesh:** planet-coloured light coming in through the window. The cockpit checker asks for
   it, which is why the viewer shows "Missing anchor windowLight" and why the cockpit is still in the viewer's

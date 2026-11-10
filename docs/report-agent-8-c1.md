@@ -1,6 +1,6 @@
-# Report: Agent 8, stage C1 (base cockpit), 2026-11-10
+# Report to the Lead: Agent 8, stage C1 (base cockpit), 2026-11-10
 
-## In short (for Andy)
+## In short
 
 The new cockpit is built and checked in the model viewer, made from your drawings in five approved steps:
 
@@ -11,7 +11,8 @@ The new cockpit is built and checked in the model viewer, made from your drawing
 5. the screen jobs.
 
 One cockpit is used for all three ships for now. The dog, the warm lamp and the window light are left for later, as
-you asked. It is not inside the game yet: the next agent puts it in, following `docs/INTEGRATION-cockpit.md`.
+Andy asked. It is not inside the game yet. Technical notes for putting it in are in `docs/INTEGRATION-cockpit.md`;
+who does that, and when, is the Lead's call.
 
 - **See it:** https://lieponis.github.io/Lazy-flight/models.html, pick "Cockpit base (work in progress)", press "Sit inside".
 - **Run it on a computer:** `npm install`, then `npm run dev`, then open the address it prints and add `/models.html`.
@@ -57,14 +58,37 @@ Numbers: about 2,400 triangles, 4 meshes, 1 material.
 - **Viewer labels:** with the lens on, floating labels in the viewer (anchor names) are slightly misplaced.
   This affects the viewer only.
 
-## For the next agent
+## Changes against the C1 brief and roadmap (for the Lead to confirm)
 
-- **Integration:** follow `docs/INTEGRATION-cockpit.md`, part 1 (cockpit in the flight view, through the lens) and
-  part 2 (trip information on the three screens).
-- **Andy's method:**
-  - one step per message;
-  - show options A/B/C before building;
-  - show his reference next to the result with a "matches / does not match" list;
-  - never change decided things;
-  - ask before reworking.
-- **Never change these:** the decided items above, the eye position, the lens choice, and the colours.
+- **One base cockpit for all three ships**, instead of three different ones (Andy's instruction at the restart).
+  The Scout has no dog-free version yet, because the dog is deferred.
+- **Triangle budget:** about 2,400. That is over the roadmap's 2,000, inside the 3,000 set for the restart.
+- **New file `src/render/assets/lens.ts`** (the cockpit lens, Andy's choice). The game's cockpit view needs the same
+  lens to look like the viewer.
+- **Palette:** new colour `seatBlue` (Andy's choice).
+- **Checker:** parts named "may cover window" may cover the window (the dashboard and seats, as Andy chose).
+- **Viewer:** fields of view now count side to side, plus a lens button and reversed left/right drag (Andy's choices).
+- **Not built:** the `windowLight` anchor, the dog and the lamp (Andy: not now). The cockpit therefore stays out of
+  the registry. Before it goes in, the window light must be built or the rule dropped, with Andy's approval.
+
+## Open items for the Lead to arrange (suggestions only)
+
+1. **Cockpit into the game:** use the new model and the lens in the flight view's cockpit mode, replacing the flat
+   overlay in `src/render/cockpit.ts`. Notes, part 1. Touches `src/render/flight.ts` and `src/render/index.ts`,
+   which are outside Agent 8's allowed files.
+2. **Trip information on the three screens:** information, map and fuel. Notes, part 2. This also needs fuel added to
+   the flight information, and Andy should decide whether the HTML read-out stays.
+3. **Andy decides on the deferred parts:** the window light, the dog (Hauler and Liner only), the lamp, and whether the
+   ships later get their own cockpit differences.
+4. **Phone check** of the cockpit view once it is in the game (frame rate, readability of the screens).
+5. **Smaller polish** (for later):
+   - the zigzag roof shading;
+   - misplaced viewer labels when the lens is on.
+
+## Andy's working method (worked well in this stage)
+
+- One step per message.
+- Options A/B/C before building.
+- His reference next to the result, with a "matches / does not match" list.
+- Never change decided things.
+- Ask questions before reworking.
