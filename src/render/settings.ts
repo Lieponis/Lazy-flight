@@ -125,6 +125,15 @@ export const FLIGHT_BAY_CAMERA = { x: 3.2, y: 3.4, z: 4.8 };
 /** Flight view: the camera shakes a little before the jump (strength in scene units), building up from this point of the launch (0 to 1) to full at the flash. */
 export const FLIGHT_SHAKE_STRENGTH = 0.1;
 export const FLIGHT_SHAKE_START = 0.5;
+/** Inside the cockpit the shake is much gentler (the room is close to the eye): this share of the normal shake. */
+export const COCKPIT_SHAKE_FACTOR = 0.2;
+/** Looking around in the cockpit (drag): how far left/right and up/down, in degrees. */
+export const COCKPIT_LOOK_YAW_MAX_DEG = 110;
+export const COCKPIT_LOOK_PITCH_MIN_DEG = -40;
+export const COCKPIT_LOOK_PITCH_MAX_DEG = 55;
+/** Zooming in the cockpit (wheel or pinch): the side-to-side field of view, in degrees. 70 is the approved view. */
+export const COCKPIT_ZOOM_FOV_MIN = 30;
+export const COCKPIT_ZOOM_FOV_MAX = 95;
 
 /**
  * Leaving an OUTPOST (Andy's drawing). The ship is always along its path.

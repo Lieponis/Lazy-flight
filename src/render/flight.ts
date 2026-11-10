@@ -23,7 +23,8 @@ import {
 } from "./flightplan";
 import { buildCockpitBase } from "./assets/cockpitBase";
 import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
-import { cockpitRoomVisible, ownShipVisible, pilotEye, renderPathFor, type ViewMode } from "./cockpitview";
+import { cockpitRoomVisible, dragLook, ownShipVisible, pilotEye, renderPathFor, shakeShare, zoomFov, type Look, type ViewMode } from "./cockpitview";
+import { pinchFactor, wheelFactor } from "./dockedcam";
 import { starfieldPositions } from "./helpers";
 import type { Hud } from "./hud";
 import type { Screen } from "./screen";
@@ -81,6 +82,12 @@ import {
   FLIGHT_ORBIT_RADIUS,
   FLIGHT_SHAKE_START,
   FLIGHT_SHAKE_STRENGTH,
+  COCKPIT_LOOK_PITCH_MAX_DEG,
+  COCKPIT_LOOK_PITCH_MIN_DEG,
+  COCKPIT_LOOK_YAW_MAX_DEG,
+  COCKPIT_SHAKE_FACTOR,
+  COCKPIT_ZOOM_FOV_MAX,
+  COCKPIT_ZOOM_FOV_MIN,
   SHIP_FIT_MARGIN,
   SHIP_FIT_MAX_FOV,
   STARFIELD_COUNT,
@@ -105,6 +112,12 @@ const PHASE_NAMES: Record<FlightPhase, string> = {
   WARP: "In warp",
   APPROACH: "Approaching",
   DONE: "Docking",
+};
+
+const LOOK_LIMITS = {
+  yawMax: (COCKPIT_LOOK_YAW_MAX_DEG * Math.PI) / 180,
+  pitchMin: (COCKPIT_LOOK_PITCH_MIN_DEG * Math.PI) / 180,
+  pitchMax: (COCKPIT_LOOK_PITCH_MAX_DEG * Math.PI) / 180,
 };
 
 interface Body {
@@ -143,6 +156,10 @@ export class FlightScreen implements Screen {
   private cockpitModel = buildCockpitBase();
   private cockpitRig = new THREE.Group();
   private lens: CockpitLens | null = null;
+  private look: Look = { yaw: 0, pitch: 0 }; // where the pilot has turned his head (drag); resets when a flight starts or the view changes
+  private zoom = COCKPIT_FOV; // the cockpit view's side-to-side field of view (wheel or pinch)
+  private pointers = new Map<number, { x: number; y: number }>();
+  private lastPinch = 0;
   private tunnel = buildTunnel();
   private origin: Body | null = null;
   private dest: Body | null = null;
@@ -211,6 +228,7 @@ export class FlightScreen implements Screen {
   /** Gets a new flight ready. Call before enter(). */
   begin(info: FlightInfo): void {
     this.clearBodies();
+    this.resetLook();
     this.info = info;
     this.finishing = null;
     this.lastPlan = null;
@@ -253,6 +271,13 @@ export class FlightScreen implements Screen {
   }
 
   enter(): void {
+    const el = this.opts.host;
+    el.addEventListener("pointerdown", this.onDown);
+    el.addEventListener("pointermove", this.onMove);
+    el.addEventListener("pointerup", this.onUp);
+    el.addEventListener("pointercancel", this.onUp);
+    el.addEventListener("dblclick", this.resetLook);
+    el.addEventListener("wheel", this.onWheel, { passive: false });
     this.opts.hud.setVisible(false);
     this.flash.style.display = "block";
     this.hudRoot.style.display = "block";
@@ -260,6 +285,14 @@ export class FlightScreen implements Screen {
   }
 
   exit(): void {
+    const el = this.opts.host;
+    el.removeEventListener("pointerdown", this.onDown);
+    el.removeEventListener("pointermove", this.onMove);
+    el.removeEventListener("pointerup", this.onUp);
+    el.removeEventListener("pointercancel", this.onUp);
+    el.removeEventListener("dblclick", this.resetLook);
+    el.removeEventListener("wheel", this.onWheel);
+    this.pointers.clear();
     this.flash.style.display = "none";
     this.flash.style.opacity = "0";
     this.hudRoot.style.display = "none";
@@ -401,7 +434,7 @@ export class FlightScreen implements Screen {
       const eye = pilotEye(this.ship.anchors.eye?.pos, shipY);
       camera.position.set(eye.x, eye.y, eye.z);
       this.cockpitRig.position.set(eye.x, eye.y, eye.z); // the room's eye spot is its origin; placed before the pitch and shake are added
-      camera.rotation.set(pitch, 0, 0);
+      camera.rotation.set(pitch + this.look.pitch, this.look.yaw, 0, "YXZ");
     }
     if (Math.abs(camera.fov - fov) > 0.01) {
       camera.fov = fov;
@@ -414,7 +447,7 @@ export class FlightScreen implements Screen {
     const arriving = phase === "APPROACH" && this.dest?.isStation === true;
     const shake = arriving ? arrivalShakeAmount(p * phaseSeconds, FLIGHT_ARRIVAL_SHAKE_SECONDS) : shakeAmount(phase, p, FLIGHT_SHAKE_START);
     if (shake > 0) {
-      const o = shakeOffset(this.clockT, shake * FLIGHT_SHAKE_STRENGTH);
+      const o = shakeOffset(this.clockT, shake * FLIGHT_SHAKE_STRENGTH * shakeShare(this.mode, COCKPIT_SHAKE_FACTOR));
       camera.position.x += o.x;
       camera.position.y += o.y;
       camera.position.z += o.z;
@@ -449,7 +482,7 @@ export class FlightScreen implements Screen {
   render(renderer: THREE.WebGLRenderer): void {
     if (renderPathFor(this.mode) === "lens") {
       this.lens ??= new CockpitLens(renderer);
-      this.lens.render(this.scene, this.camera, COCKPIT_FOV, COCKPIT_LENS);
+      this.lens.render(this.scene, this.camera, this.zoom, COCKPIT_LENS);
     } else {
       renderer.render(this.scene, this.camera);
     }
@@ -465,7 +498,59 @@ export class FlightScreen implements Screen {
     this.hudRoot.remove();
   }
 
+  // Cockpit view only: drag to look around, wheel or pinch to zoom, double-click to look straight ahead again. A view only, nothing steers.
+  private resetLook = (): void => {
+    this.look = { yaw: 0, pitch: 0 };
+    this.zoom = COCKPIT_FOV;
+  };
+
+  private fingerDistance(): number {
+    const [a, b] = [...this.pointers.values()];
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  }
+
+  private onDown = (e: PointerEvent): void => {
+    if (this.mode !== "cockpit") return;
+    try {
+      this.opts.host.setPointerCapture(e.pointerId);
+    } catch {
+      // not important
+    }
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pointers.size === 2) this.lastPinch = this.fingerDistance();
+  };
+
+  private onMove = (e: PointerEvent): void => {
+    const p = this.pointers.get(e.pointerId);
+    if (!p || this.mode !== "cockpit") return;
+    const dx = e.clientX - p.x;
+    const dy = e.clientY - p.y;
+    p.x = e.clientX;
+    p.y = e.clientY;
+    if (this.pointers.size === 1) {
+      const h = Math.max(1, this.opts.host.clientHeight);
+      const perPixel = ((this.zoom * Math.PI) / 180) / h; // dragging a screen height turns about one field of view
+      this.look = dragLook(this.look, dx, dy, perPixel, LOOK_LIMITS);
+    } else if (this.pointers.size === 2) {
+      const d = this.fingerDistance();
+      this.zoom = zoomFov(this.zoom, pinchFactor(this.lastPinch, d), COCKPIT_ZOOM_FOV_MIN, COCKPIT_ZOOM_FOV_MAX);
+      this.lastPinch = d;
+    }
+  };
+
+  private onUp = (e: PointerEvent): void => {
+    this.pointers.delete(e.pointerId);
+    if (this.pointers.size < 2) this.lastPinch = 0;
+  };
+
+  private onWheel = (e: WheelEvent): void => {
+    if (this.mode !== "cockpit") return;
+    e.preventDefault();
+    this.zoom = zoomFov(this.zoom, wheelFactor(e.deltaY), COCKPIT_ZOOM_FOV_MIN, COCKPIT_ZOOM_FOV_MAX);
+  };
+
   private toggleMode(): void {
+    this.resetLook();
     this.mode = this.mode === "orbit" ? "cockpit" : "orbit";
     this.updateModeButton();
   }

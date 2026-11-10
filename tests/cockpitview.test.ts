@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cockpitRoomVisible, ownShipVisible, pilotEye, renderPathFor } from "../src/render/cockpitview";
+import { cockpitRoomVisible, dragLook, ownShipVisible, pilotEye, renderPathFor, shakeShare, zoomFov } from "../src/render/cockpitview";
 
 describe("cockpit view: what is drawn and how", () => {
   it("cockpit view goes through the lens, orbit view is the normal picture", () => {
@@ -25,5 +25,25 @@ describe("cockpit view: what is drawn and how", () => {
     expect(e.x).toBe(0);
     expect(e.y).toBeCloseTo(0.45, 6);
     expect(e.z).toBeCloseTo(-0.4, 6);
+  });
+});
+
+describe("cockpit view: looking around, zooming, shaking", () => {
+  const limits = { yawMax: 1.5, pitchMin: -0.6, pitchMax: 1 };
+  it("dragging turns the head and stays inside the limits", () => {
+    expect(dragLook({ yaw: 0, pitch: 0 }, 100, 0, 0.005, limits).yaw).toBeCloseTo(0.5, 6);
+    expect(dragLook({ yaw: 0, pitch: 0 }, 0, 100, 0.005, limits).pitch).toBeCloseTo(0.5, 6);
+    expect(dragLook({ yaw: 1.4, pitch: 0.9 }, 1000, 1000, 0.01, limits)).toEqual({ yaw: 1.5, pitch: 1 });
+    expect(dragLook({ yaw: -1.4, pitch: -0.5 }, -1000, -1000, 0.01, limits)).toEqual({ yaw: -1.5, pitch: -0.6 });
+  });
+  it("zoom stays between the minimum and the maximum", () => {
+    expect(zoomFov(70, 0.5, 30, 95)).toBe(35);
+    expect(zoomFov(70, 0.1, 30, 95)).toBe(30);
+    expect(zoomFov(70, 3, 30, 95)).toBe(95);
+    expect(zoomFov(70, 1, 30, 95)).toBe(70);
+  });
+  it("the cockpit shakes less than the orbit camera", () => {
+    expect(shakeShare("orbit", 0.2)).toBe(1);
+    expect(shakeShare("cockpit", 0.2)).toBe(0.2);
   });
 });
