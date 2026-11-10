@@ -12,7 +12,9 @@ export function mountLookPreview(parent: HTMLElement, initial: LookStyle, wobble
   label.textContent = "PIXEL LOOK";
   bar.appendChild(label);
   let style = initial;
-  let wobble = wobbleOn;
+  const levels = [0, 0.3, 0.6, 1];
+  const labels = ["WOBBLE OFF", "WOBBLE LOW", "WOBBLE MID", "WOBBLE HIGH"];
+  let wobble = wobbleOn ? 1 : 0; // index into levels
   const buttons = new Map<LookStyle, HTMLButtonElement>();
   const wobbleButton = document.createElement("button");
   const paint = (b: HTMLButtonElement, on: boolean): void => {
@@ -20,9 +22,10 @@ export function mountLookPreview(parent: HTMLElement, initial: LookStyle, wobble
     b.style.color = on ? "#05060d" : "#d7dcff";
   };
   const apply = (): void => {
-    onPick(style, wobble ? 0.5 : 0);
+    onPick(style, levels[wobble] ?? 0);
     for (const [s, b] of buttons) paint(b, s === style);
-    paint(wobbleButton, wobble);
+    paint(wobbleButton, wobble > 0);
+    wobbleButton.textContent = labels[wobble] ?? "WOBBLE";
   };
   const css = "font:inherit;min-width:48px;min-height:44px;border:2px solid #7fe7ff;cursor:pointer;touch-action:manipulation;";
   for (const s of LOOK_STYLES) {
@@ -41,7 +44,7 @@ export function mountLookPreview(parent: HTMLElement, initial: LookStyle, wobble
   wobbleButton.textContent = "WOBBLE";
   wobbleButton.style.cssText = css;
   wobbleButton.addEventListener("click", () => {
-    wobble = !wobble;
+    wobble = (wobble + 1) % levels.length;
     apply();
   });
   bar.appendChild(wobbleButton);

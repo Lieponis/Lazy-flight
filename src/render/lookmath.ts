@@ -101,6 +101,6 @@ export function flameFlicker(t: number, amount: number, rate = 10): number {
 /** The size of the wobble grid, in pixels across and down: the picture size, made coarser as `wobble` grows. Huge = no visible snapping. */
 export function wobbleGrid(width: number, height: number, wobble: number): { x: number; y: number } {
   if (wobble <= 0) return { x: width * 64, y: height * 64 };
-  const k = 1 + 5 * Math.min(1, wobble);
+  const k = 1 + 0.8 * Math.min(1, wobble); // 1 = the real pixel grid (what the PS1 did); 1.8 at full strength. Stronger broke fine models.
   return { x: width / k, y: height / k };
 }
