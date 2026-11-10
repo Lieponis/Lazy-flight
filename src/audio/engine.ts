@@ -30,6 +30,9 @@ export class SoundEngine {
   private hidden = false;
   private sleepTimer: ReturnType<typeof setTimeout> | null = null;
   private failed = false;
+  /** Set when the tab comes back: the next tap restarts the sound output (see kick()). */
+  private needsKick = false;
+  private lastKickMs = 0;
 
   constructor(private prefs: SoundPrefs) {}
 
@@ -56,12 +59,59 @@ export class SoundEngine {
         this.failed = true;
         return;
       }
+    } else if (this.needsKick && !this.hidden) {
+      // First tap after coming back to the tab: restart the output inside the tap, where every browser allows it.
+      this.needsKick = false;
+      this.kick();
+      return;
     }
     this.wake();
   }
 
+  /**
+   * Restarts the sound output: stop, start again, and set both volumes again. Safari (iPhone and Mac) sometimes says
+   * sound is running after the tab was hidden while nothing comes out, or leaves it "interrupted"; a stop + start fixes
+   * both (the same thing MENU -> SETTINGS mute / unmute did by hand). Also plays a silent blip, the old iPhone unlock trick.
+   */
+  private kick(): void {
+    const ctx = this.ctx;
+    if (!ctx || this.hidden || isSilent(this.prefs)) return;
+    if (this.sleepTimer !== null) {
+      clearTimeout(this.sleepTimer);
+      this.sleepTimer = null;
+    }
+    this.lastKickMs = Date.now();
+    try {
+      if (ctx.state === "running") ctx.suspend().catch(() => undefined);
+      ctx.resume().catch(() => undefined);
+      const blip = ctx.createBufferSource();
+      blip.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      blip.connect(ctx.destination);
+      blip.start();
+      this.applyGains();
+    } catch {
+      // never stop the game for sound
+    }
+  }
+
+  private applyGains(): void {
+    if (!this.ctx || !this.musicBus || !this.fxBus) return;
+    const g = busGains(this.prefs);
+    const t = this.ctx.currentTime;
+    this.musicBus.gain.cancelScheduledValues(t);
+    this.fxBus.gain.cancelScheduledValues(t);
+    this.musicBus.gain.setTargetAtTime(g.music, t, VOLUME_GLIDE_S / 3);
+    this.fxBus.gain.setTargetAtTime(g.effects, t, VOLUME_GLIDE_S / 3);
+  }
+
   private build(ctx: AudioContext): void {
     this.ctx = ctx;
+    // iPhone: a phone call, Siri or another app can stop our sound without hiding the tab. Then the next tap restarts it.
+    ctx.addEventListener("statechange", () => {
+      const st = ctx.state as string;
+      const wanted = !this.hidden && !isSilent(this.prefs);
+      if (wanted && (st === "interrupted" || (st === "suspended" && Date.now() - this.lastKickMs > 1000))) this.needsKick = true;
+    });
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14;
     comp.ratio.value = 4;
@@ -102,11 +152,8 @@ export class SoundEngine {
   /** The player's settings changed: glide both buses to the new volume. */
   setPrefs(prefs: SoundPrefs): void {
     this.prefs = { ...prefs };
-    if (!this.ctx || !this.musicBus || !this.fxBus) return;
-    const g = busGains(this.prefs);
-    const t = this.ctx.currentTime;
-    this.musicBus.gain.setTargetAtTime(g.music, t, VOLUME_GLIDE_S / 3);
-    this.fxBus.gain.setTargetAtTime(g.effects, t, VOLUME_GLIDE_S / 3);
+    if (!this.ctx) return;
+    this.applyGains();
     this.wake();
   }
 
@@ -140,9 +187,15 @@ export class SoundEngine {
 
   /** The tab was hidden (true) or shown again (false). */
   setHidden(hidden: boolean): void {
+    if (hidden === this.hidden) return;
     this.hidden = hidden;
-    if (hidden) this.sleep(0);
-    else this.wake();
+    if (hidden) {
+      this.sleep(0);
+      return;
+    }
+    // Back on the tab: try at once (enough in Chrome); the next tap restarts the output for sure (Safari, iPhone).
+    this.needsKick = true;
+    this.kick();
   }
 
   private wake(): void {
@@ -156,7 +209,7 @@ export class SoundEngine {
       this.sleep(400); // let the fade finish, then rest
       return;
     }
-    if (this.ctx.state !== "running") this.ctx.resume().catch(() => undefined);
+    if (this.ctx.state !== "running") this.ctx.resume().catch(() => undefined); // also wakes Safari's "interrupted"
   }
 
   private sleep(afterMs: number): void {
@@ -164,7 +217,9 @@ export class SoundEngine {
     if (this.sleepTimer !== null) clearTimeout(this.sleepTimer);
     this.sleepTimer = setTimeout(() => {
       this.sleepTimer = null;
-      if (this.ctx && this.ctx.state === "running") this.ctx.suspend().catch(() => undefined);
+      // Only rest if that is still wanted (the tab may have come back, or sound been switched on, in the meantime).
+      if (!this.hidden && !isSilent(this.prefs)) return;
+      if (this.ctx && this.ctx.state !== "closed") this.ctx.suspend().catch(() => undefined);
     }, afterMs);
   }
 }
