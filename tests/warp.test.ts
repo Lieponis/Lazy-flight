@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseWarpPreview, parseWarpStyle, warpIntensity, warpPalette, warpPulse, warpStreakData } from "../src/render/warpmath";
+import { cloudAlpha, parseWarpPreview, parseWarpStyle, warpIntensity, warpPalette, warpPulse, warpStreakData } from "../src/render/warpmath";
 
 describe("warp: looks and test links", () => {
   it("?warp= picks A, B or C (any case) and nothing else", () => {
@@ -141,5 +141,37 @@ describe("warp: the stars", () => {
     expect(low).toBeGreaterThan(100);
     expect(mid).toBeGreaterThan(100);
     expect(high).toBeGreaterThan(100);
+  });
+});
+
+describe("warp: nebula clouds", () => {
+  const a = cloudAlpha(64, 11);
+  it("the picture has the right size and values", () => {
+    expect(a.length).toBe(64 * 64);
+  });
+  it("is the same picture for the same seed and a different one for another seed", () => {
+    expect(Array.from(cloudAlpha(64, 11))).toEqual(Array.from(a));
+    expect(JSON.stringify(Array.from(cloudAlpha(64, 12))) === JSON.stringify(Array.from(a))).toBe(false);
+  });
+  it("fades to nothing at the edges, so no square shows", () => {
+    for (let i = 0; i < 64; i++) {
+      expect(a[i]).toBe(0); // top row
+      expect(a[63 * 64 + i]).toBe(0); // bottom row
+      expect(a[i * 64]).toBe(0); // left column
+      expect(a[i * 64 + 63]).toBe(0); // right column
+    }
+  });
+  it("is uneven: wisps and gaps, not one flat blob", () => {
+    let clear = 0;
+    let faint = 0;
+    let thick = 0;
+    for (const v of a) {
+      if (v < 10) clear++;
+      else if (v < 140) faint++;
+      else thick++;
+    }
+    expect(clear).toBeGreaterThan(300);
+    expect(faint).toBeGreaterThan(100);
+    expect(thick).toBeGreaterThan(30);
   });
 });

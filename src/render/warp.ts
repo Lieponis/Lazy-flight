@@ -7,8 +7,8 @@
 // per frame as the first second, and nothing grows in memory.
 
 import * as THREE from "three";
-import { WARP_AHEAD, WARP_BEHIND, WARP_HAZE_COUNT, WARP_HAZE_DISTANCE, WARP_RADIUS_MAX, WARP_RADIUS_MIN, WARP_SPAN, WARP_SPEED, WARP_STREAKS } from "./settings";
-import { warpIntensity, warpPalette, warpPulse, warpStreakData, type WarpStyle } from "./warpmath";
+import { WARP_AHEAD, WARP_BEHIND, WARP_HAZE_COUNT, WARP_HAZE_DISTANCE, WARP_RADIUS_MAX, WARP_RADIUS_MIN, WARP_SPAN, WARP_SPEED, WARP_STAR_BRIGHTNESS, WARP_STREAKS } from "./settings";
+import { cloudAlpha, warpIntensity, warpPalette, warpPulse, warpStreakData, type WarpStyle } from "./warpmath";
 
 export interface Warp {
   group: THREE.Group;
@@ -19,6 +19,7 @@ export interface Warp {
 }
 
 const VERTEX = `
+  uniform float uStarBright;
   uniform float uPhase; uniform float uSpan; uniform float uAhead; uniform float uBehind; uniform float uPulse; uniform float uTwist; uniform float uIntensity;
   uniform vec3 uCol0; uniform vec3 uCol1; uniform vec3 uCol2;
   attribute float aEnd; attribute float aSpeed; attribute float aLen; attribute float aTint; attribute float aBright;
@@ -36,7 +37,7 @@ const VERTEX = `
     vec3 col = aTint < 0.5 ? mix(uCol0, uCol1, aTint * 2.0) : mix(uCol1, uCol2, (aTint - 0.5) * 2.0);
     float far = smoothstep(-uAhead, -uAhead * 0.35, head) * (1.0 - smoothstep(uBehind * 0.45, uBehind, head)); // dim far ahead and far behind
     float tail = mix(0.08, 1.0, aEnd);                     // dim at the tail, bright at the head
-    vColor = col * aBright * far * tail * uIntensity * (1.0 + uPulse * 0.9);
+    vColor = col * aBright * far * tail * uIntensity * uStarBright * (1.0 + uPulse * 0.9);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
   }`;
 
@@ -47,25 +48,33 @@ const FRAGMENT = `
     #include <colorspace_fragment>
   }`;
 
-/** A soft round glow (a cloud, not a shape): white in the middle fading to nothing. */
-function glowTexture(): THREE.CanvasTexture {
-  const size = 64;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    g.addColorStop(0, "rgba(255,255,255,1)");
-    g.addColorStop(0.45, "rgba(255,255,255,0.7)");
-    g.addColorStop(0.8, "rgba(255,255,255,0.2)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, size, size);
+const CLOUD_TEXTURES = 4;
+const CLOUD_SIZE = 128;
+
+/** A few different nebula cloud pictures (white, ragged, see-through), each tinted later by the warp colours. */
+function cloudTextures(): THREE.CanvasTexture[] {
+  const textures: THREE.CanvasTexture[] = [];
+  for (let k = 0; k < CLOUD_TEXTURES; k++) {
+    const canvas = document.createElement("canvas");
+    canvas.width = CLOUD_SIZE;
+    canvas.height = CLOUD_SIZE;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      const alpha = cloudAlpha(CLOUD_SIZE, 11 + k * 17);
+      const image = ctx.createImageData(CLOUD_SIZE, CLOUD_SIZE);
+      for (let p = 0; p < alpha.length; p++) {
+        image.data[p * 4] = 255;
+        image.data[p * 4 + 1] = 255;
+        image.data[p * 4 + 2] = 255;
+        image.data[p * 4 + 3] = alpha[p] ?? 0;
+      }
+      ctx.putImageData(image, 0, 0);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    textures.push(texture);
   }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
+  return textures;
 }
 
 export function buildWarp(initial: WarpStyle = "B"): Warp {
@@ -87,6 +96,7 @@ export function buildWarp(initial: WarpStyle = "B"): Warp {
     uAhead: { value: WARP_AHEAD },
     uBehind: { value: WARP_BEHIND },
     uPulse: { value: 0 },
+    uStarBright: { value: WARP_STAR_BRIGHTNESS },
     uTwist: { value: 0 },
     uIntensity: { value: 1 },
     uCol0: { value: new THREE.Color() },
@@ -106,23 +116,24 @@ export function buildWarp(initial: WarpStyle = "B"): Warp {
   group.add(stars);
 
   // --- the haze (styles B and C)
-  const texture = glowTexture();
-  const haze: { sprite: THREE.Sprite; base: THREE.Vector3; k: number }[] = [];
+  const textures = cloudTextures();
+  const haze: { sprite: THREE.Sprite; base: THREE.Vector3; k: number; strength: number; spin: number }[] = [];
   const hazeGroup = new THREE.Group();
   for (let i = 0; i < WARP_HAZE_COUNT; i++) {
-    const material2 = new THREE.SpriteMaterial({ map: texture, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5 });
+    const material2 = new THREE.SpriteMaterial({ map: textures[i % CLOUD_TEXTURES], blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5 });
     const sprite = new THREE.Sprite(material2);
     // Spread evenly over a whole sphere (a spiral), so there is haze ahead, behind, above and below the ship.
     const y = 1 - (2 * (i + 0.5)) / WARP_HAZE_COUNT;
     const ring = Math.sqrt(1 - y * y);
     const theta = i * 2.399963;
     const distance = WARP_HAZE_DISTANCE + (i % 3) * 22;
-    const size = 70 + ((i * 37) % 50);
+    const size = 60 + ((i * 53) % 90); // clouds of very different sizes
     const base = new THREE.Vector3(Math.cos(theta) * ring, y, Math.sin(theta) * ring).multiplyScalar(distance);
     sprite.position.copy(base);
     sprite.scale.set(size, size, 1);
     hazeGroup.add(sprite);
-    haze.push({ sprite, base, k: i });
+    material2.rotation = i * 1.9; // each cloud starts turned a different way
+    haze.push({ sprite, base, k: i, strength: 0.3 + ((i * 29) % 7) / 10, spin: 0.012 + ((i * 13) % 5) * 0.006 }); // some faint, some strong
   }
   group.add(hazeGroup);
 
@@ -157,8 +168,8 @@ export function buildWarp(initial: WarpStyle = "B"): Warp {
           colour.setHSL(c.h, Math.min(1, c.s + 0.1), c.l * 0.85); // a little more vivid, so the haze reads clearly
           const m = h.sprite.material;
           m.color.copy(colour);
-          m.opacity = (0.42 + 0.14 * Math.sin(seconds / 7 + h.k)) * warpIntensity(seconds) * (1 + pulse * 0.8);
-          m.rotation = seconds * 0.03 * (h.k % 2 === 0 ? 1 : -1);
+          m.opacity = Math.min(1, h.strength * (0.8 + 0.3 * Math.sin(seconds / (6 + (h.k % 5)) + h.k)) * warpIntensity(seconds) * (1 + pulse * 0.8));
+          m.rotation = h.k * 1.9 + seconds * h.spin * (h.k % 2 === 0 ? 1 : -1);
           h.sprite.position.set(
             h.base.x + Math.sin(seconds / 11 + h.k) * 6,
             h.base.y + Math.cos(seconds / 13 + h.k * 2) * 6,
@@ -174,7 +185,7 @@ export function buildWarp(initial: WarpStyle = "B"): Warp {
     dispose(): void {
       geometry.dispose();
       material.dispose();
-      texture.dispose();
+      for (const t of textures) t.dispose();
       for (const h of haze) h.sprite.material.dispose();
     },
   };

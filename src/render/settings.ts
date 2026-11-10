@@ -57,8 +57,9 @@ export const WARP_SPAN = WARP_AHEAD + WARP_BEHIND; // the length of one run befo
 export const WARP_SPEED = 100; // how fast the stars fly, units per second
 export const WARP_RADIUS_MIN = 2.2; // the dark gap in the middle
 export const WARP_RADIUS_MAX = 20;
-export const WARP_HAZE_COUNT = 12; // soft glow clouds all around the ship (styles B and C)
-export const WARP_HAZE_DISTANCE = 75; // how far from the ship the haze hangs (the nearest ones; others are further out)
+export const WARP_HAZE_COUNT = 16; // nebula clouds all around the ship (styles B and C)
+export const WARP_HAZE_DISTANCE = 70; // how far from the ship the clouds hang (the nearest ones; others are further out)
+export const WARP_STAR_BRIGHTNESS = 0.6; // how bright the stars are (1 = full; Andy asked for less)
 /** Which warp look is used when ?warp= is not given. Andy chose C. */
 export const WARP_DEFAULT_STYLE: "A" | "B" | "C" = "C";
 

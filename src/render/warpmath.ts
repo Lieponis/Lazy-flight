@@ -114,3 +114,50 @@ export function warpStreakData(count: number, span: number, minRadius: number, m
   }
   return { positions, end, speed, length, tint, bright };
 }
+
+// ---------------------------------------------------------------- nebula clouds
+
+function smoothstep(a: number, b: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+
+/** Smooth random value at a point of a grid of random numbers (the basis of cloud noise). */
+function valueNoise(x: number, y: number, seed: number, octave: number): number {
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  const fx = x - ix;
+  const fy = y - iy;
+  const lat = (i: number, j: number): number => hash01(i * 374761 + j * 668265 + seed * 982451 + octave * 127412);
+  const sx = fx * fx * (3 - 2 * fx);
+  const sy = fy * fy * (3 - 2 * fy);
+  const top = lat(ix, iy) * (1 - sx) + lat(ix + 1, iy) * sx;
+  const bottom = lat(ix, iy + 1) * (1 - sx) + lat(ix + 1, iy + 1) * sx;
+  return top * (1 - sy) + bottom * sy;
+}
+
+/**
+ * The see-through part of one nebula cloud picture: a `size` x `size` square of 0..255 values. Ragged, wispy and uneven (several layers of
+ * smooth noise), fading to nothing before the edge so no square or circle shows. Same picture for the same seed.
+ */
+export function cloudAlpha(size: number, seed: number): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(size * size);
+  for (let py = 0; py < size; py++) {
+    for (let px = 0; px < size; px++) {
+      const u = (px + 0.5) / size;
+      const v = (py + 0.5) / size;
+      let n = 0;
+      let amp = 0.5;
+      let freq = 2.5;
+      for (let o = 0; o < 5; o++) {
+        n += amp * valueNoise(u * freq, v * freq, seed, o);
+        amp *= 0.5;
+        freq *= 2;
+      }
+      const dist = Math.hypot(u - 0.5, v - 0.5);
+      const mask = 1 - smoothstep(0.18, 0.48, dist);
+      out[py * size + px] = Math.round(255 * smoothstep(0.3, 0.78, n) * mask);
+    }
+  }
+  return out;
+}
