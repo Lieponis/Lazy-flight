@@ -764,3 +764,69 @@
   letter-spacing: 1px;
   margin-bottom: 4px;
 }
+
+/* ------------------------------------------------------------ part 5d: upgrades inside the ship card */
+
+/* Owned ships: ACTIVE / SWITCH and UPGRADES side by side. */
+.ui-ship-action-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.ui-ship-action-2 .ui-btn-wide,
+.ui-ship-action-2 .ui-active-label {
+  margin-top: 2px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ui-ship-action-2 .ui-ship-reason {
+  grid-column: 1 / -1;
+}
+
+.ui-btn-on {
+  background: rgba(63, 224, 208, 0.18);
+}
+
+.ui-upgrades {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--ui-line-dim);
+}
+
+.ui-upgrade {
+  padding: 6px 8px;
+  border: 1px solid var(--ui-line-dim);
+  background: rgba(63, 224, 208, 0.03);
+}
+
+.ui-upgrade-max {
+  border-color: var(--ui-amber);
+}
+
+.ui-upgrade-name {
+  font-size: 21px;
+  letter-spacing: 1px;
+  color: var(--ui-text);
+}
+
+.ui-upgrade-effect {
+  margin-top: 4px;
+  color: var(--ui-dim);
+  font-size: 18px;
+}
+
+.ui-upgrade .ui-btn-wide {
+  margin-top: 6px;
+}
+
+@media (max-width: 480px) {
+  .ui-ship-action-2 .ui-btn {
+    font-size: 19px;
+    padding: 6px 6px;
+  }
+}

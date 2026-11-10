@@ -4,7 +4,7 @@
 // This is the only place where the game and the screens meet; src/render never imports src/game.
 
 import "./theme.css";
-import { Game, createClock, fuelCost, getShip, parseSpeedParam, type Arrival } from "../game";
+import { Game, createClock, parseSpeedParam, tripFuelCost, type Arrival } from "../game";
 import { getDock, getPlanetsOfSystem, getSystem } from "../universe";
 import type { RenderApi } from "../render";
 import { START_SEED } from "../render/settings";
@@ -147,7 +147,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     strip.set({
       credits: game.state.credits,
       fuel: game.state.fuel,
-      tank: getShip(game.state.shipId).fuelTankSize,
+      tank: game.getShipStats().fuelTankSize, // the real tank, with upgrades (5d)
       location: locationText({ flying: job !== null, dockName: dockName(where), systemName: systemNameOfDock(where) }),
     });
   }
@@ -204,8 +204,8 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
         shipId: game.state.shipId,
         // For the cockpit's fuel screen: fuel left (the trip is already paid), the tank size, and what this trip burns.
         fuel: game.state.fuel,
-        fuelMax: getShip(game.state.shipId).fuelTankSize,
-        fuelUsed: fuelCost(job.totalDistance),
+        fuelMax: game.getShipStats().fuelTankSize, // real numbers with upgrades (5d)
+        fuelUsed: tripFuelCost(game.state, job.totalDistance),
         speed: game.clock.speed,
         getProgress: () => game.progress(),
       });

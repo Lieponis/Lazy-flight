@@ -17,6 +17,7 @@ import {
   type RankUp,
   type RefuelResult,
   type ShipCatalogEntry,
+  type UpgradeOffer,
 } from "../game";
 import type { JobKind } from "../universe";
 
@@ -234,6 +235,10 @@ export interface ShipCardText {
   action: ShipAction;
   /** Short plain reason when it cannot be bought or switched to, otherwise "". */
   reason: string;
+  /** True for ships you own: they get an UPGRADES button (5d). */
+  upgradable: boolean;
+  /** "3/20" upgrade levels bought on this ship, or "" if you do not own it. */
+  upgradeLevels: string;
 }
 
 /** Turns the game's shipyard reason into short plain words. */
@@ -257,11 +262,18 @@ export function shipCardText(entry: ShipCatalogEntry, credits: number): ShipCard
     id: ship.id,
     name: ship.name,
     description: ship.description,
-    stats: { cargo: String(ship.cargoCapacity), cabin: ship.cabinCapacity > 0 ? String(ship.cabinCapacity) : "NONE", tank: String(ship.fuelTankSize) },
+    // The REAL numbers of this ship with its upgrades (5d), not the shipyard's base numbers.
+    stats: {
+      cargo: String(entry.stats.cargoCapacity),
+      cabin: entry.stats.cabinCapacity > 0 ? String(entry.stats.cabinCapacity) : "NONE",
+      tank: String(entry.stats.fuelTankSize),
+    },
     price: entry.owned ? "OWNED" : formatCredits(ship.price),
-    fuel: entry.owned && entry.fuel !== null ? `FUEL ${formatFuel(entry.fuel, ship.fuelTankSize)}` : "",
+    fuel: entry.owned && entry.fuel !== null ? `FUEL ${formatFuel(entry.fuel, entry.stats.fuelTankSize)}` : "",
     action,
     reason,
+    upgradable: entry.owned,
+    upgradeLevels: entry.owned ? upgradeSummary(entry.upgrades) : "",
   };
 }
 
@@ -365,4 +377,56 @@ export function outpostPanelText(offer: OutpostOffer, credits: number): OutpostP
 /** "Rusty Pad · Kopipex" for the list of owned outposts. */
 export function ownedOutpostLine(o: OwnedOutpost): string {
   return placeLabel(o.dockName, o.systemName);
+}
+
+// ------------------------------------------------------------ ship upgrades (5d)
+
+/** "3/20": levels bought out of all four tracks. */
+export function upgradeSummary(levels: { tank: number; hold: number; engines: number; comfort: number }, maxLevel = 5): string {
+  const done = levels.tank + levels.hold + levels.engines + levels.comfort;
+  return `${done}/${maxLevel * 4}`;
+}
+
+/** Turns the game's upgrade reason into short plain words. */
+export function shortUpgradeReason(reason: string, price: number | null, credits: number): string {
+  if (!reason) return "";
+  if (/^Costs \d+ credits/.test(reason)) return `Need ${formatCredits(Math.max(0, (price ?? 0) - credits))} more`;
+  if (/during a flight/i.test(reason)) return "Not during a flight";
+  if (/highest level/i.test(reason)) return "Max level";
+  if (/do not own/i.test(reason)) return "Buy the ship first";
+  return reason;
+}
+
+export interface UpgradeRowText {
+  track: string;
+  /** "FUEL TANK" */
+  name: string;
+  /** "LEVEL 1/5" */
+  level: string;
+  /** 0 to 1 for the little bar. */
+  progress: number;
+  /** "Next: Tank 66 -> 72 fuel", or what it gives now at the top. */
+  effect: string;
+  /** "BUY LEVEL 2 · 4,000 CR", or "MAX". */
+  button: string;
+  canBuy: boolean;
+  maxed: boolean;
+  /** Short reason when it cannot be bought (not shown for MAX), otherwise "". */
+  reason: string;
+}
+
+export function upgradeRowText(o: UpgradeOffer, credits: number): UpgradeRowText {
+  const maxed = o.nextPrice === null || o.level >= o.maxLevel;
+  const reason = maxed || o.canBuy ? "" : shortUpgradeReason(o.reason, o.nextPrice, credits);
+  return {
+    track: o.track,
+    name: o.name.toUpperCase(),
+    level: `LEVEL ${o.level}/${o.maxLevel}`,
+    progress: o.maxLevel > 0 ? Math.min(1, Math.max(0, o.level / o.maxLevel)) : 0,
+    effect: maxed ? o.effect : `Next: ${o.effect}`,
+    button: maxed ? "MAX" : `BUY LEVEL ${o.level + 1} · ${formatCredits(o.nextPrice ?? 0)}`,
+    canBuy: !maxed && o.canBuy,
+    maxed,
+    reason,
+  };
 }

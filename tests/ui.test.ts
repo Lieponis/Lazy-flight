@@ -8,6 +8,10 @@ import {
   newGameState,
   rankInfos,
   shipCatalog,
+  buyUpgrade,
+  upgradeOffers,
+  tripFuelCost,
+  fuelCost,
   type BoardEntry,
   type GameState,
   type OutpostOffer,
@@ -36,6 +40,9 @@ import {
   shipCardText,
   shortOutpostReason,
   shortShipReason,
+  shortUpgradeReason,
+  upgradeRowText,
+  upgradeSummary,
   sortForDisplay,
   visibleControls,
 } from "../src/ui/logic";
@@ -396,6 +403,76 @@ describe("ui 5c: outposts and perks", () => {
     const state = { ...newGameState("a/1"), fuel: 40, credits: 500 };
     expect(refuelButton(refuel(state), 20).text).toBe("REFUEL +20 · 40 CR (-20%)");
     expect(refuelButton(refuel(state)).text).toBe("REFUEL +20 · 40 CR");
+  });
+});
+
+describe("ui 5d: upgrades and real numbers", () => {
+  const rich = (): GameState => ({ ...newGameState("a/1"), credits: 100000 });
+  const buy = (state: GameState, track: string, times = 1): GameState => {
+    let s = state;
+    for (let i = 0; i < times; i++) {
+      const r = buyUpgrade(s, s.shipId, track);
+      if (!r.ok) throw new Error(r.reason);
+      s = r.state;
+    }
+    return s;
+  };
+  const hauler = (state: GameState) => shipCatalog(state).find((e) => e.ship.id === "cargo-hauler")!;
+
+  it("ship cards show the REAL numbers with upgrades, not the base ones", () => {
+    const base = shipCardText(hauler(rich()), 100000);
+    expect(base.stats).toEqual({ cargo: "30", cabin: "NONE", tank: "60" });
+    const s = buy(buy(rich(), "tank", 2), "hold", 1);
+    const c = shipCardText(hauler({ ...s, fuel: 50 }), s.credits);
+    expect(c.stats.tank).toBe("72"); // 60 + 2 x 10%
+    expect(c.stats.cargo).toBe("33"); // 30 + 10%
+    expect(c.fuel).toBe("FUEL 50/72");
+    expect(c.upgradable).toBe(true);
+    expect(c.upgradeLevels).toBe("3/20");
+  });
+
+  it("ships you do not own have no upgrades button", () => {
+    const liner = shipCatalog(rich()).find((e) => e.ship.id === "passenger-liner")!;
+    expect(shipCardText(liner, 100000)).toMatchObject({ upgradable: false, upgradeLevels: "" });
+  });
+
+  it("an upgrade row you can buy", () => {
+    const tank = upgradeOffers(rich(), "cargo-hauler").find((o) => o.track === "tank")!;
+    const t = upgradeRowText(tank, 100000);
+    expect(t).toMatchObject({ name: "FUEL TANK", level: "LEVEL 0/5", progress: 0, button: "BUY LEVEL 1 · 1,500 CR", canBuy: true, maxed: false, reason: "" });
+    expect(t.effect).toBe("Next: Tank 60 -> 66 fuel");
+  });
+
+  it("a row you cannot afford says how much is missing", () => {
+    const poor = { ...rich(), credits: 100 };
+    const t = upgradeRowText(upgradeOffers(poor, "cargo-hauler")[0]!, 100);
+    expect(t).toMatchObject({ canBuy: false, reason: "Need 1,400 CR more" });
+  });
+
+  it("a full track shows MAX, a full bar and no reason", () => {
+    const s = buy(rich(), "engines", 5);
+    const t = upgradeRowText(upgradeOffers(s, "cargo-hauler").find((o) => o.track === "engines")!, s.credits);
+    expect(t).toMatchObject({ level: "LEVEL 5/5", progress: 1, button: "MAX", canBuy: false, maxed: true, reason: "" });
+    expect(t.effect).not.toMatch(/^Next/);
+  });
+
+  it("shortens the game's upgrade reasons", () => {
+    expect(shortUpgradeReason("Costs 4000 credits, you have 10.", 4000, 10)).toBe("Need 3,990 CR more");
+    expect(shortUpgradeReason("You cannot buy an upgrade during a flight.", 1, 0)).toBe("Not during a flight");
+    expect(shortUpgradeReason("This upgrade is already at the highest level.", null, 0)).toBe("Max level");
+    expect(shortUpgradeReason("You do not own this ship.", 1, 0)).toBe("Buy the ship first");
+    expect(shortUpgradeReason("", 1, 0)).toBe("");
+  });
+
+  it("upgrade summary counts all four tracks", () => {
+    expect(upgradeSummary({ tank: 0, hold: 0, engines: 0, comfort: 0 })).toBe("0/20");
+    expect(upgradeSummary({ tank: 5, hold: 2, engines: 1, comfort: 0 })).toBe("8/20");
+  });
+
+  it("efficient engines lower the fuel a trip burns (the number the cockpit and cards use)", () => {
+    const s = buy(rich(), "engines", 5);
+    expect(tripFuelCost(s, 20)).toBeLessThan(fuelCost(20));
+    expect(tripFuelCost(rich(), 20)).toBe(fuelCost(20));
   });
 });
 

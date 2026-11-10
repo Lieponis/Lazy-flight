@@ -1,10 +1,12 @@
 // SHIPYARD: an overlay over the docked view, same style as the Jobs menu.
 // A card per ship from game.getShipCatalog(): picture, name, description, numbers, price, fuel if owned,
 // and BUY / SWITCH / ACTIVE. After buying it asks "Switch to it now?" (Andy's choice).
+// Part 5d: owned ships get an UPGRADES button that opens the four upgrade tracks INSIDE the card
+// (Andy's choice B): level bar, next effect, BUY LEVEL or MAX. Numbers on the card are the real ones.
 
 import type { Game } from "../game";
 import { button, el } from "./dom";
-import { formatCredits, shipCardText, type ShipCardText } from "./logic";
+import { formatCredits, shipCardText, upgradeRowText, type ShipCardText } from "./logic";
 import { Popup } from "./popup";
 import { shipPictures } from "./shippreview";
 
@@ -14,6 +16,8 @@ export class Shipyard {
   private list = el("div", "ui-cards");
   private popup: Popup;
   private isOpen = false;
+  /** Ships whose upgrades are unfolded. */
+  private expanded = new Set<string>();
 
   constructor(parent: HTMLElement, private game: Game, private onClose: () => void) {
     this.root.setAttribute("role", "dialog");
@@ -87,11 +91,44 @@ export class Shipyard {
     info.append(top, el("div", "ui-card-blurb", c.description), facts);
     if (c.fuel) info.append(el("div", "ui-ship-fuel", c.fuel));
     box.append(pic, info, this.action(c));
+    if (c.upgradable && this.expanded.has(c.id)) box.append(this.upgrades(c.id, c.name));
     return box;
   }
 
+  /** The four upgrade tracks of one owned ship (5d). */
+  private upgrades(shipId: string, shipName: string): HTMLElement {
+    const wrap = el("div", "ui-upgrades");
+    const credits = this.game.state.credits;
+    for (const offer of this.game.getUpgradeOffers(shipId)) {
+      const t = upgradeRowText(offer, credits);
+      const row = el("div", t.maxed ? "ui-upgrade ui-upgrade-max" : "ui-upgrade");
+      const top = el("div", "ui-card-top");
+      top.append(el("span", "ui-upgrade-name", t.name), el("span", "ui-rank-number", t.level));
+      const bar = el("div", "ui-rank-bar");
+      const fill = el("div", "ui-rank-fill");
+      fill.style.width = `${Math.round(t.progress * 100)}%`;
+      bar.append(fill);
+      const buy = button(t.button, t.canBuy ? "ui-btn-primary ui-btn-wide" : "ui-btn-wide", () => this.buyLevel(shipId, shipName, offer.track));
+      buy.disabled = !t.canBuy;
+      row.append(top, bar, el("div", "ui-upgrade-effect", t.effect), buy);
+      if (t.reason) row.append(el("div", "ui-ship-reason", `✕ ${t.reason.toUpperCase()}`));
+      wrap.append(row);
+    }
+    return wrap;
+  }
+
+  private buyLevel(shipId: string, shipName: string, track: string): void {
+    const result = this.game.buyUpgrade(shipId, track);
+    this.render();
+    if (!result.ok) {
+      this.popup.show({ title: "NOT UPGRADED", text: result.reason, warning: true });
+      return;
+    }
+    this.popup.show({ title: "UPGRADED", big: `${shipName.toUpperCase()} · LEVEL ${result.level}`, text: result.line });
+  }
+
   private action(c: ShipCardText): HTMLElement {
-    const row = el("div", "ui-ship-action");
+    const row = el("div", c.upgradable ? "ui-ship-action ui-ship-action-2" : "ui-ship-action");
     if (c.action === "active") {
       row.append(el("div", "ui-active-label", "▶ ACTIVE"));
     } else if (c.action === "switch") {
@@ -102,6 +139,16 @@ export class Shipyard {
       const b = button(`BUY · ${c.price}`, "ui-btn-wide", () => undefined);
       b.disabled = true;
       row.append(b, el("div", "ui-ship-reason", `✕ ${c.reason.toUpperCase()}`));
+    }
+    if (c.upgradable) {
+      const open = this.expanded.has(c.id);
+      row.append(
+        button(open ? `UPGRADES ${c.upgradeLevels} ▲` : `UPGRADES ${c.upgradeLevels} ▼`, open ? "ui-btn-wide ui-btn-on" : "ui-btn-wide", () => {
+          if (open) this.expanded.delete(c.id);
+          else this.expanded.add(c.id);
+          this.render();
+        }),
+      );
     }
     return row;
   }
