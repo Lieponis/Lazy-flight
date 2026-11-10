@@ -58,8 +58,10 @@ export function startSound(game: Game, layer: HTMLElement, storage: PrefsStorage
   const engine = new SoundEngine(prefs);
 
   // ------------------------------------------------------------ first tap switches sound on
+  // Every kind of first touch counts (Andy, 2026-11-11): a press, a click, a key, the end of a touch or of a drag
+  // (e.g. turning the camera). These are the events browsers accept as "the player did something".
   const unlock = (): void => engine.unlock();
-  for (const type of ["click", "touchend", "keydown"]) window.addEventListener(type, unlock, { capture: true, passive: true });
+  for (const type of ["mousedown", "pointerup", "click", "touchend", "keydown"]) window.addEventListener(type, unlock, { capture: true, passive: true });
   document.addEventListener("visibilitychange", () => engine.setHidden(document.hidden));
 
   // ------------------------------------------------------------ buttons: click, and bonk when blocked
