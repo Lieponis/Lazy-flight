@@ -2,6 +2,9 @@
 
 You are Agent 6 (Save / QA / Balance). Work on the CURRENT `main`. Read first: docs/WHERE-TO-LOOK.md, docs/status.md, docs/report-agent-6b.md, docs/report-agent-4d.md, docs/proposal-ship-upgrades.md, docs/report-agent-5d.md, docs/report-agent-7a.md. One step at a time with Andy. The only report is docs/report-agent-6c.md. Tell the Lead BEFORE changing any game number; Andy decides.
 
+## Part 0: small rule fix first (Lead approves a change in src/game, 5d finding)
+`buyUpgrade` still allows Passenger Comfort on a ship with no cabin (the UI hides it, `/game-debug.html` can still buy it). Fix in `src/game`: `upgradeBlock` refuses "comfort" when the ship's cabin is 0 (plain reason text), and `getUpgradeOffers` leaves that row out (the Cargo Hauler then has 3 tracks, 15 levels). Check nothing else counts 4 tracks for such a ship (UI counts, balance simulator, debug page). Tests, one commit, one line to Andy. Then continue.
+
 ## Part A: balance
 1. Teach the simulator (`tests/sim`) to buy upgrades (sensible, spender, casual, lazy players). Report: when the first level of each track arrives, how many hours to a full track and to all four on one ship, how much upgrades change credits per hour and the share of tours that are "too far", and whether credits still pile up unused at 30 hours. Targets: first level of some track soon after the first ship (a session or two), the last levels a long-term goal (many hours), nothing makes jobs trivial or locks ships out. Propose price/percent changes if needed.
 2. Check the stacking rule (rank + outpost + comfort added on the plain reward, top +50%) and that rank gating still means something.

@@ -36,7 +36,7 @@ The one source of truth is the `main` branch of the GitHub repository `Lieponis/
 
 ## How to hand in
 - Push to `main` if you have GitHub access (small, clear commits, only the files your brief allows). Otherwise give Andy one zip with ONLY the changed files.
-- Your one report goes to `docs/report-agent-XX.md`: what was built, how to check it, live link, known issues and what is NOT verified, notes for the next agents, suggestions (labelled "suggestion").
+- Your one report goes to `docs/report-agent-XX.md` in the repository (agents may push it; this is allowed again by Andy, 2026-11-11): what was built, how to check it, live link, known issues and what is NOT verified, notes for the next agents, suggestions (labelled "suggestion").
 - Add a short line to `docs/status.md` only if your brief says so; otherwise the Lead does it.
 
 ## Working with Andy
