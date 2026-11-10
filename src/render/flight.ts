@@ -305,6 +305,7 @@ export class FlightScreen implements Screen {
   update(seconds: number): void {
     if (!this.info) return;
     this.clockT += seconds;
+    this.glideHome(seconds);
     this.lastFrameMs = performance.now();
 
     let plan: FlightPlan;
@@ -386,7 +387,6 @@ export class FlightScreen implements Screen {
     for (const f of this.ship.animation.flames) f.scale.z = flame;
     this.ship.group.position.y = 0.05 + Math.sin(this.clockT * 1.3) * 0.05;
 
-    this.glideHome(seconds);
     this.placeCamera(phase, p, plan.phaseSeconds);
     this.flash.style.opacity = String(flashAmount(plan));
     this.updateHud(plan);
