@@ -182,7 +182,8 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     last = now;
     if (active) {
       active.update(seconds);
-      renderer.render(active.scene, active.camera);
+      if (active.render) active.render(renderer);
+      else renderer.render(active.scene, active.camera);
     }
     requestAnimationFrame(frame);
   }

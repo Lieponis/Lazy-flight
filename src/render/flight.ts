@@ -21,7 +21,9 @@ import {
   type FlightPlan,
   type PhaseSettings,
 } from "./flightplan";
-import { buildCockpit } from "./cockpit";
+import { buildCockpitBase } from "./assets/cockpitBase";
+import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
+import { cockpitRoomVisible, ownShipVisible, pilotEye, renderPathFor, type ViewMode } from "./cockpitview";
 import { starfieldPositions } from "./helpers";
 import type { Hud } from "./hud";
 import type { Screen } from "./screen";
@@ -105,8 +107,6 @@ const PHASE_NAMES: Record<FlightPhase, string> = {
   DONE: "Docking",
 };
 
-type ViewMode = "orbit" | "cockpit";
-
 interface Body {
   /** The dock model with its parking spot at the group's origin, plus the planet surface or planet. Moves; the ship does not. */
   group: THREE.Group;
@@ -138,7 +138,11 @@ export class FlightScreen implements Screen {
   private baseFov = 50; // the window's normal view; the picture may widen a little so the whole ship fits
   private appliedFov = -1;
   private shipId = FALLBACK_SHIP_ID;
-  private cockpit = buildCockpit();
+  // Cockpit view: Agent 8's base cockpit (one for all ships for now), kept in a holder that is NOT a child of the camera
+  // (so the room stays level while the view tilts and shakes). It is drawn through the lens (see render()).
+  private cockpitModel = buildCockpitBase();
+  private cockpitRig = new THREE.Group();
+  private lens: CockpitLens | null = null;
   private tunnel = buildTunnel();
   private origin: Body | null = null;
   private dest: Body | null = null;
@@ -149,8 +153,6 @@ export class FlightScreen implements Screen {
   private lastPlan: FlightPlan | null = null;
   private finishing: { from: number; t: number; onDone: () => void } | null = null;
   private hudTimer = 0;
-  private lastAspect = 0;
-  private lastFov = 0;
   private phases: PhaseSettings = BASE_PHASES; // the approach to a station takes longer than to an outpost
 
   private flash = document.createElement("div");
@@ -164,8 +166,9 @@ export class FlightScreen implements Screen {
     const bg = new THREE.BufferGeometry();
     bg.setAttribute("position", new THREE.BufferAttribute(starfieldPositions(STARFIELD_COUNT, 450), 3));
     this.scene.add(new THREE.Points(bg, new THREE.PointsMaterial({ color: 0x8890c8, size: 1, sizeAttenuation: false })));
-    this.scene.add(this.ship.group, this.tunnel.group, this.camera);
-    this.camera.add(this.cockpit.group);
+    this.cockpitRig.add(this.cockpitModel.group);
+    this.cockpitRig.visible = false;
+    this.scene.add(this.ship.group, this.tunnel.group, this.cockpitRig, this.camera);
 
     this.flash.className = "flight-flash";
     this.hudRoot.className = "flight-hud";
@@ -340,6 +343,7 @@ export class FlightScreen implements Screen {
 
     // Only what is on screen is updated: blinking lights and the spinning ring.
     this.ship.update(this.clockT);
+    if (this.mode === "cockpit") this.cockpitModel.update(this.clockT); // the ~90 lights flash
     if (phase === "LAUNCH") this.origin?.model.update(this.clockT);
     else if (phase === "APPROACH" || phase === "DONE") this.dest?.model.update(this.clockT);
 
@@ -356,16 +360,11 @@ export class FlightScreen implements Screen {
   private placeCamera(phase: FlightPhase, p: number, phaseSeconds: number): void {
     const camera = this.camera;
     if (camera.fov !== this.appliedFov) this.baseFov = camera.fov; // the window changed the view (see index.ts resize)
-    if (camera.aspect !== this.lastAspect || this.baseFov !== this.lastFov) {
-      this.lastAspect = camera.aspect;
-      this.lastFov = this.baseFov;
-      this.cockpit.layout(camera.aspect, this.baseFov);
-    }
     let fov = this.baseFov;
     const shipY = this.ship.group.position.y;
     if (this.mode === "orbit") {
-      this.ship.group.visible = true;
-      this.cockpit.group.visible = false;
+      this.ship.group.visible = ownShipVisible(this.mode);
+      this.cockpitRig.visible = cockpitRoomVisible(this.mode);
       const height = (phase === "WARP" ? FLIGHT_ORBIT_HEIGHT_WARP : FLIGHT_ORBIT_HEIGHT_DOCK) + Math.sin(this.clockT * 0.4) * 0.6;
       let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * 0.35, FLIGHT_ORBIT_RADIUS, height);
       if (phase === "LAUNCH" && this.origin?.bayCamera) {
@@ -395,12 +394,13 @@ export class FlightScreen implements Screen {
       camera.position.set(rel.x, rel.y + shipY, rel.z);
       camera.lookAt(0, shipY + 0.8, 0);
     } else {
-      this.ship.group.visible = false;
-      this.cockpit.group.visible = true;
+      this.ship.group.visible = ownShipVisible(this.mode); // your own ship is never drawn from inside
+      this.cockpitRig.visible = cockpitRoomVisible(this.mode);
       // The camera sits at the design's eye spot and looks forward. A bit downwards while leaving a dock (to see it fall away) and while approaching one.
       const pitch = phase === "LAUNCH" ? -0.25 + 0.19 * p : phase === "WARP" ? -0.06 : -0.1;
-      const eye = this.ship.anchors.eye?.pos;
-      camera.position.set(eye?.x ?? 0, (eye?.y ?? 0.45) + shipY, eye?.z ?? -0.4);
+      const eye = pilotEye(this.ship.anchors.eye?.pos, shipY);
+      camera.position.set(eye.x, eye.y, eye.z);
+      this.cockpitRig.position.set(eye.x, eye.y, eye.z); // the room's eye spot is its origin; placed before the pitch and shake are added
       camera.rotation.set(pitch, 0, 0);
     }
     if (Math.abs(camera.fov - fov) > 0.01) {
@@ -440,6 +440,29 @@ export class FlightScreen implements Screen {
     this.title.textContent = `FLIGHT - ${PHASE_NAMES[plan.phase]}`;
     const arrives = plan.phase === "DONE" ? "Arrived!" : `Arrives in ${formatCountdown(remainingMs)}  (at ${clockTime})`;
     this.text.textContent = `To: ${info.destinationName}\n${arrives}\n> ${line}`;
+  }
+
+  /**
+   * Draws the picture. Cockpit view goes through the cockpit lens (a wide view without stretched edges); orbit view is the normal picture.
+   * The lens looks from the camera's spot and direction, with its own field of view (COCKPIT_FOV).
+   */
+  render(renderer: THREE.WebGLRenderer): void {
+    if (renderPathFor(this.mode) === "lens") {
+      this.lens ??= new CockpitLens(renderer);
+      this.lens.render(this.scene, this.camera, COCKPIT_FOV, COCKPIT_LENS);
+    } else {
+      renderer.render(this.scene, this.camera);
+    }
+  }
+
+  /** Frees the lens and the cockpit's geometry and materials (for when the flight screen is thrown away). */
+  dispose(): void {
+    this.lens?.dispose();
+    this.lens = null;
+    this.scene.remove(this.cockpitRig);
+    disposeAll(this.cockpitRig);
+    this.flash.remove();
+    this.hudRoot.remove();
   }
 
   private toggleMode(): void {

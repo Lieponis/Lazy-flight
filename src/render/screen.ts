@@ -10,4 +10,6 @@ export interface Screen {
   exit(): void;
   /** Called every frame. seconds = time since the last frame. */
   update(seconds: number): void;
+  /** Optional: draws the picture itself (the flight cockpit view uses a lens). Without it the app draws the scene normally. */
+  render?(renderer: THREE.WebGLRenderer): void;
 }
