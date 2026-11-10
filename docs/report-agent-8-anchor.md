@@ -33,6 +33,7 @@ Files changed:
 - **Viewer:** `/models.html?asset=cockpit-base&show=anchors`. The `screenRightWing` marker sits on the right wing
   screen, mirroring `screenFuel` on the left wing.
 - **Live:** https://lieponis.github.io/Lazy-flight/models.html
+- **Andy's check:** he looked in the viewer (anchors on) and replied "good" on 2026-11-10.
 
 ## 3. For the Lead: the follow-up for Agent 3 (one small change, not done by Agent 8)
 
