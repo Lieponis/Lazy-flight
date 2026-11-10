@@ -46,9 +46,26 @@ export function dragLook(look: Look, dx: number, dy: number, radiansPerPixel: nu
   };
 }
 
-/** Zoom: `factor` above 1 zooms out, below 1 zooms in (the same factors the docked view uses). Stays between min and max degrees. */
-export function zoomFov(fov: number, factor: number, min: number, max: number): number {
-  return clamp(fov * factor, min, max);
+/**
+ * The side-to-side field of view (degrees) for a zoom: `magnification` 1 = the start view `baseFovDeg`, 2 = twice as close, 0.5 = twice as far.
+ * (Zoom is how big things look, so it works on the tangent of the half angle, not on the angle itself.) Never wider than `capDeg`.
+ */
+export function fovForMagnification(baseFovDeg: number, magnification: number, capDeg = 180): number {
+  const half = Math.atan(Math.tan((baseFovDeg * Math.PI) / 360) / Math.max(1e-6, magnification));
+  return Math.min(capDeg, (2 * half * 180) / Math.PI);
+}
+
+/** The start view: the approved view zoomed out `times` (1.75 = things look 1.75 times smaller). */
+export function startFov(approvedFovDeg: number, times: number, capDeg = 180): number {
+  return fovForMagnification(approvedFovDeg, 1 / times, capDeg);
+}
+
+/**
+ * Zoom with the wheel or a pinch: `factor` above 1 zooms out, below 1 zooms in (the same factors the docked view uses).
+ * Stays between 1/range and range times the start view.
+ */
+export function zoomMagnification(magnification: number, factor: number, range: number): number {
+  return clamp(magnification / Math.max(1e-6, factor), 1 / range, range);
 }
 
 /** The shake share for a view mode: the cockpit shakes much less than the orbit camera. */

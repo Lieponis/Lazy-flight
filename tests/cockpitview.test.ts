@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, shakeShare, zoomFov } from "../src/render/cockpitview";
+import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, fovForMagnification, shakeShare, startFov, zoomMagnification } from "../src/render/cockpitview";
 
 describe("cockpit view: what is drawn and how", () => {
   it("cockpit view goes through the lens, orbit view is the normal picture", () => {
@@ -36,11 +36,25 @@ describe("cockpit view: looking around, zooming, shaking", () => {
     expect(dragLook({ yaw: 1.4, pitch: 0.9 }, 1000, 1000, 0.01, limits)).toEqual({ yaw: 1.5, pitch: 1 });
     expect(dragLook({ yaw: -1.4, pitch: -0.5 }, -1000, -1000, 0.01, limits)).toEqual({ yaw: -1.5, pitch: -0.6 });
   });
-  it("zoom stays between the minimum and the maximum", () => {
-    expect(zoomFov(70, 0.5, 30, 95)).toBe(35);
-    expect(zoomFov(70, 0.1, 30, 95)).toBe(30);
-    expect(zoomFov(70, 3, 30, 95)).toBe(95);
-    expect(zoomFov(70, 1, 30, 95)).toBe(70);
+  it("zoom stays between one fifth and five times the start view", () => {
+    expect(zoomMagnification(1, 0.5, 5)).toBe(2);
+    expect(zoomMagnification(1, 2, 5)).toBe(0.5);
+    expect(zoomMagnification(4, 0.1, 5)).toBe(5);
+    expect(zoomMagnification(0.3, 10, 5)).toBe(0.2);
+  });
+  it("magnification 1 keeps the view, 2 makes things twice as big", () => {
+    expect(fovForMagnification(90, 1)).toBeCloseTo(90, 6);
+    const half = (f: number) => Math.tan((f * Math.PI) / 360);
+    expect(half(fovForMagnification(90, 2))).toBeCloseTo(half(90) / 2, 6);
+    expect(half(fovForMagnification(90, 0.5))).toBeCloseTo(half(90) * 2, 6);
+  });
+  it("the start view is the approved 70 degrees zoomed out 1.75 times, wider than before", () => {
+    const f = startFov(70, 1.75);
+    expect(f).toBeGreaterThan(70);
+    expect(Math.tan((f * Math.PI) / 360)).toBeCloseTo(Math.tan((70 * Math.PI) / 360) * 1.75, 6);
+  });
+  it("the view is never wider than the cap", () => {
+    expect(fovForMagnification(100, 0.2, 150)).toBe(150);
   });
   it("the cockpit shakes less than the orbit camera", () => {
     expect(shakeShare("orbit", 0.2)).toBe(1);

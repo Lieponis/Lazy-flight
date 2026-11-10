@@ -23,7 +23,7 @@ import {
 } from "./flightplan";
 import { buildCockpitBase } from "./assets/cockpitBase";
 import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
-import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, shakeShare, zoomFov, type Look, type ViewMode } from "./cockpitview";
+import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, fovForMagnification, shakeShare, startFov, zoomMagnification, type Look, type ViewMode } from "./cockpitview";
 import { pinchFactor, wheelFactor } from "./dockedcam";
 import { starfieldPositions } from "./helpers";
 import type { Hud } from "./hud";
@@ -86,8 +86,9 @@ import {
   COCKPIT_LOOK_PITCH_MIN_DEG,
   COCKPIT_LOOK_YAW_MAX_DEG,
   COCKPIT_SHAKE_FACTOR,
-  COCKPIT_ZOOM_FOV_MAX,
-  COCKPIT_ZOOM_FOV_MIN,
+  COCKPIT_DEFAULT_ZOOM_OUT,
+  COCKPIT_FOV_CAP,
+  COCKPIT_ZOOM_RANGE,
   SHIP_FIT_MARGIN,
   SHIP_FIT_MAX_FOV,
   STARFIELD_COUNT,
@@ -158,7 +159,7 @@ export class FlightScreen implements Screen {
   private lens: CockpitLens | null = null;
   private look: Look = { yaw: 0, pitch: 0 }; // where the pilot has turned his head (drag); resets when a flight starts or the view changes
   private homing = false; // true while the view glides back to straight ahead (double tap)
-  private zoom = COCKPIT_FOV; // the cockpit view's side-to-side field of view (wheel or pinch)
+  private zoom = 1; // how much the player has zoomed from the start view: 1 = start, 2 = twice as close (wheel or pinch)
   private pointers = new Map<number, { x: number; y: number }>();
   private lastPinch = 0;
   private moved = 0; // how far the finger or mouse travelled since it went down (a tap barely moves)
@@ -484,7 +485,7 @@ export class FlightScreen implements Screen {
   render(renderer: THREE.WebGLRenderer): void {
     if (renderPathFor(this.mode) === "lens") {
       this.lens ??= new CockpitLens(renderer);
-      this.lens.render(this.scene, this.camera, this.zoom, COCKPIT_LENS);
+      this.lens.render(this.scene, this.camera, this.cockpitFov(), COCKPIT_LENS);
     } else {
       renderer.render(this.scene, this.camera);
     }
@@ -504,9 +505,14 @@ export class FlightScreen implements Screen {
   /** Straight ahead again at once (a new flight, or switching views). */
   private resetLook = (): void => {
     this.look = { yaw: 0, pitch: 0 };
-    this.zoom = COCKPIT_FOV;
+    this.zoom = 1;
     this.homing = false;
   };
+
+  /** The cockpit view's side-to-side field of view now: the start view (the approved view zoomed out) changed by the player's zoom. */
+  private cockpitFov(): number {
+    return fovForMagnification(startFov(COCKPIT_FOV, COCKPIT_DEFAULT_ZOOM_OUT, COCKPIT_FOV_CAP), this.zoom, COCKPIT_FOV_CAP);
+  }
 
   /** Double tap: glide back to straight ahead (not a jump). Any drag or zoom by the player stops the glide. */
   private centreLook(): void {
@@ -516,8 +522,8 @@ export class FlightScreen implements Screen {
   private glideHome(seconds: number): void {
     if (!this.homing) return;
     this.look = { yaw: glide(this.look.yaw, 0, seconds), pitch: glide(this.look.pitch, 0, seconds) };
-    this.zoom = glide(this.zoom, COCKPIT_FOV, seconds, 8, 0.05);
-    if (this.look.yaw === 0 && this.look.pitch === 0 && this.zoom === COCKPIT_FOV) this.homing = false;
+    this.zoom = Math.exp(glide(Math.log(this.zoom), 0, seconds, 8, 0.002)); // zoom glides evenly in and out
+    if (this.look.yaw === 0 && this.look.pitch === 0 && this.zoom === 1) this.homing = false;
   }
 
   private fingerDistance(): number {
@@ -548,11 +554,11 @@ export class FlightScreen implements Screen {
     this.moved += Math.abs(dx) + Math.abs(dy);
     if (this.pointers.size === 1) {
       const h = Math.max(1, this.opts.host.clientHeight);
-      const perPixel = ((this.zoom * Math.PI) / 180) / h; // dragging a screen height turns about one field of view
+      const perPixel = ((this.cockpitFov() * Math.PI) / 180) / h; // dragging a screen height turns about one field of view
       this.look = dragLook(this.look, dx, dy, perPixel, LOOK_LIMITS);
     } else if (this.pointers.size === 2) {
       const d = this.fingerDistance();
-      this.zoom = zoomFov(this.zoom, pinchFactor(this.lastPinch, d), COCKPIT_ZOOM_FOV_MIN, COCKPIT_ZOOM_FOV_MAX);
+      this.zoom = zoomMagnification(this.zoom, pinchFactor(this.lastPinch, d), COCKPIT_ZOOM_RANGE);
       this.lastPinch = d;
     }
   };
@@ -576,7 +582,7 @@ export class FlightScreen implements Screen {
     if (this.mode !== "cockpit") return;
     e.preventDefault();
     this.homing = false;
-    this.zoom = zoomFov(this.zoom, wheelFactor(e.deltaY), COCKPIT_ZOOM_FOV_MIN, COCKPIT_ZOOM_FOV_MAX);
+    this.zoom = zoomMagnification(this.zoom, wheelFactor(e.deltaY), COCKPIT_ZOOM_RANGE);
   };
 
   private toggleMode(): void {
