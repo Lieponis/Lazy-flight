@@ -50,9 +50,9 @@ export const FLIGHT_DOCKED_HOLD_SECONDS = 0.6;
 export const FLIGHT_LINE_SECONDS = 25;
 
 /** The warp (3e): stars and haze. */
-export const WARP_STREAKS = 1800; // stars shooting past (fewer = lighter on phones)
+export const WARP_STREAKS = 1400; // stars shooting past (fewer = lighter on phones)
 export const WARP_AHEAD = 170; // stars appear this far ahead of the ship...
-export const WARP_BEHIND = 90; // ...and stream on until this far behind it, stretching as they go
+export const WARP_BEHIND = 170; // ...and stream on until this far behind it, stretching as they go
 export const WARP_SPAN = WARP_AHEAD + WARP_BEHIND; // the length of one run before a star starts again
 export const WARP_SPEED = 100; // how fast the stars fly, units per second
 export const WARP_RADIUS_MIN = 2.2; // the dark gap in the middle

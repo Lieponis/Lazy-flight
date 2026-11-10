@@ -28,7 +28,7 @@ const VERTEX = `
     float zz = z - uAhead;                                 // from far ahead of the ship, past it, to far behind it
     float head = zz;                                       // the head end leads, the tail trails behind it
     // Trails stretch the further they are past the ship, so looking back from the orbit camera the streaks run on long and fast.
-    float len = aLen * (1.0 + uPulse * 1.6) * (1.0 + max(head, 0.0) * 0.05);
+    float len = aLen * (1.0 + uPulse * 1.6) * (1.0 + max(head, 0.0) * 0.12);
     float zv = head - (1.0 - aEnd) * len;
     float a = uTwist * zv;
     float ca = cos(a); float sa = sin(a);
@@ -57,7 +57,8 @@ function glowTexture(): THREE.CanvasTexture {
   if (ctx) {
     const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
     g.addColorStop(0, "rgba(255,255,255,1)");
-    g.addColorStop(0.35, "rgba(255,255,255,0.35)");
+    g.addColorStop(0.45, "rgba(255,255,255,0.7)");
+    g.addColorStop(0.8, "rgba(255,255,255,0.2)");
     g.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);
@@ -109,7 +110,7 @@ export function buildWarp(initial: WarpStyle = "B"): Warp {
   const haze: { sprite: THREE.Sprite; base: THREE.Vector3; k: number }[] = [];
   const hazeGroup = new THREE.Group();
   for (let i = 0; i < WARP_HAZE_COUNT; i++) {
-    const material2 = new THREE.SpriteMaterial({ map: texture, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.3 });
+    const material2 = new THREE.SpriteMaterial({ map: texture, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5 });
     const sprite = new THREE.Sprite(material2);
     // Spread evenly over a whole sphere (a spiral), so there is haze ahead, behind, above and below the ship.
     const y = 1 - (2 * (i + 0.5)) / WARP_HAZE_COUNT;
@@ -153,10 +154,10 @@ export function buildWarp(initial: WarpStyle = "B"): Warp {
         const palette = [c0, c1, c2];
         for (const h of haze) {
           const c = palette[h.k % 3]!;
-          colour.setHSL(c.h, c.s, c.l * 0.8);
+          colour.setHSL(c.h, Math.min(1, c.s + 0.1), c.l * 0.85); // a little more vivid, so the haze reads clearly
           const m = h.sprite.material;
           m.color.copy(colour);
-          m.opacity = (0.22 + 0.1 * Math.sin(seconds / 7 + h.k)) * warpIntensity(seconds) * (1 + pulse * 0.8);
+          m.opacity = (0.42 + 0.14 * Math.sin(seconds / 7 + h.k)) * warpIntensity(seconds) * (1 + pulse * 0.8);
           m.rotation = seconds * 0.03 * (h.k % 2 === 0 ? 1 : -1);
           h.sprite.position.set(
             h.base.x + Math.sin(seconds / 11 + h.k) * 6,
