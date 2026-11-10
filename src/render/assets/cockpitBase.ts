@@ -609,8 +609,12 @@ function buildShell(): AssetModel {
   // game's screen colour; the red dots are only placeholders: the lights get random colours and each flashes at
   // its own pace; the throttle has a cylinder grip (not a ball).
   const screenSpots: { name: string; corners: V3[] }[] = [];
+  const cabin = new THREE.Vector3(0, 1.0, zOf(0.6)); // a point in the middle of the cabin
   {
     const faceV = (u: number): number => lipOf(u) + 0.0015; // just in front of the upright face
+    // STEP 5 (Andy, option A): information straight ahead of the pilot, route map in the middle, fuel (amber) on
+    // the pilot's wing. The game draws on these three; the other three show made-up readouts (option 2).
+    const FUEL_SCREEN = "screen left wing";
     const onFace = (u: number, y: number): V3 => [u * LENGTH, y, zOf(faceV(u))];
     const FRAME = 0.025; // grey frame round each screen, crates
     /** A screen on the dashboard face: frame behind, glowing active area in front. */
@@ -620,7 +624,7 @@ function buildShell(): AssetModel {
       emit("interior screen frames", frame, new THREE.Vector3(0, 1, zOf(0.6)));
       const lift = (p: V3): V3 => [p[0], p[1], p[2] + 0.004];
       const area = [onFace(u0, y0), onFace(u1, y0), onFace(u1, y1), onFace(u0, y1)].map(lift);
-      emit("interior screens", area, new THREE.Vector3(0, 1, zOf(0.6)));
+      emit(name === FUEL_SCREEN ? "interior fuel screen" : "interior screens", area, new THREE.Vector3(0, 1, zOf(0.6)));
       screenSpots.push({ name, corners: area });
     };
     // Middle section: three screens side by side.
@@ -694,6 +698,43 @@ function buildShell(): AssetModel {
     }
   }
 
+
+  // ---------------------------------------------------------------- STEP 5: SCREEN JOBS (option A 2)
+  {
+    /** A screen's middle, the way it faces (into the cabin), its width (first edge) and height (second edge). */
+    const frameOf = (corners: V3[]): { mid: THREE.Vector3; dir: THREE.Vector3; w: number; h: number; c: THREE.Vector3[] } => {
+      const c = corners.map((p) => new THREE.Vector3(...p));
+      const mid = c.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(4);
+      const dir = c[1]!.clone().sub(c[0]!).cross(c[3]!.clone().sub(c[0]!)).normalize();
+      if (dir.dot(cabin.clone().sub(mid)) < 0) dir.negate();
+      return { mid, dir, w: c[1]!.distanceTo(c[0]!), h: c[3]!.distanceTo(c[0]!), c };
+    };
+    const spot = (name: string): V3[] => screenSpots.find((x) => x.name === name)!.corners;
+    const jobs: [string, string][] = [["screenInfo", "screen middle left"], ["screenMap", "screen middle"], ["screenFuel", "screen left wing"]];
+    for (const [anchor, screen] of jobs) {
+      const f = frameOf(spot(screen));
+      kit.screenAnchor(anchor, f.mid.toArray() as V3, f.dir.toArray() as V3, f.w, f.h);
+    }
+    // Made-up readouts on the other three screens: a little bar chart, a zig-zag graph line and a header strip.
+    const readouts: [string, number][] = [["screen middle right", 0], ["screen right wing", 1], ["screen console", 2]];
+    for (const [screen, look] of readouts) {
+      const f = frameOf(spot(screen));
+      const at = (s: number, t: number): V3 =>
+        f.c[0]!.clone().addScaledVector(f.c[1]!.clone().sub(f.c[0]!), s).addScaledVector(f.c[3]!.clone().sub(f.c[0]!), t).addScaledVector(f.dir, 0.003).toArray() as V3;
+      const rect = (name: string, s0: number, s1: number, t0: number, t1: number): void => emit(name, [at(s0, t0), at(s1, t0), at(s1, t1), at(s0, t1)], f.mid.clone().add(f.dir));
+      const heights = [[0.5, 0.8, 0.35, 0.65], [0.7, 0.4, 0.55, 0.3], [0.3, 0.6, 0.75, 0.45]][look]!;
+      heights.forEach((hgt, i) => rect("interior readout bars", 0.08 + i * 0.1, 0.15 + i * 0.1, 0.1, 0.1 + hgt * 0.62));
+      rect("interior readout bars", 0.08, 0.6, 0.83, 0.89);
+      const line = [[0.55, 0.3], [0.64, 0.55], [0.73, 0.4], [0.82, 0.68], [0.92, 0.5]].map(([a, b]) => [a!, look === 1 ? 1 - b! : b!]);
+      for (let i = 0; i + 1 < line.length; i++) {
+        const [s0, t0] = line[i]!;
+        const [s1, t1] = line[i + 1]!;
+        const th = 0.035;
+        emit("interior readout lines", [at(s0!, t0! - th), at(s1!, t1! - th), at(s1!, t1! + th), at(s0!, t0! + th)], f.mid.clone().add(f.dir));
+      }
+    }
+  }
+
   const colours = {
     "interior roof": "hullMid",
     "interior floor": "metalDark",
@@ -707,6 +748,9 @@ function buildShell(): AssetModel {
     "interior seat bases": "frame",
     "interior screen frames": "paintGrey",
     "interior screens": "screenTeal",
+    "interior fuel screen": "screenAmber",
+    "interior readout bars": "cyan",
+    "interior readout lines": "lightGreen",
     "interior dashboard underside": "frame",
     "interior centre stack": "hullLight",
     "interior centre console": "hullLight", // same as the dashboard (Andy)
@@ -717,7 +761,8 @@ function buildShell(): AssetModel {
   for (const [name, colour] of Object.entries(colours)) {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(tris[name] ?? [], 3));
-    kit.add(name, g, colour, { layer: name === "interior screens" ? "glow" : "body" });
+    const glows = ["interior screens", "interior fuel screen", "interior readout bars", "interior readout lines"];
+    kit.add(name, g, colour, { layer: glows.includes(name) ? "glow" : "body" });
   }
   windows.forEach((w, i) => kit.windowOpening(`window ${i + 1}`, w));
 
@@ -749,10 +794,10 @@ export const COCKPIT_BASE_WIP: AssetEntry = {
   name: "Cockpit base (work in progress)",
   kind: "cockpit",
   description:
-    "Steps 1-4: shell (six surfaces with no thickness, window cut out of the curved roof), panels (dashboard, side columns, centre console, overhead panel), two seats, and instruments (six screens, throttle, flashing lights), measured from Andy's drawings. Screen jobs and the dog come in later steps.",
+    "Steps 1-5: shell (six surfaces with no thickness, window cut out of the curved roof), panels (dashboard, side columns, centre console, overhead panel), two seats, instruments (six screens, throttle, flashing lights) and screen jobs (information ahead, map in the middle, amber fuel on the pilot's wing, made-up readouts on the rest), measured from Andy's drawings. The dog, lamp and window light come in step 6.",
   variants: 1,
   build: buildCockpitBase,
-  anchorNames: ["eye"],
+  anchorNames: ["eye", "screenInfo", "screenMap", "screenFuel"],
   eyeFov: EYE_FOV,
   triangles: 3000,
   status: "DRAFT",
