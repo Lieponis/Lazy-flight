@@ -3,7 +3,7 @@
 .flight-flash {
   position: fixed;
   inset: 0;
-  background: #ffffff;
+  background: #eeeaff; /* pale violet-white, to go with the warp colours */
   opacity: 0;
   pointer-events: none;
   z-index: 5;

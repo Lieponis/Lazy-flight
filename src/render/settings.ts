@@ -202,3 +202,10 @@ export const FLIGHT_ARRIVAL_SHAKE_SECONDS = 1.8;
 /** Keeping the ship in the picture: the room left round it (1.1 = 10 percent), and the widest the view may get when the camera cannot move back (degrees). */
 export const SHIP_FIT_MARGIN = 1.1;
 export const SHIP_FIT_MAX_FOV = 100;
+
+// ---------------------------------------------------------------- the PS1 pixel look (stage 3e)
+// Compare the strengths with ?lookpreview=1 (buttons Off / A / B / C and WOBBLE). The numbers of A, B and C are in lookmath.ts.
+export const LOOK_DEFAULT_STYLE: "off" | "A" | "B" | "C" = "B"; // provisional until Andy picks
+export const LOOK_WOBBLE = 0; // 0 = off (default). 0..1: models snap to a coarser grid, so corners jitter a little. ?wobble=0.5 to try it.
+export const LOOK_FLAME_FLICKER = 0.12; // engine flames change length in chunky steps (+/- this share). 0 = steady flame.
+export const LOOK_FLASH_STEPS = 6; // the warp flash fades in this many chunky steps. 0 = smooth fade.

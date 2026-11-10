@@ -98,10 +98,13 @@ import {
   SHIP_FIT_MAX_FOV,
   STARFIELD_COUNT,
   STATION_EXIT,
+  LOOK_FLAME_FLICKER,
+  LOOK_FLASH_STEPS,
 } from "./settings";
 import { disposeAll, makePlanetMesh } from "./systemview";
 import { buildWarp } from "./warp";
 import { parseWarpStyle, type WarpStyle } from "./warpmath";
+import { flameFlicker, stepped } from "./lookmath";
 import "./flight.css";
 
 const BASE_PHASES: PhaseSettings = {
@@ -393,11 +396,12 @@ export class FlightScreen implements Screen {
 
     // Engine flames (the design's own flame parts): short at the dock, 1 flying, 3 in warp.
     const flame = flameLength(phase, p, this.clockT);
-    for (const f of this.ship.animation.flames) f.scale.z = flame;
+    const flicker = flameFlicker(this.clockT, LOOK_FLAME_FLICKER); // PS1 style: the flame changes length in chunky steps
+    for (const f of this.ship.animation.flames) f.scale.z = flame * flicker;
     this.ship.group.position.y = 0.05 + Math.sin(this.clockT * 1.3) * 0.05;
 
     this.placeCamera(phase, p, plan.phaseSeconds);
-    this.flash.style.opacity = String(flashAmount(plan));
+    this.flash.style.opacity = String(stepped(flashAmount(plan), LOOK_FLASH_STEPS));
     this.updateHud(plan);
   }
 

@@ -14,13 +14,16 @@ import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
 import { parseShipParam, resolveShipId } from "./integration";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import type { Screen } from "./screen";
-import { START_SEED, WARP_DEFAULT_STYLE } from "./settings";
+import { LOOK_DEFAULT_STYLE, LOOK_WOBBLE, START_SEED, WARP_DEFAULT_STYLE } from "./settings";
 import { findStartSystem } from "./start";
 import { StateStore } from "./state";
 import { DockedScreen } from "./docked";
 import { FlightScreen } from "./flight";
 import { StarMapScreen } from "./starmap";
 import { SystemViewScreen } from "./systemview";
+import { PixelLook } from "./look";
+import { lookPreset, parseLook, parseLookPreview, parseWobble } from "./lookmath";
+import { mountLookPreview } from "./lookpreview";
 import { mountWarpPreview } from "./warppreview";
 import { parseWarpPreview, parseWarpStyle } from "./warpmath";
 
@@ -191,14 +194,29 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     mountWarpPreview(parent, parseWarpStyle(window.location.search) ?? WARP_DEFAULT_STYLE, (style) => flight.setWarpStyle(style));
   }
 
+  // The PS1 pixel look: one extra pass over the finished picture (see look.ts). ?look=A|B|C|off and ?wobble=0..1 override the defaults.
+  const pixelLook = new PixelLook(renderer);
+  const startLook = parseLook(window.location.search) ?? LOOK_DEFAULT_STYLE;
+  pixelLook.set({ ...lookPreset(startLook), wobble: parseWobble(window.location.search) ?? LOOK_WOBBLE });
+  if (parseLookPreview(window.location.search)) {
+    mountLookPreview(parent, startLook, pixelLook.get().wobble > 0, (style, wobble) => pixelLook.set({ ...lookPreset(style), wobble }));
+  }
+
   let last = performance.now();
   function frame(now: number): void {
     const seconds = Math.min((now - last) / 1000, 0.1); // cap so a paused tab does not jump
     last = now;
     if (active) {
       active.update(seconds);
-      if (active.render) active.render(renderer);
-      else renderer.render(active.scene, active.camera);
+      const screen = active;
+      pixelLook.render(
+        () => {
+          if (screen.render) screen.render(renderer);
+          else renderer.render(screen.scene, screen.camera);
+        },
+        screen.scene,
+        seconds,
+      );
     }
     requestAnimationFrame(frame);
   }
