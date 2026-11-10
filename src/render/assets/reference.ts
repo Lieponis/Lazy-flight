@@ -3,6 +3,7 @@
 //   broken-demo  = a model broken on purpose, so you can see the problem checker catch things.
 
 import * as THREE from "three";
+import { COCKPIT_BASE_WIP } from "./cockpitBase";
 import { ModelKit } from "./kit";
 import { PAD_DIAMETER } from "./style";
 import type { AssetEntry } from "./types";
@@ -75,4 +76,4 @@ export const BROKEN_DEMO: AssetEntry = {
   status: "DRAFT",
 };
 
-export const REFERENCE_ENTRIES: AssetEntry[] = [SCALE_TEST, BROKEN_DEMO];
+export const REFERENCE_ENTRIES: AssetEntry[] = [COCKPIT_BASE_WIP, SCALE_TEST, BROKEN_DEMO];

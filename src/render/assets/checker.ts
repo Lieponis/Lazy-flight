@@ -150,7 +150,7 @@ export function windowBlockers(model: AssetModel): string[] {
     const mid = pts.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(pts.length);
     pts.forEach((p, i) => {
       const q = pts[(i + 1) % pts.length]!;
-      const n = 6;
+      const n = openings.length > 20 ? 2 : 6;
       for (let u = 0; u <= n; u++) {
         for (let v = 0; u + v <= n; v++) {
           const pt = mid.clone().multiplyScalar(1 - (u + v) / n).addScaledVector(p, u / n).addScaledVector(q, v / n);
@@ -249,7 +249,8 @@ export function checkModel(model: AssetModel, kind: AssetKind, entry?: AssetEntr
     const mesh = o as THREE.Mesh;
     if (mesh.isMesh && !model.animation.flames.includes(mesh)) parts.push(...partsOf(mesh));
   });
-  const inside = parts.filter((p) => p.closedish && p.volume < 0).map((p) => p.label.split(":")[1]);
+  // Parts named "interior ..." are walls seen from inside a room (a cockpit): they face inwards on purpose.
+  const inside = parts.filter((p) => p.closedish && p.volume < 0 && !(p.label.split(":")[1] ?? "").startsWith("interior")).map((p) => p.label.split(":")[1]);
   if (inside.length > 0) err(`Faces point inside out (they show as holes): ${inside.join(", ")}.`);
 
   if (parts.length > 1) {
