@@ -7,7 +7,7 @@
 // per frame as the first second, and nothing grows in memory.
 
 import * as THREE from "three";
-import { WARP_HAZE_COUNT, WARP_RADIUS_MAX, WARP_RADIUS_MIN, WARP_SPAN, WARP_SPEED, WARP_STREAKS } from "./settings";
+import { WARP_AHEAD, WARP_BEHIND, WARP_HAZE_COUNT, WARP_HAZE_DISTANCE, WARP_RADIUS_MAX, WARP_RADIUS_MIN, WARP_SPAN, WARP_SPEED, WARP_STREAKS } from "./settings";
 import { warpIntensity, warpPalette, warpPulse, warpStreakData, type WarpStyle } from "./warpmath";
 
 export interface Warp {
@@ -19,21 +19,22 @@ export interface Warp {
 }
 
 const VERTEX = `
-  uniform float uPhase; uniform float uSpan; uniform float uPulse; uniform float uTwist; uniform float uIntensity;
+  uniform float uPhase; uniform float uSpan; uniform float uAhead; uniform float uBehind; uniform float uPulse; uniform float uTwist; uniform float uIntensity;
   uniform vec3 uCol0; uniform vec3 uCol1; uniform vec3 uCol2;
   attribute float aEnd; attribute float aSpeed; attribute float aLen; attribute float aTint; attribute float aBright;
   varying vec3 vColor;
   void main() {
     float z = mod(position.z + uPhase * aSpeed, uSpan);   // how far along its run this star is
-    float zz = z - uSpan + 3.0;                            // from far away (-span) to just past the camera (+3)
-    float len = aLen * (1.0 + uPulse * 1.6);
+    float zz = z - uAhead;                                 // from far ahead of the ship, past it, to far behind it
     float head = zz;                                       // the head end leads, the tail trails behind it
+    // Trails stretch the further they are past the ship, so looking back from the orbit camera the streaks run on long and fast.
+    float len = aLen * (1.0 + uPulse * 1.6) * (1.0 + max(head, 0.0) * 0.05);
     float zv = head - (1.0 - aEnd) * len;
     float a = uTwist * zv;
     float ca = cos(a); float sa = sin(a);
     vec3 p = vec3(position.x * ca - position.y * sa, position.x * sa + position.y * ca, zv);
     vec3 col = aTint < 0.5 ? mix(uCol0, uCol1, aTint * 2.0) : mix(uCol1, uCol2, (aTint - 0.5) * 2.0);
-    float far = smoothstep(-uSpan, -uSpan * 0.35, head);   // dim far away, full strength close
+    float far = smoothstep(-uAhead, -uAhead * 0.35, head) * (1.0 - smoothstep(uBehind * 0.45, uBehind, head)); // dim far ahead and far behind
     float tail = mix(0.08, 1.0, aEnd);                     // dim at the tail, bright at the head
     vColor = col * aBright * far * tail * uIntensity * (1.0 + uPulse * 0.9);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
@@ -82,6 +83,8 @@ export function buildWarp(initial: WarpStyle = "B"): Warp {
   const uniforms = {
     uPhase: { value: 0 },
     uSpan: { value: WARP_SPAN },
+    uAhead: { value: WARP_AHEAD },
+    uBehind: { value: WARP_BEHIND },
     uPulse: { value: 0 },
     uTwist: { value: 0 },
     uIntensity: { value: 1 },
@@ -103,20 +106,22 @@ export function buildWarp(initial: WarpStyle = "B"): Warp {
 
   // --- the haze (styles B and C)
   const texture = glowTexture();
-  const haze: { sprite: THREE.Sprite; baseX: number; baseY: number; k: number }[] = [];
+  const haze: { sprite: THREE.Sprite; base: THREE.Vector3; k: number }[] = [];
   const hazeGroup = new THREE.Group();
   for (let i = 0; i < WARP_HAZE_COUNT; i++) {
     const material2 = new THREE.SpriteMaterial({ map: texture, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.3 });
     const sprite = new THREE.Sprite(material2);
-    const angle = (i / WARP_HAZE_COUNT) * Math.PI * 2 + i * 0.7;
-    const radius = 14 + (i % 3) * 9;
+    // Spread evenly over a whole sphere (a spiral), so there is haze ahead, behind, above and below the ship.
+    const y = 1 - (2 * (i + 0.5)) / WARP_HAZE_COUNT;
+    const ring = Math.sqrt(1 - y * y);
+    const theta = i * 2.399963;
+    const distance = WARP_HAZE_DISTANCE + (i % 3) * 22;
     const size = 70 + ((i * 37) % 50);
-    const baseX = Math.cos(angle) * radius;
-    const baseY = Math.sin(angle) * radius;
-    sprite.position.set(baseX, baseY, -85 - (i % 4) * 18);
+    const base = new THREE.Vector3(Math.cos(theta) * ring, y, Math.sin(theta) * ring).multiplyScalar(distance);
+    sprite.position.copy(base);
     sprite.scale.set(size, size, 1);
     hazeGroup.add(sprite);
-    haze.push({ sprite, baseX, baseY, k: i });
+    haze.push({ sprite, base, k: i });
   }
   group.add(hazeGroup);
 
@@ -153,8 +158,11 @@ export function buildWarp(initial: WarpStyle = "B"): Warp {
           m.color.copy(colour);
           m.opacity = (0.22 + 0.1 * Math.sin(seconds / 7 + h.k)) * warpIntensity(seconds) * (1 + pulse * 0.8);
           m.rotation = seconds * 0.03 * (h.k % 2 === 0 ? 1 : -1);
-          h.sprite.position.x = h.baseX + Math.sin(seconds / 11 + h.k) * 6;
-          h.sprite.position.y = h.baseY + Math.cos(seconds / 13 + h.k * 2) * 6;
+          h.sprite.position.set(
+            h.base.x + Math.sin(seconds / 11 + h.k) * 6,
+            h.base.y + Math.cos(seconds / 13 + h.k * 2) * 6,
+            h.base.z + Math.sin(seconds / 17 + h.k * 3) * 6,
+          );
         }
       }
     },

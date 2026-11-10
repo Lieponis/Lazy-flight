@@ -50,14 +50,17 @@ export const FLIGHT_DOCKED_HOLD_SECONDS = 0.6;
 export const FLIGHT_LINE_SECONDS = 25;
 
 /** The warp (3e): stars and haze. */
-export const WARP_STREAKS = 1400; // stars shooting past (fewer = lighter on phones)
-export const WARP_SPAN = 160; // how long a run is before a star starts again
+export const WARP_STREAKS = 1800; // stars shooting past (fewer = lighter on phones)
+export const WARP_AHEAD = 170; // stars appear this far ahead of the ship...
+export const WARP_BEHIND = 90; // ...and stream on until this far behind it, stretching as they go
+export const WARP_SPAN = WARP_AHEAD + WARP_BEHIND; // the length of one run before a star starts again
 export const WARP_SPEED = 100; // how fast the stars fly, units per second
 export const WARP_RADIUS_MIN = 2.2; // the dark gap in the middle
 export const WARP_RADIUS_MAX = 20;
-export const WARP_HAZE_COUNT = 7; // soft glow clouds behind the stars (styles B and C)
-/** Which warp look is used when ?warp= is not given. */
-export const WARP_DEFAULT_STYLE: "A" | "B" | "C" = "B";
+export const WARP_HAZE_COUNT = 12; // soft glow clouds all around the ship (styles B and C)
+export const WARP_HAZE_DISTANCE = 75; // how far from the ship the haze hangs (the nearest ones; others are further out)
+/** Which warp look is used when ?warp= is not given. Andy chose C. */
+export const WARP_DEFAULT_STYLE: "A" | "B" | "C" = "C";
 
 /** The OLD warp tunnel (rings), no longer used: */
 export const TUNNEL_STREAKS = 140; // number of streaking stars (fewer = faster on phones)

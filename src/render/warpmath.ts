@@ -97,7 +97,7 @@ export function warpStreakData(count: number, span: number, minRadius: number, m
     const radius = minRadius + (maxRadius - minRadius) * Math.pow(next(), 0.75);
     const z0 = next() * span;
     const r = next();
-    const len = 0.4 + r * r * r * 14;
+    const len = 0.6 + r * r * r * 26; // many short trails, a few very long ones
     const v = 0.6 + next();
     const tn = next();
     const br = 0.35 + next() * 0.65;
