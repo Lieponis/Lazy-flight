@@ -6,8 +6,8 @@
 M2 COMPLETE. Done and verified: Agents 1, 2, 3a, 3b, 3c, 4a, 5a, and Agent 8 (Asset Design, Viewer and Debug).
 Agent 8 DONE (2026-11-08): style guide, 11 designs kept by Andy (3 ships, 4 outposts, 4 stations), viewer /models.html with debug tools, 19 new tests (123 in total), Agent 8 ran npm run check after every batch, Andy approved every batch after green Actions. Lead check S4 passed (all triangle counts inside budgets: ships 540-684 of 1000, outposts 544-1048 of 1500, stations 854-1374 of 2500; all 11 IDs in the registry). Catalog statuses set to APPROVED.
 Not verified for Agent 8: frame rate on a real phone, viewer on a real phone.
-VERIFIED by Andy: 4b, 3d, 5b, 6a, 4c, 5c, Agent 8 C1, Agent 3 C2a and C2b (trip info on cockpit screens; HTML status box hidden in Cockpit view; phone and desktop; all 3 ships NOT yet checked one by one).
-NOW: Agent 3 stage C2c (tour stops on cockpit screens; brief docs/briefs/agent-3-c2c-brief.md). Open: 6b follow-ups (repeat-jobs fix, Andy's phone checklist); Agent 8 small task: add a screenRightWing anchor to the base cockpit (Agent 3 hard-coded a mirrored placement, COCKPIT_CENTRE_X 0.6). THEN: deferred cockpit parts (Agent 8, Andy chooses), 3e pixel look (on hold), final QA, 7 polish.
+VERIFIED by Andy: 4b, 3d, 5b, 6a, 4c, 5c, Agent 8 C1, Agent 3 C2a, C2b, C2c (cockpit live with trip info and tour stops).
+NOW: waiting for Andy's decisions on the next steps (cockpit extras for Agent 8, release of 3e pixel look, 6b follow-ups: repeat-jobs fix and phone checklist). THEN: final QA, 7 polish, v1.0.
 
 ## What works
 - Live pixelated spinning cube (desktop and phone confirmed by Andy). Auto-publish via GitHub Actions. One command: npm run check.
@@ -114,3 +114,4 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - DECISIONS (Lead, C1 review): one base cockpit for all ships OK; 2,400 triangles OK (limit 3,000 for restart); lens.ts OK; seatBlue and 'may cover window' checker rule OK; cockpit stays OUT of the registry until Andy decides on window light (Agent 3 imports buildCockpitBase directly). Throttle animation = suggestion only.
 - C2a extras added by Andy during testing (approved): cockpit shake 20% of orbit shake, drag to look around, zoom 5x in/out, double-tap glide to start view, start view zoomed out 1.75x. Not measured: phone frame rate (Andy: 'phone good'). SUGGESTIONS (not built): throttle lever moves with the trip; Reset view button; remember zoom between flights.
 - DECISIONS (Lead, C2b review): C2b passed. Tour stops into FlightInfo approved as stage C2c (Agent 3, glue only). screenRightWing anchor goes to Agent 8 (next cockpit task). Andy decided: funny ship-computer lines (15 s / 10 s) replace the HTML status box in Cockpit view. SUGGESTIONS (not built): blinking arrival cue, credits on the console screen, funny line on its own screen.
+- C2c passed (tour stops on cockpit screens). SUGGESTIONS (not built): message when a stop is passed. Agent 8 still owes the screenRightWing anchor.
