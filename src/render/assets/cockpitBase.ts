@@ -7,6 +7,7 @@
 //     curved (lofted) roof surface with the window cut out of it;
 //   - shape from the drawing "Cockpit shell", window outline from the drawing "Cockpit windows";
 //   - no sharp corners on the window edge (smooth cut).
+//   - the window follows the front view most closely (option C); top and side views pull a little;
 //   - 6 separate surfaces, drawn by the game in one go (one draw call) so phones stay fast.
 //
 // All the shapes below were measured from Andy's drawings, pixel by pixel (side, front and top view), and are
@@ -103,16 +104,19 @@ const signedDist = (p: V2, poly: readonly V2[]): number => (inPoly(p, poly) ? -1
  * roof (no window shape can match all three), so one view is followed exactly and the others are matched as well
  * as they can be. "top" = the C seen from above (exact); "side" and "front" = lean towards those views instead.
  */
-export const WINDOW_LEAD: "top" | "side" | "front" = "top";
+export const WINDOW_LEAD: "top" | "side" | "front" = "front"; // DECIDED by Andy: option C, the front view leads
 
 /** Solid roof (> 0) or window (< 0) at a roof point. Made exactly left/right symmetric. */
 function windowField(x: number, y: number, v: number): number {
   const u = Math.abs(x) / LENGTH;
   const h = y / LENGTH;
   const top = (signedDist([v, u], WINDOW) + signedDist([v, -u], WINDOW)) / 2;
+  const side = signedDist([v, h], WINDOW_SIDE);
+  const front = (signedDist([u, h], WINDOW_FRONT) + signedDist([-u, h], WINDOW_FRONT)) / 2;
   if (WINDOW_LEAD === "top") return top;
-  if (WINDOW_LEAD === "side") return (top + 2 * signedDist([v, h], WINDOW_SIDE)) / 3;
-  return (top + 2 * (signedDist([u, h], WINDOW_FRONT) + signedDist([-u, h], WINDOW_FRONT)) / 2) / 3;
+  if (WINDOW_LEAD === "side") return (top + 2 * side) / 3;
+  // Front leads; the top and side views still pull a little, so the C shape stays recognisable from above.
+  return (top + side + 4 * front) / 6;
 }
 
 function buildShell(): AssetModel {
