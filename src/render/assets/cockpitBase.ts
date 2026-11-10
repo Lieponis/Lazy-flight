@@ -16,6 +16,7 @@
 import * as THREE from "three";
 import { ModelKit } from "./kit";
 import { COCKPIT_FOV } from "./lens";
+import { PAL } from "./palette";
 import type { AssetEntry, AssetModel, BuildOptions } from "./types";
 
 type V3 = [number, number, number];
@@ -137,6 +138,70 @@ function windowField(x: number, y: number, v: number): number {
   return (top + side + 4 * front) / 6;
 }
 
+/** A small fixed-seed random number maker, so the lights are the same every time (seed-based, like the universe). */
+function seeded(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Light colours to pick from (the palette's glowing colours). */
+const LIGHT_COLOURS = ["lightRed", "lightGreen", "engine", "cyan", "window", "yellow"] as const;
+
+/**
+ * The indicator lights (step 4), as one extra mesh that shares the model's material. Each light gets a random
+ * colour and flashes at its own pace (on 0.4..3.4 seconds apart, on for 25..75% of that); off = dim, not black.
+ * `update` changes only this mesh's colours, which is cheap.
+ */
+function addFlashingLights(model: AssetModel, lights: { p: V3; a: V3; b: V3 }[], size: number): void {
+  const rnd = seeded(20261110);
+  const pos: number[] = [];
+  const col = new Float32Array(lights.length * 6 * 3);
+  const colours: THREE.Color[] = [];
+  const timing: { period: number; phase: number; on: number }[] = [];
+  const h = size / 2;
+  for (const L of lights) {
+    const P = new THREE.Vector3(...L.p);
+    const A = new THREE.Vector3(...L.a).normalize().multiplyScalar(h);
+    const B = new THREE.Vector3(...L.b).normalize().multiplyScalar(h);
+    const c = [P.clone().sub(A).sub(B), P.clone().add(A).sub(B), P.clone().add(A).add(B), P.clone().sub(A).add(B)];
+    for (const i of [0, 1, 2, 0, 2, 3]) pos.push(c[i]!.x, c[i]!.y, c[i]!.z);
+    const key = LIGHT_COLOURS[Math.floor(rnd() * LIGHT_COLOURS.length)]!;
+    colours.push(new THREE.Color(PAL[key]));
+    const period = 0.4 + rnd() * 3;
+    timing.push({ period, phase: rnd() * period, on: 0.25 + rnd() * 0.5 });
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  const colourAttr = new THREE.BufferAttribute(col, 3);
+  g.setAttribute("color", colourAttr);
+  const body = model.group.children.find((o) => (o as THREE.Mesh).isMesh) as THREE.Mesh;
+  const mesh = new THREE.Mesh(g, body.material);
+  mesh.name = "interior indicator lights";
+  model.group.add(mesh);
+  const paint = (t: number): void => {
+    lights.forEach((_, i) => {
+      const T = timing[i]!;
+      const lit = ((t + T.phase) % T.period) / T.period < T.on;
+      const k = lit ? 1 : 0.22;
+      const c = colours[i]!;
+      for (let v = 0; v < 6; v++) col.set([c.r * k, c.g * k, c.b * k], (i * 6 + v) * 3);
+    });
+    colourAttr.needsUpdate = true;
+  };
+  paint(0);
+  const before = model.update;
+  model.update = (t: number): void => {
+    before(t);
+    paint(t);
+  };
+}
+
 function buildShell(): AssetModel {
   const kit = new ModelKit();
   const centre = new THREE.Vector3(0, 0.9, zOf(0.6)); // a point inside the cabin
@@ -247,6 +312,10 @@ function buildShell(): AssetModel {
     const c = poly.reduce((acc, p) => acc.add(new THREE.Vector3(...p)), new THREE.Vector3()).divideScalar(poly.length);
     emit(name, poly, c.multiplyScalar(2).sub(from));
   };
+
+  /** Indicator lights (step 4): centre, and the two directions its small square spreads along. */
+  const lights: { p: V3; a: V3; b: V3 }[] = [];
+  const LIGHT = 0.034; // size of one light, crates
 
   // ---------------------------------------------------------------- STEP 2: PANELS (option B: as drawn, softened)
   // Measured from "Cockpit panels". Shares of the length, like the shell.
@@ -447,6 +516,13 @@ function buildShell(): AssetModel {
       emit("interior overhead panel", [a[1]!, b[1]!, b[2]!, a[2]!], below);
     }
     emit("interior overhead panel sides", sect(vEnd), new THREE.Vector3(0, 0, zOf(0.5)));
+    // Lights on its underside: two rows.
+    for (const v of [0.1, 0.14, 0.18, 0.22, 0.26].map((d) => vStart + d)) {
+      for (const u of [-0.022, 0.022]) {
+        const x = u * LENGTH;
+        lights.push({ p: [x, roofHeightAt(Math.abs(bottomHalf * 0.5), v) - drop - 0.004, zOf(v)], a: [1, 0, 0], b: [0, 0, 1] });
+      }
+    }
   }
 
 
@@ -515,6 +591,85 @@ function buildShell(): AssetModel {
     }
   }
 
+
+  // ---------------------------------------------------------------- STEP 4: INSTRUMENTS AND LIGHTS
+  // From "Cockpit instruments and lights". DECIDED (Andy): screens stay inside the dashboard's upright face (the
+  // wing screens are smaller); the green in the drawing only marks each screen's active area, so screens use the
+  // game's screen colour; the red dots are only placeholders: the lights get random colours and each flashes at
+  // its own pace; the throttle has a cylinder grip (not a ball).
+  const screenSpots: { name: string; corners: V3[] }[] = [];
+  {
+    const faceV = (u: number): number => lipOf(u) + 0.0015; // just in front of the upright face
+    const onFace = (u: number, y: number): V3 => [u * LENGTH, y, zOf(faceV(u))];
+    const FRAME = 0.025; // grey frame round each screen, crates
+    /** A screen on the dashboard face: frame behind, glowing active area in front. */
+    const faceScreen = (name: string, u0: number, u1: number, y0: number, y1: number): void => {
+      const du = FRAME / LENGTH;
+      const frame = [onFace(u0 - du, y0 - FRAME), onFace(u1 + du, y0 - FRAME), onFace(u1 + du, y1 + FRAME), onFace(u0 - du, y1 + FRAME)];
+      emit("interior screen frames", frame, new THREE.Vector3(0, 1, zOf(0.6)));
+      const lift = (p: V3): V3 => [p[0], p[1], p[2] + 0.004];
+      const area = [onFace(u0, y0), onFace(u1, y0), onFace(u1, y1), onFace(u0, y1)].map(lift);
+      emit("interior screens", area, new THREE.Vector3(0, 1, zOf(0.6)));
+      screenSpots.push({ name, corners: area });
+    };
+    // Middle section: three screens side by side.
+    faceScreen("screen middle left", -0.188, -0.082, 0.7, 1.08);
+    faceScreen("screen middle", -0.052, 0.052, 0.7, 1.08);
+    faceScreen("screen middle right", 0.082, 0.188, 0.7, 1.08);
+    // Wings: one smaller screen each, kept inside the face where the roof brings it down.
+    faceScreen("screen left wing", -0.31, -0.23, 0.72, 0.97);
+    faceScreen("screen right wing", 0.23, 0.31, 0.72, 0.97);
+    // Centre console, front section: a screen lying on top (it follows the console's slope).
+    const conH = (v: number): number => (v < 0.39 ? 0.1 + ((v - KNEE_DEPTH * LIP_MIDDLE) / (0.39 - KNEE_DEPTH * LIP_MIDDLE)) * (0.067 - 0.1) : 0.066) * LENGTH;
+    const onTop = (u: number, v: number, lift: number): V3 => [u * LENGTH, conH(v) + lift, zOf(v)];
+    const [cv0, cv1, cu] = [0.2, 0.355, 0.05];
+    const fu = FRAME / LENGTH;
+    emit("interior screen frames", [onTop(-cu - fu, cv0 - fu, 0.003), onTop(cu + fu, cv0 - fu, 0.003), onTop(cu + fu, cv1 + fu, 0.003), onTop(-cu - fu, cv1 + fu, 0.003)], new THREE.Vector3(0, 5, zOf(0.3)));
+    const conArea = [onTop(-cu, cv0, 0.006), onTop(cu, cv0, 0.006), onTop(cu, cv1, 0.006), onTop(-cu, cv1, 0.006)];
+    emit("interior screens", conArea, new THREE.Vector3(0, 5, zOf(0.3)));
+    screenSpots.push({ name: "screen console", corners: conArea });
+
+    // Lights on the dashboard face: a row above each side screen, and short columns between the screens.
+    const along = (u: number): V3 => {
+      const a = Math.abs(u);
+      if (a <= MID_HALF) return [1, 0, 0];
+      const dz = (LIP_WING_END[0] - LIP_MIDDLE) / (LIP_WING_END[1] - MID_HALF); // how the wing angles back
+      const n = Math.hypot(1, dz);
+      return [1 / n, 0, (Math.sign(u) * dz) / n];
+    };
+    const faceLight = (u: number, y: number): void => {
+      const p = onFace(u, y);
+      lights.push({ p: [p[0], p[1], p[2] + 0.008], a: along(u), b: [0, 1, 0] });
+    };
+    for (const side of [-1, 1]) {
+      for (const u of [0.1, 0.125, 0.15, 0.175]) faceLight(side * u, 1.16);
+      for (const u of [0.067, 0.209]) for (const y of [0.78, 0.89, 1.0]) faceLight(side * u, y);
+    }
+    // On the centre stack, above the console.
+    const stackV = KNEE_DEPTH * LIP_MIDDLE + 0.004;
+    for (const u of [-0.04, -0.02, 0, 0.02, 0.04]) lights.push({ p: [u * LENGTH, 0.58, zOf(stackV) + 0.008], a: [1, 0, 0], b: [0, 1, 0] });
+    // On the console's back section, round the throttle.
+    const topLight = (u: number, v: number): void => void lights.push({ p: [u * LENGTH, conH(v) + 0.004, zOf(v)], a: [1, 0, 0], b: [0, 0, 1] });
+    for (const u of [-0.045, -0.015, 0.015, 0.045]) topLight(u, 0.4); // a row across, in front of the throttle
+    for (const v of [0.51, 0.535, 0.56]) for (const u of [-0.025, 0, 0.025]) topLight(u, v); // a small grid behind
+
+    // THROTTLE: a stick with a cylinder grip across the top (a "T" from the front), on the console's back
+    // section, and a small second lever behind it. Both can be moved by the game (levers).
+    const yTop = conH(0.44);
+    kit.lever("throttle", [0, yTop, zOf(0.44)], [1, 0, 0], 0.5, (k) => {
+      k.cyl("throttle stick", 0.022, 0.028, 0.3, 6, "metalDark", { at: [0, 0.15, 0] });
+      k.cyl("throttle grip", 0.04, 0.04, 0.24, 8, "paintGrey", { at: [0, 0.3, 0], rot: [0, 0, Math.PI / 2] });
+    });
+    kit.lever("small lever", [0, yTop, zOf(0.485)], [1, 0, 0], 0.4, (k) => {
+      k.cyl("small lever stick", 0.014, 0.018, 0.16, 6, "metalDark", { at: [0, 0.08, 0] });
+      k.cyl("small lever grip", 0.028, 0.028, 0.06, 6, "paintGrey", { at: [0, 0.18, 0] });
+    });
+    // Two small switches on the back section.
+    for (const u of [-0.06, 0.06]) {
+      kit.box("console switch", 0.05, 0.04, 0.05, "paintGrey", { at: [u * LENGTH, conH(0.485) + 0.02, zOf(0.485)] });
+    }
+  }
+
   const colours = {
     "interior roof": "hullMid",
     "interior floor": "metalDark",
@@ -526,6 +681,8 @@ function buildShell(): AssetModel {
     "interior side columns": "hullMid",
     "interior seats (may cover window)": "seatBlue",
     "interior seat bases": "frame",
+    "interior screen frames": "paintGrey",
+    "interior screens": "screenTeal",
     "interior dashboard underside": "frame",
     "interior centre stack": "hullLight",
     "interior centre console": "hullLight", // same as the dashboard (Andy)
@@ -536,11 +693,12 @@ function buildShell(): AssetModel {
   for (const [name, colour] of Object.entries(colours)) {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(tris[name] ?? [], 3));
-    kit.add(name, g, colour);
+    kit.add(name, g, colour, { layer: name === "interior screens" ? "glow" : "body" });
   }
   windows.forEach((w, i) => kit.windowOpening(`window ${i + 1}`, w));
 
   const model = kit.finish();
+  addFlashingLights(model, lights, LIGHT);
   // Surfaces with no thickness: show them from both sides (from outside too, in the viewer).
   model.group.traverse((o) => {
     const mesh = o as THREE.Mesh;
@@ -567,7 +725,7 @@ export const COCKPIT_BASE_WIP: AssetEntry = {
   name: "Cockpit base (work in progress)",
   kind: "cockpit",
   description:
-    "Steps 1-2: shell (six surfaces with no thickness, window cut out of the curved roof) and panels (dashboard, centre console, overhead panel), measured from Andy's drawings. Seats, screens, lights and dog come in later steps.",
+    "Steps 1-4: shell (six surfaces with no thickness, window cut out of the curved roof), panels (dashboard, side columns, centre console, overhead panel), two seats, and instruments (six screens, throttle, flashing lights), measured from Andy's drawings. Screen jobs and the dog come in later steps.",
   variants: 1,
   build: buildCockpitBase,
   anchorNames: ["eye"],
