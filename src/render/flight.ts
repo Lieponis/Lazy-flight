@@ -23,7 +23,7 @@ import {
 } from "./flightplan";
 import { buildCockpitBase } from "./assets/cockpitBase";
 import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
-import { cockpitRoomVisible, dragLook, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, shakeShare, zoomFov, type Look, type ViewMode } from "./cockpitview";
+import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, shakeShare, zoomFov, type Look, type ViewMode } from "./cockpitview";
 import { pinchFactor, wheelFactor } from "./dockedcam";
 import { starfieldPositions } from "./helpers";
 import type { Hud } from "./hud";
@@ -157,6 +157,7 @@ export class FlightScreen implements Screen {
   private cockpitRig = new THREE.Group();
   private lens: CockpitLens | null = null;
   private look: Look = { yaw: 0, pitch: 0 }; // where the pilot has turned his head (drag); resets when a flight starts or the view changes
+  private homing = false; // true while the view glides back to straight ahead (double tap)
   private zoom = COCKPIT_FOV; // the cockpit view's side-to-side field of view (wheel or pinch)
   private pointers = new Map<number, { x: number; y: number }>();
   private lastPinch = 0;
@@ -385,6 +386,7 @@ export class FlightScreen implements Screen {
     for (const f of this.ship.animation.flames) f.scale.z = flame;
     this.ship.group.position.y = 0.05 + Math.sin(this.clockT * 1.3) * 0.05;
 
+    this.glideHome(seconds);
     this.placeCamera(phase, p, plan.phaseSeconds);
     this.flash.style.opacity = String(flashAmount(plan));
     this.updateHud(plan);
@@ -499,10 +501,24 @@ export class FlightScreen implements Screen {
   }
 
   // Cockpit view only: drag to look around, wheel or pinch to zoom, double-click to look straight ahead again. A view only, nothing steers.
+  /** Straight ahead again at once (a new flight, or switching views). */
   private resetLook = (): void => {
     this.look = { yaw: 0, pitch: 0 };
     this.zoom = COCKPIT_FOV;
+    this.homing = false;
   };
+
+  /** Double tap: glide back to straight ahead (not a jump). Any drag or zoom by the player stops the glide. */
+  private centreLook(): void {
+    this.homing = true;
+  }
+
+  private glideHome(seconds: number): void {
+    if (!this.homing) return;
+    this.look = { yaw: glide(this.look.yaw, 0, seconds), pitch: glide(this.look.pitch, 0, seconds) };
+    this.zoom = glide(this.zoom, COCKPIT_FOV, seconds, 8, 0.05);
+    if (this.look.yaw === 0 && this.look.pitch === 0 && this.zoom === COCKPIT_FOV) this.homing = false;
+  }
 
   private fingerDistance(): number {
     const [a, b] = [...this.pointers.values()];
@@ -518,6 +534,7 @@ export class FlightScreen implements Screen {
     }
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     this.moved = 0;
+    this.homing = false; // touching the screen stops a glide in progress
     if (this.pointers.size === 2) this.lastPinch = this.fingerDistance();
   };
 
@@ -545,7 +562,7 @@ export class FlightScreen implements Screen {
     if (e.type === "pointerup" && this.mode === "cockpit" && this.pointers.size === 1 && isTap(this.moved)) {
       const now = performance.now();
       if (isDoubleTap(this.lastTapMs, now)) {
-        this.resetLook();
+        this.centreLook();
         this.lastTapMs = 0;
       } else {
         this.lastTapMs = now;
@@ -558,6 +575,7 @@ export class FlightScreen implements Screen {
   private onWheel = (e: WheelEvent): void => {
     if (this.mode !== "cockpit") return;
     e.preventDefault();
+    this.homing = false;
     this.zoom = zoomFov(this.zoom, wheelFactor(e.deltaY), COCKPIT_ZOOM_FOV_MIN, COCKPIT_ZOOM_FOV_MAX);
   };
 

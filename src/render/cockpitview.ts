@@ -64,3 +64,13 @@ export function isDoubleTap(previousTapMs: number, nowMs: number, windowMs = 350
 export function isTap(movedPixels: number, limit = 8): boolean {
   return movedPixels <= limit;
 }
+
+/**
+ * Glide toward a target without a jump: each second covers `rate` times the remaining distance (so it slows down gently at the end).
+ * rate 8 = about a quarter of a second to get most of the way there. Snaps when it is very close.
+ */
+export function glide(current: number, target: number, seconds: number, rate = 8, snap = 0.0005): number {
+  const k = 1 - Math.exp(-rate * Math.max(0, seconds));
+  const next = current + (target - current) * k;
+  return Math.abs(target - next) <= snap ? target : next;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cockpitRoomVisible, dragLook, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, shakeShare, zoomFov } from "../src/render/cockpitview";
+import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, shakeShare, zoomFov } from "../src/render/cockpitview";
 
 describe("cockpit view: what is drawn and how", () => {
   it("cockpit view goes through the lens, orbit view is the normal picture", () => {
@@ -57,5 +57,25 @@ describe("cockpit view: double tap", () => {
   it("a press that barely moved is a tap, a drag is not", () => {
     expect(isTap(3)).toBe(true);
     expect(isTap(40)).toBe(false);
+  });
+});
+
+describe("cockpit view: gliding back to centre", () => {
+  it("moves toward the target without jumping", () => {
+    const one = glide(1, 0, 1 / 60);
+    expect(one).toBeLessThan(1);
+    expect(one).toBeGreaterThan(0.5); // one frame covers only a small part
+  });
+  it("gets most of the way in about a quarter of a second and never overshoots", () => {
+    let v = 1;
+    for (let i = 0; i < 15; i++) v = glide(v, 0, 1 / 60);
+    expect(v).toBeLessThan(0.3);
+    expect(v).toBeGreaterThanOrEqual(0);
+  });
+  it("arrives exactly and works from the other side", () => {
+    let v = -1;
+    for (let i = 0; i < 300; i++) v = glide(v, 0, 1 / 60);
+    expect(v).toBe(0);
+    expect(glide(0, 5, 0)).toBe(0);
   });
 });
