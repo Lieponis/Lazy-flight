@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bayer4, flameFlicker, lookActive, lookPreset, parseLook, parseLookPreview, parseWobble, quantize, stepped, wobbleGrid } from "../src/render/lookmath";
+import { bayer4, flameFlicker, lookActive, lookPreset, parseLook, parseLookPreview, quantize, stepped } from "../src/render/lookmath";
 
 describe("pixel look: test links", () => {
   it("?look= picks A, B, C or off", () => {
@@ -8,11 +8,6 @@ describe("pixel look: test links", () => {
     expect(parseLook("?look=off")).toBe("off");
     expect(parseLook("?look=Z")).toBe(null);
     expect(parseLook("")).toBe(null);
-  });
-  it("?wobble= is a number from 0 to 1", () => {
-    expect(parseWobble("?wobble=0.5")).toBe(0.5);
-    expect(parseWobble("?wobble=7")).toBe(1);
-    expect(parseWobble("")).toBe(null);
   });
   it("?lookpreview=1 opens the buttons unless it is 0 or false", () => {
     expect(parseLookPreview("?lookpreview=1")).toBe(true);
@@ -33,10 +28,7 @@ describe("pixel look: strengths", () => {
     expect(b.bands).toBeGreaterThan(c.bands);
     expect(a.grain).toBeLessThanOrEqual(b.grain);
     expect(b.grain).toBeLessThan(c.grain);
-    for (const s of [a, b, c]) {
-      expect(lookActive(s)).toBe(true);
-      expect(s.wobble).toBe(0); // wobble is a separate switch, off by default
-    }
+    for (const s of [a, b, c]) expect(lookActive(s)).toBe(true);
   });
 });
 
@@ -84,7 +76,7 @@ describe("pixel look: colour steps and dither", () => {
   });
 });
 
-describe("pixel look: flames, flash, wobble", () => {
+describe("pixel look: flames and flash", () => {
   it("stepped gives chunky steps, and 0 steps leaves the number alone", () => {
     expect(stepped(0.37, 0)).toBe(0.37);
     expect(stepped(0.37, 4)).toBe(0.25);
@@ -97,10 +89,5 @@ describe("pixel look: flames, flash, wobble", () => {
     expect(seen.size).toBe(3);
     expect(flameFlicker(1.234, 0)).toBe(1);
     expect(flameFlicker(0.51, 0.12)).toBe(flameFlicker(0.55, 0.12)); // same step
-  });
-  it("wobble 0 means no visible snapping, more wobble means a coarser grid", () => {
-    expect(wobbleGrid(320, 180, 0).x).toBeGreaterThan(10000);
-    expect(wobbleGrid(320, 180, 0.5).x).toBeLessThan(wobbleGrid(320, 180, 0.2).x);
-    expect(wobbleGrid(320, 180, 1).x).toBeLessThan(320);
   });
 });

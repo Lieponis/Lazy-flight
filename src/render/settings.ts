@@ -63,11 +63,6 @@ export const WARP_STAR_BRIGHTNESS = 0.6; // how bright the stars are (1 = full; 
 /** Which warp look is used when ?warp= is not given. Andy chose C. */
 export const WARP_DEFAULT_STYLE: "A" | "B" | "C" = "C";
 
-/** The OLD warp tunnel (rings), no longer used: */
-export const TUNNEL_STREAKS = 140; // number of streaking stars (fewer = faster on phones)
-export const TUNNEL_RINGS = 12; // number of rings flying past
-export const TUNNEL_SPEED = 70; // how fast it flies, in units per second
-
 // ---------------------------------------------------------------- the docked view (part 3c)
 
 /** How steeply the camera looks down at the ship, in degrees (0 = level with the ground, 90 = straight down). */
@@ -204,8 +199,7 @@ export const SHIP_FIT_MARGIN = 1.1;
 export const SHIP_FIT_MAX_FOV = 100;
 
 // ---------------------------------------------------------------- the PS1 pixel look (stage 3e)
-// Compare the strengths with ?lookpreview=1 (buttons Off / A / B / C and WOBBLE). The numbers of A, B and C are in lookmath.ts.
-export const LOOK_DEFAULT_STYLE: "off" | "A" | "B" | "C" = "B"; // provisional until Andy picks
-export const LOOK_WOBBLE = 0; // 0 = off (default). 0..1: models snap to a coarser grid, so corners jitter a little. ?wobble=0.5 to try it.
+// Compare the strengths with ?lookpreview=1 (buttons Off / A / B / C). The numbers of A, B and C are in lookmath.ts.
+export const LOOK_DEFAULT_STYLE: "off" | "A" | "B" | "C" = "B"; // Andy picked B
 export const LOOK_FLAME_FLICKER = 0.12; // engine flames change length in chunky steps (+/- this share). 0 = steady flame.
 export const LOOK_FLASH_STEPS = 6; // the warp flash fades in this many chunky steps. 0 = smooth fade.

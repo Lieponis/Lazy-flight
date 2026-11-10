@@ -14,7 +14,7 @@ import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
 import { parseShipParam, resolveShipId } from "./integration";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import type { Screen } from "./screen";
-import { LOOK_DEFAULT_STYLE, LOOK_WOBBLE, START_SEED, WARP_DEFAULT_STYLE } from "./settings";
+import { LOOK_DEFAULT_STYLE, START_SEED, WARP_DEFAULT_STYLE } from "./settings";
 import { findStartSystem } from "./start";
 import { StateStore } from "./state";
 import { DockedScreen } from "./docked";
@@ -22,7 +22,7 @@ import { FlightScreen } from "./flight";
 import { StarMapScreen } from "./starmap";
 import { SystemViewScreen } from "./systemview";
 import { PixelLook } from "./look";
-import { lookPreset, parseLook, parseLookPreview, parseWobble } from "./lookmath";
+import { lookPreset, parseLook, parseLookPreview } from "./lookmath";
 import { mountLookPreview } from "./lookpreview";
 import { mountWarpPreview } from "./warppreview";
 import { parseWarpPreview, parseWarpStyle } from "./warpmath";
@@ -194,12 +194,12 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     mountWarpPreview(parent, parseWarpStyle(window.location.search) ?? WARP_DEFAULT_STYLE, (style) => flight.setWarpStyle(style));
   }
 
-  // The PS1 pixel look: one extra pass over the finished picture (see look.ts). ?look=A|B|C|off and ?wobble=0..1 override the defaults.
+  // The PS1 pixel look: one extra pass over the finished picture (see look.ts). ?look=A|B|C|off overrides the default.
   const pixelLook = new PixelLook(renderer);
   const startLook = parseLook(window.location.search) ?? LOOK_DEFAULT_STYLE;
-  pixelLook.set({ ...lookPreset(startLook), wobble: parseWobble(window.location.search) ?? LOOK_WOBBLE });
+  pixelLook.set(lookPreset(startLook));
   if (parseLookPreview(window.location.search)) {
-    mountLookPreview(parent, startLook, pixelLook.get().wobble > 0, (style, wobble) => pixelLook.set({ ...lookPreset(style), wobble }));
+    mountLookPreview(parent, startLook, (style) => pixelLook.set(lookPreset(style)));
   }
 
   let last = performance.now();
@@ -214,7 +214,6 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
           if (screen.render) screen.render(renderer);
           else renderer.render(screen.scene, screen.camera);
         },
-        screen.scene,
         seconds,
       );
     }
