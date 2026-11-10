@@ -19,8 +19,15 @@ describe("balance simulator (smoke test; full report: npm run balance)", () => {
     }
   });
 
-  it("normal play never gets stuck (emergency fuel is only a safety net)", () => {
-    for (const s of STRATEGIES) for (const seed of [SEED, 777, 999]) expect(simulate(seed, s, 40).stuck).toBe(0);
+  it("players who keep a small reserve never get stuck; when the no-reserve spender does, emergency fuel always rescues it", () => {
+    // Since upgrades (6c), the spender can spend down to nothing and get stuck now and then. That is what
+    // emergency fuel is for: every stuck moment must end with a free refuel, never a dead end.
+    for (const s of STRATEGIES)
+      for (const seed of [SEED, 777, 999]) {
+        const r = simulate(seed, s, 40);
+        if (s.name !== "spender") expect(r.stuck).toBe(0);
+        expect(r.emergencyRefuels).toBe(r.stuck);
+      }
   });
 });
 
