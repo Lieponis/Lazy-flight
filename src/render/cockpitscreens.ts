@@ -17,6 +17,7 @@ import {
 } from "./screendata";
 
 const TEAL = "#1f8a80";
+const STATUS_BLUE = "#14215e"; // the info screen: dark blue, for contrast with the light text
 const AMBER = "#c07a22";
 const LIGHT = "#e3e7ff";
 const CYAN = "#3fe0ff";
@@ -119,7 +120,7 @@ function drawBlock(ctx: CanvasRenderingContext2D, w: number, h: number, lines: {
 
 function drawInfo(ctx: CanvasRenderingContext2D, w: number, h: number, d: InfoScreenData): void {
   const k = w / SCREEN_DESIGN_WIDTH; // everything is laid out on a 96-wide grid and scaled to the picture
-  ctx.fillStyle = TEAL;
+  ctx.fillStyle = STATUS_BLUE;
   ctx.fillRect(0, 0, w, h);
   const BODY = 19 * k; // one text size on both pages, so nothing overlaps
   if (d.page === "message") {
