@@ -513,8 +513,8 @@ view.addEventListener("pointermove", (e) => {
   p.y = e.clientY;
   if (pointers.size === 1 && sitting()) {
     // Look around from the seat (the pilot can turn the head, not the ship).
-    S.look.yaw = clamp(S.look.yaw - dx * 0.004, -1.6, 1.6); // reversed (Andy): drag moves the view the other way
-    S.look.pitch = clamp(S.look.pitch - dy * 0.004, -1.0, 1.0);
+    S.look.yaw = clamp(S.look.yaw - dx * 0.004, -1.6, 1.6); // left/right reversed (Andy)
+    S.look.pitch = clamp(S.look.pitch + dy * 0.004, -1.0, 1.0); // up/down as before (Andy)
   } else if (pointers.size === 1) {
     cam.yaw -= dx * 0.008;
     cam.pitch = clamp(cam.pitch + dy * 0.008, -1.45, 1.45);

@@ -458,7 +458,7 @@ function buildShell(): AssetModel {
     "interior side columns": "hullMid",
     "interior dashboard underside": "frame",
     "interior centre stack": "hullLight",
-    "interior centre console": "hullMid",
+    "interior centre console": "hullLight", // same as the dashboard (Andy)
     "interior console line": "frame",
     "interior overhead panel": "hullLight",
     "interior overhead panel sides": "hullMid",
