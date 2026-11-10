@@ -49,7 +49,17 @@ export const FLIGHT_DOCKED_HOLD_SECONDS = 0.6;
 /** The ship computer changes its line this often (real seconds). */
 export const FLIGHT_LINE_SECONDS = 25;
 
-/** Warp tunnel look. */
+/** The warp (3e): stars and haze. */
+export const WARP_STREAKS = 1400; // stars shooting past (fewer = lighter on phones)
+export const WARP_SPAN = 160; // how long a run is before a star starts again
+export const WARP_SPEED = 100; // how fast the stars fly, units per second
+export const WARP_RADIUS_MIN = 2.2; // the dark gap in the middle
+export const WARP_RADIUS_MAX = 20;
+export const WARP_HAZE_COUNT = 7; // soft glow clouds behind the stars (styles B and C)
+/** Which warp look is used when ?warp= is not given. */
+export const WARP_DEFAULT_STYLE: "A" | "B" | "C" = "B";
+
+/** The OLD warp tunnel (rings), no longer used: */
 export const TUNNEL_STREAKS = 140; // number of streaking stars (fewer = faster on phones)
 export const TUNNEL_RINGS = 12; // number of rings flying past
 export const TUNNEL_SPEED = 70; // how fast it flies, in units per second

@@ -14,13 +14,15 @@ import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
 import { parseShipParam, resolveShipId } from "./integration";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import type { Screen } from "./screen";
-import { START_SEED } from "./settings";
+import { START_SEED, WARP_DEFAULT_STYLE } from "./settings";
 import { findStartSystem } from "./start";
 import { StateStore } from "./state";
 import { DockedScreen } from "./docked";
 import { FlightScreen } from "./flight";
 import { StarMapScreen } from "./starmap";
 import { SystemViewScreen } from "./systemview";
+import { mountWarpPreview } from "./warppreview";
+import { parseWarpPreview, parseWarpStyle } from "./warpmath";
 
 export { StateStore } from "./state";
 export type { RenderState, ScreenName } from "./state";
@@ -175,6 +177,19 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
   window.addEventListener("resize", resize);
 
   api.showDocked(lastDockId); // the game starts in the docked view
+
+  // Testing aid for the warp look: ?warppreview=1 goes straight into an endless warp with buttons to compare the looks.
+  if (parseWarpPreview(window.location.search)) {
+    const docks = getPlanetsOfSystem(seed, current.id).map((p) => p.id);
+    api.startFlight({
+      originDockId: docks[0] ?? lastDockId,
+      destinationDockId: docks[1] ?? docks[0] ?? lastDockId,
+      destinationName: "WARP PREVIEW",
+      speed: 1,
+      getProgress: () => ({ fraction: 0.5, remainingMs: 43_200_000, totalMs: 86_400_000 }),
+    });
+    mountWarpPreview(parent, parseWarpStyle(window.location.search) ?? WARP_DEFAULT_STYLE, (style) => flight.setWarpStyle(style));
+  }
 
   let last = performance.now();
   function frame(now: number): void {

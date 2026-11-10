@@ -94,12 +94,14 @@ import {
   COCKPIT_STATUS_SECONDS,
   COCKPIT_ZOOM_RANGE,
   SHIP_FIT_MARGIN,
+  WARP_DEFAULT_STYLE,
   SHIP_FIT_MAX_FOV,
   STARFIELD_COUNT,
   STATION_EXIT,
 } from "./settings";
 import { disposeAll, makePlanetMesh } from "./systemview";
-import { buildTunnel } from "./tunnel";
+import { buildWarp } from "./warp";
+import { parseWarpStyle, type WarpStyle } from "./warpmath";
 import "./flight.css";
 
 const BASE_PHASES: PhaseSettings = {
@@ -169,7 +171,7 @@ export class FlightScreen implements Screen {
   private lastPinch = 0;
   private moved = 0; // how far the finger or mouse travelled since it went down (a tap barely moves)
   private lastTapMs = 0;
-  private tunnel = buildTunnel();
+  private tunnel = buildWarp(parseWarpStyle(window.location.search) ?? WARP_DEFAULT_STYLE); // the warp (stars, haze); ?warp=A|B|C picks the look
   private origin: Body | null = null;
   private dest: Body | null = null;
   private info: FlightInfo | null = null;
@@ -505,11 +507,17 @@ export class FlightScreen implements Screen {
     }
   }
 
+  /** Which warp look is shown (A, B or C). Used by the warp preview to compare them. */
+  setWarpStyle(style: WarpStyle): void {
+    this.tunnel.setStyle(style);
+  }
+
   /** Frees the lens and the cockpit's geometry and materials (for when the flight screen is thrown away). */
   dispose(): void {
     this.lens?.dispose();
     this.lens = null;
     this.screens.dispose();
+    this.tunnel.dispose();
     this.scene.remove(this.cockpitRig);
     disposeAll(this.cockpitRig);
     this.flash.remove();
