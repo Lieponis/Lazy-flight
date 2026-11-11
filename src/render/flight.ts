@@ -556,7 +556,9 @@ export class FlightScreen implements Screen {
     if (this.mode === "orbit") {
       this.ship.group.visible = ownShipVisible(this.mode);
       this.cockpitRig.visible = cockpitRoomVisible(this.mode);
-      const height = (phase === "WARP" ? FLIGHT_ORBIT_HEIGHT_WARP : FLIGHT_ORBIT_HEIGHT_DOCK) + Math.sin(this.clockT * 0.4) * 0.6;
+      // Just before the warp starts, the camera glides down to the warp camera height (it used to jump there when the warp began).
+      const toWarp = phase === "LAUNCH" ? smoothstep((p - 0.7) / 0.3) : phase === "WARP" ? 1 : 0;
+      const height = lerp(FLIGHT_ORBIT_HEIGHT_DOCK, FLIGHT_ORBIT_HEIGHT_WARP, toWarp) + Math.sin(this.clockT * 0.4) * 0.6;
       let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * (this.freeCam() ? 0 : 0.35) + (this.freeCam() ? this.fv.yaw : 0), FLIGHT_ORBIT_RADIUS, height);
       if (this.freeCam()) {
         // Player's view: tilt up/down and zoom (the slow orbit carries on from wherever they turned it).
