@@ -152,3 +152,9 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - 4 paint jobs per ship (standard + 3), cosmetic only, same triangles and anchors. API: liveriesFor(shipId), DEFAULT_LIVERY, getAsset(id).build({livery}); unknown id = standard. 565 tests, Actions green. Report docs/report-agent-8-liveries.md.
 - DECISIONS (Andy 2026-11-11): extra paint jobs cost a SMALL PRICE each (Lead proposes 500 credits, "standard" always free; Andy can change); the whole livery feature (saved field per owned ship with default "standard", Shipyard picker, livery shown in docked view, flight and Shipyard preview via buildShipModel(shipId, liveryId?)) is built AFTER U3 is live and verified, in one go (Agent 4 game+save, Agent 5 picker, Agent 3 glue).
 - Not done yet: the choice, saving, showing it in game.
+
+## Agent 3 stage U3 (2026-11-11): DONE, Lead review passed (render side); Andy chose option A
+- System view handles 1-10 planets: size-aware orbits, camera fits system, lighter balls when crowded (7+ planets). Bright blue lanes = docks, dim = scenery. Docks 5x smaller, tap planet = centre, tap star = back, zoom 5x closer. Only src/render (+ render tests). 10-planet triangles: planets median 1,440 / worst 1,740; with up to 3 docks typically ~4,000, worst ~5,900 (estimate; live counter at ?systempreview=1, Andy's reading not received).
+- Not verified: real on-screen triangles, phone frame rate, Android.
+- Open: tap on empty space only unselects (Andy not yet asked). Flaky 5 s test tests/universe-v2.test.ts (start dock) -> Agent 6 in U4 (longer limit).
+- Waiting for Agent 5 (docs/briefs/agent-5e-brief.md) before U3 is closed; then U4 Agent 6, then liveries (4/5/3), then release page 7d.
