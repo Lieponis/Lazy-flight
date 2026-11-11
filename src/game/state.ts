@@ -3,6 +3,7 @@
 
 import type { Job } from "../universe";
 import { cleanExplored } from "./explore";
+import { cleanShipLivery, STANDARD_LIVERY, type ShipLivery } from "./liveries";
 import { emptyCompletedJobs, RANK_KINDS, type CompletedJobs } from "./ranks";
 import { STARTER_SHIP_ID, STARTING_CREDITS } from "./settings";
 import { getShip, isShipId } from "./ships";
@@ -34,6 +35,11 @@ export interface GameState {
    * A ship with no entry has level 0 everywhere. Upgrades stay with their ship (see upgrades.ts).
    */
   shipUpgrades: Record<string, ShipUpgrades>;
+  /**
+   * The paint jobs (liveries) of every ship you own, by ship id: { "scout": { owned: ["standard", "rescue-red"], worn: "rescue-red" } }.
+   * A ship with no entry owns and wears "standard". Cosmetic only. Old saves have no such field.
+   */
+  shipLiveries: Record<string, ShipLivery>;
   /** How many jobs of each kind you have delivered (this decides your ranks, see ranks.ts). */
   completedJobs: CompletedJobs;
   /** The ids of the outposts you own (your home bases), in the order you bought them. */
@@ -81,6 +87,7 @@ export function newGameState(startDockId: string): GameState {
     shipId: STARTER_SHIP_ID,
     ownedShips: {},
     shipUpgrades: {},
+    shipLiveries: {},
     completedJobs: emptyCompletedJobs(),
     ownedOutposts: [],
     outpostPrices: {},
@@ -125,6 +132,15 @@ export function normalizeState(raw: Partial<GameState> & { currentDockId: string
   for (const id of [shipId, ...ownedIds]) {
     if (rawUpgrades[id] !== undefined) upgrades[id] = cleanUpgrades(rawUpgrades[id]);
   }
+  // Paint jobs: only ships you own; only known ids; "standard" always owned; the worn one must be owned. Entries that are just the default are not kept.
+  const rawLiveries: Partial<Record<string, unknown>> =
+    raw.shipLiveries && typeof raw.shipLiveries === "object" && !Array.isArray(raw.shipLiveries) ? (raw.shipLiveries as Partial<Record<string, unknown>>) : {};
+  const liveries: Record<string, ShipLivery> = {};
+  for (const id of [shipId, ...ownedIds]) {
+    if (rawLiveries[id] === undefined) continue;
+    const entry = cleanShipLivery(id, rawLiveries[id]);
+    if (entry.owned.length > 1 || entry.worn !== STANDARD_LIVERY) liveries[id] = entry;
+  }
   const tankOf = (id: string): number => statsFor(id, upgrades[id] ?? noUpgrades()).fuelTankSize;
   const tank = tankOf(shipId);
   const owned: Record<string, { fuel: number }> = {};
@@ -161,6 +177,7 @@ export function normalizeState(raw: Partial<GameState> & { currentDockId: string
     shipId,
     ownedShips: owned,
     shipUpgrades: upgrades,
+    shipLiveries: liveries,
     completedJobs: completed,
     ownedOutposts,
     outpostPrices,

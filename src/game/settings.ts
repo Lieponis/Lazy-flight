@@ -150,3 +150,8 @@ export const EXPLORER_DISCOVERY_BONUS_PERCENT: [number, number, number] = [0, 10
  * simply are not recorded.
  */
 export const MAX_EXPLORED_SYSTEMS = 20000;
+
+// ---------------------------------------------------------------- PAINT JOBS (liveries, stage 4g)
+
+/** Price of every extra paint job, in credits (Andy chose 500, 2026-11-11). The "standard" paint is always free. */
+export const LIVERY_PRICE = 500;
