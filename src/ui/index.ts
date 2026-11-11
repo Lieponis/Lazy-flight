@@ -5,7 +5,7 @@
 
 import "./theme.css";
 import { Game, createClock, parseSpeedParam, tripFuelCost, type Arrival } from "../game";
-import { getDock, getSystem, startDockOf } from "../universe";
+import { getDock, getPlanet, getSystem, startDockOf } from "../universe";
 import type { RenderApi } from "../render";
 import { START_SEED } from "../render/settings";
 import {
@@ -71,6 +71,8 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
 
   // ------------------------------------------------------------ names
   const dockName = (dockId: string): string => getDock(seed, dockId)?.name ?? "Unknown dock";
+  // Free travel (3g): a trip may start or end at a planet WITHOUT a dock, so its name comes from the planet.
+  const placeName = (id: string): string => getDock(seed, id)?.name ?? getPlanet(seed, id)?.name ?? "Unknown place";
   const systemNameOfDock = (dockId: string): string => {
     const dock = getDock(seed, dockId);
     return (dock && getSystem(seed, dock.systemId)?.name) ?? "?";
@@ -173,7 +175,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     const screen = api.state.get().screen;
     // Note: use the screen name and the game's job, not api.isFlying(): when a flight ends, the screen name
     // changes to "docked" a moment before the flight screen is swapped out.
-    const flying = game.state.currentJob !== null;
+    const flying = game.state.currentJob !== null || game.state.freeTrip !== null;
     overlay = overlayAllowed(screen, overlay, flying);
     if (overlay === "jobs") {
       if (!jobs.opened) jobs.open();
@@ -211,6 +213,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   let flying = false;
   const syncFlight = (): void => {
     const job = game.state.currentJob;
+    const trip = job ? null : game.state.freeTrip;
     if (job && !flying) {
       flying = true;
       api.startFlight({
@@ -226,7 +229,20 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
         speed: game.clock.speed,
         getProgress: () => game.progress(),
       });
-    } else if (!job && flying) {
+    } else if (trip && !flying) {
+      // A free trip (no job): same launch, warp and arrival. The ids may be planets without a dock; the render layer handles both.
+      flying = true;
+      api.startFlight({
+        originDockId: trip.fromId,
+        destinationDockId: trip.toId,
+        destinationName: placeName(trip.toId),
+        shipId: game.state.shipId,
+        fuel: game.state.fuel,
+        fuelMax: game.getShipStats().fuelTankSize,
+        speed: game.clock.speed,
+        getProgress: () => game.progress(),
+      });
+    } else if (!job && !trip && flying) {
       flying = false;
       api.endFlight();
     }
@@ -280,6 +296,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   game.update(); // a saved trip that ended while the page was closed: pay it now (the arrival card follows)
   api.showDocked(game.state.currentDockId); // the home screen: the ship parked at its dock
   syncFlight(); // the page was opened in the middle of a flight
+  if (!flying && game.state.spacePlanetId) api.showFloating(game.state.spacePlanetId); // the page was opened while floating in space
   refresh();
 
   // Check the clock a few times a second, and the moment the tab wakes up.

@@ -173,6 +173,7 @@ export class DockedScreen implements Screen {
   private bay: Box | null = null; // set only at stations: the camera is kept inside this box
   private dockId: string | null = null;
   private shipId = FALLBACK_SHIP_ID;
+  private livery: string | undefined = undefined; // paint job id; undefined = standard
   private clockT = 0;
   private titleText = "";
   private labelText = "";
@@ -187,10 +188,11 @@ export class DockedScreen implements Screen {
   }
 
   /** Which ship rests in the dock. Changing it swaps the model at once if a dock is showing. */
-  setShip(shipId: string): void {
+  setShip(shipId: string, livery?: string): void {
     const id = resolveShipId(shipId);
-    if (id === this.shipId) return;
+    if (id === this.shipId && livery === this.livery) return;
     this.shipId = id;
+    this.livery = livery;
     if (this.dockId) this.placeShip();
   }
 
@@ -232,7 +234,7 @@ export class DockedScreen implements Screen {
       this.content.remove(this.ship.group);
       disposeAll(this.ship.group);
     }
-    const ship = buildShipModel(this.shipId);
+    const ship = buildShipModel(this.shipId, this.livery);
     for (const flame of ship.animation.flames) flame.scale.z = 0.15; // parked: short flames
     ship.group.position.set(0, 0, 0); // its parking point is the scene's middle
     this.content.add(ship.group);

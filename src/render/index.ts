@@ -27,6 +27,10 @@ import { mountLookPreview } from "./lookpreview";
 import { parseMarks, parseSystemPreview, previewList } from "./systemmarks";
 import { mountSystemPreview } from "./systempreview";
 import { mountWarpPreview } from "./warppreview";
+import { parseFloatPreview, parseFloatStyle } from "./floatmath";
+import { floatCandidates } from "./floatpick";
+import { mountFloatPreview } from "./floatpreview";
+import { FLOAT_DEFAULT_STYLE } from "./settings";
 import { parseWarpPreview, parseWarpStyle } from "./warpmath";
 
 export { StateStore } from "./state";
@@ -45,13 +49,23 @@ export interface RenderApi {
   startFlight(info: FlightInfo): void;
   /** The game says the trip is over: finish the animation, then show the docked view at the destination dock. */
   endFlight(): void;
+  /**
+   * Free travel: show the calm "in space at this planet" scene for a planet WITHOUT a dock (id like "3:-2:5:0/4").
+   * Use it when the page opens while the ship floats there. A free trip that ends at such a planet goes into this scene by itself.
+   * Returns false for an unknown planet. The screen is "flight" and state.floatingPlanetId holds the planet id while it shows.
+   */
+  showFloating(planetId: string): boolean;
+  /** The planet the ship floats at, or null. */
+  floatingPlanetId(): string | null;
+  /** Leave the floating scene: the system view of that planet's system. (showDocked / showStarmap / showSystem also leave it.) */
+  leaveFloating(): void;
   /** True while the flight screen is showing. */
   isFlying(): boolean;
   /**
    * Which ship design to draw (an id like "scout"). The docked view and the flight use it from now on.
    * Unknown ids give the Cargo Hauler. The ?ship=NAME testing aid in the web address overrides it (looks only).
    */
-  setShip(shipId: string): void;
+  setShip(shipId: string, livery?: string): void;
 }
 
 /** Options for startRender. seed: the universe seed chosen by the game (saving); without it, ?seed= or 12345. */
@@ -119,12 +133,12 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
       }
       lastDockId = dockId;
       const systemId = parseDockId(dockId)?.systemId ?? null;
-      state.set({ screen: "docked", dockedDockId: dockId, viewedSystemId: null, selectedPlanetId: null });
+      state.set({ screen: "docked", dockedDockId: dockId, viewedSystemId: null, selectedPlanetId: null, floatingPlanetId: null });
       show(docked);
       if (systemId && systemId !== state.get().currentSystemId) api.setCurrentSystem(systemId);
     },
     showStarmap(): void {
-      state.set({ screen: "starmap", viewedSystemId: null, selectedPlanetId: null });
+      state.set({ screen: "starmap", viewedSystemId: null, selectedPlanetId: null, floatingPlanetId: null });
       show(starmap);
     },
     setCurrentSystem(systemId: string): void {
@@ -140,13 +154,14 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
       state.set({ currentSystemId: here.id, selectedSystemId: null });
       if (wasShowing) show(starmap);
     },
-    setShip(id: string): void {
+    setShip(id: string, livery?: string): void {
       shipId = resolveShipId(id, forcedShip);
-      docked.setShip(shipId);
-      flight.setShip(shipId);
+      docked.setShip(shipId, livery);
+      flight.setShip(shipId, livery);
     },
     startFlight(info: FlightInfo): void {
-      if (info.shipId) api.setShip(info.shipId);
+      if (info.shipId) api.setShip(info.shipId, info.livery);
+      state.set({ floatingPlanetId: null });
       flight.begin(info);
       state.set({ screen: "flight", selectedPlanetId: null });
       show(flight);
@@ -155,16 +170,32 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
       if (active !== flight) return;
       const destination = flight.destinationDockId();
       flight.finish(() => {
-        if (destination) api.showDocked(destination);
+        if (flight.isFloating()) state.set({ screen: "flight", floatingPlanetId: flight.floatingPlanetId() }); // a planet without a dock: stay in space
+        else if (destination) api.showDocked(destination);
         else api.showStarmap();
       });
+    },
+    showFloating(planetId: string): boolean {
+      if (!flight.beginFloat(planetId)) return false;
+      state.set({ screen: "flight", selectedPlanetId: null, floatingPlanetId: planetId });
+      show(flight);
+      return true;
+    },
+    floatingPlanetId(): string | null {
+      return flight.isFloating() && active === flight ? flight.floatingPlanetId() : null;
+    },
+    leaveFloating(): void {
+      const id = flight.isFloating() ? flight.floatingPlanetId() : null;
+      const systemId = id ? parseDockId(id)?.systemId : null;
+      if (systemId) api.showSystem(systemId);
+      else api.showStarmap();
     },
     isFlying(): boolean {
       return active === flight;
     },
     showSystem(systemId: string): void {
       if (!getSystem(seed, systemId) || !systemView.open(systemId)) return;
-      state.set({ screen: "system", viewedSystemId: systemId, selectedPlanetId: null });
+      state.set({ screen: "system", viewedSystemId: systemId, selectedPlanetId: null, floatingPlanetId: null });
       show(systemView);
     },
   };
@@ -210,6 +241,54 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
         if (target) api.showSystem(target.id);
       },
       triangles: () => systemView.triangleCount(),
+    });
+  }
+
+  // Testing aid for free travel (stage 3g): ?floatpreview=1 floats at planets without a dock; A / B / C layouts, free trips, triangle count.
+  if (parseFloatPreview(window.location.search)) {
+    const near = listSystemsNear(seed, current.position, 40);
+    const picks = floatCandidates(seed, near, 3);
+    const docks = getDocksOfSystem(seed, current.id).map((d) => d.id);
+    let shown = 0;
+    const tripTo = (toId: string, name: string): void => {
+      const fromId = picks[shown]?.planetId;
+      if (!fromId) return;
+      const startedAt = performance.now();
+      const total = 40_000; // a 40 second pretend trip
+      api.startFlight({
+        originDockId: fromId,
+        destinationDockId: toId,
+        destinationName: name,
+        speed: 1,
+        getProgress: () => {
+          const used = performance.now() - startedAt;
+          if (used >= total) {
+            window.setTimeout(() => api.endFlight(), 0);
+            return null;
+          }
+          return { fraction: used / total, remainingMs: total - used, totalMs: total };
+        },
+      });
+    };
+    mountFloatPreview(parent, {
+      initial: parseFloatStyle(window.location.search) ?? FLOAT_DEFAULT_STYLE,
+      planets: picks.map((p) => p.label),
+      onStyle: (style) => flight.setFloatStyle(style),
+      onPlanet: (i) => {
+        const target = picks[i];
+        if (!target) return;
+        shown = i;
+        api.showFloating(target.planetId);
+      },
+      onTrip: () => {
+        const next = picks[(shown + 1) % Math.max(1, picks.length)];
+        if (next) tripTo(next.planetId, next.label);
+      },
+      onTripToDock: () => {
+        const dock = docks[0];
+        if (dock) tripTo(dock, "DOCK");
+      },
+      triangles: () => flight.triangleCount(),
     });
   }
 

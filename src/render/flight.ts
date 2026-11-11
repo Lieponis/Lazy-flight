@@ -7,7 +7,7 @@
 // placed so that the dock's parking spot is exactly where the ship is (so the launch starts, and the approach ends, in the dock).
 
 import * as THREE from "three";
-import { getDock, getPlanet, hashString, parseDockId, type Seed } from "../universe";
+import { getDock, getPlanet, getSystem, hashString, parseDockId, type Planet, type Seed } from "../universe";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import { COMPUTER_LINES } from "./flightlines";
 import {
@@ -27,7 +27,9 @@ import { fuelScreenData, infoScreenData, mapScreenData } from "./screendata";
 import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
 import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, fovForMagnification, shakeShare, startFov, zoomMagnification, type Look, type ViewMode } from "./cockpitview";
 import { pinchFactor, wheelFactor } from "./dockedcam";
-import { starfieldPositions } from "./helpers";
+import { hexToNumber, starfieldPositions } from "./helpers";
+import { arriveOffset, departOffset, floatDrift, floatLayout, lengthOf, parseFloatStyle, ringNormalWorld, STAR_DIRECTION, STAR_DISTANCE, starDrawRadius, tiltForClearance, type FloatStyle } from "./floatmath";
+import { chooseLook } from "./planetlook";
 import type { Hud } from "./hud";
 import type { Screen } from "./screen";
 import type { AssetModel } from "./assets";
@@ -100,6 +102,9 @@ import {
   STATION_EXIT,
   LOOK_FLAME_FLICKER,
   LOOK_FLASH_STEPS,
+  FLOAT_DEFAULT_STYLE,
+  FLOAT_ORBIT_SPEED,
+  FLOAT_PLANET_DETAIL,
 } from "./settings";
 import { disposeAll, makePlanetMesh } from "./systemview";
 import { buildWarp } from "./warp";
@@ -133,7 +138,10 @@ const LOOK_LIMITS = {
 interface Body {
   /** The dock model with its parking spot at the group's origin, plus the planet surface or planet. Moves; the ship does not. */
   group: THREE.Group;
-  model: AssetModel;
+  /** The dock design. Null for a planet WITHOUT a dock (scenery): then `scenery` is set instead. */
+  model: AssetModel | null;
+  /** A planet without a dock: where it hangs when the ship floats there (relative to the ship) and its star (drawn far away, not moving with `group`). */
+  scenery: { centre: { x: number; y: number; z: number }; sun: THREE.Mesh } | null;
   isStation: boolean;
   /** Stations only: where the camera sits inside the bay, relative to the ship. */
   bayCamera: Vec3 | null;
@@ -161,6 +169,7 @@ export class FlightScreen implements Screen {
   private baseFov = 50; // the window's normal view; the picture may widen a little so the whole ship fits
   private appliedFov = -1;
   private shipId = FALLBACK_SHIP_ID;
+  private livery: string | undefined = undefined; // paint job id; undefined = standard
   // Cockpit view: Agent 8's base cockpit (one for all ships for now), kept in a holder that is NOT a child of the camera
   // (so the room stays level while the view tilts and shakes). It is drawn through the lens (see render()).
   private cockpitModel = buildCockpitBase();
@@ -185,6 +194,8 @@ export class FlightScreen implements Screen {
   private finishing: { from: number; t: number; onDone: () => void } | null = null;
   private hudTimer = 0;
   private phases: PhaseSettings = BASE_PHASES; // the approach to a station takes longer than to an outpost
+  private floating: { planetId: string; name: string } | null = null; // set while the ship floats at a planet without a dock
+  private floatStyle: FloatStyle = parseFloatStyle(window.location.search) ?? FLOAT_DEFAULT_STYLE;
 
   private flash = document.createElement("div");
   private hudRoot = document.createElement("div");
@@ -227,14 +238,15 @@ export class FlightScreen implements Screen {
   // ------------------------------------------------------------ starting and ending
 
   /** Which ship model flies. Unknown ids give the Cargo Hauler. Swaps the model at once. */
-  setShip(shipId: string): void {
+  setShip(shipId: string, livery?: string): void {
     const id = resolveShipId(shipId);
-    if (id === this.shipId) return;
+    if (id === this.shipId && livery === this.livery) return;
     this.shipId = id;
+    this.livery = livery;
     const visible = this.ship.group.visible;
     this.scene.remove(this.ship.group);
     disposeAll(this.ship.group);
-    this.ship = buildShipModel(id);
+    this.ship = buildShipModel(id, livery);
     this.shipR = shipRadius(this.ship);
     this.ship.group.visible = visible;
     this.scene.add(this.ship.group);
@@ -244,6 +256,7 @@ export class FlightScreen implements Screen {
   begin(info: FlightInfo): void {
     this.clearBodies();
     this.resetLook();
+    this.floating = null;
     this.info = info;
     this.finishing = null;
     this.lastPlan = null;
@@ -252,9 +265,76 @@ export class FlightScreen implements Screen {
     this.lastFrameMs = performance.now();
     this.origin = this.makeBody(info.originDockId);
     this.dest = this.makeBody(info.destinationDockId);
-    if (this.origin) this.scene.add(this.origin.group);
-    if (this.dest) this.scene.add(this.dest.group);
+    this.addBody(this.origin);
+    this.addBody(this.dest);
     this.phases = { ...BASE_PHASES, approachSeconds: this.dest?.isStation ? FLIGHT_APPROACH_SECONDS_STATION : FLIGHT_APPROACH_SECONDS };
+  }
+
+  /** Shows the ship floating at a planet that has no dock (page opened while in space, or the preview). Call before enter(). */
+  beginFloat(planetId: string): boolean {
+    const planet = getPlanet(this.opts.seed, planetId);
+    if (!planet) return false;
+    this.clearBodies();
+    this.resetLook();
+    this.finishing = null;
+    this.lastPlan = null;
+    this.clockT = 0;
+    this.hudTimer = 0;
+    this.lastFrameMs = performance.now();
+    this.info = {
+      originDockId: planetId,
+      destinationDockId: planetId,
+      destinationName: planet.name,
+      speed: 1,
+      getProgress: () => null,
+    };
+    this.floating = { planetId, name: planet.name };
+    this.dest = this.makeBody(planetId);
+    this.addBody(this.dest);
+    return true;
+  }
+
+  /** How many triangles the whole picture has now (for the float preview readout). */
+  triangleCount(): number {
+    let total = 0;
+    this.scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh || !obj.visible) return;
+      const g = mesh.geometry;
+      total += g.index ? g.index.count / 3 : g.getAttribute("position").count / 3;
+    });
+    return Math.round(total);
+  }
+
+  /** True while the ship floats at a planet without a dock (the flight screen shows the calm scene). */
+  isFloating(): boolean {
+    return this.floating !== null;
+  }
+
+  floatingPlanetId(): string | null {
+    return this.floating ? this.floating.planetId : null;
+  }
+
+  /** Another layout (A, B or C) for the floating scene and the arrivals/departures at planets without a dock. Rebuilds the scene if floating. */
+  setFloatStyle(style: FloatStyle): void {
+    this.floatStyle = style;
+    if (this.floating) this.beginFloat(this.floating.planetId);
+  }
+
+  private addBody(body: Body | null): void {
+    if (!body) return;
+    this.scene.add(body.group);
+    if (body.scenery) this.scene.add(body.scenery.sun);
+  }
+
+  private removeBody(body: Body | null): void {
+    if (!body) return;
+    this.scene.remove(body.group);
+    disposeAll(body.group);
+    if (body.scenery) {
+      this.scene.remove(body.scenery.sun);
+      disposeAll(body.scenery.sun);
+    }
   }
 
   /** The dock the flight is going to (the app parks the ship there afterwards). */
@@ -275,9 +355,20 @@ export class FlightScreen implements Screen {
     const hidden = document.hidden || performance.now() - this.lastFrameMs > 1000;
     const plan = this.lastPlan;
     const leave = (): void => {
+      const arrivedAt = this.dest?.scenery ? getPlanet(this.opts.seed, info?.destinationDockId ?? "") : null;
+      if (arrivedAt && this.dest) {
+        // A planet without a dock: the ship stays here, floating. The planet that grew during the approach is kept as the scene.
+        for (const body of [this.origin]) this.removeBody(body);
+        this.origin = null;
+        this.floating = { planetId: arrivedAt.id, name: arrivedAt.name };
+        this.dest.group.visible = true;
+        onDone();
+        return;
+      }
       onDone();
       this.clearBodies(); // the docks of this flight are not needed any more: free the memory
     };
+    const info = this.info;
     if (hidden || !plan || (plan.phase !== "APPROACH" && plan.phase !== "DONE")) {
       leave();
       return;
@@ -321,7 +412,10 @@ export class FlightScreen implements Screen {
     this.lastFrameMs = performance.now();
 
     let plan: FlightPlan;
-    if (this.finishing) {
+    if (this.floating) {
+      plan = { phase: "DONE", progress: 1, phaseSeconds: 0, elapsedSeconds: this.clockT, totalSeconds: this.clockT };
+      this.lastPlan = plan;
+    } else if (this.finishing) {
       const f = this.finishing;
       f.t += seconds;
       const length = 0.8 * (1 - f.from) + 0.01;
@@ -360,10 +454,17 @@ export class FlightScreen implements Screen {
     // Which things are visible in this phase.
     if (this.origin) this.origin.group.visible = phase === "LAUNCH";
     if (this.dest) this.dest.group.visible = phase === "APPROACH" || phase === "DONE";
+    if (this.origin?.scenery) this.origin.scenery.sun.visible = this.origin.group.visible;
+    if (this.dest?.scenery) this.dest.scenery.sun.visible = this.dest.group.visible;
     this.warp.group.visible = phase === "WARP";
 
     // The docks slide past the ship. The ship's parking spot and the dock's parking spot are the same point at the two ends.
-    if (phase === "LAUNCH" && this.origin) {
+    if (phase === "LAUNCH" && this.origin?.scenery) {
+      // A planet without a dock: it slides away behind the ship, getting smaller.
+      const c = this.origin.scenery.centre;
+      const o = departOffset(c, p);
+      this.origin.group.position.set(c.x + o.x, c.y + o.y, c.z + o.z);
+    } else if (phase === "LAUNCH" && this.origin && this.origin.model) {
       // Station: straight out of the slot, then round the planet. Outpost: lift off, tilt, angled line, then curve into orbit.
       const pose = this.origin.isStation
         ? stationExitPose(p, DOCKED_STATION_PLANET_RADIUS + FLIGHT_STATION_PLANET_ALTITUDE, STATION_EXIT)
@@ -372,6 +473,13 @@ export class FlightScreen implements Screen {
       this.origin.group.rotation.x = t.rotX;
       this.origin.group.position.set(t.position.x, t.position.y, t.position.z);
       this.origin.slide = pose.slide;
+    } else if ((phase === "APPROACH" || phase === "DONE") && this.dest?.scenery) {
+      // A planet without a dock: it grows out of the distance and settles into its floating pose, then drifts a little.
+      const c = this.dest.scenery.centre;
+      const q = phase === "DONE" ? 1 : p;
+      const o = arriveOffset(c, q);
+      const drift = this.floating ? floatDrift(this.clockT) : { x: 0, y: 0, z: 0 };
+      this.dest.group.position.set(c.x + o.x + drift.x, c.y + o.y + drift.y, c.z + o.z + drift.z);
     } else if ((phase === "APPROACH" || phase === "DONE") && this.dest) {
       const q = phase === "DONE" ? 1 : p;
       if (this.dest.isStation) {
@@ -391,8 +499,8 @@ export class FlightScreen implements Screen {
     // Only what is on screen is updated: blinking lights and the spinning ring.
     this.ship.update(this.clockT);
     if (this.mode === "cockpit") this.cockpitModel.update(this.clockT); // the ~90 lights flash
-    if (phase === "LAUNCH") this.origin?.model.update(this.clockT);
-    else if (phase === "APPROACH" || phase === "DONE") this.dest?.model.update(this.clockT);
+    if (phase === "LAUNCH") this.origin?.model?.update(this.clockT);
+    else if (phase === "APPROACH" || phase === "DONE") this.dest?.model?.update(this.clockT);
 
     // Engine flames (the design's own flame parts): short at the dock, 1 flying, 3 in warp.
     const flame = flameLength(phase, p, this.clockT);
@@ -414,7 +522,7 @@ export class FlightScreen implements Screen {
       this.ship.group.visible = ownShipVisible(this.mode);
       this.cockpitRig.visible = cockpitRoomVisible(this.mode);
       const height = (phase === "WARP" ? FLIGHT_ORBIT_HEIGHT_WARP : FLIGHT_ORBIT_HEIGHT_DOCK) + Math.sin(this.clockT * 0.4) * 0.6;
-      let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * 0.35, FLIGHT_ORBIT_RADIUS, height);
+      let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * (this.floating ? FLOAT_ORBIT_SPEED : 0.35), FLIGHT_ORBIT_RADIUS, height);
       if (phase === "LAUNCH" && this.origin?.bayCamera) {
         // Leaving a station: the camera starts inside the bay and swings out once the station is clear.
         const bay = rotateY(this.origin.bayCamera, Math.sin(this.clockT * 0.35) * 0.14);
@@ -485,9 +593,16 @@ export class FlightScreen implements Screen {
     const clockTime = new Date(Date.now() + remainingMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const line =
       COMPUTER_LINES[computerLineIndex(plan.elapsedSeconds, COMPUTER_LINES.length, hashString(info.destinationDockId), FLIGHT_LINE_SECONDS)] ?? "";
-    this.title.textContent = `FLIGHT - ${PHASE_NAMES[plan.phase]}`;
-    const arrives = plan.phase === "DONE" ? "Arrived!" : `Arrives in ${formatCountdown(remainingMs)}  (at ${clockTime})`;
-    this.text.textContent = `To: ${info.destinationName}\n${arrives}\n> ${line}`;
+    if (this.floating) {
+      // Floating at a planet without a dock: no trip, no countdown.
+      this.title.textContent = `IN SPACE - ${this.floating.name}`;
+      this.text.textContent = `Floating near ${this.floating.name}\n> ${line}`;
+    } else {
+      this.title.textContent = `FLIGHT - ${PHASE_NAMES[plan.phase]}`;
+      const arrives = plan.phase === "DONE" ? "Arrived!" : `Arrives in ${formatCountdown(remainingMs)}  (at ${clockTime})`;
+      this.text.textContent = `To: ${info.destinationName}\n${arrives}\n> ${line}`;
+    }
+    (this.barFill.parentElement as HTMLElement).style.display = this.floating ? "none" : "";
     if (this.mode === "cockpit") {
       // The same facts on the cockpit's screens (only drawn while you are looking at them).
       this.screens.draw({
@@ -636,8 +751,12 @@ export class FlightScreen implements Screen {
    */
   private makeBody(dockId: string): Body | null {
     const dock = getDock(this.opts.seed, dockId); // null for a planet without a dock
-    const planet = dock ? getPlanet(this.opts.seed, dockId) : null;
-    if (!planet || !dock) return null;
+    if (!dock) {
+      const scenery = getPlanet(this.opts.seed, dockId);
+      return scenery ? this.makeSceneryBody(scenery) : null;
+    }
+    const planet = getPlanet(this.opts.seed, dockId);
+    if (!planet) return null;
     const built = buildDockModel(dock.kind, dockId, planet);
     parkAtOrigin(built);
 
@@ -657,15 +776,45 @@ export class FlightScreen implements Screen {
     group.visible = false;
     const entrance = built.model.anchors.dockEntrance?.pos;
     const bayBox = isStation && entrance ? bayBoxWorld(entrance, built.parking) : null;
-    return { group, model: built.model, isStation, bayCamera: isStation ? { ...FLIGHT_BAY_CAMERA } : null, slide: 0, entry: null, bayBox };
+    return { group, model: built.model, scenery: null, isStation, bayCamera: isStation ? { ...FLIGHT_BAY_CAMERA } : null, slide: 0, entry: null, bayBox };
+  }
+
+  /**
+   * A planet WITHOUT a dock, as one end of a trip or as the scene when floating: the planet (with its rings and clouds), turned so the rings
+   * never cut through the ship or camera, and its star far away. It hangs where the chosen layout (A, B or C) says, relative to the ship.
+   */
+  private makeSceneryBody(planet: Planet): Body {
+    const layout = floatLayout(this.floatStyle);
+    const centre = layout.centre;
+    const distance = lengthOf(centre);
+    const look = chooseLook(planet);
+    const turn = new THREE.Group();
+    if (look.rings) {
+      // The rings' own up-direction (as makeRings builds it), turned to point nearly at the ship: seen at an angle, never cutting it.
+      const local = new THREE.Vector3(0, 0, 1).applyEuler(new THREE.Euler(Math.PI / 2 - look.ringTilt.x, look.ringTilt.y, 0));
+      const n = ringNormalWorld({ x: -centre.x / distance, y: -centre.y / distance, z: -centre.z / distance }, tiltForClearance(distance));
+      turn.quaternion.setFromUnitVectors(local, new THREE.Vector3(n.x, n.y, n.z));
+    }
+    const toStarLocal = new THREE.Vector3(STAR_DIRECTION.x, STAR_DIRECTION.y, STAR_DIRECTION.z).applyQuaternion(turn.quaternion.clone().invert());
+    turn.add(makePlanetMesh(planet, layout.radius, toStarLocal, FLOAT_PLANET_DETAIL));
+    const group = new THREE.Group();
+    group.add(turn);
+    group.position.set(centre.x, centre.y, centre.z);
+    group.visible = false;
+
+    const star = getSystem(this.opts.seed, planet.systemId)?.star;
+    const sun = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(starDrawRadius(star?.radius ?? 1), 1),
+      new THREE.MeshBasicMaterial({ color: star ? hexToNumber(star.color) : 0xfff2c0 }),
+    );
+    sun.position.set(STAR_DIRECTION.x * STAR_DISTANCE, STAR_DIRECTION.y * STAR_DISTANCE, STAR_DIRECTION.z * STAR_DISTANCE);
+    sun.visible = false;
+    return { group, model: null, scenery: { centre: { ...centre }, sun }, isStation: false, bayCamera: null, slide: 0, entry: null, bayBox: null };
   }
 
   private clearBodies(): void {
-    for (const body of [this.origin, this.dest]) {
-      if (!body) continue;
-      this.scene.remove(body.group);
-      disposeAll(body.group);
-    }
+    this.removeBody(this.origin);
+    this.removeBody(this.dest);
     this.origin = null;
     this.dest = null;
   }

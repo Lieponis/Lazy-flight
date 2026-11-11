@@ -12,9 +12,15 @@ const W = 96; // tiny on purpose: shown twice as big with hard pixel edges
 const H = 64;
 const cache = new Map<string, string>(); // ship id -> picture (as a data address)
 
+/** The key a picture is stored under: the ship id, plus ":livery" for a paint job. */
+export function pictureKey(shipId: string, livery?: string): string {
+  return livery && livery !== "standard" ? `${shipId}:${livery}` : shipId;
+}
+
 /** Draws every listed ship that is not drawn yet. Returns the pictures. Never throws (no 3D: no pictures). */
-export function shipPictures(shipIds: readonly string[]): Map<string, string> {
-  const missing = shipIds.filter((id) => !cache.has(id));
+export function shipPictures(shipIds: readonly string[], liveries: Readonly<Record<string, string>> = {}): Map<string, string> {
+  // The picture is kept under "shipId" (standard paint) or "shipId:livery"; read it with pictureKey().
+  const missing = shipIds.filter((id) => !cache.has(pictureKey(id, liveries[id])));
   if (missing.length === 0) return cache;
   let renderer: THREE.WebGLRenderer | null = null;
   try {
@@ -28,7 +34,7 @@ export function shipPictures(shipIds: readonly string[]): Map<string, string> {
       const sun = new THREE.DirectionalLight(0xffffff, 1.6);
       sun.position.set(3, 5, 4);
       scene.add(sun);
-      const model = buildShipModel(id);
+      const model = buildShipModel(id, liveries[id]);
       model.update(0);
       scene.add(model.group);
       const box = boundsOf(model);
@@ -39,7 +45,7 @@ export function shipPictures(shipIds: readonly string[]): Map<string, string> {
       camera.position.set(mid.x + p.x, mid.y + p.y, mid.z + p.z);
       camera.lookAt(mid);
       renderer.render(scene, camera);
-      cache.set(id, renderer.domElement.toDataURL("image/png"));
+      cache.set(pictureKey(id, liveries[id]), renderer.domElement.toDataURL("image/png"));
       disposeAll(model.group);
     }
   } catch {

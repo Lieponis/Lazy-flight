@@ -392,7 +392,7 @@ export class SystemViewScreen implements Screen {
 
   /**
    * Tap a planet: it selects it AND becomes the middle of the picture (the camera glides there and moves in a little;
-   * dragging then circles around that planet). Tap the star: back to the whole system. Tap empty space: just unselects.
+   * dragging then circles around that planet). Tap the star or empty space: back to the whole system.
    */
   private handleTap(clientX: number, clientY: number): void {
     const rect = this.opts.host.getBoundingClientRect();
@@ -405,8 +405,8 @@ export class SystemViewScreen implements Screen {
     const points: ScreenPoint[] = this.entries.map((e) => project(e.group.position));
     points.push(project(new THREE.Vector3(0, 0, 0))); // the star is the last point
     const hit = nearestScreenPoint(points, clientX - rect.left, clientY - rect.top, TAP_RADIUS_PX * 1.4);
-    if (hit === this.entries.length) {
-      // The star: unselect and look at the whole system again.
+    if (hit === this.entries.length || hit < 0) {
+      // The star, or empty space: unselect and look at the whole system again.
       this.selected = -1;
       this.view.focusOn(0, 0, 0, this.fitDist);
     } else {

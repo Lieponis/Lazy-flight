@@ -7,9 +7,12 @@ import { getAsset, type AssetModel } from "./assets";
 import { hexToNumber } from "./helpers";
 import { outpostModelFor, resolveShipId, stationModelFor, type DockKind } from "./integration";
 
-/** The ship design for a ship id (unknown ids give the Cargo Hauler). Flames start short (parked). */
-export function buildShipModel(shipId: string): AssetModel {
-  return getAsset(resolveShipId(shipId)).build();
+/**
+ * The ship design for a ship id (unknown ids give the Cargo Hauler). Flames start short (parked).
+ * `liveryId` is a paint job id like "rescue-red" (see liveriesFor in ./assets); missing or unknown = the standard paint.
+ */
+export function buildShipModel(shipId: string, liveryId?: string): AssetModel {
+  return getAsset(resolveShipId(shipId)).build(liveryId ? { livery: liveryId } : undefined);
 }
 
 export interface DockModel {

@@ -13,11 +13,14 @@ export interface FlightProgress {
 
 /** Everything the flight screen needs to know about the trip. The game is connected to it by the glue code (src/ui/index.ts). */
 export interface FlightInfo {
+  /** A dock id, OR (free travel) the id of a planet without a dock, e.g. "3:-2:5:0/4". Same for destinationDockId. */
   originDockId: string;
   destinationDockId: string;
   destinationName: string;
   /** The ship the player flies (an id like "scout"). The render layer draws that ship's design; unknown or missing = the Cargo Hauler. */
   shipId?: string;
+  /** The ship's paint job (a livery id like "rescue-red"). Optional: missing or unknown = the standard paint. */
+  livery?: string;
   /** Tours: the names of every stop in order, the final destination last. One entry (or none) = not a tour. Optional. */
   stops?: string[];
   /** Fuel left in the tank (the game has already paid for this trip). Optional: without it the cockpit's fuel screen shows dashes. */

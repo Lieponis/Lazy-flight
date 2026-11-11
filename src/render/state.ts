@@ -16,6 +16,8 @@ export interface RenderState {
   viewedSystemId: string | null;
   /** Planet (and dock) selected in the system view, e.g. "3:-2:5:0/2", or null. */
   selectedPlanetId: string | null;
+  /** Free travel: the planet WITHOUT a dock the ship floats at (screen is "flight" then), or null. */
+  floatingPlanetId: string | null;
 }
 
 export type StateListener = (state: Readonly<RenderState>) => void;
@@ -32,6 +34,7 @@ export class StateStore {
       selectedSystemId: null,
       viewedSystemId: null,
       selectedPlanetId: null,
+      floatingPlanetId: null,
     };
   }
 
