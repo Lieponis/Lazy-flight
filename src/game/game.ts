@@ -39,6 +39,7 @@ import {
 import { currentPlaceId, isFlying, notDockedReason } from "./location";
 import { rankInfos, type RankInfo } from "./ranks";
 import { UPGRADE_LINES } from "./debriefs";
+import { buyLivery, currentLivery, liveryCatalog, setLivery, type LiveryRow } from "./liveries";
 import { buyUpgrade, shipStats, upgradeOffers, type ShipStats, type UpgradeOffer } from "./upgrades";
 import type { GameClock } from "./clock";
 import { slotOf } from "./clock";
@@ -265,6 +266,42 @@ export class Game {
   }
 
   /** Buy the next level of one track ("tank", "hold", "engines" or "comfort") of a ship you own. Any dock, not in flight. */
+  // ------------------------------------------------------------ paint jobs (4g)
+
+  /** The paint jobs of a ship (ids, owned, worn, price, can buy, why not). Names and pictures come from the render list. */
+  getLiveryCatalog(shipId: string): LiveryRow[] {
+    return liveryCatalog(this.state, shipId).map((row) => ({ ...row, reason: this.namedSpaceReason(row.reason) }));
+  }
+
+  /** The plain "no dock here" text names "this planet"; swap in the real planet's name (the same funny line). */
+  private namedSpaceReason(reason: string): string {
+    const generic = notDockedReason(this.state);
+    return generic !== null && reason === generic ? (this.whyNotDocked() ?? reason) : reason;
+  }
+
+  /** The paint job a ship wears ("standard" by default). */
+  currentLivery(shipId: string): string {
+    return currentLivery(this.state, shipId);
+  }
+
+  /** Buy a paint job for any ship you own. Docked only; it does not put it on (call setLivery). */
+  buyLivery(shipId: string, liveryId: string): { ok: true; price: number } | { ok: false; reason: string } {
+    const result = buyLivery(this.state, shipId, liveryId);
+    if (!result.ok) return { ok: false, reason: this.namedSpaceReason(result.reason) };
+    this.state = result.state;
+    this.changed();
+    return { ok: true, price: result.price };
+  }
+
+  /** Put on a paint job you own (free). Not during a flight. */
+  setLivery(shipId: string, liveryId: string): { ok: true } | { ok: false; reason: string } {
+    const result = setLivery(this.state, shipId, liveryId);
+    if (!result.ok) return result;
+    this.state = result.state;
+    this.changed();
+    return { ok: true };
+  }
+
   buyUpgrade(shipId: string, track: string): { ok: true; price: number; level: number; line: string } | { ok: false; reason: string } {
     const away = this.whyNotDocked();
     if (away !== null) return { ok: false, reason: away };

@@ -7,6 +7,7 @@ import {
   createClock,
   formatDuration,
   getShip,
+  LIVERY_PRICE,
   parseSpeedParam,
   tripFuelCost,
   type BoardEntry,
@@ -327,6 +328,10 @@ function render(): void {
   app.append(h("h2", {}, "10. Free travel and exploring (no job)"));
   app.append(freeTravelBox(flying));
 
+  // Paint jobs (stage 4g)
+  app.append(h("h2", {}, "11. Paint jobs (cosmetic only)"));
+  app.append(paintJobsBox());
+
   // Ship catalog
   app.append(h("h2", {}, "3. Ship catalog (numbers include upgrades)"));
   const shipTable = h("table");
@@ -548,6 +553,43 @@ function render(): void {
     }
     app.append(h("div", { class: "scroll" }, t));
   }
+}
+
+/** The paint jobs section: every ship you own, its four paint jobs (ids only: the names live in the picture code), buy and wear. */
+function paintJobsBox(): HTMLElement {
+  const box = h("div", { class: "box" });
+  box.append(h("div", { class: "note" }, `Every extra paint job costs ${LIVERY_PRICE} credits. The standard paint is free. Buying needs a dock. Putting on paint you own is free. Paint changes only the looks.`));
+  const owned = [game.state.shipId, ...Object.keys(game.state.ownedShips)];
+  for (const shipId of owned) {
+    const ship = getShip(shipId);
+    box.append(h("h3", {}, `${ship?.name ?? shipId}${shipId === game.state.shipId ? " (active)" : ""}: wears "${game.currentLivery(shipId)}"`));
+    const table = h("table");
+    table.append(h("tr", {}, ...["Paint job", "Owned", "Worn", "Price", "Reason", ""].map((t) => h("th", {}, t))));
+    for (const row of game.getLiveryCatalog(shipId)) {
+      const tr = h("tr");
+      const actions = h("td");
+      actions.append(
+        button("Buy", () => {
+          const r = game.buyLivery(shipId, row.id);
+          say(r.ok ? `Bought the "${row.id}" paint for ${r.price} credits.` : r.reason);
+        }, { disabled: !row.canBuy }),
+        button("Wear", () => {
+          const r = game.setLivery(shipId, row.id);
+          say(r.ok ? `The ${ship?.name ?? shipId} now wears "${row.id}".` : r.reason);
+        }, { disabled: !row.canWear }),
+        // Not disabled on purpose: pressing it shows the plain refusal text.
+        button("Try buy", () => {
+          const r = game.buyLivery(shipId, row.id);
+          say(r.ok ? `Bought "${row.id}" for ${r.price} credits.` : r.reason);
+        }, { test: true }),
+      );
+      for (const cell of [row.id, row.owned ? "yes" : "no", row.worn ? "WORN" : "", row.price === 0 ? "free" : String(row.price), row.reason]) tr.append(h("td", {}, cell));
+      tr.append(actions);
+      table.append(tr);
+    }
+    box.append(table);
+  }
+  return box;
 }
 
 /** The free-travel section: places to fly to (this star system and the nearest others), with the plain numbers and reasons. */
