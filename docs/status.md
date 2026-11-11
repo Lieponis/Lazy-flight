@@ -147,3 +147,8 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Numbers: 79-110 docks within 25 ly (32-61 outposts); cheapest outpost 5,000-10,200; first outpost 11.1 h planner (was 9.1), 29.0 h sensible, casual/lazy never. 20 of 300 seeds have no takeable first job (was 28).
 - Known: 1 audio test fails on main (existed before U1); Agent 6 to fix in U4.
 - NEXT (parallel, different files): U3 Agent 3 (system view, docs/briefs/agent-3f-brief.md) and Agent 5 (wording/menus, docs/briefs/agent-5e-brief.md). Then U4 Agent 6 (rebalance, audio test, old-save check on a phone). Suggestion for U4 awaiting Andy: guarantee one starter job on the first board.
+
+## Agent 8 ship liveries (2026-11-11): DONE, Andy approved all in the viewer; Lead review passed
+- 4 paint jobs per ship (standard + 3), cosmetic only, same triangles and anchors. API: liveriesFor(shipId), DEFAULT_LIVERY, getAsset(id).build({livery}); unknown id = standard. 565 tests, Actions green. Report docs/report-agent-8-liveries.md.
+- DECISIONS (Andy 2026-11-11): extra paint jobs cost a SMALL PRICE each (Lead proposes 500 credits, "standard" always free; Andy can change); the whole livery feature (saved field per owned ship with default "standard", Shipyard picker, livery shown in docked view, flight and Shipyard preview via buildShipModel(shipId, liveryId?)) is built AFTER U3 is live and verified, in one go (Agent 4 game+save, Agent 5 picker, Agent 3 glue).
+- Not done yet: the choice, saving, showing it in game.
