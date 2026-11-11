@@ -619,6 +619,31 @@
   padding: 2px 10px;
 }
 
+/* SPEAKER (Agent 7b): sound on / off, next to MENU (docked) or alone (flight). Red and crossed out when muted. */
+.ui-strip-speaker {
+  font-size: 18px;
+  min-height: 36px;
+  min-width: 44px;
+  padding: 2px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ui-strip-speaker.ui-muted,
+.ui-strip-speaker.ui-muted:hover:not(:disabled) {
+  color: var(--ui-red);
+  border-color: var(--ui-red);
+  background: rgba(60, 12, 12, 0.92);
+}
+
+.ui-speaker-icon {
+  width: 24px;
+  height: 20px;
+  display: block;
+}
+
 .ui-gamemenu .ui-panel {
   max-width: 420px;
 }
@@ -828,5 +853,101 @@
   .ui-ship-action-2 .ui-btn {
     font-size: 19px;
     padding: 6px 6px;
+  }
+}
+
+/* ------------------------------------------------------------ title screen (Agent 7b, option B "deep space") */
+
+.ui-title {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #0b0828;
+  pointer-events: auto;
+  touch-action: none;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.4s steps(6);
+}
+
+.ui-title-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ui-title-stars,
+.ui-title-3d {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.ui-title-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--ui-safe-t) var(--ui-safe-r) var(--ui-safe-b) var(--ui-safe-l);
+}
+
+.ui-title-name {
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 6px rgba(80, 200, 255, 0.7));
+}
+
+.ui-title-tag {
+  margin-top: 10px;
+  font-size: clamp(18px, 4.6vw, 28px);
+  letter-spacing: 2px;
+  color: #b9c6ff;
+}
+
+.ui-title-slot {
+  margin-top: 4vh;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-title-loading {
+  font-size: 26px;
+  letter-spacing: 3px;
+  color: #9fb6c8;
+}
+
+.ui-title-play,
+.ui-title-play:hover:not(:disabled) {
+  font-size: 34px;
+  letter-spacing: 4px;
+  min-height: 60px;
+  min-width: 200px;
+  padding: 8px 40px;
+  color: #1a0f00;
+  background: var(--ui-amber);
+  border: 2px solid var(--ui-amber);
+  box-shadow: 0 0 14px rgba(255, 181, 71, 0.6);
+}
+
+.ui-title-play:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* the big station sits above the name: push the name down a little */
+.ui-title-content {
+  padding-top: max(var(--ui-safe-t), 14vh);
+}
+
+@media (orientation: landscape) {
+  .ui-title-content {
+    padding-top: max(var(--ui-safe-t), 26vh);
+  }
+  .ui-title-slot {
+    margin-top: 2vh;
   }
 }

@@ -29,6 +29,7 @@ import { NavBar } from "./navbar";
 import { RanksScreen } from "./ranks";
 import { Shipyard } from "./shipyard";
 import { startSound } from "./sound";
+import { TitleScreen } from "./title";
 import { StatusStrip } from "./statusstrip";
 
 /** How this page starts: continue the save, or a new game. Decided once, before anything is drawn. */
@@ -78,10 +79,21 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   // ------------------------------------------------------------ the pieces
   const layer = el("div", "ui-layer");
   parent.appendChild(layer);
-  const strip = new StatusStrip(layer, () => {
-    overlay = "menu";
-    refresh();
-  });
+  // Sound and music (Agent 7a): settings are kept under their own storage key (they survive NEW GAME).
+  const sound = startSound(game, layer, storage);
+  const setSoundPrefs = (p: ReturnType<typeof sound.getPrefs>, save: boolean): void => {
+    sound.setPrefs(p, save);
+    strip.setSpeaker(p.muted); // MENU > SETTINGS and the speaker share one mute (Agent 7b)
+  };
+  const strip = new StatusStrip(
+    layer,
+    () => {
+      overlay = "menu";
+      refresh();
+    },
+    () => setSoundPrefs({ ...sound.getPrefs(), muted: !sound.getPrefs().muted }, true), // SPEAKER (7b)
+  );
+  strip.setSpeaker(sound.getPrefs().muted);
   let overlay: Overlay = "none";
   let lastViewedSystemId: string | null = null; // the system map the "SYSTEM" tab goes back to
 
@@ -102,8 +114,6 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     window.location.assign(pathname + addressWithSeed(window.location.search, newSeed) + hash);
   };
   const ranks = new RanksScreen(layer, game, closeOverlay);
-  // Sound and music (Agent 7a): settings are kept under their own storage key (they survive NEW GAME).
-  const sound = startSound(game, layer, storage);
   const menu = new GameMenu(
     layer,
     { seed: () => seed, savingWorks: () => saver.working },
@@ -113,7 +123,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
       overlay = "ranks"; // MENU -> RANKS & OUTPOSTS (part 5c)
       refresh();
     },
-    { get: sound.getPrefs, set: sound.setPrefs }, // MENU -> SETTINGS (7a)
+    { get: sound.getPrefs, set: setSoundPrefs }, // MENU -> SETTINGS (7a)
   );
   if (plan.notice) showToast(layer, plan.notice);
 
@@ -246,6 +256,15 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     else if (overlay !== "none") closeOverlay();
     else if (screen === "system" || screen === "starmap") api.showDocked(game.state.currentDockId);
   });
+
+  // TITLE SCREEN (Agent 7b): covers the game until PLAY. The game below starts as before; PLAY's tap also starts the sound.
+  const title = new TitleScreen(layer, {
+    seed,
+    dockId: game.state.currentDockId,
+    systemId: game.currentSystemId(),
+    onPlay: () => refresh(),
+  });
+  requestAnimationFrame(() => requestAnimationFrame(() => title.markGameReady())); // the game has drawn its first picture
 
   game.update(); // a saved trip that ended while the page was closed: pay it now (the arrival card follows)
   api.showDocked(game.state.currentDockId); // the home screen: the ship parked at its dock

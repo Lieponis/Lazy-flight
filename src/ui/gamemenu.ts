@@ -6,6 +6,7 @@
 import type { SoundPrefs } from "../audio";
 import { button, el } from "./dom";
 import { Popup } from "./popup";
+import { GAME_NAME } from "./titlelogic";
 
 /** MENU -> SETTINGS reads and changes the sound settings through these (src/ui/sound.ts). */
 export interface SoundSettingsHooks {
@@ -37,7 +38,7 @@ export class GameMenu {
   private saveLine = el("div", "ui-menu-line");
   private popup: Popup;
   private isOpen = false;
-  private sub = el("div", "ui-panel-sub", "LAZY FREIGHT");
+  private sub = el("div", "ui-panel-sub", GAME_NAME);
   private mainView = el("div", "ui-menu-body");
   private settingsView = el("div", "ui-menu-body ui-settings");
   private muteBtn: HTMLButtonElement | null = null;
@@ -111,7 +112,7 @@ export class GameMenu {
   private showSettings(on: boolean): void {
     this.mainView.hidden = on;
     this.settingsView.hidden = !on;
-    this.sub.textContent = on ? "SETTINGS · SOUND" : "LAZY FREIGHT";
+    this.sub.textContent = on ? "SETTINGS · SOUND" : GAME_NAME;
     if (on) this.renderSettings();
   }
 
