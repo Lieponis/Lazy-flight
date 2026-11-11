@@ -70,7 +70,7 @@ NOW: Agent 2 stage U1 (fewer docks, bigger systems, universe v2; brief docs/brie
 - No package-lock.json yet (Agent 6). Root README upload step to be rewritten around GitHub Desktop (Agent 6).
 
 ## Decisions made
-- Free flight and combat: permanently out, at every stage.
+- Combat: permanently out, never (Andy 2026-11-11: no weapons, children friendly, stress releasing, chill vibe). "Free flight" is now ALLOWED, but only as MENU TRAVEL without a job (pick a place on the map, pay fuel, watch the warp); steering the ship yourself stays out unless Andy says otherwise.
 - Every planet has exactly one dock: surface outpost or orbiting station. Gas giants always get stations (Agent 2's choice, accepted).
 - Outposts optional to buy. Perks: fuel discount 5-20%, passive income per hour. Price 500 to 40,000 credits. Stations not for sale.
 - One job pattern. Kinds built: TRADE, PASSENGER, TOUR. SCAN and RESCUE reserved for the later phase.
@@ -91,7 +91,7 @@ NOW: Agent 2 stage U1 (fewer docks, bigger systems, universe v2; brief docs/brie
 - Testing aid: ?speed=NUMBER makes game time run faster so Andy does not wait hours.
 
 ## Out of scope list
-Permanently: free flight, combat.
+Permanently: combat (and any weapons or enemies). Free flight changed 2026-11-11: menu travel without a job is IN (see "Free travel" section).
 v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, more than 3 ships/ranks, full-galaxy map.
 
 ## Next step
@@ -164,3 +164,7 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - U3 CLOSED (Agents 3 and 5). Note: UI hides the render label on system map with CSS (.hud-label); Agent 3 may stop setting it later (cleanup).
 - NEXT: U4 Agent 6 (brief docs/briefs/agent-6d-brief.md): rebalance on v2, outpost options, starter-job proposal (Andy decides), flaky + audio test fixes, old-save and regression QA, phone checklist. After that: livery feature (Agents 4/5/3), release page 7d, v1.0.
 - Open Andy questions: starter job (decided in 6d), tap on empty space in system view (unanswered).
+
+## Free travel (Andy 2026-11-11): DECISION, design pending
+- Andy changed his own rule: free flight is IN as "Free travel": from the map, go to a place without taking a job, paying only fuel, so you are never stuck at a dock with no jobs and can explore. Chosen: MENU TRAVEL (not steering). Combat never.
+- Andy also wants to reach empty space / stars with no dock. Lead note: after universe v2 every system has at least 1 dock, so "no-dock star" does not exist; what Andy may mean (empty deep space, scenery-only planets) needs a design answer. See docs/proposal-free-travel.md.
