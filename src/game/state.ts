@@ -2,10 +2,21 @@
 // Agent 6 saves exactly this object (see docs/report-agent-4b.md).
 
 import type { Job } from "../universe";
+import { cleanExplored } from "./explore";
 import { emptyCompletedJobs, RANK_KINDS, type CompletedJobs } from "./ranks";
 import { STARTER_SHIP_ID, STARTING_CREDITS } from "./settings";
 import { getShip, isShipId } from "./ships";
 import { cleanUpgrades, noUpgrades, statsFor, type ShipUpgrades } from "./upgrades";
+
+/** A free trip (no job) on its way: where from, where to, how far. The start and end times are the same fields a job uses. */
+export interface FreeTrip {
+  /** The dock or scenery planet you left. */
+  fromId: string;
+  /** The dock or scenery planet you are flying to (a dock's id is its planet's id). */
+  toId: string;
+  /** Light years between the two star systems (0 inside one system). */
+  distanceLy: number;
+}
 
 export interface GameState {
   credits: number;
@@ -33,8 +44,20 @@ export interface GameState {
   outpostCount: number;
   /** The dock you are at (or left from, while a job is in flight). Same id as its planet. */
   currentDockId: string;
+  /**
+   * Null = you are docked at currentDockId. Otherwise the id of the planet WITHOUT a dock where you float in space
+   * (currentDockId is then the last dock you used). Old saves have no such field and stay docked.
+   */
+  spacePlanetId: string | null;
   /** The accepted job (a full copy), or null. */
   currentJob: Job | null;
+  /** A free trip (no job) on its way, or null. Never set together with currentJob. */
+  freeTrip: FreeTrip | null;
+  /**
+   * Where you have been, compactly: star system id -> a number whose bits are the planets of that system you arrived at
+   * (see explore.ts). Its keys are the explored systems. Old saves start empty.
+   */
+  explored: Record<string, number>;
   /** Game time (ms) when the trip started, or null. */
   travelStartMs: number | null;
   /** Game time (ms) when the trip ends, or null. */
@@ -63,11 +86,22 @@ export function newGameState(startDockId: string): GameState {
     outpostPrices: {},
     outpostCount: 0,
     currentDockId: startDockId,
+    spacePlanetId: null,
     currentJob: null,
+    freeTrip: null,
+    explored: {},
     travelStartMs: null,
     travelEndMs: null,
     deliveredJobIds: [],
   };
+}
+
+function cleanFreeTrip(raw: unknown): FreeTrip | null {
+  if (!raw || typeof raw !== "object") return null;
+  const t = raw as Record<string, unknown>;
+  if (typeof t.fromId !== "string" || t.fromId === "" || typeof t.toId !== "string" || t.toId === "") return null;
+  if (typeof t.distanceLy !== "number" || !Number.isFinite(t.distanceLy) || t.distanceLy < 0) return null;
+  return { fromId: t.fromId, toId: t.toId, distanceLy: t.distanceLy };
 }
 
 function finiteOr(value: unknown, fallback: number): number {
@@ -117,7 +151,10 @@ export function normalizeState(raw: Partial<GameState> & { currentDockId: string
     const paid = rawPrices[id];
     if (typeof paid === "number" && Number.isFinite(paid) && paid > 0) outpostPrices[id] = Math.round(paid);
   }
-  const hasJob = raw.currentJob != null && raw.travelStartMs != null && raw.travelEndMs != null;
+  const hasTimes = raw.travelStartMs != null && raw.travelEndMs != null;
+  const hasJob = raw.currentJob != null && hasTimes;
+  const freeTrip = !hasJob && hasTimes ? cleanFreeTrip(raw.freeTrip) : null;
+  const hasTrip = hasJob || freeTrip !== null;
   return {
     credits: Math.max(0, Math.round(finiteOr(raw.credits, STARTING_CREDITS))),
     fuel: Math.min(tank, Math.max(0, Math.round(finiteOr(raw.fuel, tank)))),
@@ -129,9 +166,12 @@ export function normalizeState(raw: Partial<GameState> & { currentDockId: string
     outpostPrices,
     outpostCount: ownedOutposts.length,
     currentDockId: raw.currentDockId,
+    spacePlanetId: typeof raw.spacePlanetId === "string" && raw.spacePlanetId !== "" ? raw.spacePlanetId : null,
     currentJob: hasJob ? (raw.currentJob as Job) : null,
-    travelStartMs: hasJob ? (raw.travelStartMs as number) : null,
-    travelEndMs: hasJob ? (raw.travelEndMs as number) : null,
+    freeTrip,
+    explored: cleanExplored(raw.explored),
+    travelStartMs: hasTrip ? (raw.travelStartMs as number) : null,
+    travelEndMs: hasTrip ? (raw.travelEndMs as number) : null,
     deliveredJobIds: Array.isArray(raw.deliveredJobIds)
       ? (raw.deliveredJobIds as unknown[]).filter((id): id is string => typeof id === "string" && id !== "").slice(-MAX_DELIVERED_IDS)
       : [],

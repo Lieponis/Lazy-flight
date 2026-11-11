@@ -3,18 +3,26 @@
 // Not every frame: the game only reports real changes.
 
 import type { Game, GameState } from "../game";
-import { getDock, type Seed } from "../universe";
+import { getDock, getPlanet, type Seed } from "../universe";
 import { makeSaveData, shiftTravelTimes, writeSave, type SaveData, type StorageLike } from "./save";
 
 /**
  * Makes saved progress safe for this universe: a dock that does not exist sends you to the start dock,
  * and a job to a dock that does not exist is dropped (you stay where you left from).
+ * The same goes for a free trip or a float at a place that does not exist.
  */
 export function fitToUniverse(state: GameState, seed: Seed, startDockId: string): GameState {
   let out = state;
   if (!getDock(seed, out.currentDockId)) out = { ...out, currentDockId: startDockId };
   if (out.currentJob && !getDock(seed, out.currentJob.destinationDockId)) {
     out = { ...out, currentJob: null, travelStartMs: null, travelEndMs: null };
+  }
+  // A free trip to, or a float at, a place that does not exist here is dropped: you stay docked at your dock.
+  if (out.freeTrip && !getPlanet(seed, out.freeTrip.toId)) {
+    out = { ...out, freeTrip: null, travelStartMs: null, travelEndMs: null };
+  }
+  if (out.spacePlanetId !== null && (!getPlanet(seed, out.spacePlanetId) || getDock(seed, out.spacePlanetId))) {
+    out = { ...out, spacePlanetId: null };
   }
   return out;
 }

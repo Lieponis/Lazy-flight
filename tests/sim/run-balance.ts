@@ -1,5 +1,6 @@
 // Prints the balance report as tables. Run: npm run balance   (optional: npm run balance -- 60  = hours per run)
 import { STRATEGIES, simulate, type RunResult } from "./balance-sim";
+import { simulateExplorer, type ExplorerResult } from "./explorer-sim";
 
 const SEEDS = [12345, 777, 999, 4242, 31337, 1, 2024, 555];
 const HOURS = Number(process.argv[2] ?? 40);
@@ -93,6 +94,20 @@ for (const s of STRATEGIES) {
   };
   const m = (rs: RunResult[], f: (r: RunResult) => number, d = 0): string => fmt(median(rs.map(f)), d);
   console.log(`| ${s.name} | ${m(a, (r) => r.creditsPerHour)} | ${m(b, (r) => r.creditsPerHour)} | ${m(a, (r) => r.spentOnFuel)} | ${m(b, (r) => r.spentOnFuel)} | ${share(a)} | ${share(b)} | ${m(a, (r) => r.creditsEnd)} | ${m(b, (r) => r.creditsEnd)} |`);
+}
+
+// ------------------------------------------------------------ explorer (4f)
+const EX_HOURS = 12;
+console.log(`\n## Explorer (no jobs, free travel only; ${EX_HOURS} game hours per run, medians over ${SEEDS.length} seeds)\n`);
+console.log("Rank thresholds are 50 and 200 discoveries (systems explored + planets arrived at). 'docks' visits only docks; 'all' visits every planet.\n");
+console.log("| style | systems | planets | discoveries | to 50 (rank 2, h) | to 200 (rank 3, h) | credits at end | discovery credits earned | fuel bought | strand refusals | emergency fuel | gave up |");
+console.log("|---|---|---|---|---|---|---|---|---|---|---|---|");
+for (const style of ["docks", "all"] as const) {
+  const rs: ExplorerResult[] = SEEDS.map((seed) => simulateExplorer(seed, style, EX_HOURS));
+  const m = (f: (r: ExplorerResult) => number | null, d = 0): string => fmt(median(rs.map(f)), d);
+  console.log(
+    `| ${style} | ${m((r) => r.systems)} | ${m((r) => r.planets)} | ${m((r) => r.discoveries)} | ${m((r) => r.rankHours[0], 1)} | ${m((r) => r.rankHours[1], 1)} | ${m((r) => r.creditsEnd)} | ${m((r) => r.discoveryEarned)} | ${m((r) => r.fuelBought)} | ${m((r) => r.strandRefusals)} | ${m((r) => r.emergencyRefuels)} | ${m((r) => r.gaveUp)} |`,
+  );
 }
 
 console.log(`\n## Per seed (sensible)\n`);

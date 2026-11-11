@@ -8,6 +8,8 @@ import {
   RANK_UP_LINES,
   TOUR_DEBRIEF_LINES,
 } from "./debriefs";
+import { NO_DISCOVERY, recordArrival, type Discovery, type ExplorerRankUp } from "./explore";
+import { notDockedReason } from "./location";
 import { deliveryBonusPercentAt, fuelDiscountPercentAt } from "./outposts";
 import { RANK_KIND_LABELS, RANK_NAMES, isRankKind, rankBonusPercent, rankIndexFor, requiredRankIndex, type RankKind } from "./ranks";
 import {
@@ -77,6 +79,8 @@ export interface Block {
 export function checkJob(state: GameState, job: Job): Block | null {
   const ship = shipStats(state); // the real numbers: shipyard values plus upgrades
   if (state.currentJob) return { code: "busy", text: "You already have a job. Finish it first." };
+  const away = notDockedReason(state);
+  if (away !== null) return { code: state.freeTrip ? "busy" : "wrong-dock", text: away };
   if (job.originDockId !== state.currentDockId) return { code: "wrong-dock", text: "This job is from another dock." };
 
   if (job.requiredHold === "PASSENGER_CABIN") {
@@ -166,7 +170,7 @@ export interface TravelProgress {
 
 /** Where the trip stands. Uses only the saved start and end, so a clock jump or pause is harmless. */
 export function travelProgress(state: GameState, nowMs: number): TravelProgress | null {
-  if (!state.currentJob || state.travelStartMs === null || state.travelEndMs === null) return null;
+  if ((!state.currentJob && !state.freeTrip) || state.travelStartMs === null || state.travelEndMs === null) return null;
   const totalMs = Math.max(1, state.travelEndMs - state.travelStartMs);
   const elapsed = Math.min(Math.max(nowMs - state.travelStartMs, 0), totalMs);
   return { fraction: elapsed / totalMs, remainingMs: totalMs - elapsed, totalMs };
@@ -181,7 +185,16 @@ export interface RankUp {
 
 export interface Arrival {
   job: Job;
+  /** The job's pay. Discovery credits (if any) are paid on top and are NOT included here. */
   reward: number;
+  /** Discovery credits paid for exploring a new star system with this arrival (0 = none). */
+  discovery: number;
+  /** True when this arrival explored a star system for the first time. */
+  newSystem: boolean;
+  /** True when this arrival reached a planet for the first time. */
+  newPlanet: boolean;
+  /** Set when this arrival raised the Explorer rank, otherwise null. */
+  explorerRankUp: ExplorerRankUp | null;
   dockId: string;
   /** The funny line. When you ranked up with this delivery, the rank-up line is added at the end. */
   debrief: string;
@@ -225,6 +238,8 @@ export function settleArrival(
   state: GameState,
   nowMs: number,
   placeNameOf: (dockId: string) => string,
+  /** What a star system pays for being explored (before the rank bonus). Without it, jobs explore for nothing. */
+  discoveryBaseOf?: (systemId: string) => number,
 ): { state: GameState; arrival: Arrival | null } {
   const job = state.currentJob;
   if (!job || state.travelEndMs === null || nowMs < state.travelEndMs) return { state, arrival: null };
@@ -247,6 +262,14 @@ export function settleArrival(
     }
   }
   // Remember this job for the current board period (so it is not offered again), and forget older periods.
+  // Arriving explores: the first arrival in a system pays discovery credits, and everything counts for the Explorer rank.
+  let found: Discovery = NO_DISCOVERY;
+  let explored = state.explored;
+  if (discoveryBaseOf) {
+    const result = recordArrival(state.explored, dockId, discoveryBaseOf);
+    explored = result.explored;
+    found = result.discovery;
+  }
   const period = boardPeriodOf(slotOf(nowMs));
   const deliveredJobIds = [...state.deliveredJobIds, job.id]
     .filter((id) => periodOfJobId(id) >= period || id === job.id)
@@ -254,15 +277,27 @@ export function settleArrival(
   return {
     state: {
       ...state,
-      credits: state.credits + job.reward,
+      credits: state.credits + job.reward + found.credits,
       completedJobs,
       deliveredJobIds,
+      explored,
       currentDockId: dockId,
+      spacePlanetId: null,
       currentJob: null,
       travelStartMs: null,
       travelEndMs: null,
     },
-    arrival: { job, reward: job.reward, dockId, debrief, rankUp },
+    arrival: {
+      job,
+      reward: job.reward,
+      discovery: found.credits,
+      newSystem: found.newSystem,
+      newPlanet: found.newPlanet,
+      explorerRankUp: found.explorerRankUp,
+      dockId,
+      debrief,
+      rankUp,
+    },
   };
 }
 
@@ -288,7 +323,9 @@ export function affordableFuelUnits(state: GameState): number {
 
 /** Buy fuel at the dock's price until the tank is full or the credits run out. Only while docked. */
 export function refuel(state: GameState): RefuelResult {
-  if (state.currentJob) return { ok: false, reason: "You can only refuel while docked." };
+  if (state.currentJob || state.freeTrip) return { ok: false, reason: "You can only refuel while docked." };
+  const away = notDockedReason(state);
+  if (away !== null) return { ok: false, reason: away };
   const tank = shipStats(state).fuelTankSize;
   const missing = tank - state.fuel;
   if (missing <= 0) return { ok: false, reason: "The tank is already full." };

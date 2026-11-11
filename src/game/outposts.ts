@@ -5,6 +5,7 @@
 // The state keeps just the list of owned dock ids (and its length as a plain count).
 
 import { OUTPOST_DELIVERY_BONUS_PERCENT, OUTPOST_FUEL_DISCOUNT_PERCENT, OUTPOST_PRICE_FACTOR } from "./settings";
+import { notDockedReason } from "./location";
 import type { GameState } from "./state";
 
 /** "3:-2:5:0/2" -> "3:-2:5:0" (dock ids are "<system id>/<planet number>"). */
@@ -56,7 +57,8 @@ export function outpostBlock(state: GameState, dock: DockFacts): string {
   const price = outpostPrice(dock);
   if (price === null) return "Stations are not for sale. Only outposts are.";
   if (ownsOutpost(state, dock.id)) return "You already own this outpost.";
-  if (state.currentJob) return "You cannot buy an outpost during a flight.";
+  const away = notDockedReason(state);
+  if (away !== null) return state.currentJob || state.freeTrip ? "You cannot buy an outpost during a flight." : away;
   if (state.currentDockId !== dock.id) return "You can only buy an outpost where you are docked.";
   if (state.credits < price) return `Costs ${price} credits, you have ${state.credits}.`;
   return "";

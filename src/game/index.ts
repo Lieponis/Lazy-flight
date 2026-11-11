@@ -5,7 +5,32 @@ export * from "./settings";
 export { SHIPS, SHIP_ORDER, getShip, isShipId } from "./ships";
 export type { ShipDef } from "./ships";
 export { newGameState, normalizeState } from "./state";
-export type { GameState } from "./state";
+export type { FreeTrip, GameState } from "./state";
+export { currentPlaceId, isFlying, isInSpace, notDockedReason } from "./location";
+export {
+  EXPLORER_RANK_NAMES,
+  NO_DISCOVERY,
+  cleanExplored,
+  discoveriesOf,
+  discoveryBase,
+  explorerInfo,
+  explorerRankIndexFor,
+  exploredCounts,
+  hasExploredPlanet,
+  hasExploredSystem,
+  parsePlanetId,
+  recordArrival,
+} from "./explore";
+export type { Discovery, ExplorerInfo, ExplorerRankUp } from "./explore";
+export {
+  checkFreeTravel,
+  emergencyRefuelInSpace,
+  isStuckInSpace,
+  settleFreeArrival,
+  startFreeTravel,
+  strandReserve,
+} from "./freetravel";
+export type { FreeArrival, FreeTravelBlock, SpaceEmergencyResult, StartFreeTravelResult, TripFacts } from "./freetravel";
 export { createClock, parseSpeedParam, slotOf } from "./clock";
 export type { GameClock } from "./clock";
 export { formatDuration } from "./format";
@@ -31,7 +56,7 @@ export { buyShip, ownedShipIds, ownsShip, shipCatalog, shipFuel, switchShip } fr
 export type { FleetResult, ShipCatalogEntry } from "./fleet";
 export type { AcceptResult, EmergencyResult, ExtraBlockCode, PayInfo, RankUp, Arrival, Block, BlockCode, RefuelResult, TravelProgress } from "./rules";
 export { Game } from "./game";
-export type { BoardEntry, GameListener, OutpostOffer, OwnedOutpost } from "./game";
+export type { BoardEntry, FreeTravelCheck, GameListener, OutpostOffer, OwnedOutpost } from "./game";
 export {
   RANK_KINDS,
   RANK_KIND_LABELS,

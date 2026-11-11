@@ -282,7 +282,8 @@ describe("save: mid-flight and the clock", () => {
     expect(game2.update()).not.toBeNull();
     expect(game2.state.currentJob).toBeNull();
     expect(game2.state.currentDockId).toBe(job.destinationDockId);
-    expect(game2.state.credits).toBe(credits + job.reward);
+    // Job pay, plus the discovery credits of a first arrival in a new star system (stage F1).
+    expect(game2.state.credits).toBe(credits + job.reward + (game2.lastArrival?.discovery ?? 0));
   });
 });
 
@@ -352,6 +353,6 @@ describe("save: trips saved before the 6b trip-time change (8 min per ly -> 1 mi
     const credits = game.state.credits;
     time.advance(oldTrip);
     expect(game.update()).not.toBeNull();
-    expect(game.state.credits).toBe(credits + job.reward);
+    expect(game.state.credits).toBe(credits + job.reward + (game.lastArrival?.discovery ?? 0));
   });
 });

@@ -1,6 +1,6 @@
 # src/game
 
-Game rules (Agent 4, parts 4a, 4b, 4c, 4d and 4e): state, ships, trade/passenger/tour contracts, fuel, travel time, arrival and pay,
+Game rules (Agent 4, parts 4a, 4b, 4c, 4d, 4e and 4f): state, ships, trade/passenger/tour contracts, fuel, travel time, arrival and pay,
 refuel, the safety net (stuck + emergency refuel), buying and switching ships, ranks and outposts with perks, ship upgrades, docks-only universe.
 No drawing code. It may use `universe`; it must never import `render` or `ui`.
 
@@ -18,3 +18,10 @@ No drawing code. It may use `universe`; it must never import `render` or `ui`.
 - Universe v2 (4e): not every planet has a dock. A job starts and ends at a DOCK; use `docksOf` / `getDock` (never `generateDock` on any planet,
   never "planet 0"). The start dock of a new game is `startDockOf(seed)` from `src/universe`. Old saves are moved by `src/save/migrate.ts`.
   Outposts remember the price paid (`outpostPrices`), which is what a later rebuild refunds.
+- Free travel and exploring (4f): `freetravel.ts` (`checkFreeTravel`, `startFreeTravel`, `settleFreeArrival`, strand protection, emergency refuel while floating),
+  `explore.ts` (explored list, discovery credits, Explorer rank), `location.ts` (docked / floating in space / flying). The state has three new fields:
+  `spacePlanetId` (null = docked; otherwise the planet WITHOUT a dock you float at; `currentDockId` is then your last dock), `freeTrip` (a trip with no job on its way,
+  sharing `travelStartMs` / `travelEndMs` with jobs) and `explored` (star system id -> bits of the planets arrived at; its keys are the explored systems).
+  Menus talk to `game.canFreeTravel(id)`, `game.freeTravel(id)`, `game.getExplorer()`, `game.lastFreeArrival` and `game.whyNotDocked()`. While floating there are no jobs,
+  no refuel and no shop (funny plain-text reasons); switching ship and the emergency refuel work. Job arrivals explore too (`Arrival.discovery`, `newSystem`, `newPlanet`, `explorerRankUp`).
+  Numbers: `settings.ts` (discovery 50 to 100 credits, Explorer thresholds 50 and 200 discoveries, +0/10/20% discovery bonus, `MAX_EXPLORED_SYSTEMS`). Explorer never changes job pay or job ranks.

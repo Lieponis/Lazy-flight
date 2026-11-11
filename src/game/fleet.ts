@@ -1,6 +1,7 @@
 // Owning, buying and switching ships. Plain functions: they never throw, failures give a plain reason.
 
 import { SHIP_ORDER, getShip, isShipId, type ShipDef } from "./ships";
+import { isFlying, notDockedReason } from "./location";
 import type { GameState } from "./state";
 import { clampFuelToTanks, shipStats, upgradeLevels, type ShipStats, type ShipUpgrades } from "./upgrades";
 
@@ -43,7 +44,8 @@ export interface ShipCatalogEntry {
 function buyBlock(state: GameState, id: string): string {
   if (!isShipId(id)) return "There is no such ship.";
   if (ownsShip(state, id)) return "You already own this ship.";
-  if (state.currentJob) return "You cannot buy a ship during a flight.";
+  const away = notDockedReason(state);
+  if (away !== null) return state.currentJob || state.freeTrip ? "You cannot buy a ship during a flight." : away;
   const price = getShip(id).price;
   if (state.credits < price) return `Costs ${price} credits, you have ${state.credits}.`;
   return "";
@@ -60,7 +62,7 @@ export function shipCatalog(state: GameState): ShipCatalogEntry[] {
       active: id === state.shipId,
       canBuy: reason === "",
       reason,
-      canSwitch: owned && id !== state.shipId && !state.currentJob,
+      canSwitch: owned && id !== state.shipId && !isFlying(state),
       fuel: shipFuel(state, id),
       stats: shipStats(state, id),
       upgrades: upgradeLevels(state, id),
@@ -86,7 +88,7 @@ export function buyShip(state: GameState, id: string): FleetResult {
 /** Switch the active ship (free, docked only). Each ship keeps its own fuel. */
 export function switchShip(state: GameState, id: string): FleetResult {
   if (!isShipId(id)) return { ok: false, reason: "There is no such ship." };
-  if (state.currentJob) return { ok: false, reason: "You cannot switch ships during a flight." };
+  if (isFlying(state)) return { ok: false, reason: "You cannot switch ships during a flight." };
   if (id === state.shipId) return { ok: false, reason: "That ship is already active." };
   const target = state.ownedShips[id];
   if (!target) return { ok: false, reason: "You do not own this ship." };

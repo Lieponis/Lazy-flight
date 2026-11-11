@@ -5,7 +5,7 @@
 //   MOVED    the ship is placed at the start dock of the new universe, like a new game
 //   CANCELLED a job in flight: the cargo goes back and the fuel it burned is given back (no penalty)
 //   REFUNDED each owned outpost: the price paid if the save stored it, otherwise OUTPOST_REFUND_ESTIMATE
-//   CLEARED  the list of delivered jobs
+//   CLEARED  the list of delivered jobs, the explored list (old ids mean other places now), a float in space or a free trip
 // Pure logic: the storage is not touched here.
 
 import { OUTPOST_REFUND_ESTIMATE, normalizeState, shipStats, tripFuelCost, type GameState } from "../game";
@@ -44,7 +44,7 @@ export function migrateSave(save: SaveData): Migration {
   for (const id of old.ownedOutposts) refund += old.outpostPrices[id] ?? OUTPOST_REFUND_ESTIMATE;
 
   // A trip in flight is cancelled: the fuel it burned comes back, up to the tank.
-  const fuelBack = old.currentJob ? tripFuelCost(old, old.currentJob.totalDistance) : 0;
+  const fuelBack = old.currentJob ? tripFuelCost(old, old.currentJob.totalDistance) : old.freeTrip ? tripFuelCost(old, old.freeTrip.distanceLy) : 0;
   const tank = shipStats(old).fuelTankSize;
 
   const moved: GameState = {
@@ -52,7 +52,10 @@ export function migrateSave(save: SaveData): Migration {
     credits: old.credits + refund,
     fuel: Math.min(tank, old.fuel + fuelBack),
     currentDockId: startDockOf(save.seed).id,
+    spacePlanetId: null,
     currentJob: null,
+    freeTrip: null,
+    explored: {},
     travelStartMs: null,
     travelEndMs: null,
     ownedOutposts: [],

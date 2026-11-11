@@ -14,6 +14,7 @@ import {
   UPGRADE_TANK_PERCENT_PER_LEVEL,
 } from "./settings";
 import { getShip, isShipId } from "./ships";
+import { notDockedReason } from "./location";
 import type { GameState } from "./state";
 
 export type UpgradeTrack = "tank" | "hold" | "engines" | "comfort";
@@ -126,7 +127,8 @@ export function upgradeBlock(state: GameState, shipId: string, track: string): s
   if (!isUpgradeTrack(track)) return "There is no such upgrade.";
   if (track === "comfort" && !hasCabin(shipId)) return "This ship has no cabin, so passenger comfort does nothing.";
   if (!ownsShipHere(state, shipId)) return "You do not own this ship.";
-  if (state.currentJob) return "You cannot buy an upgrade during a flight.";
+  const away = notDockedReason(state);
+  if (away !== null) return state.currentJob || state.freeTrip ? "You cannot buy an upgrade during a flight." : away;
   const level = upgradeLevels(state, shipId)[track];
   const price = upgradePrice(level);
   if (price === null) return "This upgrade is already at the highest level.";
