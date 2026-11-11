@@ -24,6 +24,9 @@ On `/game-debug.html`: section 10 "Fly here" on a dock in another star system (f
 ## 3b. Bug found by Andy after the first merge (fixed)
 Loading ANY save made before F1 crashed the page (`undefined ... indexOf`, in the repair step `fitToUniverse`, which looked at the new `spacePlanetId` before it had a default). It hit the real game and the debug page. My tests covered `normalizeState` but not the whole load path, and my first headless test was flawed (the page re-saves itself on reload and overwrote the old save I planted). Fixed with type checks in `fitToUniverse` and `Game.loadState`; new test loads a pre-F1 save through `fitToUniverse`, `loadIntoGame` and `loadState`, with missing and wrong-typed fields; reproduced in a real browser (crash before, 4,321 credits kept after). The debug page also got a red box that shows crash reasons in plain text.
 
+## 3c. Verified by Andy on the live `/game-debug.html` (2026-11-11, iPhone)
+Free trip to a new star system paid +80 discovery credits (200 to 280); floating at a planet without a dock: Refuel refused with "There is nobody at Hobton I to talk to. Fly to a dock first."; strand protection refused a trip with "Not enough fuel to come back safely: after this trip you would have 0 fuel and need 1 to reach a dock. Pick a closer place."; emergency refuel from the planet gave +20 free fuel; the Explorer line reached 52 discoveries, Rank 2 Cartographer, +10% discovery bonus, and kept its numbers after a reload.
+
 ## 4. Known issues, NOT verified
 - I could not run `npm run check` or the Vite build here (no Three.js, no network for installs); I ran the strict type check, all runnable tests with a stand-in runner and the real debug page in a headless browser. **The branch check on Actions (green, run 43038239124) was the real proof.**
 - `audio` has 1 failing test (same as on main), `agent6c` needs a real runner. Not run here: `assets`, `lens`, `planetlook`, `title` (they need Three).
