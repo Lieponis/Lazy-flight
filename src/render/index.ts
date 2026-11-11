@@ -7,14 +7,14 @@
 //   api.state.subscribe((s) => ...)    // be told when something changes
 
 import type * as THREE from "three";
-import { getDocksOfSystem, getSystem, parseDockId, type StarSystem } from "../universe";
+import { getDocksOfSystem, getSystem, listSystemsNear, parseDockId, type StarSystem } from "../universe";
 import type { FlightInfo } from "./flightplan";
 import { Hud } from "./hud";
 import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
 import { parseShipParam, resolveShipId } from "./integration";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import type { Screen } from "./screen";
-import { LOOK_DEFAULT_STYLE, START_SEED, WARP_DEFAULT_STYLE } from "./settings";
+import { LOOK_DEFAULT_STYLE, START_SEED, SYSTEM_MARK_STYLE, WARP_DEFAULT_STYLE } from "./settings";
 import { findStartSystem } from "./start";
 import { StateStore } from "./state";
 import { DockedScreen } from "./docked";
@@ -24,6 +24,8 @@ import { SystemViewScreen } from "./systemview";
 import { PixelLook } from "./look";
 import { lookPreset, parseLook, parseLookPreview } from "./lookmath";
 import { mountLookPreview } from "./lookpreview";
+import { parseMarks, parseSystemPreview, previewList } from "./systemmarks";
+import { mountSystemPreview } from "./systempreview";
 import { mountWarpPreview } from "./warppreview";
 import { parseWarpPreview, parseWarpStyle } from "./warpmath";
 
@@ -101,6 +103,8 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     hud,
     state,
   });
+
+  systemView.setMarkStyle(parseMarks(window.location.search) ?? SYSTEM_MARK_STYLE);
 
   const flight = new FlightScreen({ seed, host: canvas, hud, parent });
   docked.setShip(shipId);
@@ -192,6 +196,21 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
       getProgress: () => ({ fraction: 0.5, remainingMs: 43_200_000, totalMs: 86_400_000 }),
     });
     mountWarpPreview(parent, parseWarpStyle(window.location.search) ?? WARP_DEFAULT_STYLE, (style) => flight.setWarpStyle(style));
+  }
+
+  // Testing aid for the system view (stage U3): ?systempreview=1 gives buttons to compare dock marks and step through systems.
+  if (parseSystemPreview(window.location.search)) {
+    const near = previewList(listSystemsNear(seed, current.position, 40), 2);
+    mountSystemPreview(parent, {
+      initial: parseMarks(window.location.search) ?? SYSTEM_MARK_STYLE,
+      systems: near.map((s) => `${s.name}: ${s.planetCount} planets, ${getDocksOfSystem(seed, s.id).length} docks`),
+      onMark: (style) => systemView.setMarkStyle(style),
+      onSystem: (i) => {
+        const target = near[i];
+        if (target) api.showSystem(target.id);
+      },
+      triangles: () => systemView.triangleCount(),
+    });
   }
 
   // The PS1 pixel look: one extra pass over the finished picture (see look.ts). ?look=A|B|C|off overrides the default.

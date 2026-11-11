@@ -11,7 +11,6 @@ import {
   faceShade,
   hexToNumber,
   nearestScreenPoint,
-  orbitDisplayRadius,
   planetDisplayRadius,
   planetOrbitPosition,
   planetTypeLabel,
@@ -23,9 +22,17 @@ import type { AssetModel } from "./assets";
 import type { Hud } from "./hud";
 import { OrbitView } from "./input";
 import { buildDockModel } from "./models3d";
+import { fitDistance, onPicture, orbitRadii, planetDetail, planetFootprint, stationOrbitFor, systemSummary } from "./systemlayout";
+import { markParts, type MarkStyle } from "./systemmarks";
+import { SystemTags } from "./systemtags";
 import type { Screen } from "./screen";
 import {
   STARFIELD_COUNT,
+  SYSTEM_LANE_DOCK,
+  SYSTEM_LANE_OLD,
+  SYSTEM_LANE_SCENERY,
+  SYSTEM_MARK_COLOUR,
+  SYSTEM_MARK_STYLE,
   SYSTEM_OUTPOST_SCALE,
   SYSTEM_OUTPOST_SCALE_MAX,
   SYSTEM_OUTPOST_SCALE_MIN,
@@ -51,6 +58,8 @@ interface PlanetEntry {
   model: AssetModel | null;
   /** Set only for stations: they slowly circle their planet. */
   station: { object: THREE.Object3D; orbit: number; angle: number } | null;
+  /** Option C: the spinning diamond on a pin above a dock planet. */
+  beacon: THREE.Group | null;
 }
 
 export function disposeAll(root: THREE.Object3D): void {
@@ -201,6 +210,11 @@ export class SystemViewScreen implements Screen {
   private starLabel = "";
   private temp = new THREE.Vector3();
   private clockT = 0;
+  private systemId: string | null = null;
+  private markStyle: MarkStyle = SYSTEM_MARK_STYLE;
+  private tags: SystemTags;
+  private summary = "";
+  private triangles = 0;
 
   constructor(private opts: SystemViewOptions) {
     const bg = new THREE.BufferGeometry();
@@ -217,6 +231,23 @@ export class SystemViewScreen implements Screen {
 
     this.view = new OrbitView(this.camera, opts.host, 8, 90, 40);
     this.view.onTap = (x, y) => this.handleTap(x, y);
+    this.tags = new SystemTags(opts.host.parentElement ?? document.body);
+  }
+
+  /** Option A, B or C for marking docks (or "off" for the old look). Rebuilds the picture but keeps the camera. */
+  setMarkStyle(style: MarkStyle): void {
+    this.markStyle = style;
+    if (!this.systemId) return;
+    const { yaw, pitch, dist } = this.view;
+    this.open(this.systemId);
+    this.view.yaw = yaw;
+    this.view.pitch = pitch;
+    this.view.dist = clamp(dist, this.view.minDist, this.view.maxDist);
+  }
+
+  /** How many triangles the whole picture has now (planets, clouds, rings, star and dock models). For the preview readout. */
+  triangleCount(): number {
+    return this.triangles;
   }
 
   /** Builds the picture of one system. Call before enter(). */
@@ -240,28 +271,43 @@ export class SystemViewScreen implements Screen {
     );
     this.content.add(star);
 
-    let outermost = 6;
-    for (const planet of getPlanetsOfSystem(seed, system.id)) {
-      const dock = getDock(seed, planet.id); // null: this planet has no dock
-      const radius = planetDisplayRadius(planet.type, planet.radius);
-      const orbit = orbitDisplayRadius(planet.index, planet.orbitRadius);
-      outermost = Math.max(outermost, orbit);
+    const parts = markParts(this.markStyle);
+    const planets = getPlanetsOfSystem(seed, system.id);
+    const docks = planets.map((planet) => getDock(seed, planet.id)); // null: this planet has no dock
+    const radii = planets.map((planet) => planetDisplayRadius(planet.type, planet.radius));
+    const footprints = planets.map((planet, i) => {
+      const ringOuter = Math.max(0, ...(chooseLook(planet).rings ?? []).map((band) => band.outer));
+      return planetFootprint(radii[i] ?? 1, docks[i]?.kind === "STATION", ringOuter);
+    });
+    const orbits = orbitRadii(footprints, starDisplayRadius(system.star.radius));
+    const laneMaterial = (hasDock: boolean): THREE.LineBasicMaterial =>
+      new THREE.LineBasicMaterial({ color: !parts.lanes ? SYSTEM_LANE_OLD : hasDock ? SYSTEM_LANE_DOCK : SYSTEM_LANE_SCENERY });
+    const dockLane = laneMaterial(true);
+    const sceneryLane = laneMaterial(false);
 
-      // Orbit line.
+    let outermost = 6;
+    const tagSpecs: { text: string; kind: string }[] = [];
+    planets.forEach((planet, index) => {
+      const dock = docks[index] ?? null;
+      const radius = radii[index] ?? 1;
+      const orbit = orbits[index] ?? 5;
+      outermost = Math.max(outermost, orbit + (footprints[index] ?? 1));
+
+      // Orbit line: bright for a planet with a dock, dim for scenery.
       const ring: THREE.Vector3[] = [];
       for (let i = 0; i < 64; i++) {
         const p = planetOrbitPosition(orbit, i / 64);
         ring.push(new THREE.Vector3(p.x, 0, p.z));
       }
-      this.content.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(ring), new THREE.LineBasicMaterial({ color: 0x2a3170 })));
+      this.content.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(ring), dock ? dockLane : sceneryLane));
 
-      // Planet.
+      // Planet. Crowded systems use lighter balls: see planetDetail.
       const at = planetOrbitPosition(orbit, planet.orbitPhase);
       const group = new THREE.Group();
       group.position.set(at.x, 0, at.z);
       const outward = new THREE.Vector3(at.x, 0, at.z).normalize();
       const toStar = outward.clone().negate();
-      group.add(makePlanetMesh(planet, radius, toStar, planet.type === "GAS" ? 3 : 2));
+      group.add(makePlanetMesh(planet, radius, toStar, planetDetail(planets.length, planet.type === "GAS")));
 
       // The dock: the design picked for it, drawn small. (Its own `parking` spot is at the model's origin.)
       // A planet without a dock gets no model at all.
@@ -279,31 +325,60 @@ export class SystemViewScreen implements Screen {
         group.add(model.group);
       } else {
         const object = model.group;
-        const orbitAroundPlanet = radius * 1.7 + 0.9;
+        const orbitAroundPlanet = stationOrbitFor(radius);
         object.scale.setScalar(SYSTEM_STATION_SCALE);
         group.add(object);
         station = { object, orbit: orbitAroundPlanet, angle: planet.index * 1.7 };
         object.position.set(Math.cos(station.angle) * orbitAroundPlanet, Math.sin(station.angle) * orbitAroundPlanet * 0.3, Math.sin(station.angle) * orbitAroundPlanet);
       }
-      this.content.add(group);
-      this.entries.push({ planet, dock, group, radius, model, station });
-    }
 
-    this.view.maxDist = clamp(outermost * 3, 30, 120);
-    this.view.dist = clamp(outermost * 1.7 + 8, 22, this.view.maxDist);
-    this.view.yaw = 0.7;
+      // Option C: a spinning diamond on a thin pin above the planet. It is scaled every frame so it keeps the same size on screen.
+      let beacon: THREE.Group | null = null;
+      if (dock && parts.beacons) {
+        beacon = new THREE.Group();
+        const colour = dock.kind === "OUTPOST" ? SYSTEM_MARK_COLOUR.outpost : SYSTEM_MARK_COLOUR.station;
+        const pin = new THREE.LineSegments(
+          new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0)]),
+          new THREE.LineBasicMaterial({ color: colour }),
+        );
+        const diamond = new THREE.Mesh(new THREE.OctahedronGeometry(0.35, 0), new THREE.MeshBasicMaterial({ color: colour }));
+        diamond.name = "diamond";
+        diamond.position.y = 1.35;
+        beacon.add(pin, diamond);
+        group.add(beacon);
+      }
+      if (dock) tagSpecs.push({ text: dock.name, kind: dock.kind });
+
+      this.content.add(group);
+      this.entries.push({ planet, dock, group, radius, model, station, beacon });
+    });
+
+    this.systemId = system.id;
+    this.tags.set(parts.tags ? tagSpecs : []);
+    this.summary = systemSummary(
+      planets.length,
+      docks.filter((d): d is Dock => d !== null).map((d) => ({ name: d.name, kind: dockKindLabel(d.kind) })),
+    );
+    this.triangles = this.countTriangles();
+
+    // Camera: far enough that every planet fits, with the same look-down angle as before.
     this.view.pitch = 0.6;
+    this.view.yaw = 0.7;
+    this.view.maxDist = clamp(outermost * 3, 30, 120);
+    this.view.dist = clamp(fitDistance(outermost, this.camera.fov, this.camera.aspect, this.view.pitch), 14, this.view.maxDist);
     return true;
   }
 
   enter(): void {
     this.view.attach();
     this.opts.hud.setTitle(`SYSTEM - ${this.systemName} (${this.starLabel})`);
+    this.tags.show(true);
     this.refreshHud();
   }
 
   exit(): void {
     this.view.detach();
+    this.tags.show(false);
   }
 
   update(seconds: number): void {
@@ -316,12 +391,53 @@ export class SystemViewScreen implements Screen {
       st.angle += seconds * 0.6;
       st.object.position.set(Math.cos(st.angle) * st.orbit, Math.sin(st.angle) * st.orbit * 0.3, Math.sin(st.angle) * st.orbit);
     }
+    this.updateMarks();
     const chosen = this.entries[this.selected];
     if (chosen) {
       this.selectionMarker.position.copy(chosen.group.position);
       this.selectionMarker.scale.setScalar(chosen.radius * 2.6 + (chosen.station ? chosen.station.orbit : 0.6));
       this.selectionMarker.rotation.y += 0.02;
     }
+  }
+
+  /** Keeps the beacons the same size on screen and puts the name tags above their planets. */
+  private updateMarks(): void {
+    const scale = clamp(this.view.dist / 45, 0.5, 2.5);
+    const showTags = markParts(this.markStyle).tags;
+    const rect = this.opts.host.getBoundingClientRect();
+    const spots: ({ x: number; y: number } | null)[] = [];
+    this.camera.updateMatrixWorld();
+    for (const entry of this.entries) {
+      if (!entry.dock) continue;
+      const beacon = entry.beacon;
+      if (beacon) {
+        beacon.scale.setScalar(scale);
+        beacon.position.y = entry.radius * 1.15;
+        const diamond = beacon.getObjectByName("diamond");
+        if (diamond) {
+          diamond.rotation.y = this.clockT * 1.8;
+          diamond.position.y = 1.35 + Math.sin(this.clockT * 2.2) * 0.12;
+        }
+      }
+      if (showTags) {
+        this.temp.set(entry.group.position.x, entry.radius * 1.15 + (entry.station ? 0.4 : 0.2) * scale + 0.9 * scale, entry.group.position.z).project(this.camera);
+        const x = rect.left + ((this.temp.x + 1) / 2) * rect.width;
+        const y = rect.top + ((1 - this.temp.y) / 2) * rect.height;
+        spots.push(onPicture(x - rect.left, y - rect.top, this.temp.z, rect.width, rect.height) ? { x, y } : null);
+      }
+    }
+    if (showTags) this.tags.place(spots, rect.top + rect.height);
+  }
+
+  private countTriangles(): number {
+    let total = 0;
+    this.scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const g = mesh.geometry;
+      total += g.index ? g.index.count / 3 : g.getAttribute("position").count / 3;
+    });
+    return Math.round(total);
   }
 
   private handleTap(clientX: number, clientY: number): void {
@@ -349,7 +465,7 @@ export class SystemViewScreen implements Screen {
       const second = dock ? `${dockKindLabel(dock.kind)}: ${dock.name}` : "No dock here - nothing to visit";
       hud.setLabel(`${planet.name} - ${planetTypeLabel(planet.type)}, ${size}\n${second}`);
     } else {
-      hud.setLabel("Tap a planet to see it.\nDrag to turn the view, scroll or pinch to zoom.");
+      hud.setLabel(this.summary);
     }
     hud.setButtons([]); // the System | Galaxy switch and CLOSE live in src/ui (Agent 5)
   }

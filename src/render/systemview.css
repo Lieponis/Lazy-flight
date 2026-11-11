@@ -1,0 +1,42 @@
+/* The dock name tags of the system view (option B). Same look as the other labels (var(--ui-*) from src/ui). */
+.sys-tags {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  font-family: var(--ui-font, ui-monospace, Menlo, Consolas, monospace);
+  overflow: hidden;
+}
+
+.sys-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  font-size: 19px;
+  line-height: 20px;
+  padding: 0 7px 0 6px;
+  color: #d9f7ff;
+  background: rgba(5, 9, 16, 0.78);
+  border-left: 3px solid #5fd4ff;
+  text-shadow: 0 1px 0 #000;
+}
+
+/* A little pointer under the tag, towards its planet. */
+.sys-tag::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  margin-left: -4px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #5fd4ff;
+}
+
+.sys-tag-outpost {
+  border-left-color: #ffcf6a;
+}
+.sys-tag-outpost::after {
+  border-top-color: #ffcf6a;
+}

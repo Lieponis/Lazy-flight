@@ -201,3 +201,11 @@ export const SHIP_FIT_MAX_FOV = 100;
 export const LOOK_DEFAULT_STYLE: "off" | "A" | "B" | "C" = "B"; // Andy picked B
 export const LOOK_FLAME_FLICKER = 0.12; // engine flames change length in chunky steps (+/- this share). 0 = steady flame.
 export const LOOK_FLASH_STEPS = 6; // the warp flash fades in this many chunky steps. 0 = smooth fade.
+
+// ---------------------------------------------------------------- the system view with up to 10 planets (stage U3)
+/** How docks are marked in the system view: "off" (old look), "A" bright lanes, "B" name tags, "C" beacons. ?marks=A|B|C|off tries them. */
+export const SYSTEM_MARK_STYLE: "off" | "A" | "B" | "C" = "B"; // provisional until Andy picks
+export const SYSTEM_LANE_DOCK = 0x5fd4ff; // orbit line of a planet with a dock
+export const SYSTEM_LANE_SCENERY = 0x1d2350; // orbit line of a scenery planet (dim)
+export const SYSTEM_LANE_OLD = 0x2a3170; // the old look: every orbit line the same
+export const SYSTEM_MARK_COLOUR = { outpost: 0xffcf6a, station: 0x5fd4ff }; // beacon and tag colours
