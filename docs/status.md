@@ -188,3 +188,8 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - API for Agent 5: api.showFloating(planetId), api.floatingPlanetId(), api.leaveFloating(), api.startFlight (planets without a dock allowed), api.setShip(id, livery?). Floating scene = state.screen "flight" + state.floatingPlanetId.
 - Not verified: phone TRIS/frame rate, touch in Free view. sound.ts does not know the 1.6x longer free-trip phases (to Agent 5 in F2b). Unused layouts B and C can be deleted (cleanup). Keep the rule: sound test counts `launchSeconds:` in flight.ts.
 - WAITING: Agent 4 L1 (4g report) before the Agent 5 F2b brief (needs the livery API).
+
+## Agent 4 stage L1 (4g) (2026-11-11): DONE, Andy checked on /game-debug.html; Lead review passed
+- Paint jobs in rules and save: getLiveryCatalog, buyLivery, setLivery, currentLivery; per-ship owned/worn; 500 credits each extra, standard free; buy only at a dock; id table checked by a test against liveriesFor; old saves load. Income: one paint job ~6 min for a sensible player, ~1 h for a casual one; all 9 extras 4,500. Nothing retuned.
+- Note: Actions green on main (8903a91).
+- NEXT: F2b Agent 5 (brief docs/briefs/agent-5f-brief.md): Fly here button, floating panel, arrival line, Explorer row, camera icon, Shipyard paint picker + wear wiring, sound timing for free trips, hints. Then Agent 6 QA (6d, no starter job), then 7d release page, v1.0.
