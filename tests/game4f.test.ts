@@ -255,8 +255,8 @@ describe("strand protection and the emergency refuel", () => {
     const low = game.canFreeTravel(target.dockId);
     expect(low.ok).toBe(false);
     if (!low.ok) expect(low.reason).toContain(`needs ${need}, you have ${need - 1}`);
-    // a place so far that the 60-unit tank cannot do it
-    const far = listSystemsNear(SEED, ORIGIN, 120).find((s) => (distanceBetweenSystems(SEED, game.currentSystemId(), s.id) as number) > 40);
+    // a place so far (over 30 ly) that the 60-unit tank cannot do it
+    const far = listSystemsNear(SEED, ORIGIN, 60).find((s) => (distanceBetweenSystems(SEED, game.currentSystemId(), s.id) as number) > 32);
     const farDock = far ? docksOf(SEED, far)[0] : undefined;
     if (farDock) {
       const tooFar = game.canFreeTravel(farDock.id);

@@ -106,7 +106,7 @@ describe("startDockOf", () => {
       const a = startDockOf(seed);
       expect(getDock(seed, a.id)).not.toBeNull();
       expect(startDockOf(seed).id).toBe(a.id);
-      const system = listSystemsNear(seed, ORIGIN, 320)[0]!;
+      const system = listSystemsNear(seed, ORIGIN, 40)[0]!; // 40 ly holds the nearest system; a huge radius built thousands and was slow
       expect(a.systemId).toBe(system.id);
       expect(a.id).toBe(docksOf(seed, system)[0]!.id);
     }
