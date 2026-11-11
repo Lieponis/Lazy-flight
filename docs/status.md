@@ -1,13 +1,13 @@
 # Project Status (kept by Project Lead)
 
-**Last updated:** 2026-11-08
+**Last updated:** 2026-11-11
 
 ## Current phase
 M2 COMPLETE. Done and verified: Agents 1, 2, 3a, 3b, 3c, 4a, 5a, and Agent 8 (Asset Design, Viewer and Debug).
 Agent 8 DONE (2026-11-08): style guide, 11 designs kept by Andy (3 ships, 4 outposts, 4 stations), viewer /models.html with debug tools, 19 new tests (123 in total), Agent 8 ran npm run check after every batch, Andy approved every batch after green Actions. Lead check S4 passed (all triangle counts inside budgets: ships 540-684 of 1000, outposts 544-1048 of 1500, stations 854-1374 of 2500; all 11 IDs in the registry). Catalog statuses set to APPROVED.
 Not verified for Agent 8: frame rate on a real phone, viewer on a real phone.
 VERIFIED by Andy: 4b, 3d, 5b, 6a, 4c, 5c, 6b, 8 C1 + anchor, 3 C2a/C2b/C2c/3e, 4d, 5d, 7a, 7b (title screen LAZY FLIGHT + speaker; iPhone Air 'Keep'). Agent 6 part 6c DONE (balance with upgrades: Andy kept the prices; comfort rule fix; npm audit 0; cleanup; 494 tests) - Andy's iPhone checklist result pending.
-NOW: Agent 7 part 7c (render-only planet looks, continues) and Agent 8 liveries; Agent 2 stage U1 (fewer docks, bigger systems, universe v2; brief docs/briefs/agent-2b-brief.md, plan docs/plan-fewer-docks.md) can run in parallel on a branch. NEXT: U2 Agent 4 (migration, game), U3 Agents 3/5 (system view up to 10 planets, docks only), U4 Agent 6 (rebalance); livery choice in Shipyard; release page; v1.0.
+NOW: Agent 2 stage U1 (fewer docks, bigger systems, universe v2; brief docs/briefs/agent-2b-brief.md, plan docs/plan-fewer-docks.md; branch universe-v2) and Agent 8 liveries, in parallel (different files). 7c is DONE and verified (see below). NEXT: U2 Agent 4 (migration, refund, game), U3 Agents 3/5 (system view up to 10 planets, docks only), U4 Agent 6 (rebalance and QA); livery choice in Shipyard; release page (7d); v1.0.
 
 ## What works
 - Live pixelated spinning cube (desktop and phone confirmed by Andy). Auto-publish via GitHub Actions. One command: npm run check.
@@ -126,3 +126,10 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - 5d done. Lead decisions: comfort-on-cabinless-ship rule gap fixed as Part 0 of the 6c brief (src/game change approved for Agent 6). Andy allows agents to push reports to docs/report-agent-*.md again. NOT verified: cockpit fuel numbers with upgrades during flight (check once in QA). SUGGESTIONS (not approved): pay-bonus split on job cards; upgrade badge on the docked ship.
 - 7b done. Lead CONFIRMS the deviation: title backdrop is a short-lived separate space scene using the game's own planet/station models, completely freed after PLAY (instead of the live docked view); Andy chose it. Game name LAZY FLIGHT (repo Lazy-flight; save keys stay lazy-freight.*). Tagline 'SPACE HAULING AT THE SPEED OF NAP'. 6c: tool upgrade Vite 8 / Vitest 5, audit 0; Android/Firefox/desktop Safari NOT verified. SUGGESTIONS (not approved): pay-bonus split on job cards; tutorial hint 'upgrades first or outpost first'; version number on title; add-to-home-screen hint.
 - DECISION (Andy 2026-11-11): fewer docks per system (1-3 by system size), systems up to 10 planets, old saves move + refund, the same seed gives a different universe (UNIVERSE_VERSION 2). Plan: docs/plan-fewer-docks.md.
+
+## Agent 7 part 7c (2026-11-11), VERIFIED by Andy ("Keep") and reviewed by Lead
+- New planet looks, option B "No Man's Sky mix": surprising colours on ~1 in 3 planets, rings on ~8%, ice caps, craters, clouds, storm stripes. Render-only (`src/render/planetlook.ts`), chosen from a hash of the planet id.
+- `src/universe` untouched, proved by a fingerprint test (seeds 12345/777/4242). Nothing new is saved. 505 tests pass, Actions green.
+- Preview wall: `/planets.html` (`?filter=rings` is a good release screenshot).
+- Not verified: Android, phone frame rate. Suggestions (unapproved): darker night steps; lava glow and city lights (option C); show "ringed" in the planet label.
+- Looks depend only on planet id, so the fewer-docks change will not affect them.
