@@ -168,3 +168,5 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 ## Free travel (Andy 2026-11-11): DECISION, design pending
 - Andy changed his own rule: free flight is IN as "Free travel": from the map, go to a place without taking a job, paying only fuel, so you are never stuck at a dock with no jobs and can explore. Chosen: MENU TRAVEL (not steering). Combat never.
 - Andy also wants to reach empty space / stars with no dock. Lead note: after universe v2 every system has at least 1 dock, so "no-dock star" does not exist; what Andy may mean (empty deep space, scenery-only planets) needs a design answer. See docs/proposal-free-travel.md.
+- ANSWERS (Andy 2026-11-11): scenery planets + docks without a job (no deep empty space); discovery credits 50-100 per first visited system; NEW 4th rank EXPLORER (unique systems and unique planets); strand protection ON. Details in docs/proposal-free-travel.md. Rule change: max 3 ranks -> 4 categories, Andy's decision.
+- NEXT: F1 Agent 4 (docs/briefs/agent-4f-brief.md) game rules + save; then F2 Agents 3/5 (button, arrival, Explorer rank screen), F3 Agent 6. Livery feature, release page 7d wait.

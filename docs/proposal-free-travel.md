@@ -1,4 +1,4 @@
-# Proposal: Free travel (no job needed). Status: DRAFT, waiting for Andy
+# Proposal: Free travel (no job needed). Status: APPROVED by Andy 2026-11-11 (answers below); stage F1 brief written
 
 ## Andy's decisions so far (2026-11-11)
 - Free flight is allowed, as menu travel: pick a place, pay fuel, watch the warp. No steering.
@@ -21,3 +21,16 @@
 
 ## Stages (after approval)
 F1 Agent 4: game rules, location kind, save field, tests. F2 Agents 3/5: map and system-view button, arrival in space, wording. F3 Agent 6: QA and balance (fuel).
+
+
+## ANDY'S ANSWERS (2026-11-11)
+- Q1: fly to scenery planets, and visit outposts/stations WITHOUT a job. No true empty deep space between stars (not built).
+- Q2: YES discovery credits: 50 to 100 for the first visit to a system. NEW RANK "Explorer" that counts unique systems explored and unique planets flown to.
+- Q3: OK, strand protection on (a trip that would leave too little fuel to reach any dock is refused; emergency refuel stays).
+
+## Lead decisions to fit the answers (Andy can change)
+- Discovery credits: each system pays once, on the first arrival, an amount of 50 to 100 chosen deterministically from seed + system id (same every time). Planets pay nothing; they only count for the rank.
+- "Explored" counts ANY arrival (free travel or job), so jobs also explore. Planets "flown to" counts docks and scenery planets arrived at.
+- Explorer is the 4th rank category (the old rule was max 3 ranks, changed by Andy now). 3 levels like the others. Proposed thresholds are for Agent 4 to propose with data; Andy decides. Rank reward: bigger discovery credits (+0/10/20%) rather than job pay, so it only helps explorers. Pay-bonus stacking rule for jobs is unchanged.
+- Save: new fields with defaults: visited system ids, visited planet ids (lists). Old saves start empty. Cap or compact if they grow big; Agent 4 decides and reports.
+- Arriving at a scenery planet: you stay in space at that planet (no dock). Next destination is chosen from there; fuel for the next leg is counted from that planet.
