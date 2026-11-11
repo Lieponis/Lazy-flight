@@ -203,3 +203,4 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 ## Offline app roadmap (Andy approved 2026-11-12)
 - Approved: installable offline app (PWA), save file moving (export/import), offline test workflow. Roadmap: docs/ROADMAP-offline-app.md. Stages: P1 Agent 1 (manifest, icons, service worker, safe updates), P2 Agent 6/4 (export/import logic), P3 Agent 5 (Save panel + install hint), P4 Agent 6 (offline test workflow `npm run offline-check` + phone checklist), P5 Agent 7 (icon, release page). Approved small save field: a "seen" flag for the install hint.
 - General QA (6d) is optional/skipped; P4 is the offline QA. Release page 7d merges into P5.
+- P1 started (2026-11-12): Agent 1 brief docs/briefs/agent-1b-brief.md. Kill switch required; developer pages stay online-only; installed iPhone app starts a new game until P2/P3.
