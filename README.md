@@ -46,6 +46,34 @@ Type `npm run check` and press Enter. It builds the game and runs every automati
 - `?ship=scout` starts in the Scout (for testing the look); `?look=`, `?warp=` switch test looks (see `docs/status.md`).
 - Your progress saves by itself in this browser (sound settings separately). A private window plays without saving.
 
+## 4b. Install it as an offline app (phone and computer)
+
+The game can be installed from the browser onto your phone's home screen, like an app (no app store, no fee). After one visit with internet, it also plays with no internet at all. Words: a **PWA** ("progressive web app") is a website the phone can install. A **service worker** is a small helper script that keeps a copy of the game's files on the phone and hands them out when there is no network.
+
+**Install on iPhone (use Safari, not Chrome)**
+1. Open https://lieponis.github.io/Lazy-flight/ in Safari. Wait until the title screen shows. (This first visit needs internet.)
+2. Tap the **Share** button (a square with an arrow, at the bottom). Scroll down, tap **Add to Home Screen**, then **Add**. The name should say **Lazy Flight**.
+3. Open the game from the new icon on your home screen. It opens full screen, without Safari's bars.
+4. Important: the home-screen app has its OWN storage. It starts as a NEW game; your Safari save is not copied into it (moving saves comes in a later stage).
+
+**Install on Android (Chrome):** open the link, tap the three dots menu, tap **Install app** (or **Add to Home screen**), then **Install**.
+**Install on a computer (Chrome or Edge):** open the link and click the small install icon at the right end of the address bar.
+
+**How offline works:** after the first visit the game's files are kept on your device. From then on the game starts and plays without internet (trips, jobs, free travel, saving). The first visit must be online. The developer pages (`debug.html`, `models.html`, `planets.html`, `game-debug.html`) are online only and show a friendly "No signal" page when offline. If a phone cleans out the stored files (it can do this when an app has not been opened for weeks), the next online visit fills them again; your saved game is separate and is not removed by this.
+
+**How updating works:** when a new version is published, the next time you open the game with internet it downloads quietly in the background. You keep playing the old version. When you are not on a trip, a small note "NEW VERSION READY" appears at the bottom: tap **REFRESH** to switch now, or **LATER**. If you ignore it, the new version starts the next time you close the app completely and open it again. An update never changes your saved game, and the new version is switched on only when it has downloaded completely (never half old, half new).
+
+**How to remove it:** on iPhone, press and hold the icon, tap **Remove App**, then **Delete App**. Careful: this also deletes that app's saved game.
+
+**The kill switch (only if a bad version ever gets stuck on phones)**
+If a broken version were stuck on phones, you can switch the offline app off for everyone:
+1. On https://github.com/Lieponis/Lazy-flight click the file `pwa-mode.txt`, then the pencil icon (Edit).
+2. Change the last line from `on` to `retire`.
+3. Click **Commit changes**, then **Commit changes** again.
+4. Click the **Actions** tab and wait for the green tick (about 1 minute).
+5. Phones fix themselves the next time they open the game with internet: they delete the stored copy and load the game from the web again. The screen may reload once by itself.
+To switch the offline app on again, change `retire` back to `on` and repeat steps 3 and 4.
+
 ## 5. If something breaks
 
 - **Red cross in the Actions tab:** click the failed run, click the red step, copy the red error text and send it to the Project Lead.
@@ -58,4 +86,5 @@ Type `npm run check` and press Enter. It builds the game and runs every automati
 
 - Folders: `src/universe` (the generated galaxy), `src/game` (rules and numbers: `settings.ts`, `ships.ts`, `upgrades.ts`), `src/render` (3D), `src/ui` (menus, title screen), `src/audio` (sound and music), `src/save` (saving). Map of everything: `docs/WHERE-TO-LOOK.md`. Rules: `docs/CONVENTIONS.md`.
 - `npm run balance` prints the balance report (a simulator that plays many automatic games with the real rules; `tests/sim/`). Optional: `npm run balance -- 40 0.5 100` = 40 hours per game, trips half as long (a what-if), and 100 hours for the upgrade tables.
+- Offline app (stage P1): `public/` holds the manifest, the offline page and the icons (`public/icons/`; to use real art, replace those four PNG files with the same names and sizes; `node scripts/pwa/make-icons.mjs` redraws the placeholders). `npm run build` ends with `scripts/pwa/postbuild.mjs`, which writes `dist/sw.js` from `scripts/pwa/sw.template.js`, lists every file the game needs (and STOPS the build if a file is missing or unknown), and prints the list in the build log. `pwa-mode.txt` is the kill switch. Only `src/ui/updatenote.ts` (and 3 lines in `src/main.ts`) touches the service worker. Tests: `tests/pwa.test.ts`.
 - `package-lock.json` pins the exact tool versions, so every computer and GitHub Actions build the same thing.

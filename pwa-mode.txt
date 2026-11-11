@@ -1,0 +1,3 @@
+# The offline app switch. Write "on" for normal. Write "retire" to switch the offline app off on every phone (kill switch).
+# After changing this word, commit it; the next publish does the rest. Steps are in README.md, section "Offline app".
+on

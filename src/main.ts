@@ -3,6 +3,7 @@ import './style.css';
 import { BACKGROUND_COLOR } from './settings';
 import { startRender } from './render';
 import { chooseStart, startUi } from './ui';
+import { startOfflineApp } from './ui/updatenote';
 
 // Draws at a tiny resolution and stretches the picture up without smoothing (the chunky pixel look).
 // The two screens (starmap and system view) live in src/render.
@@ -36,4 +37,6 @@ app.appendChild(renderer.domElement);
 
 const start = chooseStart(); // continue the save or start a new game: this picks the ONE seed for everything
 const api = startRender(renderer, app, { seed: start.plan.seed });
-startUi(api, app, start); // the menus: status strip, JOBS, MAP, Jobs menu, arrival card (src/ui)
+const game = startUi(api, app, start); // the menus: status strip, JOBS, MAP, Jobs menu, arrival card (src/ui)
+// Offline app (stage P1): registers the offline helper and offers "new version ready" only when no trip is running.
+startOfflineApp(app, () => game.state.currentJob === null && game.state.freeTrip === null && api.state.get().screen !== 'flight');

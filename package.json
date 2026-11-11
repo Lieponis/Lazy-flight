@@ -6,7 +6,7 @@
   "description": "Lazy Freight (working title): a relaxing, funny, pixelated procedural space trading game for the browser.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/pwa/postbuild.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "check": "npm run build && npm run test",
