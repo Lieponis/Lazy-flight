@@ -170,3 +170,9 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Andy also wants to reach empty space / stars with no dock. Lead note: after universe v2 every system has at least 1 dock, so "no-dock star" does not exist; what Andy may mean (empty deep space, scenery-only planets) needs a design answer. See docs/proposal-free-travel.md.
 - ANSWERS (Andy 2026-11-11): scenery planets + docks without a job (no deep empty space); discovery credits 50-100 per first visited system; NEW 4th rank EXPLORER (unique systems and unique planets); strand protection ON. Details in docs/proposal-free-travel.md. Rule change: max 3 ranks -> 4 categories, Andy's decision.
 - NEXT: F1 Agent 4 (docs/briefs/agent-4f-brief.md) game rules + save; then F2 Agents 3/5 (button, arrival, Explorer rank screen), F3 Agent 6. Livery feature, release page 7d wait.
+
+## Agent 4 stage F1 (4f) (2026-11-11): DONE, merged, Andy checked live; Lead review passed
+- Free travel (canFreeTravel/freeTravel), floating at a scenery planet, strand protection, discovery credits (50-100 once per system), Explorer rank option B (50 and 200 discoveries; "Lost in Space", "Cartographer", "Mr Galaxy-wide"; +0/10/20% discovery credits only). Compact save (~24 bytes/system, cap 20,000 systems). 31 new tests + explorer sim.
+- Andy found a real crash (old saves made before F1 crashed the page); fixed with a whole-path test. Lesson for QA: test old saves through the whole path. First-outpost times shifted a few hours (planner 10.1 h, sensible 32.8 h, spender 32.1 h); nothing retuned.
+- Known: 1 audio test fails (pre-existing); agent6c needs a real runner.
+- NEXT: F2a Agent 3 (render views, brief docs/briefs/agent-3g-brief.md), THEN F2b Agent 5 (Fly here button, Explorer row, arrival texts; brief written after 3g so the API is real), then F3 Agent 6. Livery feature and release page 7d later.
