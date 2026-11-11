@@ -139,3 +139,11 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Full check red ONLY in other layers (13 tests: start dock = planet 0 no longer always a dock). That is why it is on a branch. Andy must NOT merge; Agent 4 fixes it in U2 (brief docs/briefs/agent-4e-brief.md), then merges.
 - Not verified by Agent 2: real npm run check, 4 three.js test files (assets, lens, planetlook, title). Agent 4 must run them.
 - Next: U2 Agent 4 -> Andy verifies live -> U3 Agents 3/5 (system view) -> U4 Agent 6.
+
+## Universe v2, stage U2 (2026-11-11): Agent 4 DONE, merged to main, VERIFIED by Andy live
+- Lead review: passed. startDockOf is the one start dock; old saves move + refund (20,000 flat per old outpost, approved by Andy); 13 failing tests fixed, none weakened; planetlook fingerprints re-recorded for v2 (identical on the commit before, so the universe was not touched by U2).
+- Extra (Andy's request, Lead confirms): every planet can be tapped for info; dock-less ones say "No dock here - nothing to visit". They are still never a destination. U3 plan line changed from "not selectable" to "selectable for info only".
+- New: .github/workflows/check.yml runs the checks on every non-main branch, never publishes.
+- Numbers: 79-110 docks within 25 ly (32-61 outposts); cheapest outpost 5,000-10,200; first outpost 11.1 h planner (was 9.1), 29.0 h sensible, casual/lazy never. 20 of 300 seeds have no takeable first job (was 28).
+- Known: 1 audio test fails on main (existed before U1); Agent 6 to fix in U4.
+- NEXT (parallel, different files): U3 Agent 3 (system view, docs/briefs/agent-3f-brief.md) and Agent 5 (wording/menus, docs/briefs/agent-5e-brief.md). Then U4 Agent 6 (rebalance, audio test, old-save check on a phone). Suggestion for U4 awaiting Andy: guarantee one starter job on the first board.
