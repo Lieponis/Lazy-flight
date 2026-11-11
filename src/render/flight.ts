@@ -28,7 +28,7 @@ import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
 import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, fovForMagnification, shakeShare, startFov, zoomMagnification, type Look, type ViewMode } from "./cockpitview";
 import { pinchFactor, wheelFactor } from "./dockedcam";
 import { hexToNumber, starfieldPositions } from "./helpers";
-import { SCENERY_TIME_FACTOR, arrivePose, departPose, floatDrift, shipRoll, floatLayout, lengthOf, parseFloatStyle, ringNormalWorld, STAR_DIRECTION, STAR_DISTANCE, starDrawRadius, tiltForClearance, type FloatStyle } from "./floatmath";
+import { SCENERY_TIME_FACTOR, arriveEase, arrivePose, departPose, floatDrift, shipRoll, floatLayout, lengthOf, parseFloatStyle, ringNormalWorld, STAR_DIRECTION, STAR_DISTANCE, starDrawRadius, tiltForClearance, type FloatStyle } from "./floatmath";
 import { chooseLook } from "./planetlook";
 import type { Hud } from "./hud";
 import type { Screen } from "./screen";
@@ -533,7 +533,7 @@ export class FlightScreen implements Screen {
       // The ship circles the planet: seen from the ship, the planet turns about its axis and its star goes round with it (so the light stays right).
       this.spinScenery(this.dest.scenery, this.floating ? (this.clockT - this.floatT0) * FLOAT_SHIP_ORBIT_SPEED : 0);
     } else if ((phase === "APPROACH" || phase === "DONE") && this.dest) {
-      const q = phase === "DONE" ? 1 : p;
+      const q = phase === "DONE" ? 1 : arriveEase(p); // same as at a planet without a dock: first the warp's own view, then the arrival eases in
       if (this.dest.isStation) {
         // The departure walked backwards: in nose-first along the planet's surface, then a half turn in the bay.
         const entry = stationEntryState(q, DOCKED_STATION_PLANET_RADIUS + FLIGHT_STATION_PLANET_ALTITUDE, STATION_EXIT, STATION_ENTRY);

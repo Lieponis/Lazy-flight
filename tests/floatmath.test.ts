@@ -6,6 +6,7 @@ import {
   RING_CLEARANCE,
   STAR_DIRECTION,
   ARRIVE_HOLD,
+  arriveEase,
   CLIMB_ANGLE,
   arrivePose,
   clearanceOf,
@@ -104,6 +105,17 @@ describe("floating scene: leaving and arriving", () => {
       }
     });
   }
+  it("docks use the same arrival easing: holds, then eases to 1", () => {
+    expect(arriveEase(0)).toBe(0);
+    expect(arriveEase(ARRIVE_HOLD)).toBe(0);
+    expect(arriveEase(1)).toBe(1);
+    let last = 0;
+    for (let i = 0; i <= 100; i++) {
+      const v = arriveEase(i / 100);
+      expect(v).toBeGreaterThanOrEqual(last - 1e-12);
+      last = v;
+    }
+  });
   it("the drift is small and never stands still", () => {
     for (let t = 0; t < 300; t += 7) expect(lengthOf(floatDrift(t))).toBeLessThan(4);
     expect(lengthOf({ x: floatDrift(0).x - floatDrift(40).x, y: 0, z: 0 })).toBeGreaterThan(0.1);
