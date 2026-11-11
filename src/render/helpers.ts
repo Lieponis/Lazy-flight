@@ -6,6 +6,13 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+/** A number moves smoothly towards its goal: `rate` is about how many times per second it closes the gap (frame-rate independent). */
+export function approach(current: number, goal: number, seconds: number, rate = 6): number {
+  const k = 1 - Math.exp(-Math.max(0, seconds) * rate);
+  const next = current + (goal - current) * k;
+  return Math.abs(goal - next) < 0.001 ? goal : next;
+}
+
 /** Turns "#ff9a3c" into the number 0xff9a3c that Three.js wants. Bad text gives white. */
 export function hexToNumber(hex: string): number {
   const text = hex.startsWith("#") ? hex.slice(1) : hex;

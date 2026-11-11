@@ -1,5 +1,7 @@
 // THE SYSTEM VIEW LAYOUT (stage U3, Agent 3): how far apart the planets sit, how far away the camera stands, how detailed
 // each planet ball is. Pure numbers, no Three.js, so it can be tested.
+import { clamp } from "./helpers";
+
 // Systems have 1 to 10 planets; only 1 to 3 of them have a dock (the rest is scenery).
 
 /** How far a station circles its planet (system units). Rocky worlds about 1.6 to 2.3, gas giants 3.1 to 4.1. */
@@ -63,11 +65,16 @@ export function ballTriangles(detail: number): number {
   return 20 * (detail + 1) * (detail + 1);
 }
 
+/** How close the camera goes when a planet is tapped: near enough to see it (and its station), but never farther out than it already is. */
+export function focusDistance(footprint: number, currentDist: number, minDist: number): number {
+  return clamp(footprint * 3.2 + 3, minDist, Math.max(minDist, currentDist));
+}
+
 /** The short summary line shown when nothing is selected: how many planets, which of them can be visited. */
 export function systemSummary(planetCount: number, docks: readonly { name: string; kind: string }[]): string {
   const planets = planetCount === 1 ? "1 planet" : `${planetCount} planets`;
   if (docks.length === 0) return `${planets}, no docks.\nTap a planet to see it.`;
   const list = docks.map((d) => `${d.name} (${d.kind})`).join(", ");
   const count = docks.length === 1 ? "1 dock" : `${docks.length} docks`;
-  return `${planets}, ${count}: ${list}\nTap a planet to see it. Drag to turn, pinch to zoom.`;
+  return `${planets}, ${count}: ${list}\nTap a planet to centre on it, the star to go back. Drag to turn, pinch to zoom.`;
 }

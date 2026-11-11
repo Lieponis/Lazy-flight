@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ballTriangles, fitDistance, orbitRadii, planetDetail, planetFootprint, stationOrbitFor, systemSummary } from "../src/render/systemlayout";
+import { approach } from "../src/render/helpers";
+import { ballTriangles, fitDistance, focusDistance, orbitRadii, planetDetail, planetFootprint, stationOrbitFor, systemSummary } from "../src/render/systemlayout";
 import { markParts, parseMarks, parseSystemPreview, previewList } from "../src/render/systemmarks";
 
 describe("system layout: orbit spacing", () => {
@@ -78,5 +79,31 @@ describe("system layout: summary text and test links", () => {
     const systems = [3, 10, 10, 10, 1, 3, 3, 5].map((planetCount, i) => ({ planetCount, i }));
     const list = previewList(systems, 2);
     expect(list.map((s) => s.planetCount)).toEqual([1, 3, 3, 5, 10, 10]);
+  });
+});
+
+describe("system view: tap a planet to centre on it", () => {
+  it("approach glides to the goal without overshooting and arrives", () => {
+    let v = 0;
+    let last = 0;
+    for (let i = 0; i < 200; i++) {
+      v = approach(v, 10, 1 / 60);
+      expect(v).toBeGreaterThanOrEqual(last);
+      expect(v).toBeLessThanOrEqual(10);
+      last = v;
+    }
+    expect(v).toBe(10);
+  });
+  it("approach is the same speed at any frame rate", () => {
+    let a = 0;
+    for (let i = 0; i < 60; i++) a = approach(a, 10, 1 / 60);
+    let b = 0;
+    for (let i = 0; i < 30; i++) b = approach(b, 10, 1 / 30);
+    expect(Math.abs(a - b)).toBeLessThan(0.01);
+  });
+  it("the focus distance is close for a small planet, further for a big one, and never farther out than now", () => {
+    expect(focusDistance(1.3, 60, 4)).toBeLessThan(focusDistance(4, 60, 4));
+    expect(focusDistance(4, 10, 4)).toBe(10);
+    expect(focusDistance(0.1, 60, 4)).toBeGreaterThanOrEqual(4);
   });
 });

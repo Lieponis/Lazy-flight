@@ -22,7 +22,7 @@ import type { AssetModel } from "./assets";
 import type { Hud } from "./hud";
 import { OrbitView } from "./input";
 import { buildDockModel } from "./models3d";
-import { fitDistance, orbitRadii, planetDetail, planetFootprint, stationOrbitFor, systemSummary } from "./systemlayout";
+import { fitDistance, focusDistance, orbitRadii, planetDetail, planetFootprint, stationOrbitFor, systemSummary } from "./systemlayout";
 import { markParts, type MarkStyle } from "./systemmarks";
 import type { Screen } from "./screen";
 import {
@@ -210,6 +210,8 @@ export class SystemViewScreen implements Screen {
   private markStyle: MarkStyle = SYSTEM_MARK_STYLE;
   private summary = "";
   private triangles = 0;
+  private fitDist = 40;
+  private footprints: number[] = [];
 
   constructor(private opts: SystemViewOptions) {
     const bg = new THREE.BufferGeometry();
@@ -224,7 +226,7 @@ export class SystemViewScreen implements Screen {
     this.selectionMarker.visible = false;
     this.scene.add(this.selectionMarker);
 
-    this.view = new OrbitView(this.camera, opts.host, 8, 90, 40);
+    this.view = new OrbitView(this.camera, opts.host, 4, 90, 40);
     this.view.onTap = (x, y) => this.handleTap(x, y);
   }
 
@@ -341,6 +343,9 @@ export class SystemViewScreen implements Screen {
     this.view.yaw = 0.7;
     this.view.maxDist = clamp(outermost * 3, 30, 120);
     this.view.dist = clamp(fitDistance(outermost, this.camera.fov, this.camera.aspect, this.view.pitch), 14, this.view.maxDist);
+    this.view.resetFocus(); // looking at the star again
+    this.fitDist = this.view.dist;
+    this.footprints = footprints;
     return true;
   }
 
@@ -355,6 +360,7 @@ export class SystemViewScreen implements Screen {
   }
 
   update(seconds: number): void {
+    this.view.glide(seconds);
     this.view.apply();
     this.clockT += seconds;
     for (const entry of this.entries) {
@@ -383,15 +389,33 @@ export class SystemViewScreen implements Screen {
     return Math.round(total);
   }
 
+  /**
+   * Tap a planet: it selects it AND becomes the middle of the picture (the camera glides there and moves in a little;
+   * dragging then circles around that planet). Tap the star: back to the whole system. Tap empty space: just unselects.
+   */
   private handleTap(clientX: number, clientY: number): void {
     const rect = this.opts.host.getBoundingClientRect();
     this.camera.updateMatrixWorld();
-    const points: ScreenPoint[] = this.entries.map((e) => {
-      this.temp.copy(e.group.position).project(this.camera);
+    const project = (v: THREE.Vector3): ScreenPoint => {
+      this.temp.copy(v).project(this.camera);
       if (this.temp.z > 1) return { x: Infinity, y: Infinity };
       return { x: ((this.temp.x + 1) / 2) * rect.width, y: ((1 - this.temp.y) / 2) * rect.height };
-    });
-    this.selected = nearestScreenPoint(points, clientX - rect.left, clientY - rect.top, TAP_RADIUS_PX * 1.4);
+    };
+    const points: ScreenPoint[] = this.entries.map((e) => project(e.group.position));
+    points.push(project(new THREE.Vector3(0, 0, 0))); // the star is the last point
+    const hit = nearestScreenPoint(points, clientX - rect.left, clientY - rect.top, TAP_RADIUS_PX * 1.4);
+    if (hit === this.entries.length) {
+      // The star: unselect and look at the whole system again.
+      this.selected = -1;
+      this.view.focusOn(0, 0, 0, this.fitDist);
+    } else {
+      this.selected = hit;
+      const chosen = this.entries[hit];
+      if (chosen) {
+        const p = chosen.group.position;
+        this.view.focusOn(p.x, p.y, p.z, focusDistance(this.footprints[hit] ?? 1.5, this.view.dist, this.view.minDist));
+      }
+    }
     const chosen = this.entries[this.selected];
     this.selectionMarker.visible = chosen !== undefined;
     this.opts.state.set({ selectedPlanetId: chosen ? chosen.planet.id : null });
