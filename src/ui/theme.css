@@ -1032,3 +1032,21 @@ body.ui-planet-panel-on .hud-label {
     margin-top: 2px;
   }
 }
+
+/* Phone held sideways (short and wide): the planet card moves to the left side, under the system name,
+   so it does not cover the middle of the map (Andy, 5e). */
+@media (orientation: landscape) and (max-height: 600px) {
+  .ui-planet {
+    top: calc(var(--ui-top-reserve) + 34px);
+    bottom: auto;
+    right: auto;
+    width: min(300px, 42vw);
+    max-height: calc(100vh - var(--ui-top-reserve) - var(--ui-bottom-reserve) - 46px);
+    overflow: hidden;
+    margin: 0;
+  }
+  .ui-planet .ui-card-top {
+    flex-wrap: wrap;
+    gap: 2px 8px;
+  }
+}
