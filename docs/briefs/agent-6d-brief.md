@@ -5,7 +5,7 @@ You are Agent 6 (Save / QA / Balance). Work on the CURRENT `main`. Read first: d
 ## Part A: balance on the new universe (about 3x fewer docks)
 1. Run `npm run balance` on universe v2 over at least 30 seeds. Report per player type (planner, sensible, spender, casual, lazy): hours to first ship, first outpost, first upgrade level, full track; credits per hour; whether credits pile up unused at 30 h. Compare with the 6c numbers on universe v1 (first outpost: planner 9.1 h on v1, 11.1 h on v2; casual and lazy never reach one on v2).
 2. Outposts: Agent 4 measured cheapest 5,000 to 10,200 and median 22,000 to 27,000. Propose (do not apply) options if casual players never reach an outpost, e.g. cheaper range or lower minimum price. Give numbers for each option.
-3. Starter job: seed 1 has a dead first board in a one-dock start system (0 of 6 jobs takeable for a new Hauler); 20 of 300 seeds have no takeable first job. Propose how to guarantee one takeable starter job on the first board (choose the least invasive, must stay deterministic, must not change the universe layer if avoidable; if it needs src/universe, tell the Lead). Andy decides before you build it.
+3. Starter job: CANCELLED by Andy (2026-11-11), free travel replaces it. Instead check, over 300 seeds, that a new player on a dead first board can always reach another dock by free travel with the starting fuel (report the number of seeds where not). Do not build a starter job.
 
 ## Part B: QA
 1. Fix the flaky test `tests/universe-v2.test.ts` ("first dock of the system nearest to the middle", times out at 5 s on Actions): longer time limit or a faster check. Fix the 1 failing audio test that already failed before universe v2 (find out why; fix the cause, do not weaken).

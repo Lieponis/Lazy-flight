@@ -176,3 +176,4 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Andy found a real crash (old saves made before F1 crashed the page); fixed with a whole-path test. Lesson for QA: test old saves through the whole path. First-outpost times shifted a few hours (planner 10.1 h, sensible 32.8 h, spender 32.1 h); nothing retuned.
 - Known: 1 audio test fails (pre-existing); agent6c needs a real runner.
 - NEXT: F2a Agent 3 (render views, brief docs/briefs/agent-3g-brief.md), THEN F2b Agent 5 (Fly here button, Explorer row, arrival texts; brief written after 3g so the API is real), then F3 Agent 6. Livery feature and release page 7d later.
+- DECISION (Andy 2026-11-11): NO guaranteed starter job. Free travel covers the dead-first-board case. Removed from Agent 6's list (docs/briefs/agent-6d-brief.md item A3 is cancelled; Agent 6 should instead check that a new player stuck on a dead board can reach another dock by free travel).
