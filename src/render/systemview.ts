@@ -43,7 +43,7 @@ export interface SystemViewOptions {
 
 interface PlanetEntry {
   planet: Planet;
-  /** Null for a planet without a dock: it is only scenery (drawn, but not selectable). */
+  /** Null for a planet without a dock: it is only scenery (drawn and tappable for its info, but you cannot travel there). */
   dock: Dock | null;
   group: THREE.Group;
   radius: number;
@@ -328,7 +328,6 @@ export class SystemViewScreen implements Screen {
     const rect = this.opts.host.getBoundingClientRect();
     this.camera.updateMatrixWorld();
     const points: ScreenPoint[] = this.entries.map((e) => {
-      if (!e.dock) return { x: Infinity, y: Infinity }; // no dock: not a place to go, so it cannot be picked
       this.temp.copy(e.group.position).project(this.camera);
       if (this.temp.z > 1) return { x: Infinity, y: Infinity };
       return { x: ((this.temp.x + 1) / 2) * rect.width, y: ((1 - this.temp.y) / 2) * rect.height };
@@ -343,12 +342,14 @@ export class SystemViewScreen implements Screen {
   private refreshHud(): void {
     const { hud } = this.opts;
     const chosen = this.entries[this.selected];
-    const dock = chosen ? chosen.dock : null;
-    if (chosen && dock) {
+    if (chosen) {
       const planet = chosen.planet;
-      hud.setLabel(`${planet.name} - ${planetTypeLabel(planet.type)}\n${dockKindLabel(dock.kind)}: ${dock.name}`);
+      const dock = chosen.dock;
+      const size = `${planet.radius.toFixed(1)}x Earth size`;
+      const second = dock ? `${dockKindLabel(dock.kind)}: ${dock.name}` : "No dock here - nothing to visit";
+      hud.setLabel(`${planet.name} - ${planetTypeLabel(planet.type)}, ${size}\n${second}`);
     } else {
-      hud.setLabel("Tap a planet with a dock to see it.\nDrag to turn the view, scroll or pinch to zoom.");
+      hud.setLabel("Tap a planet to see it.\nDrag to turn the view, scroll or pinch to zoom.");
     }
     hud.setButtons([]); // the System | Galaxy switch and CLOSE live in src/ui (Agent 5)
   }
