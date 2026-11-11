@@ -18,7 +18,7 @@
 1. `placeName(id)` (dock name, else planet name). 2. `syncFlight()` also starts a flight for `game.state.freeTrip` (origin `fromId`, destination `toId`, no job text) and ends it when the trip is gone. 3. `refresh()`: `flying` is also true while `freeTrip` is set. 4. At page load, if `spacePlanetId` is set and no trip runs: `api.showFloating(spacePlanetId)`. Nothing else.
 
 ## Triangles (floating scene)
-Not measured on a device (Andy did not send a TRIS reading). By construction: planet 320 (`FLOAT_PLANET_DETAIL` 3) + clouds up to 320 + rings (2 to 5 bands) + star 80, **roughly 700 to 1,300**, plus the ship (Agent 8 budget). Real number: TRIS in `?floatpreview=1`.
+**Measured by Andy with the TRIS counter in `?floatpreview=1`: 3,374** (whole visible picture: planet, clouds, rings, star and the ship; which planet and device was not recorded). My estimate for planet + clouds + rings + star was 700 to 1,300, so the ship and the rest make up about 2,000. That is in line with the system view (typically about 4,000, worst about 5,900), so no slimming was done. Frame rate on a real phone is still not measured. If a phone is slow, the cheapest saving is `FLOAT_PLANET_DETAIL` 3 to 2 (planet and clouds drop from 320 to 180 triangles each).
 
 ## How to check
 Live: https://lieponis.github.io/Lazy-flight/ . `?floatpreview=1` (and `?float=A|B|C`). `/models.html?asset=scout&livery=rescue-red`. NOTE `?seed=` starts a NEW game and replaces the save.
@@ -27,7 +27,7 @@ Live: https://lieponis.github.io/Lazy-flight/ . `?floatpreview=1` (and `?float=A
 Open `?floatpreview=1`: step `>` to a ringed planet, press the camera button to Free, drag and pinch (no page scroll, no cut-through); press TRIP and watch for smooth, jump-free camera; read TRIS.
 
 ## Known issues / not verified
-- Frame rate and TRIS on a real phone; touch controls of Free view on a phone (desktop mouse checked by Andy).
+- Frame rate on a real phone; touch controls of Free view on a phone (desktop mouse checked by Andy).
 - **Flight sound** (`src/ui/sound.ts` copies flight timing) does not know the 1.6x phases of free trips: may drift for those trips. For Agent 5/7.
 - Layouts B and C are unused leftovers (Andy chose A); delete when convenient. Starfield does not turn with the circling (suggestion: turn it too).
 - Flaky `tests/universe-v2.test.ts` (not mine, 5 s limit on Actions): suggestion to give it a longer limit. One 3g run was red because the sound test counts `launchSeconds:` in `flight.ts` (fixed; keep that rule).
