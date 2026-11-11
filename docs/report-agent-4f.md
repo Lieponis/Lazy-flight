@@ -1,6 +1,6 @@
 # Agent 4 report, stage F1 (4f): free travel and the Explorer rank (game rules and save)
 
-Branch `free-travel`. **Merged to main: NOT YET** (waiting for the green branch check and Andy's check on `/game-debug.html`).
+Branch `free-travel`, merged to `main` after a green branch check on Actions (types, build and every test). Andy checks on the live `/game-debug.html`.
 
 ## 1. What was built
 - **Free travel (no job).** `game.canFreeTravel(id)` gives the numbers (fuel needed, fuel left, time, what exploring would pay) or the reason in plain text; `game.freeTravel(id)` starts the trip. The target is a dock or a planet without a dock, in the same star system or another. Fuel uses the same formula as jobs (engine upgrades count), time is the same as a job of that length (20 s inside a system, 1 min per ly plus 20 s, never over 4 h). No cargo, no pay, no job rank progress, no job-pay change.
@@ -22,7 +22,7 @@ Free travel to a dock and to a scenery planet; fuel, tank and strand rules (text
 On `/game-debug.html`: section 10 "Fly here" on a dock in another star system (fuel and a NEW SYSTEM credit shown) and then the fast-forward button; fly to a planet without a dock; Refuel and the job board refuse with a funny line; "set fuel to 0" then Emergency refuel works from the planet; "set fuel to exactly what the nearest other star system needs" shows the refusal "Not enough fuel to come back safely"; discovery credits appear once; "add 24 made-up explored systems" then one new system ranks you up to Cartographer; reload keeps everything.
 
 ## 4. Known issues, NOT verified
-- I could not run `npm run check` or the Vite build here (no Three.js, no network for installs); I ran the strict type check, all runnable tests with a stand-in runner and the real debug page in a headless browser. **The branch check on Actions is the real proof.**
+- I could not run `npm run check` or the Vite build here (no Three.js, no network for installs); I ran the strict type check, all runnable tests with a stand-in runner and the real debug page in a headless browser. **The branch check on Actions (green, run 43038239124) was the real proof.**
 - `audio` has 1 failing test (same as on main), `agent6c` needs a real runner. Not run here: `assets`, `lens`, `planetlook`, `title` (they need Three).
 - F2 (screens) is not built: the menus and the 3D views do not know free trips yet. While a free trip is on its way the game UI would show the docked view (the real game never starts one: only the debug page does). `api.state.selectedPlanetId` can now be ANY planet (not only docks) since the planet-info change after 4e.
 - Floating at a planet with exactly the fuel for one hop and 0 credits: you hop to a dock and the dock's emergency refuel covers a stuck board, as before. A board where every job is blocked only by cargo or cabin never counts as "stuck" (old behaviour, not new).
