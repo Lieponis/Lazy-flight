@@ -547,7 +547,7 @@ export class FlightScreen implements Screen {
       this.ship.group.visible = ownShipVisible(this.mode);
       this.cockpitRig.visible = cockpitRoomVisible(this.mode);
       const height = (phase === "WARP" ? FLIGHT_ORBIT_HEIGHT_WARP : FLIGHT_ORBIT_HEIGHT_DOCK) + Math.sin(this.clockT * 0.4) * 0.6;
-      let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * (this.floating ? 0 : 0.35) + (this.freeCam() ? this.fv.yaw : 0), FLIGHT_ORBIT_RADIUS, height);
+      let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * (this.freeCam() ? 0 : 0.35) + (this.freeCam() ? this.fv.yaw : 0), FLIGHT_ORBIT_RADIUS, height);
       if (this.freeCam()) {
         // Player's view: tilt up/down and zoom (the slow orbit carries on from wherever they turned it).
         const horiz = Math.hypot(rel.x, rel.z);
@@ -818,7 +818,9 @@ export class FlightScreen implements Screen {
 
   private updateModeButton(): void {
     const next = this.floating ? (this.mode === "cockpit" ? "Orbit view" : this.free ? "Cockpit view" : "Free view") : this.mode === "orbit" ? "Cockpit view" : "Orbit view";
-    this.modeButton.textContent = next;
+    this.modeButton.textContent = "\u{1F4F7}"; // a camera: press to change the view
+    this.modeButton.title = next;
+    this.modeButton.setAttribute("aria-label", next);
     // In the cockpit the trip facts and the funny lines are on the screens, so the text box and the title go away (the bar and the button stay).
     const hideText = this.mode === "cockpit";
     this.text.style.display = hideText ? "none" : "";
