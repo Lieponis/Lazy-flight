@@ -342,7 +342,9 @@ describe("startDockOf (the one start dock every layer uses)", () => {
   it("is the first dock of the system nearest to the middle, a real dock, and always the same", () => {
     for (const seed of [12345, 999, 1, 7, 2024, 31337]) {
       const start = startDockOf(seed);
-      const nearest = listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 320)[0]!;
+      // 40 ly is plenty to contain the nearest system (the old 320 ly built thousands of systems and timed out on a slow build machine).
+      const nearest = listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 40)[0]!;
+      expect(nearest).toBeDefined();
       expect(start.systemId).toBe(nearest.id);
       expect(start.id).toBe(docksOf(seed, nearest)[0]!.id);
       expect(getDock(seed, start.id)?.id).toBe(start.id);
