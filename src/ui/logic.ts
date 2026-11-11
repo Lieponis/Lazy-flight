@@ -18,6 +18,11 @@ import {
   type RefuelResult,
   type ShipCatalogEntry,
   type UpgradeOffer,
+  type ExplorerInfo,
+  type FreeArrival,
+  type FreeTravelCheck,
+  type LiveryRow,
+  EXPLORER_DISCOVERIES_NEEDED,
 } from "../game";
 import type { JobKind } from "../universe";
 
@@ -70,8 +75,10 @@ export function placeLabel(dockName: string, systemName: string): string {
 }
 
 /** The location part of the status strip. While flying it shows where you are going. */
-export function locationText(info: { flying: boolean; dockName: string; systemName: string }): string {
-  return info.flying ? `EN ROUTE TO ${placeLabel(info.dockName, info.systemName)}` : placeLabel(info.dockName, info.systemName);
+export function locationText(info: { flying: boolean; dockName: string; systemName: string; floating?: boolean }): string {
+  if (info.flying) return `EN ROUTE TO ${placeLabel(info.dockName, info.systemName)}`;
+  if (info.floating) return `IN SPACE AT ${placeLabel(info.dockName, info.systemName)}`; // 5f: at a planet without a dock
+  return placeLabel(info.dockName, info.systemName);
 }
 
 // ------------------------------------------------------------ job cards
@@ -188,7 +195,7 @@ export function refuelButton(preview: RefuelResult, discountPercent = 0): Refuel
 // ------------------------------------------------------------ which controls show where
 
 export type ScreenName = "docked" | "starmap" | "system" | "flight";
-export type Overlay = "none" | "jobs" | "shipyard" | "menu" | "ranks" | "arrival";
+export type Overlay = "none" | "jobs" | "shipyard" | "menu" | "ranks" | "arrival" | "whatnow";
 
 export interface Controls {
   statusStrip: boolean;
@@ -198,23 +205,32 @@ export interface Controls {
   mapBar: boolean;
   /** Which map tab is lit, or null. */
   mapTab: "system" | "galaxy" | null;
+  /** The WHAT NOW? button while floating at a planet without a dock (5f, Andy chose C). */
+  whatNow: boolean;
 }
 
-export function visibleControls(screen: ScreenName, overlay: Overlay, flying: boolean): Controls {
+/**
+ * floating: the ship is in space at a planet without a dock (the render layer shows it on the "flight" screen,
+ * with no trip running). flying: a job or a free trip is under way.
+ */
+export function visibleControls(screen: ScreenName, overlay: Overlay, flying: boolean, floating = false): Controls {
   const inFlight = flying || screen === "flight";
-  const isMap = !inFlight && (screen === "system" || screen === "starmap");
+  const isMap = !flying && (screen === "system" || screen === "starmap");
   return {
     statusStrip: true,
     dockButtons: !inFlight && screen === "docked" && overlay === "none",
     mapBar: isMap,
     mapTab: !isMap ? null : screen === "system" ? "system" : "galaxy",
+    whatNow: floating && !flying && screen === "flight" && overlay === "none",
   };
 }
 
-/** Which overlay may stay open on this screen (menus belong to the docked view only). */
-export function overlayAllowed(screen: ScreenName, overlay: Overlay, flying: boolean): Overlay {
-  if (flying || screen !== "docked") return "none";
-  return overlay;
+/** Which overlay may stay open on this screen (menus belong to the docked view, and some to floating in space). */
+export function overlayAllowed(screen: ScreenName, overlay: Overlay, flying: boolean, floating = false): Overlay {
+  if (flying) return "none";
+  if (floating && screen === "flight") return overlay === "jobs" || overlay === "arrival" ? "none" : overlay; // no dock: no Jobs board
+  if (screen !== "docked") return "none";
+  return overlay === "whatnow" ? "none" : overlay;
 }
 
 // ------------------------------------------------------------ shipyard
@@ -522,3 +538,111 @@ export function startNotice(notice: string, rebuiltMessage: string): { text: str
 
 /** The empty Jobs board: calm, and true in a system with one dock too. */
 export const EMPTY_BOARD_TEXT = "No jobs on the board right now. New ones arrive soon - have a coffee.";
+
+// ------------------------------------------------------------ free travel, floating, Explorer, paint jobs (5f)
+
+/** The Fly-here part of the planet card (Andy chose B: the facts on the card, one tap flies). */
+export interface FlyHereText {
+  canFly: boolean;
+  /** "FLY HERE" */
+  button: string;
+  /** "Fuel 12 · left 38/60 · 4m 00s" */
+  facts: string;
+  /** "NEW SYSTEM: +75 CR" or "" */
+  discovery: string;
+  /** The game's own refusal text when you cannot fly ("" when you can). */
+  reason: string;
+}
+
+export function flyHereText(check: FreeTravelCheck, tank: number, speed: number): FlyHereText {
+  if (!check.ok) return { canFly: false, button: "FLY HERE", facts: "", discovery: "", reason: check.reason };
+  return {
+    canFly: true,
+    button: "FLY HERE",
+    facts: `Fuel ${check.fuelNeeded} · left ${formatFuel(check.fuelLeft, tank)} · ${formatTripTime(check.seconds, speed)}`,
+    discovery: check.newSystem && check.discoveryCredits > 0 ? `NEW SYSTEM: +${formatCredits(check.discoveryCredits)}` : "",
+    reason: "",
+  };
+}
+
+/** The note after a free trip: the game's funny line, discovery pay, and an Explorer rank-up. */
+export function freeArrivalNote(a: FreeArrival): string {
+  const parts = [a.line];
+  if (a.discovery > 0) parts.push(`New system! +${formatCredits(a.discovery)} for discovering it.`);
+  else if (a.newPlanet) parts.push("A new planet for your logbook.");
+  if (a.explorerRankUp) parts.push(`EXPLORER RANK UP: ${a.explorerRankUp.rankName}!`);
+  return parts.join(" ");
+}
+
+/** "EXPLORER RANK UP: Cartographer" for the Delivered card (jobs explore too), or "". */
+export function explorerRankUpLine(rankUp: { rankName: string } | null): string {
+  return rankUp ? `EXPLORER RANK UP: ${rankUp.rankName}` : "";
+}
+
+/** The Explorer row on the Ranks screen, in the same shape as the job ranks. */
+export function explorerRowText(e: ExplorerInfo): RankRowText {
+  const [second, third] = EXPLORER_DISCOVERIES_NEEDED;
+  const from = e.rankIndex === 0 ? 0 : e.rankIndex === 1 ? second : third;
+  const to = e.rankIndex === 0 ? second : third;
+  const progress = e.discoveriesToNext === null || to <= from ? 1 : Math.min(1, Math.max(0, (e.discoveries - from) / (to - from)));
+  const n = e.discoveriesToNext ?? 0;
+  return {
+    label: "EXPLORER",
+    rankName: e.rankName,
+    rankNumber: `RANK ${e.rankNumber}/3`,
+    progress,
+    next: e.nextRankName === null ? "TOP RANK" : `${n} more ${n === 1 ? "discovery" : "discoveries"} to ${e.nextRankName}`,
+    bonus: e.discoveryBonusPercent > 0 ? `+${e.discoveryBonusPercent}% DISCOVERY PAY` : "NO BONUS YET",
+    limit: `${e.systems} ${e.systems === 1 ? "SYSTEM" : "SYSTEMS"} · ${e.planets} ${e.planets === 1 ? "PLANET" : "PLANETS"}`,
+    done: `${e.discoveries} discovered`,
+  };
+}
+
+/** The choices behind WHAT NOW? while floating (Andy chose C). Emergency fuel only when the game says you are stuck. */
+export function whatNowChoices(stuck: boolean): { id: "fly" | "shipyard" | "jobs" | "emergency" | "menu" | "stay"; text: string }[] {
+  const list: { id: "fly" | "shipyard" | "jobs" | "emergency" | "menu" | "stay"; text: string }[] = [
+    { id: "fly", text: "FLY SOMEWHERE" },
+    { id: "shipyard", text: "SHIPYARD" },
+    { id: "jobs", text: "JOBS & FUEL" },
+  ];
+  if (stuck) list.push({ id: "emergency", text: "EMERGENCY FUEL" });
+  list.push({ id: "menu", text: "MENU & RANKS" }, { id: "stay", text: "STAY & ENJOY" });
+  return list;
+}
+
+/** A hint on the Jobs menu when nothing on the board can be taken (5f tutorial hint). */
+export function noJobsHint(cards: readonly { takeable: boolean }[]): string {
+  return cards.some((c) => c.takeable) ? "" : "No jobs for you? Fly somewhere new: MAP, tap a planet, FLY HERE. New star systems pay discovery credits.";
+}
+
+/** One paint job row in the Shipyard (Andy chose A: a list inside the ship card). */
+export interface PaintRowText {
+  id: string;
+  name: string;
+  description: string;
+  /** "worn" (label), "wear" (button), "buy" (button), "blocked" (grey button + reason) */
+  action: "worn" | "wear" | "buy" | "blocked";
+  /** "BUY · 500 CR", "WEAR", "WORN" */
+  button: string;
+  /** The game's refusal text when blocked, otherwise "". */
+  reason: string;
+}
+
+export function paintRowText(row: LiveryRow, names: { name: string; description: string } | undefined): PaintRowText {
+  const name = names?.name ?? row.id;
+  const description = names?.description ?? "";
+  if (row.worn) return { id: row.id, name, description, action: "worn", button: "WORN", reason: "" };
+  if (row.owned) {
+    return row.canWear
+      ? { id: row.id, name, description, action: "wear", button: "WEAR", reason: "" }
+      : { id: row.id, name, description, action: "blocked", button: "WEAR", reason: row.reason };
+  }
+  const button = row.price > 0 ? `BUY · ${formatCredits(row.price)}` : "FREE";
+  if (row.canBuy) return { id: row.id, name, description, action: "buy", button, reason: "" };
+  return { id: row.id, name, description, action: "blocked", button, reason: row.reason };
+}
+
+/** "1/4" paint jobs owned on the PAINT button. */
+export function paintSummary(rows: readonly LiveryRow[]): string {
+  return `${rows.filter((r) => r.owned).length}/${rows.length}`;
+}

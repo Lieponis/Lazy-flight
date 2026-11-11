@@ -8,6 +8,7 @@ import { button, el } from "./dom";
 import {
   EMPTY_BOARD_TEXT,
   emergencyVisible,
+  noJobsHint,
   formatCredits,
   jobCardText,
   outpostPanelText,
@@ -123,6 +124,8 @@ export class JobsMenu {
     const outpost = this.outpostPanel();
     if (outpost) this.list.append(outpost);
     if (cards.length === 0) this.list.append(el("div", "ui-empty", EMPTY_BOARD_TEXT));
+    const hint = noJobsHint(cards); // 5f: nothing takeable? Exploring is always an option.
+    if (hint && cards.length > 0) this.list.append(el("div", "ui-hint-card", hint));
     for (const card of cards) this.list.append(this.card(card));
     this.list.scrollTop = scrolled; // keep the place after refuelling or buying
   }

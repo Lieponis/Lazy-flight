@@ -37,7 +37,7 @@ export class NavBar {
     this.root.append(this.dockGroup, this.mapGroup);
     parent.appendChild(this.root);
     this.updateRoom = publishRoom(this.root, "--ui-bottom-reserve", "bottom");
-    this.apply({ statusStrip: true, dockButtons: false, mapBar: false, mapTab: null });
+    this.apply({ statusStrip: true, dockButtons: false, mapBar: false, mapTab: null, whatNow: false });
   }
 
   apply(c: Controls): void {

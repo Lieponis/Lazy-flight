@@ -1050,3 +1050,196 @@ body.ui-planet-panel-on .hud-label {
     gap: 2px 8px;
   }
 }
+
+/* ------------------------------------------------------------ part 5f: free travel, floating, paint jobs, camera */
+
+/* FLY HERE on the planet card (Andy chose B: facts on the card, one tap). The card ignores taps, its button does not. */
+.ui-fly {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--ui-line-dim);
+}
+
+.ui-fly .ui-btn {
+  pointer-events: auto;
+  margin-top: 6px;
+}
+
+.ui-fly-facts {
+  font-size: 19px;
+}
+
+.ui-fly-discovery {
+  color: var(--ui-amber);
+  letter-spacing: 1px;
+}
+
+.ui-fly-reason {
+  color: var(--ui-red);
+  font-size: 18px;
+}
+
+/* WHAT NOW? while floating (Andy chose C): one button on the right at mid-height, so the notes at the top and the
+   flight text box at the bottom never cover it. */
+.ui-whatnow-btn {
+  position: fixed;
+  z-index: 30;
+  top: 46%; /* the right side at mid-height: beside the ship, clear of the notes on top and the flight box below */
+  right: var(--ui-safe-r);
+  min-height: 52px;
+  letter-spacing: 2px;
+}
+
+/* Phone held sideways: the WHAT NOW? choices in two columns so all of them fit. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .ui-whatnow-panel {
+    max-width: 640px;
+  }
+  .ui-whatnow-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.ui-whatnow {
+  align-items: center;
+}
+
+.ui-whatnow-panel {
+  max-width: 420px;
+}
+
+.ui-whatnow-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+
+.ui-whatnow-list .ui-btn-wide {
+  margin-top: 0;
+}
+
+/* A hint card at the top of the Jobs list (5f tutorial hint). */
+.ui-hint-card {
+  padding: 6px 10px;
+  border: 1px dashed var(--ui-teal);
+  color: var(--ui-teal);
+  font-size: 18px;
+}
+
+/* Shipyard: owned ships get ACTIVE/SWITCH on its own row, then UPGRADES and PAINT side by side. */
+.ui-ship-action-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+  align-items: stretch;
+}
+
+.ui-ship-action-3 > :first-child,
+.ui-ship-action-3 .ui-ship-reason {
+  grid-column: 1 / -1;
+}
+
+.ui-ship-action-3 .ui-btn-wide,
+.ui-ship-action-3 .ui-active-label {
+  margin-top: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Paint job rows: small picture, name and line, then the button. */
+.ui-paint {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--ui-line-dim);
+  background: rgba(63, 224, 208, 0.03);
+}
+
+.ui-paint-worn {
+  border-color: var(--ui-amber);
+}
+
+.ui-paint-pic {
+  width: 72px;
+  height: 48px;
+  border: 1px solid var(--ui-line-dim);
+  background: #05060d;
+}
+
+.ui-paint-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.ui-paint-info {
+  min-width: 0;
+}
+
+.ui-paint-act {
+  grid-column: 1 / -1;
+}
+
+.ui-paint-act .ui-btn-wide {
+  margin-top: 2px;
+}
+
+@media (max-width: 480px) {
+  .ui-ship-action-3 .ui-btn {
+    font-size: 19px;
+    padding: 6px 6px;
+  }
+}
+
+/* The camera button of the flight and floating screens (made by src/render as a plain emoji button).
+   Restyled from here only (Andy chose a pixel eye): the emoji is hidden, a pixel eye is drawn with tiny squares,
+   and a small "VIEW" label sits under it. It still cycles Orbit, Free and Cockpit on tap. */
+.fh-button[title$=" view"] {
+  position: relative;
+  font-size: 0 !important; /* hides the emoji */
+  min-width: 64px;
+  min-height: 56px;
+  padding: 0;
+  color: var(--ui-teal, #3fe0d0);
+  background: rgba(10, 30, 36, 0.92);
+  border: 1px solid var(--ui-teal, #3fe0d0);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
+/* The eye: 3px "pixels" drawn by one square and its shadows (outline, then the pupil). */
+.fh-button[title$=" view"]::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 13px;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  background: #ffb547;
+  box-shadow:
+    -3px 0 #ffb547, 3px 0 #ffb547, 0 -3px #ffb547, 0 3px #ffb547,
+    -9px -6px #3fe0d0, -6px -6px #3fe0d0, -3px -6px #3fe0d0, 0 -6px #3fe0d0, 3px -6px #3fe0d0, 6px -6px #3fe0d0, 9px -6px #3fe0d0,
+    -12px -3px #3fe0d0, 12px -3px #3fe0d0, -15px 0 #3fe0d0, 15px 0 #3fe0d0, -12px 3px #3fe0d0, 12px 3px #3fe0d0,
+    -9px 6px #3fe0d0, -6px 6px #3fe0d0, -3px 6px #3fe0d0, 0 6px #3fe0d0, 3px 6px #3fe0d0, 6px 6px #3fe0d0, 9px 6px #3fe0d0;
+}
+
+.fh-button[title$=" view"]::after {
+  content: "VIEW";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 5px;
+  font-family: var(--ui-font, monospace);
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: var(--ui-teal, #3fe0d0);
+  text-align: center;
+}
+
+.fh-button[title$=" view"]:active {
+  background: rgba(63, 224, 208, 0.25);
+}

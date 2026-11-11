@@ -44,6 +44,14 @@ import {
   upgradeRowText,
   upgradeSummary,
   upgradeTracksFor,
+  flyHereText,
+  freeArrivalNote,
+  explorerRankUpLine,
+  explorerRowText,
+  whatNowChoices,
+  noJobsHint,
+  paintRowText,
+  paintSummary,
   planetPanelText,
   sceneryLine,
   startNotice,
@@ -213,7 +221,7 @@ describe("ui: refuel button", () => {
 
 describe("ui: which controls show on which screen", () => {
   it("docked, nothing open: JOBS and MAP", () => {
-    expect(visibleControls("docked", "none", false)).toEqual({ statusStrip: true, dockButtons: true, mapBar: false, mapTab: null });
+    expect(visibleControls("docked", "none", false)).toEqual({ statusStrip: true, dockButtons: true, mapBar: false, mapTab: null, whatNow: false });
   });
 
   it("docked with a menu or card open: no JOBS and MAP", () => {
@@ -227,7 +235,7 @@ describe("ui: which controls show on which screen", () => {
   });
 
   it("flight: only the status strip", () => {
-    expect(visibleControls("flight", "none", true)).toEqual({ statusStrip: true, dockButtons: false, mapBar: false, mapTab: null });
+    expect(visibleControls("flight", "none", true)).toEqual({ statusStrip: true, dockButtons: false, mapBar: false, mapTab: null, whatNow: false });
     // a job in progress hides the buttons even before the flight screen shows
     expect(visibleControls("docked", "none", true).dockButtons).toBe(false);
   });
@@ -532,6 +540,87 @@ describe("ui 5e: planet panel and wording for fewer docks", () => {
 
   it("the empty Jobs board message stays calm", () => {
     expect(EMPTY_BOARD_TEXT).toMatch(/No jobs/);
+  });
+});
+
+describe("ui 5f: free travel, floating, Explorer, paint jobs", () => {
+  it("FLY HERE shows fuel, fuel left on arrival, trip time and discovery pay", () => {
+    const t = flyHereText(
+      { ok: true, targetId: "a/1", targetName: "Cosy Rock", isDock: false, distanceLy: 4, fuelNeeded: 12, fuelLeft: 38, seconds: 240, discoveryCredits: 75, newSystem: true },
+      60,
+      1,
+    );
+    expect(t).toEqual({ canFly: true, button: "FLY HERE", facts: "Fuel 12 · left 38/60 · 4m 00s", discovery: "NEW SYSTEM: +75 CR", reason: "" });
+  });
+
+  it("FLY HERE without discovery pay, and the game's refusal shown as it is", () => {
+    const known = flyHereText({ ok: true, targetId: "a/1", targetName: "X", isDock: true, distanceLy: 0, fuelNeeded: 1, fuelLeft: 59, seconds: 20, discoveryCredits: 0, newSystem: false }, 60, 1);
+    expect(known.discovery).toBe("");
+    const no = flyHereText({ ok: false, reason: "Not enough fuel to get back to a dock from there." }, 60, 1);
+    expect(no).toMatchObject({ canFly: false, reason: "Not enough fuel to get back to a dock from there.", facts: "" });
+  });
+
+  it("the free arrival note: line, discovery, new planet, Explorer rank-up", () => {
+    const base = { fromId: "a/1", toId: "b/0", isDock: false, line: "Just you and the stars.", discovery: 0, newSystem: false, newPlanet: false, explorerRankUp: null };
+    expect(freeArrivalNote(base)).toBe("Just you and the stars.");
+    expect(freeArrivalNote({ ...base, discovery: 53, newSystem: true, newPlanet: true })).toBe("Just you and the stars. New system! +53 CR for discovering it.");
+    expect(freeArrivalNote({ ...base, newPlanet: true })).toBe("Just you and the stars. A new planet for your logbook.");
+    expect(freeArrivalNote({ ...base, explorerRankUp: { rankNumber: 2, rankName: "Cartographer" } })).toContain("EXPLORER RANK UP: Cartographer!");
+    expect(explorerRankUpLine(null)).toBe("");
+    expect(explorerRankUpLine({ rankName: "Cartographer" })).toBe("EXPLORER RANK UP: Cartographer");
+  });
+
+  it("the Explorer row: start, middle and top", () => {
+    const e = (d: number, idx: 0 | 1 | 2, next: string | null, toGo: number | null, bonus: number) => ({
+      systems: 3, planets: d - 3, discoveries: d, rankIndex: idx, rankNumber: idx + 1, rankName: ["Lost in Space", "Cartographer", "Mr Galaxy-wide"][idx]!,
+      nextRankName: next, discoveriesToNext: toGo, discoveryBonusPercent: bonus,
+    });
+    expect(explorerRowText(e(5, 0, "Cartographer", 45, 0))).toMatchObject({
+      label: "EXPLORER", rankName: "Lost in Space", rankNumber: "RANK 1/3", progress: 0.1, next: "45 more discoveries to Cartographer", bonus: "NO BONUS YET", limit: "3 SYSTEMS · 2 PLANETS",
+    });
+    expect(explorerRowText(e(125, 1, "Mr Galaxy-wide", 75, 10))).toMatchObject({ progress: 0.5, bonus: "+10% DISCOVERY PAY" });
+    expect(explorerRowText(e(200, 2, null, null, 20))).toMatchObject({ progress: 1, next: "TOP RANK" });
+    expect(explorerRowText(e(49, 0, "Cartographer", 1, 0)).next).toBe("1 more discovery to Cartographer");
+  });
+
+  it("WHAT NOW? choices: emergency fuel only when stuck", () => {
+    expect(whatNowChoices(false).map((c) => c.id)).toEqual(["fly", "shipyard", "jobs", "menu", "stay"]);
+    expect(whatNowChoices(false).every((c) => c.text.length <= 15)).toBe(true); // fits two columns on a sideways phone
+    expect(whatNowChoices(true).map((c) => c.id)).toContain("emergency");
+  });
+
+  it("floating: WHAT NOW? shows, Jobs cannot open, the Shipyard and MENU can", () => {
+    expect(visibleControls("flight", "none", false, true)).toMatchObject({ dockButtons: false, mapBar: false, whatNow: true });
+    expect(visibleControls("flight", "none", true, false).whatNow).toBe(false); // flying: no
+    expect(visibleControls("flight", "shipyard", false, true).whatNow).toBe(false); // a menu is open
+    expect(overlayAllowed("flight", "shipyard", false, true)).toBe("shipyard");
+    expect(overlayAllowed("flight", "menu", false, true)).toBe("menu");
+    expect(overlayAllowed("flight", "jobs", false, true)).toBe("none");
+    expect(overlayAllowed("flight", "whatnow", false, true)).toBe("whatnow");
+    expect(overlayAllowed("docked", "whatnow", false, false)).toBe("none");
+    expect(overlayAllowed("flight", "shipyard", true, false)).toBe("none");
+    // the maps work from floating too
+    expect(visibleControls("system", "none", false, true)).toMatchObject({ mapBar: true, whatNow: false });
+  });
+
+  it("the status strip says where you float", () => {
+    expect(locationText({ flying: false, floating: true, dockName: "Cosy Rock", systemName: "Kopipex" })).toBe("IN SPACE AT Cosy Rock · Kopipex");
+  });
+
+  it("a hint on the Jobs menu when nothing can be taken", () => {
+    expect(noJobsHint([{ takeable: false }, { takeable: false }])).toMatch(/FLY HERE/);
+    expect(noJobsHint([{ takeable: true }])).toBe("");
+  });
+
+  it("paint rows: worn, wear, buy, refused", () => {
+    const row = { id: "rescue-red", owned: false, worn: false, price: 500, canBuy: true, reason: "", canWear: false };
+    const names = { name: "Rescue Red", description: "Loud and proud." };
+    expect(paintRowText(row, names)).toMatchObject({ name: "Rescue Red", action: "buy", button: "BUY · 500 CR" });
+    expect(paintRowText({ ...row, canBuy: false, reason: "Costs 500 credits, you have 200." }, names)).toMatchObject({ action: "blocked", reason: "Costs 500 credits, you have 200." });
+    expect(paintRowText({ ...row, owned: true, canWear: true, price: 0 }, names)).toMatchObject({ action: "wear", button: "WEAR" });
+    expect(paintRowText({ ...row, owned: true, worn: true, price: 0 }, names)).toMatchObject({ action: "worn", button: "WORN" });
+    expect(paintRowText({ ...row, id: "odd" }, undefined).name).toBe("odd");
+    expect(paintSummary([row, { ...row, owned: true }])).toBe("1/2");
   });
 });
 

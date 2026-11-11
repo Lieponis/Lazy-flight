@@ -2,7 +2,7 @@
 
 import type { Arrival } from "../game";
 import { button, el } from "./dom";
-import { formatCredits, rankUpLine } from "./logic";
+import { explorerRankUpLine, formatCredits, rankUpLine } from "./logic";
 
 export class ArrivalCard {
   private root = el("div", "ui-overlay ui-arrival");
@@ -31,9 +31,11 @@ export class ArrivalCard {
     this.place.textContent = `${arrival.job.amount} × ${arrival.job.itemName} → ${placeName}`;
     this.line.textContent = arrival.debrief; // includes the funny rank-up line when you ranked up
     // Rank up (part 5c): the same card says so, with the new rank's name.
-    this.title.textContent = arrival.rankUp ? "DELIVERED · RANK UP!" : "DELIVERED";
-    this.rankLine.textContent = rankUpLine(arrival.rankUp);
-    this.rankLine.hidden = !arrival.rankUp;
+    // 5f: jobs explore too, so a delivery can also raise the Explorer rank.
+    const lines = [rankUpLine(arrival.rankUp), explorerRankUpLine(arrival.explorerRankUp ?? null)].filter((l) => l !== "");
+    this.title.textContent = lines.length > 0 ? "DELIVERED · RANK UP!" : "DELIVERED";
+    this.rankLine.textContent = lines.join(" · ");
+    this.rankLine.hidden = lines.length === 0;
     this.root.hidden = false;
     this.isOpen = true;
   }

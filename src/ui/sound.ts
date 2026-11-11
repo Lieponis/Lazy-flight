@@ -11,6 +11,7 @@
 import type { Arrival, Game } from "../game";
 import { getDock } from "../universe";
 import { phaseDurations, planFlight, realTimes, type PhaseSettings } from "../render/flightplan";
+import { SCENERY_TIME_FACTOR } from "../render/floatmath";
 import {
   COCKPIT_MESSAGE_SECONDS,
   COCKPIT_STATUS_SECONDS,
@@ -43,14 +44,26 @@ export interface SoundGlue {
   setPrefs(prefs: SoundPrefs, save: boolean): void;
 }
 
-/** The phase split the flight screen uses (src/render/flight.ts). Stations have a longer approach. */
-function phaseSettings(game: Game, destinationDockId: string): PhaseSettings {
-  const station = getDock(game.seed, destinationDockId)?.kind === "STATION";
+/**
+ * The phase split the flight screen uses (src/render/flight.ts). Stations have a longer approach.
+ * 5f: a trip from or to a planet WITHOUT a dock (free travel) has longer phases there (SCENERY_TIME_FACTOR, the same
+ * constant the flight screen uses), so the sounds stay with the picture.
+ */
+export function phaseSettingsFor(originId: string, destinationId: string, isDock: (id: string) => { station: boolean } | null): PhaseSettings {
+  const from = isDock(originId);
+  const to = isDock(destinationId);
   return {
-    launchSeconds: FLIGHT_LAUNCH_SECONDS,
-    approachSeconds: station ? FLIGHT_APPROACH_SECONDS_STATION : FLIGHT_APPROACH_SECONDS,
+    launchSeconds: FLIGHT_LAUNCH_SECONDS * (from ? 1 : SCENERY_TIME_FACTOR),
+    approachSeconds: (to?.station ? FLIGHT_APPROACH_SECONDS_STATION : FLIGHT_APPROACH_SECONDS) * (to ? 1 : SCENERY_TIME_FACTOR),
     minWarpSeconds: FLIGHT_MIN_WARP_SECONDS,
   };
+}
+
+function phaseSettings(game: Game, originId: string, destinationId: string): PhaseSettings {
+  return phaseSettingsFor(originId, destinationId, (id) => {
+    const dock = getDock(game.seed, id);
+    return dock ? { station: dock.kind === "STATION" } : null;
+  });
 }
 
 export function startSound(game: Game, layer: HTMLElement, storage: PrefsStorage | null): SoundGlue {
@@ -112,9 +125,10 @@ export function startSound(game: Game, layer: HTMLElement, storage: PrefsStorage
   }
 
   // ------------------------------------------------------------ money and fuel
-  let seen = { credits: game.state.credits, fuel: game.state.fuel, shipId: game.state.shipId, flying: game.state.currentJob !== null, arrival: game.lastArrival };
+  const onTrip = (): boolean => game.state.currentJob !== null || game.state.freeTrip !== null; // a job or a free trip (5f)
+  let seen = { credits: game.state.credits, fuel: game.state.fuel, shipId: game.state.shipId, flying: onTrip(), arrival: game.lastArrival };
   game.subscribe(() => {
-    const now = { credits: game.state.credits, fuel: game.state.fuel, shipId: game.state.shipId, flying: game.state.currentJob !== null, arrival: game.lastArrival };
+    const now = { credits: game.state.credits, fuel: game.state.fuel, shipId: game.state.shipId, flying: onTrip(), arrival: game.lastArrival };
     // A delivery pays when the card shows (arrivalShown); starting a trip burns fuel silently.
     if (now.flying === seen.flying && now.arrival === seen.arrival) {
       const s = changeSound({ before: seen.credits, after: now.credits }, { before: seen.fuel, after: now.fuel }, now.shipId === seen.shipId);
@@ -129,14 +143,20 @@ export function startSound(game: Game, layer: HTMLElement, storage: PrefsStorage
   let lastElapsed: number | null = null;
   function tick(): void {
     const job = game.state.currentJob;
-    const progress = job ? game.progress() : null;
+    const free = job ? null : game.state.freeTrip; // 5f: free trips get the same sounds, on their own timing
+    const trip = job
+      ? { id: job.id, from: game.state.currentDockId, to: job.destinationDockId }
+      : free
+        ? { id: `free:${free.fromId}>${free.toId}`, from: free.fromId, to: free.toId }
+        : null;
+    const progress = trip ? game.progress() : null;
     let phase: Phase | null = null;
-    if (job && progress) {
-      const settings = phaseSettings(game, job.destinationDockId);
+    if (trip && progress) {
+      const settings = phaseSettings(game, trip.from, trip.to);
       const real = realTimes(progress, game.clock.speed);
       const plan = planFlight(progress.fraction, real.remainingRealMs, real.totalRealMs, settings);
       phase = plan.phase;
-      const key = `${job.id}@${String(game.state.travelStartMs)}`;
+      const key = `${trip.id}@${String(game.state.travelStartMs)}`;
       if (key !== tripKey) {
         tripKey = key;
         lastElapsed = null; // a new trip, or the page opened in the middle of one
@@ -151,7 +171,7 @@ export function startSound(game: Game, layer: HTMLElement, storage: PrefsStorage
       tripKey = null;
       lastElapsed = null;
     }
-    engine.setMood(moodFor(job !== null, phase));
+    engine.setMood(moodFor(trip !== null, phase));
   }
 
   return {

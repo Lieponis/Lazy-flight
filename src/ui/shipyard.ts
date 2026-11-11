@@ -6,9 +6,10 @@
 
 import type { Game } from "../game";
 import { button, el } from "./dom";
-import { formatCredits, shipCardText, upgradeRowText, upgradeTracksFor, type ShipCardText } from "./logic";
+import { formatCredits, paintRowText, paintSummary, shipCardText, upgradeRowText, upgradeTracksFor, type ShipCardText } from "./logic";
 import { Popup } from "./popup";
-import { shipPictures } from "./shippreview";
+import { pictureKey, shipPictures } from "./shippreview";
+import { liveriesFor } from "../render/assets/liveries";
 
 export class Shipyard {
   private root = el("div", "ui-overlay ui-jobs ui-shipyard");
@@ -18,6 +19,8 @@ export class Shipyard {
   private isOpen = false;
   /** Ships whose upgrades are unfolded. */
   private expanded = new Set<string>();
+  /** Ships whose paint jobs are unfolded (5f). */
+  private painting = new Set<string>();
 
   constructor(parent: HTMLElement, private game: Game, private onClose: () => void) {
     this.root.setAttribute("role", "dialog");
@@ -68,9 +71,17 @@ export class Shipyard {
     const credits = this.game.state.credits;
     this.subtitle.textContent = `ANY DOCK · SWITCHING IS FREE · YOU HAVE ${formatCredits(credits)}`;
     const catalog = this.game.getShipCatalog();
-    const pictures = shipPictures(catalog.map((e) => e.ship.id));
+    // Each owned ship is drawn in the paint it wears (5f); ships for sale in the standard paint.
+    const worn: Record<string, string> = {};
+    for (const e of catalog) if (e.owned) worn[e.ship.id] = this.game.currentLivery(e.ship.id);
+    const pictures = shipPictures(
+      catalog.map((e) => e.ship.id),
+      worn,
+    );
     const scrolled = this.list.scrollTop;
-    this.list.replaceChildren(...catalog.map((entry) => this.card(shipCardText(entry, credits), pictures.get(entry.ship.id))));
+    this.list.replaceChildren(
+      ...catalog.map((entry) => this.card(shipCardText(entry, credits), pictures.get(pictureKey(entry.ship.id, worn[entry.ship.id])))),
+    );
     this.list.scrollTop = scrolled; // keep the place after buying or switching
   }
 
@@ -92,6 +103,7 @@ export class Shipyard {
     if (c.fuel) info.append(el("div", "ui-ship-fuel", c.fuel));
     box.append(pic, info, this.action(c));
     if (c.upgradable && this.expanded.has(c.id)) box.append(this.upgrades(c.id, c.name));
+    if (c.upgradable && this.painting.has(c.id)) box.append(this.paints(c.id, c.name));
     return box;
   }
 
@@ -129,7 +141,7 @@ export class Shipyard {
   }
 
   private action(c: ShipCardText): HTMLElement {
-    const row = el("div", c.upgradable ? "ui-ship-action ui-ship-action-2" : "ui-ship-action");
+    const row = el("div", c.upgradable ? "ui-ship-action ui-ship-action-3" : "ui-ship-action");
     if (c.action === "active") {
       row.append(el("div", "ui-active-label", "▶ ACTIVE"));
     } else if (c.action === "switch") {
@@ -150,8 +162,76 @@ export class Shipyard {
           this.render();
         }),
       );
+      // PAINT (5f): the ship's paint jobs, inside the card like the upgrades (Andy chose A).
+      const painting = this.painting.has(c.id);
+      const summary = paintSummary(this.game.getLiveryCatalog(c.id));
+      row.append(
+        button(painting ? `PAINT ${summary} ▲` : `PAINT ${summary} ▼`, painting ? "ui-btn-wide ui-btn-on" : "ui-btn-wide", () => {
+          if (painting) this.painting.delete(c.id);
+          else this.painting.add(c.id);
+          this.render();
+        }),
+      );
     }
     return row;
+  }
+
+  /** The paint jobs of one owned ship: picture in that paint, name, line, and WORN / WEAR / BUY · 500 CR (5f). */
+  private paints(shipId: string, shipName: string): HTMLElement {
+    const wrap = el("div", "ui-upgrades ui-paints");
+    const names = liveriesFor(shipId);
+    for (const row of this.game.getLiveryCatalog(shipId)) {
+      const t = paintRowText(row, names.find((l) => l.id === row.id));
+      const pic = shipPictures([shipId], { [shipId]: row.id }).get(pictureKey(shipId, row.id));
+      const box = el("div", t.action === "worn" ? "ui-paint ui-paint-worn" : "ui-paint");
+      const picBox = el("div", "ui-paint-pic");
+      if (pic) {
+        const img = el("img");
+        img.src = pic;
+        img.alt = t.name;
+        picBox.append(img);
+      }
+      const info = el("div", "ui-paint-info");
+      info.append(el("div", "ui-upgrade-name", t.name), el("div", "ui-upgrade-effect", t.description));
+      let act: HTMLElement;
+      if (t.action === "worn") act = el("div", "ui-active-label", "▶ WORN");
+      else if (t.action === "wear") act = button(t.button, "ui-btn-wide", () => this.wear(shipId, shipName, row.id, t.name));
+      else if (t.action === "buy") act = button(t.button, "ui-btn-primary ui-btn-wide", () => this.buyPaint(shipId, shipName, row.id, t.name));
+      else {
+        const b = button(t.button, "ui-btn-wide", () => undefined);
+        b.disabled = true;
+        act = b;
+      }
+      const actBox = el("div", "ui-paint-act");
+      actBox.append(act);
+      if (t.reason) actBox.append(el("div", "ui-ship-reason", `✕ ${t.reason}`));
+      box.append(picBox, info, actBox);
+      wrap.append(box);
+    }
+    return wrap;
+  }
+
+  private buyPaint(shipId: string, shipName: string, liveryId: string, paintName: string): void {
+    const result = this.game.buyLivery(shipId, liveryId);
+    this.render();
+    if (!result.ok) {
+      this.popup.show({ title: "NOT BOUGHT", text: result.reason, warning: true });
+      return;
+    }
+    // Buying does not put it on (Agent 4's rule): offer "Wear now".
+    this.popup.show({
+      title: "PAINT BOUGHT",
+      big: paintName.toUpperCase(),
+      text: `Fresh paint for the ${shipName}. Wear it now?`,
+      buttons: [{ text: "WEAR NOW", primary: true, onClick: () => this.wear(shipId, shipName, liveryId, paintName) }, { text: "LATER" }],
+    });
+  }
+
+  private wear(shipId: string, shipName: string, liveryId: string, paintName: string): void {
+    const result = this.game.setLivery(shipId, liveryId);
+    this.render();
+    if (!result.ok) this.popup.show({ title: "NO NEW PAINT", text: result.reason, warning: true });
+    else this.popup.show({ title: "NEW LOOK", big: paintName.toUpperCase(), text: `The ${shipName} is wearing ${paintName}. Very stylish.` });
   }
 
   private buy(id: string, name: string): void {
