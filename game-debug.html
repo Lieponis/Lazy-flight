@@ -31,6 +31,27 @@
       Buttons marked <b>TEST</b> break the normal rules on purpose. <a href="./">Back to the game</a>.
     </p>
     <div id="app"></div>
+    <div id="crash" class="box" style="display:none; border-color:#b3261e; background:#fff0ee"></div>
+    <script>
+      // If the page crashes or does not start, show why in plain text (so a screenshot of this tells us what broke).
+      (function () {
+        var box = document.getElementById("crash");
+        function show(text) {
+          box.style.display = "block";
+          box.textContent = "The page hit a problem: " + text + "  |  " + navigator.userAgent;
+        }
+        window.addEventListener("error", function (e) {
+          var t = e && e.target;
+          if (t && t.tagName === "SCRIPT") show("a script file did not load (" + (t.src || "?") + "). Try a hard reload or a private tab.");
+          else show((e && e.message ? e.message : "unknown error") + (e && e.filename ? " at " + e.filename + ":" + e.lineno : ""));
+        }, true);
+        window.addEventListener("unhandledrejection", function (e) { show("unhandled: " + (e && e.reason && e.reason.message ? e.reason.message : String(e && e.reason))); });
+        window.setTimeout(function () {
+          var app = document.getElementById("app");
+          if (app && app.childElementCount === 0 && box.style.display === "none") show("nothing was drawn after 4 seconds (the script may be blocked or still loading).");
+        }, 4000);
+      })();
+    </script>
     <script type="module" src="/src/game-debug.ts"></script>
   </body>
 </html>
