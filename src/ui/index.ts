@@ -19,12 +19,14 @@ import {
   startAutoSave,
   type StartPlan,
   type StorageLike,
+  MESSAGE_REBUILT,
 } from "../save";
 import { el } from "./dom";
 import { ArrivalCard } from "./arrival";
 import { GameMenu, showToast, type NewGameChoice } from "./gamemenu";
 import { JobsMenu } from "./jobsmenu";
-import { locationText, overlayAllowed, placeLabel, visibleControls, type Overlay } from "./logic";
+import { locationText, overlayAllowed, placeLabel, startNotice, visibleControls, type Overlay } from "./logic";
+import { PlanetPanel } from "./planetpanel";
 import { NavBar } from "./navbar";
 import { RanksScreen } from "./ranks";
 import { Shipyard } from "./shipyard";
@@ -123,7 +125,14 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     },
     { get: sound.getPrefs, set: setSoundPrefs }, // MENU -> SETTINGS (7a)
   );
-  if (plan.notice) showToast(layer, plan.notice);
+  // The start-up note (e.g. "universe was rebuilt") is reworded and stays longer (5e, Andy chose the fading note).
+  // It appears when PLAY is pressed, so the title screen never hides it. Tap closes it.
+  const showStartNotice = (): void => {
+    if (!plan.notice) return;
+    const note = startNotice(plan.notice, MESSAGE_REBUILT);
+    showToast(layer, note.text, note.ms);
+  };
+  const planetPanel = new PlanetPanel(layer, seed, game); // 5e: DOCK / SCENERY card on the system map
 
   const nav = new NavBar(layer, {
     jobs: () => {
@@ -240,6 +249,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
 
   api.state.subscribe((s) => {
     if (s.screen === "system" && s.viewedSystemId) lastViewedSystemId = s.viewedSystemId;
+    planetPanel.update(s.screen, s.viewedSystemId, s.selectedPlanetId);
     refresh();
     maybeShowArrival();
   });
@@ -260,7 +270,10 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     seed,
     dockId: game.state.currentDockId,
     systemId: game.currentSystemId(),
-    onPlay: () => refresh(),
+    onPlay: () => {
+      refresh();
+      showStartNotice();
+    },
   });
   requestAnimationFrame(() => requestAnimationFrame(() => title.markGameReady())); // the game has drawn its first picture
 

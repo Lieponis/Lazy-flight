@@ -6,6 +6,7 @@
 import { refuel, type Game } from "../game";
 import { button, el } from "./dom";
 import {
+  EMPTY_BOARD_TEXT,
   emergencyVisible,
   formatCredits,
   jobCardText,
@@ -121,7 +122,7 @@ export class JobsMenu {
     this.list.replaceChildren();
     const outpost = this.outpostPanel();
     if (outpost) this.list.append(outpost);
-    if (cards.length === 0) this.list.append(el("div", "ui-empty", "No jobs right now. Check back later."));
+    if (cards.length === 0) this.list.append(el("div", "ui-empty", EMPTY_BOARD_TEXT));
     for (const card of cards) this.list.append(this.card(card));
     this.list.scrollTop = scrolled; // keep the place after refuelling or buying
   }

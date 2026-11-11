@@ -951,3 +951,84 @@
     margin-top: 2vh;
   }
 }
+
+/* ------------------------------------------------------------ part 5e: planet panel on the system map */
+
+/* While this panel is up, the render layer's plain text label on the system map is hidden (no render change). */
+body.ui-planet-panel-on .hud-label {
+  display: none;
+}
+
+.ui-planet {
+  position: fixed;
+  z-index: 25;
+  left: var(--ui-safe-l);
+  right: var(--ui-safe-r);
+  bottom: calc(var(--ui-bottom-reserve) + 8px);
+  max-width: 520px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  background: var(--ui-bg-panel);
+  border: 1px solid var(--ui-line-dim);
+  border-left: 3px solid var(--ui-dim);
+  pointer-events: none; /* just information: drags still turn the map */
+  font-family: var(--ui-font);
+  color: var(--ui-text);
+}
+
+.ui-planet-dock {
+  border-color: var(--ui-amber);
+  border-left-color: var(--ui-amber);
+}
+
+.ui-planet-dock .ui-chip {
+  color: var(--ui-bg-solid);
+  background: var(--ui-amber);
+  border-color: var(--ui-amber);
+}
+
+.ui-planet-scenery .ui-chip {
+  color: var(--ui-dim);
+  border-color: var(--ui-dim);
+}
+
+.ui-planet-hint {
+  border-left-color: var(--ui-teal);
+}
+
+.ui-planet-title {
+  margin-top: 4px;
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+
+.ui-planet-dock .ui-planet-title {
+  color: var(--ui-amber);
+}
+
+.ui-planet-details {
+  color: var(--ui-dim);
+  font-size: 18px;
+}
+
+.ui-planet-line {
+  margin-top: 2px;
+  font-size: 19px;
+}
+
+.ui-planet-here {
+  color: var(--ui-teal);
+  letter-spacing: 1px;
+  font-size: 17px;
+}
+
+@media (max-height: 420px) {
+  .ui-planet {
+    padding: 4px 10px;
+  }
+  .ui-planet-title {
+    font-size: 21px;
+    margin-top: 2px;
+  }
+}

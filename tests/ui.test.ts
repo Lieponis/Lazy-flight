@@ -44,6 +44,11 @@ import {
   upgradeRowText,
   upgradeSummary,
   upgradeTracksFor,
+  planetPanelText,
+  sceneryLine,
+  startNotice,
+  EMPTY_BOARD_TEXT,
+  PLANET_PANEL_HINT,
   sortForDisplay,
   visibleControls,
 } from "../src/ui/logic";
@@ -482,6 +487,51 @@ describe("ui 5d: upgrades and real numbers", () => {
     const s = buy(rich(), "engines", 5);
     expect(tripFuelCost(s, 20)).toBeLessThan(fuelCost(20));
     expect(tripFuelCost(rich(), 20)).toBe(fuelCost(20));
+  });
+});
+
+describe("ui 5e: planet panel and wording for fewer docks", () => {
+  const base = { planetId: "1:2:3:0/2", planetName: "Zorpex II", typeLabel: "Rocky world", radius: 1.23, here: false, owned: false };
+
+  it("a planet without a dock is SCENERY with a funny line", () => {
+    const t = planetPanelText({ ...base, dock: null });
+    expect(t).toMatchObject({ tag: "SCENERY", isDock: false, title: "Zorpex II", details: "Rocky world · 1.2x Earth", here: "" });
+    expect(t.line).toMatch(/dock|scenery|visit/i);
+  });
+
+  it("the scenery line is always the same for the same planet", () => {
+    expect(sceneryLine("a/1")).toBe(sceneryLine("a/1"));
+    const lines = new Set(Array.from({ length: 40 }, (_, i) => sceneryLine(`x/${i}`)));
+    expect(lines.size).toBeGreaterThan(1); // different planets get different jokes
+  });
+
+  it("a station dock", () => {
+    const t = planetPanelText({ ...base, dock: { name: "Rattling Kettle Station", kind: "STATION" } });
+    expect(t).toMatchObject({ tag: "DOCK · STATION", isDock: true, title: "Rattling Kettle Station", details: "Zorpex II · Rocky world · 1.2x Earth", line: "Jobs and fuel here." });
+  });
+
+  it("an outpost for sale, an owned outpost, and YOU ARE HERE", () => {
+    const sale = planetPanelText({ ...base, dock: { name: "Sleepy Mesa Outpost", kind: "OUTPOST" } });
+    expect(sale).toMatchObject({ tag: "DOCK · OUTPOST", line: "Jobs and fuel here. This outpost is for sale." });
+    const mine = planetPanelText({ ...base, dock: { name: "Sleepy Mesa Outpost", kind: "OUTPOST" }, owned: true, here: true });
+    expect(mine).toMatchObject({ line: "Your outpost: cheaper fuel, better pay.", here: "YOU ARE HERE" });
+  });
+
+  it("the old 'nothing to visit' wording is gone and the hint is short", () => {
+    expect(PLANET_PANEL_HINT.length).toBeLessThan(60);
+    expect(planetPanelText({ ...base, dock: null }).line).not.toContain(" - ");
+  });
+
+  it("the universe-rebuilt note is friendlier, shows the refund nicely and stays longer", () => {
+    const msg = "The universe was rebuilt. Your credits and ships came with you.";
+    expect(startNotice(msg, msg)).toEqual({ text: "Universe rebuilt! Your credits and ships came along.", ms: 12000 });
+    const withRefund = startNotice(`${msg} Your outposts were sold back for 40000 credits.`, msg);
+    expect(withRefund.text).toBe("Universe rebuilt! Your credits and ships came along. Your outposts were sold back for 40,000 CR.");
+    expect(startNotice("Saving is off in this browser.", msg)).toEqual({ text: "Saving is off in this browser.", ms: 7000 });
+  });
+
+  it("the empty Jobs board message stays calm", () => {
+    expect(EMPTY_BOARD_TEXT).toMatch(/No jobs/);
   });
 });
 

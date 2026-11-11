@@ -439,3 +439,86 @@ export function upgradeRowText(o: UpgradeOffer, credits: number): UpgradeRowText
     reason,
   };
 }
+
+// ------------------------------------------------------------ planet panel and wording for fewer docks (5e)
+
+/** What the planet panel on the system map shows (Andy chose layout A: a card with a DOCK or SCENERY tag). */
+export interface PlanetPanelText {
+  /** "DOCK · OUTPOST", "DOCK · STATION" or "SCENERY" */
+  tag: string;
+  isDock: boolean;
+  /** Big line: the dock's name, or the planet's name for scenery. */
+  title: string;
+  /** "Zorpex II · Rocky world · 1.2x Earth" */
+  details: string;
+  /** One relaxed line: what you can do there, or a joke for scenery. */
+  line: string;
+  /** "YOU ARE HERE" when you are docked there, otherwise "". */
+  here: string;
+}
+
+export interface PlanetPanelInput {
+  planetId: string;
+  planetName: string;
+  /** Already in words, e.g. "Rocky world". */
+  typeLabel: string;
+  radius: number;
+  /** null for a planet without a dock. */
+  dock: { name: string; kind: string } | null;
+  /** You are docked here. */
+  here: boolean;
+  /** For outposts: you own it. */
+  owned: boolean;
+}
+
+const SCENERY_LINES = [
+  "No dock. Great view, terrible parking.",
+  "Just scenery. Nobody here to sell tofu to.",
+  "No dock here. Wave as you fly past.",
+  "Nothing to visit. The locals are mostly rocks.",
+  "No dock. Even the postcards are blank.",
+  "Scenery only. Lovely to look at, nowhere to land.",
+] as const;
+
+/** A funny line for a planet without a dock. Always the same line for the same planet. */
+export function sceneryLine(planetId: string): string {
+  let h = 0;
+  for (let i = 0; i < planetId.length; i++) h = (h * 31 + planetId.charCodeAt(i)) >>> 0;
+  return SCENERY_LINES[h % SCENERY_LINES.length]!;
+}
+
+export function planetPanelText(p: PlanetPanelInput): PlanetPanelText {
+  const details = `${p.planetName} · ${p.typeLabel} · ${p.radius.toFixed(1)}x Earth`;
+  if (!p.dock) {
+    return { tag: "SCENERY", isDock: false, title: p.planetName, details: `${p.typeLabel} · ${p.radius.toFixed(1)}x Earth`, line: sceneryLine(p.planetId), here: "" };
+  }
+  const outpost = p.dock.kind === "OUTPOST";
+  let line = "Jobs and fuel here.";
+  if (outpost && p.owned) line = "Your outpost: cheaper fuel, better pay.";
+  else if (outpost) line = "Jobs and fuel here. This outpost is for sale.";
+  return {
+    tag: outpost ? "DOCK · OUTPOST" : "DOCK · STATION",
+    isDock: true,
+    title: p.dock.name,
+    details,
+    line,
+    here: p.here ? "YOU ARE HERE" : "",
+  };
+}
+
+/** The hint on the system map before a planet is tapped. */
+export const PLANET_PANEL_HINT = "Tap a planet to see it. Drag to turn, pinch to zoom.";
+
+/**
+ * The start-up note. The "universe was rebuilt" message from src/save becomes friendlier and stays longer
+ * (Andy chose the fading note, tap to close). Other notes stay as they are.
+ */
+export function startNotice(notice: string, rebuiltMessage: string): { text: string; ms: number } {
+  if (!notice.startsWith(rebuiltMessage)) return { text: notice, ms: 7000 };
+  const sold = /sold back for (\d+) credits/.exec(notice);
+  const refund = sold ? ` Your outposts were sold back for ${formatCredits(Number(sold[1]))}.` : "";
+  return { text: `Universe rebuilt! Your credits and ships came along.${refund}`, ms: 12000 };
+}
+
+/** The empty Jobs board: calm, and true in a system with one dock too. */
+export const EMPTY_BOARD_TEXT = "No jobs on the board right now. New ones arrive soon - have a coffee.";
