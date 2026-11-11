@@ -37,7 +37,7 @@ export interface StarSystem {
   name: string;
   position: Vec3;
   star: Star;
-  /** 1 to 8. Use getPlanets (planet layer) to get the planets themselves. */
+  /** 1 to 10. Use getPlanetsOfSystem to get the planets themselves. Only some planets have a dock (see docksOf). */
   planetCount: number;
 }
 

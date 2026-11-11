@@ -1,10 +1,13 @@
-// LAYER 4: the dock. Every planet has exactly ONE: a surface OUTPOST or an orbiting STATION.
+// LAYER 4: the dock. A dock is a surface OUTPOST or an orbiting STATION on one planet.
+// Universe version 2: only some planets have a dock. Each system has 1 to 3 docks, more for bigger systems.
 // Outposts can be bought by the player and give two perks. Stations cannot be bought.
 
 import { GOODS } from "./data/goods";
 import { generateOutpostName, generateStationName } from "./names";
-import type { Planet } from "./planet";
+import { generatePlanet, type Planet } from "./planet";
 import { rngFor, type Seed } from "./random";
+import { DOCK_PLANETS_PER_DOCK, MAX_DOCKS_PER_SYSTEM } from "./settings";
+import type { StarSystem } from "./system";
 
 export type DockKind = "OUTPOST" | "STATION";
 
@@ -16,7 +19,7 @@ export interface OutpostPerks {
 }
 
 export interface Dock {
-  /** Same id as its planet, e.g. "3:-2:5:0/2". */
+  /** Same id as the planet it sits on, e.g. "3:-2:5:0/2". */
   id: string;
   planetId: string;
   systemId: string;
@@ -67,4 +70,28 @@ export function generateDock(seed: Seed, planet: Planet): Dock {
     outpostPrice,
     perks,
   };
+}
+
+/** The most docks a system with this many planets can have: round(planets / 3.3), from 1 to 3. */
+export function maxDocksFor(planetCount: number): number {
+  const raw = Math.round(planetCount / DOCK_PLANETS_PER_DOCK);
+  return Math.min(MAX_DOCKS_PER_SYSTEM, Math.max(1, raw));
+}
+
+/**
+ * Which planets of a system have a dock, as planet numbers (smallest first).
+ * The number of docks is a random whole number from 1 to maxDocksFor(planetCount); the planets are picked
+ * at random. Both come only from the seed and the system, so the answer never changes.
+ */
+export function dockPlanetIndexes(seed: Seed, system: StarSystem): number[] {
+  const rng = rngFor(seed, "docks", system.id);
+  const count = rng.int(1, maxDocksFor(system.planetCount));
+  const all: number[] = [];
+  for (let i = 0; i < system.planetCount; i++) all.push(i);
+  return rng.shuffled(all).slice(0, count).sort((a, b) => a - b);
+}
+
+/** All docks of a system, in planet order. Always 1 to 3 docks. */
+export function docksOf(seed: Seed, system: StarSystem): Dock[] {
+  return dockPlanetIndexes(seed, system).map((index) => generateDock(seed, generatePlanet(seed, system, index)));
 }

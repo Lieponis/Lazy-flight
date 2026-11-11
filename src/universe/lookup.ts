@@ -1,7 +1,7 @@
 // Handy "find by id" and "list nearby" functions that combine the layers.
 // (This file sits on top of all the layers, so it may use all of them.)
 
-import { generateDock, type Dock } from "./dock";
+import { dockPlanetIndexes, docksOf, generateDock, type Dock } from "./dock";
 import { distance, getSite, listSitesNear, type Vec3 } from "./galaxy";
 import { generatePlanet, generatePlanets, type Planet } from "./planet";
 import type { Seed } from "./random";
@@ -37,10 +37,26 @@ export function getPlanet(seed: Seed, planetId: string): Planet | null {
   return generatePlanet(seed, system, parsed.planetIndex);
 }
 
-/** Finds a dock by id (same id as its planet). Null if it does not exist. */
+/** True if this id (same as a planet id, like "3:-2:5:0/2") is a planet that has a dock. */
+export function hasDock(seed: Seed, dockId: string): boolean {
+  const parsed = parseDockId(dockId);
+  if (!parsed) return false;
+  const system = getSystem(seed, parsed.systemId);
+  if (!system || parsed.planetIndex >= system.planetCount) return false;
+  return dockPlanetIndexes(seed, system).includes(parsed.planetIndex);
+}
+
+/** Finds a dock by id (same id as its planet). Null if there is no such dock, including planets without a dock. */
 export function getDock(seed: Seed, dockId: string): Dock | null {
+  if (!hasDock(seed, dockId)) return null;
   const planet = getPlanet(seed, dockId);
   return planet ? generateDock(seed, planet) : null;
+}
+
+/** All docks of a system by id (1 to 3, in planet order). Empty list if the system does not exist. */
+export function getDocksOfSystem(seed: Seed, systemId: string): Dock[] {
+  const system = getSystem(seed, systemId);
+  return system ? docksOf(seed, system) : [];
 }
 
 /** Systems within `radius` light years of a point, nearest first. */
@@ -48,8 +64,9 @@ export function listSystemsNear(seed: Seed, center: Vec3, radius: number): StarS
   return listSitesNear(seed, center, radius).map((site) => generateSystem(seed, site));
 }
 
-/** Distance in light years between two docks (0 if in the same system). Null if either does not exist. */
+/** Distance in light years between two docks (0 if in the same system). Null if either dock does not exist. */
 export function distanceBetweenDocks(seed: Seed, dockIdA: string, dockIdB: string): number | null {
+  if (!hasDock(seed, dockIdA) || !hasDock(seed, dockIdB)) return null;
   const a = parseDockId(dockIdA);
   const b = parseDockId(dockIdB);
   if (!a || !b) return null;

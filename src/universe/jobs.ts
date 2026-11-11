@@ -2,7 +2,7 @@
 // Uses all earlier layers. Accepting and completing jobs is NOT here (that is Agent 4's work).
 
 import { GOODS, getGood } from "./data/goods";
-import type { Dock } from "./dock";
+import { dockPlanetIndexes, type Dock } from "./dock";
 import { getPrice } from "./economy";
 import { distance, getSite, listSitesNear } from "./galaxy";
 import { getDock, parseDockId } from "./lookup";
@@ -68,14 +68,14 @@ interface Candidate {
   position: { x: number; y: number; z: number };
 }
 
-/** Every dock within MAX_JOB_DISTANCE of the origin dock's system (except the origin dock itself). */
+/** Every dock (not every planet) within MAX_JOB_DISTANCE of the origin dock's system, except the origin dock itself. */
 function findCandidates(seed: Seed, origin: Dock): Candidate[] {
   const originSite = getSite(seed, origin.systemId);
   if (!originSite) return [];
   const result: Candidate[] = [];
   for (const site of listSitesNear(seed, originSite.position, MAX_JOB_DISTANCE)) {
     const system = generateSystem(seed, site);
-    for (let i = 0; i < system.planetCount; i++) {
+    for (const i of dockPlanetIndexes(seed, system)) {
       const dockId = `${system.id}/${i}`;
       if (dockId === origin.id) continue;
       result.push({ dockId, position: site.position });
