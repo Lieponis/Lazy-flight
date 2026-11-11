@@ -83,7 +83,8 @@ Files changed:
   They are only in the viewer.
 - **Not tested on a phone:** this costs no extra speed, because the shapes are the same and only the colours differ.
 - **Glass frames repainted:** the canopy frame bars use the hull paint, so they take the livery's hull colour (for
-  example yellow bars on Hazard Yellow). Andy saw this in the viewer and kept it.
+  example yellow bars on Hazard Yellow). This is visible in the pictures Andy approved; he did not
+  ask for a change.
 
 ## 5. Suggestions (not built)
 
