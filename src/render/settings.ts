@@ -208,3 +208,4 @@ export const SYSTEM_MARK_STYLE: "off" | "A" = "A";
 export const SYSTEM_LANE_DOCK = 0x5fd4ff; // orbit line of a planet with a dock
 export const SYSTEM_LANE_SCENERY = 0x1d2350; // orbit line of a scenery planet (dim)
 export const SYSTEM_LANE_OLD = 0x2a3170; // the old look: every orbit line the same
+export const SYSTEM_MIN_ZOOM_DIST = 0.8; // how close the player can zoom in the system view (was 4; Andy: 5x more)

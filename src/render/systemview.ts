@@ -31,6 +31,7 @@ import {
   SYSTEM_LANE_OLD,
   SYSTEM_LANE_SCENERY,
   SYSTEM_MARK_STYLE,
+  SYSTEM_MIN_ZOOM_DIST,
   SYSTEM_OUTPOST_SCALE,
   SYSTEM_OUTPOST_SCALE_MAX,
   SYSTEM_OUTPOST_SCALE_MIN,
@@ -195,7 +196,7 @@ export function makeStation(): THREE.Group {
 
 export class SystemViewScreen implements Screen {
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(50, RENDER_WIDTH / RENDER_HEIGHT, 0.5, 700);
+  readonly camera = new THREE.PerspectiveCamera(50, RENDER_WIDTH / RENDER_HEIGHT, 0.05, 700);
 
   private view: OrbitView;
   private content = new THREE.Group();
@@ -226,7 +227,7 @@ export class SystemViewScreen implements Screen {
     this.selectionMarker.visible = false;
     this.scene.add(this.selectionMarker);
 
-    this.view = new OrbitView(this.camera, opts.host, 4, 90, 40);
+    this.view = new OrbitView(this.camera, opts.host, SYSTEM_MIN_ZOOM_DIST, 90, 40);
     this.view.onTap = (x, y) => this.handleTap(x, y);
   }
 
