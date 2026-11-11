@@ -72,23 +72,56 @@ function unit(v: V3): V3 {
   return { x: v.x / l, y: v.y / l, z: v.z / l };
 }
 
-/**
- * How far the planet has moved from its floating pose when the ship has left for `p` (0..1) of the launch. It slides away from the ship
- * and backwards, getting smaller; it never gets closer to the ship.
- */
-export function departOffset(centre: V3, p: number): V3 {
-  const c = unit(centre);
-  const dir = unit({ x: c.x, y: c.y, z: c.z + 0.8 });
-  const l = FAR_DISTANCE * Math.pow(Math.min(1, Math.max(0, p)), 2.2);
-  return { x: dir.x * l, y: dir.y * l, z: dir.z * l };
+/** Biggest nose-up angle of the departure path (radians, about 50 degrees) and how the climb eases in. */
+export const CLIMB_ANGLE = 0.9;
+function smooth(x: number): number {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+}
+/** The ship's nose-up angle after `p` (0..1) of a departure: 0 in orbit, then it pitches up and keeps climbing. */
+export function climbAngle(p: number): number {
+  return CLIMB_ANGLE * smooth(p / 0.75);
 }
 
-/** The planet's push-away when the ship has arrived for `q` (0..1) of the approach: far and tiny at 0, in its floating pose at 1, easing in. */
-export function arriveOffset(centre: V3, q: number): V3 {
-  const c = unit(centre);
-  const rest = 1 - Math.min(1, Math.max(0, q));
-  const l = FAR_DISTANCE * rest * rest;
-  return { x: c.x * l, y: c.y * l, z: c.z * l };
+/** How far the ship has flown (system units) after `p` of a departure. It speeds up, so the planet is far and small by the end. */
+function flown(p: number): number {
+  return FAR_DISTANCE * Math.pow(Math.min(1, Math.max(0, p)), 2.2);
+}
+
+/** Where the ship is after `p` of a departure, relative to where it started in orbit: it curves up and away from the planet (see the schematic). */
+function departedBy(p: number): V3 {
+  const steps = 40;
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (let i = 0; i < steps; i++) {
+    const q0 = (p * i) / steps;
+    const q1 = (p * (i + 1)) / steps;
+    const dl = flown(q1) - flown(q0);
+    const a = climbAngle((q0 + q1) / 2);
+    y += dl * Math.sin(a);
+    z -= dl * Math.cos(a);
+  }
+  return { x, y, z };
+}
+
+/**
+ * A DEPARTURE from a planet without a dock: the ship starts in its orbit (the planet at `centre`), then pitches its nose up and curves away.
+ * Returns where the planet is relative to the ship, and the ship's nose-up angle. The planet only ever gets farther away.
+ */
+export function departPose(centre: V3, p: number): { centre: V3; pitch: number } {
+  const s = departedBy(Math.min(1, Math.max(0, p)));
+  return { centre: { x: centre.x - s.x, y: centre.y - s.y, z: centre.z - s.z }, pitch: climbAngle(p) };
+}
+
+/**
+ * An ARRIVAL at a planet without a dock, the departure mirrored: the ship comes in from far away, high and behind, with its nose
+ * pointing a little down, and flattens out into its orbit (`q` 0..1; at 1 the planet is at `centre` and the pitch is 0).
+ */
+export function arrivePose(centre: V3, q: number): { centre: V3; pitch: number } {
+  const r = 1 - Math.min(1, Math.max(0, q));
+  const s = departedBy(r); // the same curve, flown backwards in time
+  return { centre: { x: centre.x - s.x, y: centre.y - s.y, z: centre.z + s.z }, pitch: -climbAngle(r) };
 }
 
 /** How far a plane (the rings) is from the ship, when the plane's normal makes angle `tilt` with the line to the ship. */
@@ -135,19 +168,6 @@ export function noseDirection(axis: V3, centre: V3): V3 {
 export const SHIP_ROLL_AMOUNT = 0.22;
 export function shipRoll(seconds: number): number {
   return Math.sin(seconds * 0.33) * SHIP_ROLL_AMOUNT;
-}
-
-/** At the start of a launch from a planet without a dock the ship sits this far above the surface. */
-export const LAUNCH_GAP = 1.5;
-
-/**
- * Where the planet's centre is (relative to the ship) `p` (0..1) of the way through a launch FROM the planet: the ship starts on the
- * surface, straight above the centre, and climbs away, so the planet drops down and backwards and shrinks. It never gets closer.
- */
-export function launchCentre(radius: number, p: number): V3 {
-  const dir = unit({ x: 0, y: -1, z: 0.6 });
-  const l = FAR_DISTANCE * Math.pow(Math.min(1, Math.max(0, p)), 2.2);
-  return { x: dir.x * l, y: -(radius + LAUNCH_GAP) + dir.y * l, z: dir.z * l };
 }
 
 export function dot(a: V3, b: V3): number {

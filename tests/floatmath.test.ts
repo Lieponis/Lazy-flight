@@ -5,12 +5,11 @@ import {
   FLOAT_STYLES,
   RING_CLEARANCE,
   STAR_DIRECTION,
-  arriveOffset,
+  CLIMB_ANGLE,
+  arrivePose,
   clearanceOf,
-  departOffset,
-  launchCentre,
+  departPose,
   noseDirection,
-  LAUNCH_GAP,
   shipRoll,
   SHIP_ROLL_AMOUNT,
   dot,
@@ -54,36 +53,49 @@ describe("floating scene: layouts", () => {
 describe("floating scene: leaving and arriving", () => {
   for (const s of FLOAT_STYLES) {
     const c = floatLayout(s).centre;
-    it(`style ${s}: leaving never brings the planet closer to the ship, and ends far away`, () => {
+    it(`style ${s}: leaving starts in the floating pose, never brings the planet closer, and ends far away`, () => {
+      const start = departPose(c, 0);
+      expect(lengthOf({ x: start.centre.x - c.x, y: start.centre.y - c.y, z: start.centre.z - c.z })).toBeLessThan(1e-9);
+      expect(start.pitch).toBe(0);
       let last = lengthOf(c);
       for (let i = 1; i <= 100; i++) {
-        const o = departOffset(c, i / 100);
-        const d = lengthOf({ x: c.x + o.x, y: c.y + o.y, z: c.z + o.z });
+        const d = lengthOf(departPose(c, i / 100).centre);
         expect(d).toBeGreaterThanOrEqual(last - 1e-9);
         last = d;
       }
-      expect(last).toBeGreaterThan(FAR_DISTANCE * 0.9);
-      const none = departOffset(c, 0);
-      expect(lengthOf(none)).toBe(0);
+      expect(last).toBeGreaterThan(FAR_DISTANCE * 0.8);
     });
-    it(`style ${s}: arriving only ever brings the planet closer, and ends in the floating pose`, () => {
+    it(`style ${s}: leaving pitches the nose up smoothly to the climb angle`, () => {
+      let last = 0;
+      for (let i = 1; i <= 100; i++) {
+        const a = departPose(c, i / 100).pitch;
+        expect(a).toBeGreaterThanOrEqual(last - 1e-9);
+        last = a;
+      }
+      expect(last).toBeCloseTo(CLIMB_ANGLE, 6);
+    });
+    it(`style ${s}: arriving only ever brings the planet closer, nose slightly down, and ends in the floating pose`, () => {
       let last = Infinity;
       for (let i = 0; i <= 100; i++) {
-        const o = arriveOffset(c, i / 100);
-        const d = lengthOf({ x: c.x + o.x, y: c.y + o.y, z: c.z + o.z });
+        const pose = arrivePose(c, i / 100);
+        const d = lengthOf(pose.centre);
         expect(d).toBeLessThanOrEqual(last + 1e-9);
+        expect(pose.pitch).toBeLessThanOrEqual(1e-9);
         last = d;
       }
-      expect(lengthOf(arriveOffset(c, 1))).toBe(0);
-      expect(lengthOf(arriveOffset(c, 0))).toBeCloseTo(FAR_DISTANCE, 6);
+      const end = arrivePose(c, 1);
+      expect(lengthOf({ x: end.centre.x - c.x, y: end.centre.y - c.y, z: end.centre.z - c.z })).toBeLessThan(1e-9);
+      expect(end.pitch).toBeCloseTo(0, 9);
+      expect(lengthOf(arrivePose(c, 0).centre)).toBeGreaterThan(FAR_DISTANCE * 0.8);
+    });
+    it(`style ${s}: the planet is never in the way (the ship stays clear of the surface all through leaving and arriving)`, () => {
+      const r = floatLayout(s).radius;
+      for (let i = 0; i <= 100; i++) {
+        expect(lengthOf(departPose(c, i / 100).centre)).toBeGreaterThan(r + CAMERA_REACH);
+        expect(lengthOf(arrivePose(c, i / 100).centre)).toBeGreaterThan(r + CAMERA_REACH);
+      }
     });
   }
-  it("arriving slows down at the end (the planet settles gently)", () => {
-    const c = floatLayout("B").centre;
-    const early = lengthOf(arriveOffset(c, 0.1)) - lengthOf(arriveOffset(c, 0.2));
-    const late = lengthOf(arriveOffset(c, 0.8)) - lengthOf(arriveOffset(c, 0.9));
-    expect(late).toBeLessThan(early);
-  });
   it("the drift is small and never stands still", () => {
     for (let t = 0; t < 300; t += 7) expect(lengthOf(floatDrift(t))).toBeLessThan(4);
     expect(lengthOf({ x: floatDrift(0).x - floatDrift(40).x, y: 0, z: 0 })).toBeGreaterThan(0.1);
@@ -145,19 +157,5 @@ describe("floating scene: nose along the surface, roll, launch from the surface"
     expect(hi).toBeGreaterThan(0.1);
     expect(lo).toBeLessThan(-0.1);
     expect(shipRoll(0)).toBe(0);
-  });
-  it("a launch starts just above the surface and the planet only ever moves away", () => {
-    const r = 60;
-    const start = launchCentre(r, 0);
-    expect(lengthOf(start)).toBeCloseTo(r + LAUNCH_GAP, 6);
-    expect(start.x).toBe(0);
-    expect(start.z).toBe(0);
-    let last = lengthOf(start);
-    for (let i = 1; i <= 100; i++) {
-      const d = lengthOf(launchCentre(r, i / 100));
-      expect(d).toBeGreaterThanOrEqual(last - 1e-9);
-      last = d;
-    }
-    expect(last).toBeGreaterThan(FAR_DISTANCE * 0.9);
   });
 });

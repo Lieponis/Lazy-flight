@@ -28,7 +28,7 @@ import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
 import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, fovForMagnification, shakeShare, startFov, zoomMagnification, type Look, type ViewMode } from "./cockpitview";
 import { pinchFactor, wheelFactor } from "./dockedcam";
 import { hexToNumber, starfieldPositions } from "./helpers";
-import { arriveOffset, floatDrift, launchCentre, shipRoll, floatLayout, lengthOf, parseFloatStyle, ringNormalWorld, STAR_DIRECTION, STAR_DISTANCE, starDrawRadius, tiltForClearance, type FloatStyle } from "./floatmath";
+import { arrivePose, departPose, floatDrift, shipRoll, floatLayout, lengthOf, parseFloatStyle, ringNormalWorld, STAR_DIRECTION, STAR_DISTANCE, starDrawRadius, tiltForClearance, type FloatStyle } from "./floatmath";
 import { chooseLook } from "./planetlook";
 import type { Hud } from "./hud";
 import type { Screen } from "./screen";
@@ -333,6 +333,7 @@ export class FlightScreen implements Screen {
     if (this.floating) this.beginFloat(this.floating.planetId);
   }
 
+  private shipPitch = 0; // nose-up angle while leaving or arriving at a planet without a dock
   private floatT0 = 0; // clockT when the floating began (the circling starts from zero)
 
   private spinScenery(s: NonNullable<Body["scenery"]>, angle: number): void {
@@ -485,9 +486,10 @@ export class FlightScreen implements Screen {
     // The docks slide past the ship. The ship's parking spot and the dock's parking spot are the same point at the two ends.
     if (phase === "LAUNCH" && this.origin?.scenery) {
       // A planet without a dock: it slides away behind the ship, getting smaller.
-      // The ship starts on its surface, as if from an outpost, and climbs away.
-      const c = launchCentre(this.origin.scenery.radius, p);
-      this.origin.group.position.set(c.x, c.y, c.z);
+      // The ship starts in its orbit, then pitches its nose up and curves away from the planet (Andy's schematic).
+      const pose = departPose(this.origin.scenery.centre, p);
+      this.origin.group.position.set(pose.centre.x, pose.centre.y, pose.centre.z);
+      this.shipPitch = pose.pitch;
       this.spinScenery(this.origin.scenery, 0);
     } else if (phase === "LAUNCH" && this.origin && this.origin.model) {
       // Station: straight out of the slot, then round the planet. Outpost: lift off, tilt, angled line, then curve into orbit.
@@ -502,9 +504,11 @@ export class FlightScreen implements Screen {
       // A planet without a dock: it grows out of the distance and settles into its floating pose, then drifts a little.
       const c = this.dest.scenery.centre;
       const q = phase === "DONE" ? 1 : p;
-      const o = arriveOffset(c, q);
+      // Arriving is the departure turned round: in from far away with the nose a little down, flattening out into the orbit.
+      const pose = arrivePose(c, q);
+      this.shipPitch = pose.pitch;
       const drift = this.floating ? floatDrift(this.clockT) : { x: 0, y: 0, z: 0 };
-      this.dest.group.position.set(c.x + o.x + drift.x, c.y + o.y + drift.y, c.z + o.z + drift.z);
+      this.dest.group.position.set(pose.centre.x + drift.x, pose.centre.y + drift.y, pose.centre.z + drift.z);
       // The ship circles the planet: seen from the ship, the planet turns about its axis and its star goes round with it (so the light stays right).
       this.spinScenery(this.dest.scenery, this.floating ? (this.clockT - this.floatT0) * FLOAT_SHIP_ORBIT_SPEED : 0);
     } else if ((phase === "APPROACH" || phase === "DONE") && this.dest) {
@@ -532,6 +536,8 @@ export class FlightScreen implements Screen {
     // Engine flames (the design's own flame parts): short at the dock, 1 flying, 3 in warp.
     // Floating: the ship rolls slowly from side to side while it circles the planet (its nose already points along the surface).
     this.ship.group.rotation.z = this.floating ? shipRoll(this.clockT - this.floatT0) : 0;
+    this.ship.group.rotation.x = this.shipPitch;
+    this.shipPitch = 0; // set again each frame by the scenery launch / arrival above
     const flame = flameLength(phase, p, this.clockT);
     const flicker = flameFlicker(this.clockT, LOOK_FLAME_FLICKER); // PS1 style: the flame changes length in chunky steps
     for (const f of this.ship.animation.flames) f.scale.z = flame * flicker;
@@ -596,7 +602,7 @@ export class FlightScreen implements Screen {
       const eye = pilotEye(this.ship.anchors.eye?.pos, shipY);
       camera.position.set(eye.x, eye.y, eye.z);
       this.cockpitRig.position.set(eye.x, eye.y, eye.z); // the room's eye spot is its origin; placed before the pitch and shake are added
-      camera.rotation.set(pitch + this.look.pitch, this.look.yaw, 0, "YXZ");
+      camera.rotation.set(pitch + this.look.pitch + this.ship.group.rotation.x, this.look.yaw, 0, "YXZ");
     }
     if (Math.abs(camera.fov - fov) > 0.01) {
       camera.fov = fov;
