@@ -7,7 +7,7 @@
 //   api.state.subscribe((s) => ...)    // be told when something changes
 
 import type * as THREE from "three";
-import { getPlanetsOfSystem, getSystem, parseDockId, type StarSystem } from "../universe";
+import { getDocksOfSystem, getSystem, parseDockId, type StarSystem } from "../universe";
 import type { FlightInfo } from "./flightplan";
 import { Hud } from "./hud";
 import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
@@ -89,7 +89,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
   }
   let starmap = makeStarmap(current);
   // The dock the ship is parked at (the first one shown). Navigation buttons live in src/ui (Agent 5).
-  let lastDockId = getPlanetsOfSystem(seed, current.id)[0]?.id ?? "";
+  let lastDockId = getDocksOfSystem(seed, current.id)[0]?.id ?? "";
   const docked = new DockedScreen({
     seed,
     host: canvas,
@@ -183,7 +183,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
 
   // Testing aid for the warp look: ?warppreview=1 goes straight into an endless warp with buttons to compare the looks.
   if (parseWarpPreview(window.location.search)) {
-    const docks = getPlanetsOfSystem(seed, current.id).map((p) => p.id);
+    const docks = getDocksOfSystem(seed, current.id).map((d) => d.id);
     api.startFlight({
       originDockId: docks[0] ?? lastDockId,
       destinationDockId: docks[1] ?? docks[0] ?? lastDockId,

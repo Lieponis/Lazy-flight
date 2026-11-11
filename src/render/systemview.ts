@@ -2,7 +2,7 @@
 // each planet with its dock (an OUTPOST on the surface, or a STATION in orbit).
 
 import * as THREE from "three";
-import { generateDock, getPlanetsOfSystem, getSystem, type Dock, type Planet, type Seed } from "../universe";
+import { getDock, getPlanetsOfSystem, getSystem, type Dock, type Planet, type Seed } from "../universe";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import { chooseLook, hasCloud, surfaceColour, type PlanetLook } from "./planetlook";
 import {
@@ -43,11 +43,12 @@ export interface SystemViewOptions {
 
 interface PlanetEntry {
   planet: Planet;
-  dock: Dock;
+  /** Null for a planet without a dock: it is only scenery (drawn, but not selectable). */
+  dock: Dock | null;
   group: THREE.Group;
   radius: number;
   /** The dock design drawn small next to the planet (blinking lights, the station ring turning). */
-  model: AssetModel;
+  model: AssetModel | null;
   /** Set only for stations: they slowly circle their planet. */
   station: { object: THREE.Object3D; orbit: number; angle: number } | null;
 }
@@ -241,7 +242,7 @@ export class SystemViewScreen implements Screen {
 
     let outermost = 6;
     for (const planet of getPlanetsOfSystem(seed, system.id)) {
-      const dock = generateDock(seed, planet);
+      const dock = getDock(seed, planet.id); // null: this planet has no dock
       const radius = planetDisplayRadius(planet.type, planet.radius);
       const orbit = orbitDisplayRadius(planet.index, planet.orbitRadius);
       outermost = Math.max(outermost, orbit);
@@ -263,10 +264,12 @@ export class SystemViewScreen implements Screen {
       group.add(makePlanetMesh(planet, radius, toStar, planet.type === "GAS" ? 3 : 2));
 
       // The dock: the design picked for it, drawn small. (Its own `parking` spot is at the model's origin.)
-      const built = buildDockModel(dock.kind, planet.id, planet);
-      const model = built.model;
+      // A planet without a dock gets no model at all.
+      const model = dock ? buildDockModel(dock.kind, planet.id, planet).model : null;
       let station: PlanetEntry["station"] = null;
-      if (dock.kind === "OUTPOST") {
+      if (!model || !dock) {
+        // scenery only
+      } else if (dock.kind === "OUTPOST") {
         const scale = clamp(radius * SYSTEM_OUTPOST_SCALE, SYSTEM_OUTPOST_SCALE_MIN, SYSTEM_OUTPOST_SCALE_MAX);
         const up = new THREE.Vector3(0, 1, 0);
         const dir = outward.clone().multiplyScalar(0.6).add(up.clone().multiplyScalar(0.8)).normalize();
@@ -307,7 +310,7 @@ export class SystemViewScreen implements Screen {
     this.view.apply();
     this.clockT += seconds;
     for (const entry of this.entries) {
-      entry.model.update(this.clockT); // blinking lights, the ring habitat turning
+      entry.model?.update(this.clockT); // blinking lights, the ring habitat turning
       const st = entry.station;
       if (!st) continue;
       st.angle += seconds * 0.6;
@@ -325,6 +328,7 @@ export class SystemViewScreen implements Screen {
     const rect = this.opts.host.getBoundingClientRect();
     this.camera.updateMatrixWorld();
     const points: ScreenPoint[] = this.entries.map((e) => {
+      if (!e.dock) return { x: Infinity, y: Infinity }; // no dock: not a place to go, so it cannot be picked
       this.temp.copy(e.group.position).project(this.camera);
       if (this.temp.z > 1) return { x: Infinity, y: Infinity };
       return { x: ((this.temp.x + 1) / 2) * rect.width, y: ((1 - this.temp.y) / 2) * rect.height };
@@ -339,11 +343,12 @@ export class SystemViewScreen implements Screen {
   private refreshHud(): void {
     const { hud } = this.opts;
     const chosen = this.entries[this.selected];
-    if (chosen) {
-      const { planet, dock } = chosen;
+    const dock = chosen ? chosen.dock : null;
+    if (chosen && dock) {
+      const planet = chosen.planet;
       hud.setLabel(`${planet.name} - ${planetTypeLabel(planet.type)}\n${dockKindLabel(dock.kind)}: ${dock.name}`);
     } else {
-      hud.setLabel("Tap a planet to see its name and dock.\nDrag to turn the view, scroll or pinch to zoom.");
+      hud.setLabel("Tap a planet with a dock to see it.\nDrag to turn the view, scroll or pinch to zoom.");
     }
     hud.setButtons([]); // the System | Galaxy switch and CLOSE live in src/ui (Agent 5)
   }

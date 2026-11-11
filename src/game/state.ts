@@ -27,6 +27,8 @@ export interface GameState {
   completedJobs: CompletedJobs;
   /** The ids of the outposts you own (your home bases), in the order you bought them. */
   ownedOutposts: string[];
+  /** What you paid for each outpost you own, by dock id (credits). Missing = bought before this was stored. */
+  outpostPrices: Record<string, number>;
   /** How many outposts you own. Always the length of ownedOutposts. */
   outpostCount: number;
   /** The dock you are at (or left from, while a job is in flight). Same id as its planet. */
@@ -58,6 +60,7 @@ export function newGameState(startDockId: string): GameState {
     shipUpgrades: {},
     completedJobs: emptyCompletedJobs(),
     ownedOutposts: [],
+    outpostPrices: {},
     outpostCount: 0,
     currentDockId: startDockId,
     currentJob: null,
@@ -106,6 +109,14 @@ export function normalizeState(raw: Partial<GameState> & { currentDockId: string
       if (typeof id === "string" && id !== "" && !ownedOutposts.includes(id)) ownedOutposts.push(id);
     }
   }
+  // The price paid per outpost: whole credits above 0, and only for outposts you own.
+  const rawPrices: Partial<Record<string, unknown>> =
+    raw.outpostPrices && typeof raw.outpostPrices === "object" ? (raw.outpostPrices as Partial<Record<string, unknown>>) : {};
+  const outpostPrices: Record<string, number> = {};
+  for (const id of ownedOutposts) {
+    const paid = rawPrices[id];
+    if (typeof paid === "number" && Number.isFinite(paid) && paid > 0) outpostPrices[id] = Math.round(paid);
+  }
   const hasJob = raw.currentJob != null && raw.travelStartMs != null && raw.travelEndMs != null;
   return {
     credits: Math.max(0, Math.round(finiteOr(raw.credits, STARTING_CREDITS))),
@@ -115,6 +126,7 @@ export function normalizeState(raw: Partial<GameState> & { currentDockId: string
     shipUpgrades: upgrades,
     completedJobs: completed,
     ownedOutposts,
+    outpostPrices,
     outpostCount: ownedOutposts.length,
     currentDockId: raw.currentDockId,
     currentJob: hasJob ? (raw.currentJob as Job) : null,

@@ -34,7 +34,7 @@ import { cameraFov, clamp, orbitCameraPosition, renderSizeFor, starfieldPosition
 import { buildCargoHauler } from "./render/ship";
 import { makeOutpost, makeStation } from "./render/systemview";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "./settings";
-import { generateDock, getPlanetsOfSystem, listSystemsNear, type Planet } from "./universe";
+import { docksOf, getPlanet, listSystemsNear, type Planet } from "./universe";
 
 // ------------------------------------------------------------------ state (mirrors the address)
 
@@ -977,8 +977,9 @@ function renderGridPage(): void {
 
   const docks: { id: string; planet: Planet; kind: string }[] = [];
   for (const system of listSystemsNear(S.seed, { x: 0, y: 0, z: 0 }, 25)) {
-    for (const planet of getPlanetsOfSystem(S.seed, system.id)) {
-      docks.push({ id: planet.id, planet, kind: generateDock(S.seed, planet).kind });
+    for (const dock of docksOf(S.seed, system)) {
+      const planet = getPlanet(S.seed, dock.id);
+      if (planet) docks.push({ id: dock.id, planet, kind: dock.kind });
       if (docks.length >= 16) break;
     }
     if (docks.length >= 16) break;

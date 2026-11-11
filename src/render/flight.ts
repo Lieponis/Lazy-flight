@@ -7,7 +7,7 @@
 // placed so that the dock's parking spot is exactly where the ship is (so the launch starts, and the approach ends, in the dock).
 
 import * as THREE from "three";
-import { generateDock, getPlanet, hashString, parseDockId, type Seed } from "../universe";
+import { getDock, getPlanet, hashString, parseDockId, type Seed } from "../universe";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import { COMPUTER_LINES } from "./flightlines";
 import {
@@ -635,9 +635,9 @@ export class FlightScreen implements Screen {
    * plus the planet under it (outposts) or below it (stations: the slot points along the planet's surface).
    */
   private makeBody(dockId: string): Body | null {
-    const planet = getPlanet(this.opts.seed, dockId);
-    if (!planet) return null;
-    const dock = generateDock(this.opts.seed, planet);
+    const dock = getDock(this.opts.seed, dockId); // null for a planet without a dock
+    const planet = dock ? getPlanet(this.opts.seed, dockId) : null;
+    if (!planet || !dock) return null;
     const built = buildDockModel(dock.kind, dockId, planet);
     parkAtOrigin(built);
 

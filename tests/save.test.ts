@@ -21,7 +21,7 @@ import {
   type PageEvents,
   type StorageLike,
 } from "../src/save";
-import { getJobBoard, getPlanetsOfSystem, listSystemsNear, type Job } from "../src/universe";
+import { getJobBoard, getPlanetsOfSystem, listSystemsNear, type Job, startDockOf } from "../src/universe";
 
 const SEED = 12345;
 const HOUR = 3_600_000;
@@ -56,10 +56,7 @@ function fakeTime(start: number) {
   return { now: () => t, advance: (ms: number) => (t += ms) };
 }
 
-const startDock = (): string => {
-  const system = listSystemsNear(SEED, { x: 0, y: 0, z: 0 }, 40)[0]!;
-  return getPlanetsOfSystem(SEED, system.id)[0]!.id;
-};
+const startDock = (): string => startDockOf(SEED).id;
 
 /** Some real job from this universe, starting at `dockId`. */
 function someJob(): Job {
@@ -334,7 +331,7 @@ describe("save: the universe is the same after loading", () => {
 
   it("the save never contains universe data (only progress)", () => {
     const data = makeSaveData(SEED, newGameState(startDock()), 0, 0);
-    expect(Object.keys(data).sort()).toEqual(["gameNowMs", "savedAtRealMs", "seed", "state", "version"]);
+    expect(Object.keys(data).sort()).toEqual(["gameNowMs", "savedAtRealMs", "seed", "state", "universeVersion", "version"]);
   });
 });
 

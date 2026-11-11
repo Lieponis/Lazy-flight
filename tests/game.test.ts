@@ -21,7 +21,7 @@ import {
   tripSeconds,
   type GameState,
 } from "../src/game";
-import { generateDock, generateJobBoard, getPlanetsOfSystem, listSystemsNear, type Job } from "../src/universe";
+import { generateJobBoard, listSystemsNear, type Job, docksOf, startDockOf } from "../src/universe";
 
 const SEED = 12345;
 const ORIGIN = { x: 0, y: 0, z: 0 };
@@ -31,8 +31,7 @@ const HOUR = 3_600_000;
 function sampleJobs(): Job[] {
   const jobs: Job[] = [];
   for (const system of listSystemsNear(SEED, ORIGIN, 40).slice(0, 14)) {
-    for (const planet of getPlanetsOfSystem(SEED, system.id)) {
-      const dock = generateDock(SEED, planet);
+    for (const dock of docksOf(SEED, system)) {
       for (const slot of [0, 6, 13, 500]) jobs.push(...generateJobBoard(SEED, dock, slot));
     }
   }
@@ -258,12 +257,7 @@ describe("clock and speed", () => {
 });
 
 describe("Game object", () => {
-  const dock = (): string => {
-    const system = listSystemsNear(SEED, ORIGIN, 10)[0];
-    const planet = system ? getPlanetsOfSystem(SEED, system.id)[0] : undefined;
-    if (!planet) throw new Error("no start dock");
-    return planet.id;
-  };
+  const dock = (): string => startDockOf(SEED).id;
   const makeGame = (speed = 1): { game: Game; advance: (ms: number) => void } => {
     let real = 40 * HOUR;
     const game = new Game(SEED, dock(), createClock(speed, () => real));

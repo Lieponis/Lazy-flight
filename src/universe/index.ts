@@ -35,6 +35,7 @@ export {
   hasDock,
   listSystemsNear,
   parseDockId,
+  startDockOf,
 } from "./lookup";
 export { boardPeriodOf, generateJobBoard, getJobBoard } from "./jobs";
 export type { HoldType, Job, JobKind, LoadType, SpecialJobData } from "./jobs";

@@ -19,6 +19,7 @@ import {
   listSystemsNear,
   maxDocksFor,
   parseDockId,
+  startDockOf,
   summarizeSurveys,
   surveySeed,
   type Dock,
@@ -334,5 +335,25 @@ describe("survey numbers add up", () => {
     expect(survey.planetsPerSystem.reduce((a, b) => a + b, 0)).toBe(systems);
     expect(survey.docksPerSystem.reduce((a, b) => a + b, 0)).toBe(systems);
     expect(survey.docksPerSystem[0]).toBe(0); // no system without a dock
+  });
+});
+
+describe("startDockOf (the one start dock every layer uses)", () => {
+  it("is the first dock of the system nearest to the middle, a real dock, and always the same", () => {
+    for (const seed of [12345, 999, 1, 7, 2024, 31337]) {
+      const start = startDockOf(seed);
+      const nearest = listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 320)[0]!;
+      expect(start.systemId).toBe(nearest.id);
+      expect(start.id).toBe(docksOf(seed, nearest)[0]!.id);
+      expect(getDock(seed, start.id)?.id).toBe(start.id);
+      expect(hasDock(seed, start.id)).toBe(true);
+      expect(startDockOf(seed)).toEqual(start);
+    }
+  });
+
+  it("changes nothing in the universe (same dock ids as docksOf says) and works for a one-dock system", () => {
+    const seed = 12345;
+    const start = startDockOf(seed);
+    expect(docksOf(seed, getSystem(seed, start.systemId)!).map((d) => d.id)).toContain(start.id);
   });
 });

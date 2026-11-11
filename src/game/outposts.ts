@@ -70,5 +70,10 @@ export function buyOutpost(state: GameState, dock: DockFacts): BuyOutpostResult 
   if (reason) return { ok: false, reason };
   const price = outpostPrice(dock) ?? 0;
   const owned = [...state.ownedOutposts, dock.id];
-  return { ok: true, price, state: { ...state, credits: state.credits - price, ownedOutposts: owned, outpostCount: owned.length } };
+  return {
+    ok: true,
+    price,
+    // The price paid is kept, so a later rebuild of the universe can refund exactly this amount.
+    state: { ...state, credits: state.credits - price, ownedOutposts: owned, outpostPrices: { ...state.outpostPrices, [dock.id]: price }, outpostCount: owned.length },
+  };
 }

@@ -295,7 +295,12 @@ export class Game {
     const state = normalizeState(raw);
     // Keep only outposts that really exist in this universe (a save for another seed must not bring fake ones).
     const real = state.ownedOutposts.filter((id) => getDock(this.seed, id)?.kind === "OUTPOST");
-    this.state = { ...state, ownedOutposts: real, outpostCount: real.length };
+    const prices: Record<string, number> = {};
+    for (const id of real) {
+      const paid = state.outpostPrices[id];
+      if (paid !== undefined) prices[id] = paid;
+    }
+    this.state = { ...state, ownedOutposts: real, outpostPrices: prices, outpostCount: real.length };
     this.lastArrival = null;
     this.changed();
   }

@@ -6,8 +6,7 @@
 // A small version runs in tests/balance-sim.test.ts as part of npm run check.
 
 import { Game, createClock, fuelCost, getShip, upgradeTracksOf, type BoardEntry, type UpgradeTrack } from "../../src/game";
-import { findStartSystem } from "../../src/render/start";
-import { getPlanetsOfSystem, type Job } from "../../src/universe";
+import { startDockOf, type Job } from "../../src/universe";
 import { JOB_BOARD_REFRESH_SLOTS } from "../../src/universe/settings";
 
 const HOUR = 3_600_000;
@@ -153,11 +152,8 @@ export interface RunResult {
   kinds: Record<string, number>;
 }
 
-function startDockOf(seed: number): string {
-  const system = findStartSystem(seed);
-  const dock = system ? getPlanetsOfSystem(seed, system.id)[0] : undefined;
-  if (!dock) throw new Error(`No start dock for seed ${seed}`);
-  return dock.id;
+function startDockId(seed: number): string {
+  return startDockOf(seed).id;
 }
 
 /** Can this entry be taken, possibly after buying fuel? */
@@ -178,7 +174,7 @@ export function simulate(seed: number, strategyIn: Strategy, hours: number, trip
   let t = 1_000 * HOUR; // any start time; slots and boards follow from it
   const t0 = t;
   const end = t0 + hours * HOUR;
-  const game = new Game(seed, startDockOf(seed), createClock(1, () => t));
+  const game = new Game(seed, startDockId(seed), createClock(1, () => t));
   const hoursNow = (): number => (t - t0) / HOUR;
 
   const r: RunResult = {

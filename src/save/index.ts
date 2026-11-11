@@ -13,6 +13,8 @@ export {
   writeSave,
 } from "./save";
 export type { ReadResult, SaveData, StorageLike } from "./save";
+export { MESSAGE_REBUILT, migrateSave, universeVersionOf } from "./migrate";
+export type { Migration } from "./migrate";
 export {
   NOTICE_BAD_SAVE,
   NOTICE_NO_STORAGE,

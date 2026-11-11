@@ -75,3 +75,17 @@ export function distanceBetweenDocks(seed: Seed, dockIdA: string, dockIdB: strin
   if (!siteA || !siteB) return null;
   return distance(siteA.position, siteB.position);
 }
+
+/**
+ * The dock a new game starts at: the first dock of the system nearest to the middle of the galaxy (0, 0, 0).
+ * Every layer (game, save, UI, debug pages) uses this one function, so they all agree. Uses no random numbers of its own.
+ * A system always has at least one dock, so the answer exists whenever the galaxy has any system.
+ */
+export function startDockOf(seed: Seed): Dock {
+  for (const radius of [10, 20, 40, 80, 160, 320]) {
+    const system = listSystemsNear(seed, { x: 0, y: 0, z: 0 }, radius)[0];
+    const first = system ? docksOf(seed, system)[0] : undefined;
+    if (first) return first;
+  }
+  throw new Error("The galaxy has no system to start in.");
+}
