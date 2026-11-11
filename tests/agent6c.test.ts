@@ -89,3 +89,57 @@ describe("6c Part A: the stacking rule (rank + outpost + comfort, added on the p
     }
   });
 });
+
+// ------------------------------------------------------------ 6c Part B 3b: sound guards (Agent 7a risks)
+import { readFileSync } from "node:fs";
+const src = (path: string): string => readFileSync(new URL(`../${path}`, import.meta.url), "utf8").replace(/\s+/g, " ");
+
+describe("6c: sound timing follows the flight screen (src/ui/sound.ts copies src/render/flight.ts)", () => {
+  // If Agent 3 changes how flight.ts picks its phase lengths, this test fails: update src/ui/sound.ts the same way.
+  const flight = src("src/render/flight.ts");
+  const sound = src("src/ui/sound.ts");
+
+  it("both use the same launch and minimum-warp settings", () => {
+    for (const s of [flight, sound]) {
+      expect(s).toContain("launchSeconds: FLIGHT_LAUNCH_SECONDS");
+      expect(s).toContain("minWarpSeconds: FLIGHT_MIN_WARP_SECONDS");
+    }
+  });
+
+  it("both give stations the longer approach, and outposts the normal one", () => {
+    expect(flight).toMatch(/isStation \? FLIGHT_APPROACH_SECONDS_STATION : FLIGHT_APPROACH_SECONDS/);
+    expect(sound).toMatch(/station \? FLIGHT_APPROACH_SECONDS_STATION : FLIGHT_APPROACH_SECONDS/);
+  });
+
+  it("both plan the flight with planFlight on the same inputs", () => {
+    expect(flight).toContain("planFlight(progress.fraction, real.remainingRealMs, real.totalRealMs, this.phases)");
+    expect(sound).toContain("planFlight(progress.fraction, real.remainingRealMs, real.totalRealMs, settings)");
+    expect(sound).toContain("phaseDurations(");
+  });
+
+  it("flight.ts sets its phases in exactly the two places the sound copy knows about", () => {
+    expect(flight.match(/this\.phases = /g)?.length).toBe(1);
+    expect(flight.match(/launchSeconds:/g)?.length).toBe(1);
+  });
+});
+
+describe("6c: the CSS class names the 'bonk' sound watches still exist", () => {
+  const sound = src("src/ui/sound.ts");
+  const css = readFileSync(new URL("../src/ui/theme.css", import.meta.url), "utf8");
+
+  it("sound.ts watches .ui-notice and red .ui-panel-title", () => {
+    expect(sound).toContain('contains("ui-notice")');
+    expect(sound).toContain('".ui-panel-title.ui-red"');
+  });
+
+  it("the Jobs menu notice and the red message titles still use those classes", () => {
+    expect(src("src/ui/jobsmenu.ts")).toContain('el("div", "ui-notice")');
+    const popup = src("src/ui/popup.ts");
+    expect(popup).toContain('el("div", "ui-panel-title", content.title)');
+    expect(popup).toContain('classList.add("ui-red")');
+  });
+
+  it("the stylesheet still defines them", () => {
+    for (const cls of [".ui-notice", ".ui-panel-title", ".ui-red"]) expect(css).toContain(`${cls} {`);
+  });
+});
