@@ -182,3 +182,9 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Guaranteed starter job: NOT needed (free travel solves being stuck). Dropped from the 6d plan.
 - Tap empty space in system view: returns to the star-centred view (added to Agent 3's 3g brief, item 6).
 - Liveries are built TOGETHER with the new gameplay: Agent 4 (L1, saved paint jobs, price 500 each, docs/briefs/agent-4g-brief.md) in parallel with Agent 3 F2a (render glue for buildShipModel(shipId, liveryId), item 7 of 3g). Agent 5 F2b then adds the Shipyard picker, wires the worn livery into views, the Fly here button and the Explorer row. Then Agent 6 QA (6d, without the starter job).
+
+## Agent 3 stage F2a (3g) (2026-11-11): DONE, Andy approved each part by clicking; Lead review passed
+- Floating scene (layout A): ship circles a planet with no dock; camera button cycles Orbit / Free / Cockpit (icon is a placeholder for Agent 5). Free trips use the same launch/warp/arrival from and to planets with or without docks; camera continuous through phases; dock arrivals hold the warp view first. Tap on empty space in system view returns to the star view (done). Liveries wired through buildShipModel, docked, flight, shipyard preview (nothing picks one yet).
+- API for Agent 5: api.showFloating(planetId), api.floatingPlanetId(), api.leaveFloating(), api.startFlight (planets without a dock allowed), api.setShip(id, livery?). Floating scene = state.screen "flight" + state.floatingPlanetId.
+- Not verified: phone TRIS/frame rate, touch in Free view. sound.ts does not know the 1.6x longer free-trip phases (to Agent 5 in F2b). Unused layouts B and C can be deleted (cleanup). Keep the rule: sound test counts `launchSeconds:` in flight.ts.
+- WAITING: Agent 4 L1 (4g report) before the Agent 5 F2b brief (needs the livery API).
