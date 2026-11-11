@@ -15,7 +15,7 @@ All ships: nose to -Z, up +Y, origin = `parking` (ground point between the feet)
 ## Liveries (ship paint jobs, 2026-11-11)
 Cosmetic only. A livery repaints a ship's paint parts (hull, panels, dark parts, underside, company marks); shape,
 triangles, anchors, glass, lights and flames stay the same. `standard` (or no livery) = the original look. Defined in
-`src/render/assets/liveries.ts`; pass `getAsset(shipId).build({ livery: id })`. Andy's choices: 3 new plus the
+`src/render/assets/liveries.ts`; pass `getAsset(shipId).build({ livery: id })`. Report: docs/report-agent-8-liveries.md. Andy's choices: 3 new plus the
 standard per ship, smart company-fleet colours, nothing jokey, a set per ship's job, colours only, option C (bright
 company colours: the whole hull in one bold colour) for the Hauler and Scout; the Liner uses option B of its own
 round (a pale body with a bold top deck and tail; Andy changed purple and coral to green and pink). The Liner's top deck
@@ -28,9 +28,9 @@ and tail use the new palette slot `paintTrim` (same white as `paintWhite`, so it
 | cargo-hauler | teal-line | Teal Line | White hull, teal panels, navy marks: a tidy freight company. | APPROVED (Andy) |
 | cargo-hauler | orange-express | Orange Express | Orange hull, white panels, navy marks: the fast parcel service. | APPROVED (Andy) |
 | passenger-liner | standard | Standard | The original paint. | default |
-| passenger-liner | sky-blue | Sky Blue Air | Pale blue body, sky blue top deck and tail, yellow marks: a cheerful holiday airline. | DRAFT (option B chosen; waiting for Andy's check) |
-| passenger-liner | spring-green | Spring Green | Pale green body, green top deck and tail, yellow marks: a calm countryside line. | DRAFT (option B chosen; waiting for Andy's check) |
-| passenger-liner | rose-line | Rose Line | Pale pink body, pink top deck and tail, navy marks: the friendly tour company. | DRAFT (option B chosen; waiting for Andy's check) |
+| passenger-liner | sky-blue | Sky Blue Air | Pale blue body, sky blue top deck and tail, yellow marks: a cheerful holiday airline. | APPROVED (Andy, option B) |
+| passenger-liner | spring-green | Spring Green | Pale green body, green top deck and tail, yellow marks: a calm countryside line. | APPROVED (Andy, option B) |
+| passenger-liner | rose-line | Rose Line | Pale pink body, pink top deck and tail, navy marks: the friendly tour company. | APPROVED (Andy, option B) |
 | scout | standard | Standard | The original paint. | default |
 | scout | survey-lime | Survey Lime | Lime hull, black side pods, white marks: the survey office. | APPROVED (Andy) |
 | scout | rescue-red | Rescue Red | Red hull, white side pods, dark marks: search and rescue. | APPROVED (Andy) |
