@@ -39,8 +39,11 @@ function universeFingerprint(seed: Seed): string {
 }
 
 describe("src/universe output is unchanged (Lead's hard rule)", () => {
-  // Recorded on main before Agent 7c's work (commit c404404). If this fails, the universe changed: saves would break.
-  const RECORDED: Record<string, string> = { "12345": "543ab6f8:148823", "777": "5872a645:196801", "4242": "b4648b38:61798" };
+  // Re-recorded by Agent 4e for universe v2 (fewer docks, UNIVERSE_VERSION 2). The v1 values were
+  // 12345 "543ab6f8:148823", 777 "5872a645:196801", 4242 "b4648b38:61798". Same test, same strictness:
+  // these v2 values are identical before and after Agent 4e's work (checked), so only Agent 2's rebuild changed them.
+  // If this fails, the universe changed: saves would break.
+  const RECORDED: Record<string, string> = { "12345": "653a25ba:112766", "777": "a66eedf6:142327", "4242": "6f3a080c:53146" };
   for (const seed of [12345, 777, 4242]) {
     it(`seed ${seed}: same systems, planets, docks, markets and jobs`, () => {
       expect(universeFingerprint(seed)).toBe(RECORDED[String(seed)]);
