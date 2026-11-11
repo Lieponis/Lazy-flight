@@ -8,6 +8,11 @@ import {
   arriveOffset,
   clearanceOf,
   departOffset,
+  launchCentre,
+  noseDirection,
+  LAUNCH_GAP,
+  shipRoll,
+  SHIP_ROLL_AMOUNT,
   dot,
   floatDrift,
   floatLayout,
@@ -112,5 +117,47 @@ describe("floating scene: the star", () => {
     expect(starDrawRadius(0.1)).toBe(35);
     expect(starDrawRadius(10)).toBe(120);
     expect(starDrawRadius(1.2)).toBeCloseTo(66, 6);
+  });
+});
+
+describe("floating scene: nose along the surface, roll, launch from the surface", () => {
+  for (const s of FLOAT_STYLES) {
+    it(`style ${s}: the ship's nose (0,0,-1) is along the surface`, () => {
+      const c = floatLayout(s).centre;
+      const d = lengthOf(c);
+      const n = ringNormalWorld({ x: -c.x / d, y: -c.y / d, z: -c.z / d }, tiltForClearance(d));
+      const nose = noseDirection(n, c);
+      expect(nose.x).toBeCloseTo(0, 6);
+      expect(nose.y).toBeCloseTo(0, 6);
+      expect(nose.z).toBeCloseTo(-1, 6);
+      expect(Math.abs(dot(nose, c))).toBeLessThan(1e-6); // at a right angle to the line to the planet: along the surface
+    });
+  }
+  it("the roll is slow and gentle, and goes both ways", () => {
+    let lo = 0;
+    let hi = 0;
+    for (let t = 0; t < 120; t += 0.5) {
+      lo = Math.min(lo, shipRoll(t));
+      hi = Math.max(hi, shipRoll(t));
+    }
+    expect(hi).toBeLessThanOrEqual(SHIP_ROLL_AMOUNT + 1e-9);
+    expect(lo).toBeGreaterThanOrEqual(-SHIP_ROLL_AMOUNT - 1e-9);
+    expect(hi).toBeGreaterThan(0.1);
+    expect(lo).toBeLessThan(-0.1);
+    expect(shipRoll(0)).toBe(0);
+  });
+  it("a launch starts just above the surface and the planet only ever moves away", () => {
+    const r = 60;
+    const start = launchCentre(r, 0);
+    expect(lengthOf(start)).toBeCloseTo(r + LAUNCH_GAP, 6);
+    expect(start.x).toBe(0);
+    expect(start.z).toBe(0);
+    let last = lengthOf(start);
+    for (let i = 1; i <= 100; i++) {
+      const d = lengthOf(launchCentre(r, i / 100));
+      expect(d).toBeGreaterThanOrEqual(last - 1e-9);
+      last = d;
+    }
+    expect(last).toBeGreaterThan(FAR_DISTANCE * 0.9);
   });
 });

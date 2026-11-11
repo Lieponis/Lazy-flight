@@ -28,7 +28,7 @@ import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
 import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, fovForMagnification, shakeShare, startFov, zoomMagnification, type Look, type ViewMode } from "./cockpitview";
 import { pinchFactor, wheelFactor } from "./dockedcam";
 import { hexToNumber, starfieldPositions } from "./helpers";
-import { arriveOffset, departOffset, floatDrift, floatLayout, lengthOf, parseFloatStyle, ringNormalWorld, STAR_DIRECTION, STAR_DISTANCE, starDrawRadius, tiltForClearance, type FloatStyle } from "./floatmath";
+import { arriveOffset, floatDrift, launchCentre, shipRoll, floatLayout, lengthOf, parseFloatStyle, ringNormalWorld, STAR_DIRECTION, STAR_DISTANCE, starDrawRadius, tiltForClearance, type FloatStyle } from "./floatmath";
 import { chooseLook } from "./planetlook";
 import type { Hud } from "./hud";
 import type { Screen } from "./screen";
@@ -143,6 +143,7 @@ interface Body {
   /** A planet without a dock: where it hangs when the ship floats there (relative to the ship) and its star (drawn far away, not moving with `group`). */
   scenery: {
     centre: { x: number; y: number; z: number };
+    radius: number;
     sun: THREE.Mesh;
     /** The planet's turning axis (the rings' up-direction): the floating ship circles the planet around it. */
     axis: THREE.Vector3;
@@ -484,9 +485,10 @@ export class FlightScreen implements Screen {
     // The docks slide past the ship. The ship's parking spot and the dock's parking spot are the same point at the two ends.
     if (phase === "LAUNCH" && this.origin?.scenery) {
       // A planet without a dock: it slides away behind the ship, getting smaller.
-      const c = this.origin.scenery.centre;
-      const o = departOffset(c, p);
-      this.origin.group.position.set(c.x + o.x, c.y + o.y, c.z + o.z);
+      // The ship starts on its surface, as if from an outpost, and climbs away.
+      const c = launchCentre(this.origin.scenery.radius, p);
+      this.origin.group.position.set(c.x, c.y, c.z);
+      this.spinScenery(this.origin.scenery, 0);
     } else if (phase === "LAUNCH" && this.origin && this.origin.model) {
       // Station: straight out of the slot, then round the planet. Outpost: lift off, tilt, angled line, then curve into orbit.
       const pose = this.origin.isStation
@@ -528,6 +530,8 @@ export class FlightScreen implements Screen {
     else if (phase === "APPROACH" || phase === "DONE") this.dest?.model?.update(this.clockT);
 
     // Engine flames (the design's own flame parts): short at the dock, 1 flying, 3 in warp.
+    // Floating: the ship rolls slowly from side to side while it circles the planet (its nose already points along the surface).
+    this.ship.group.rotation.z = this.floating ? shipRoll(this.clockT - this.floatT0) : 0;
     const flame = flameLength(phase, p, this.clockT);
     const flicker = flameFlicker(this.clockT, LOOK_FLAME_FLICKER); // PS1 style: the flame changes length in chunky steps
     for (const f of this.ship.animation.flames) f.scale.z = flame * flicker;
@@ -895,7 +899,7 @@ export class FlightScreen implements Screen {
     const sunStart = new THREE.Vector3(STAR_DIRECTION.x * STAR_DISTANCE, STAR_DIRECTION.y * STAR_DISTANCE, STAR_DIRECTION.z * STAR_DISTANCE);
     sun.position.copy(sunStart);
     sun.visible = false;
-    const scenery = { centre: { ...centre }, sun, axis: new THREE.Vector3(n.x, n.y, n.z), turn, baseQuat: turn.quaternion.clone(), sunStart };
+    const scenery = { centre: { ...centre }, radius: layout.radius, sun, axis: new THREE.Vector3(n.x, n.y, n.z), turn, baseQuat: turn.quaternion.clone(), sunStart };
     return { group, model: null, scenery, isStation: false, bayCamera: null, slide: 0, entry: null, bayBox: null };
   }
 

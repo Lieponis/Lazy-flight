@@ -30,11 +30,11 @@ export interface FloatLayout {
 export function floatLayout(style: FloatStyle): FloatLayout {
   switch (style) {
     case "A":
-      return { label: "Hovering above", radius: 60, centre: { x: 6, y: -80, z: -34 } };
+      return { label: "Hovering above", radius: 60, centre: { x: 0, y: -90, z: 0 } };
     case "B":
-      return { label: "Facing the planet", radius: 40, centre: { x: -36, y: -44, z: -46 } };
+      return { label: "Facing the planet", radius: 40, centre: { x: -34, y: -58, z: 0 } };
     default:
-      return { label: "Far view", radius: 22, centre: { x: -28, y: -28, z: -44 } };
+      return { label: "Far view", radius: 22, centre: { x: -36, y: -36, z: 0 } };
   }
 }
 
@@ -111,10 +111,43 @@ export function tiltForClearance(distance: number, maxTilt = 1.05): number {
  */
 export function ringNormalWorld(toShip: V3, tilt: number): V3 {
   const u = unit(toShip);
-  let side: V3 = { x: u.z, y: 0, z: -u.x }; // horizontal and perpendicular to u
+  // The planet sits straight to the ship's side/below (z = 0), so the tilt goes sideways within that plane: then the ship's flight path
+  // around the planet's axis points along the ship's nose (see noseDirection).
+  let side: V3 = { x: u.y, y: -u.x, z: 0 };
   if (lengthOf(side) < 1e-6) side = { x: 1, y: 0, z: 0 };
   side = unit(side);
-  return { x: u.x * Math.cos(tilt) + side.x * Math.sin(tilt), y: u.y * Math.cos(tilt), z: u.z * Math.cos(tilt) + side.z * Math.sin(tilt) };
+  return { x: u.x * Math.cos(tilt) + side.x * Math.sin(tilt), y: u.y * Math.cos(tilt) + side.y * Math.sin(tilt), z: u.z * Math.cos(tilt) };
+}
+
+/**
+ * The way the ship flies while it circles the planet about `axis`: along the surface (at a right angle to the line to the planet and to
+ * the axis). `centre` is the planet's centre relative to the ship. For the layouts above it is straight ahead (0, 0, -1), the ship's nose.
+ */
+export function noseDirection(axis: V3, centre: V3): V3 {
+  return unit({
+    x: axis.y * centre.z - axis.z * centre.y,
+    y: axis.z * centre.x - axis.x * centre.z,
+    z: axis.x * centre.y - axis.y * centre.x,
+  });
+}
+
+/** The slow roll of the ship while it circles the planet (radians, side to side). */
+export const SHIP_ROLL_AMOUNT = 0.22;
+export function shipRoll(seconds: number): number {
+  return Math.sin(seconds * 0.33) * SHIP_ROLL_AMOUNT;
+}
+
+/** At the start of a launch from a planet without a dock the ship sits this far above the surface. */
+export const LAUNCH_GAP = 1.5;
+
+/**
+ * Where the planet's centre is (relative to the ship) `p` (0..1) of the way through a launch FROM the planet: the ship starts on the
+ * surface, straight above the centre, and climbs away, so the planet drops down and backwards and shrinks. It never gets closer.
+ */
+export function launchCentre(radius: number, p: number): V3 {
+  const dir = unit({ x: 0, y: -1, z: 0.6 });
+  const l = FAR_DISTANCE * Math.pow(Math.min(1, Math.max(0, p)), 2.2);
+  return { x: dir.x * l, y: -(radius + LAUNCH_GAP) + dir.y * l, z: dir.z * l };
 }
 
 export function dot(a: V3, b: V3): number {
