@@ -158,3 +158,9 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Not verified: real on-screen triangles, phone frame rate, Android.
 - Open: tap on empty space only unselects (Andy not yet asked). Flaky 5 s test tests/universe-v2.test.ts (start dock) -> Agent 6 in U4 (longer limit).
 - Waiting for Agent 5 (docs/briefs/agent-5e-brief.md) before U3 is closed; then U4 Agent 6, then liveries (4/5/3), then release page 7d.
+
+## Agent 5 stage U3 (5e) (2026-11-11): DONE, Andy click-tested on phone, Lead review passed
+- Planet panel on the system map (DOCK / SCENERY card, option A; on the left when the phone is sideways), friendlier "universe rebuilt" fading note after PLAY, calmer empty-board text. Only src/ui, CSS, ui tests. 588 tests, Actions green.
+- U3 CLOSED (Agents 3 and 5). Note: UI hides the render label on system map with CSS (.hud-label); Agent 3 may stop setting it later (cleanup).
+- NEXT: U4 Agent 6 (brief docs/briefs/agent-6d-brief.md): rebalance on v2, outpost options, starter-job proposal (Andy decides), flaky + audio test fixes, old-save and regression QA, phone checklist. After that: livery feature (Agents 4/5/3), release page 7d, v1.0.
+- Open Andy questions: starter job (decided in 6d), tap on empty space in system view (unanswered).
