@@ -576,7 +576,7 @@ export class FlightScreen implements Screen {
       this.cockpitRig.visible = cockpitRoomVisible(this.mode);
       // Just before the warp starts, the camera glides down to the warp camera height (it used to jump there when the warp began).
       // ...and glides back up after the warp, over the first part of the approach.
-      const toWarp = phase === "LAUNCH" ? smoothstep((p - 0.45) / 0.55) : phase === "WARP" ? 1 : phase === "APPROACH" ? 1 - smoothstep(p / 0.4) : 0;
+      const toWarp = phase === "LAUNCH" ? smoothstep((p - 0.45) / 0.55) : phase === "WARP" ? 1 : phase === "APPROACH" ? 1 - smoothstep((p - 0.15) / 0.45) : 0;
       const height = lerp(FLIGHT_ORBIT_HEIGHT_DOCK, FLIGHT_ORBIT_HEIGHT_WARP, toWarp) + Math.sin(this.clockT * 0.4) * 0.6;
       let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * (this.freeCam() ? 0 : 0.35) + (this.freeCam() ? this.fv.yaw : 0), FLIGHT_ORBIT_RADIUS, height);
       if (this.freeCam()) {

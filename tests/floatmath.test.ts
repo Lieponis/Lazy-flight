@@ -5,6 +5,7 @@ import {
   FLOAT_STYLES,
   RING_CLEARANCE,
   STAR_DIRECTION,
+  ARRIVE_HOLD,
   CLIMB_ANGLE,
   arrivePose,
   clearanceOf,
@@ -65,14 +66,18 @@ describe("floating scene: leaving and arriving", () => {
       }
       expect(last).toBeGreaterThan(FAR_DISTANCE * 0.8);
     });
-    it(`style ${s}: leaving pitches the nose up smoothly to the climb angle`, () => {
+    it(`style ${s}: leaving pitches the nose up, then straightens out again so it is level when the warp starts`, () => {
+      expect(departPose(c, 0).pitch).toBe(0);
+      expect(departPose(c, 1).pitch).toBeCloseTo(0, 9);
+      let peak = 0;
       let last = 0;
-      for (let i = 1; i <= 100; i++) {
-        const a = departPose(c, i / 100).pitch;
-        expect(a).toBeGreaterThanOrEqual(last - 1e-9);
+      for (let i = 0; i <= 200; i++) {
+        const a = departPose(c, i / 200).pitch;
+        peak = Math.max(peak, a);
+        expect(Math.abs(a - last)).toBeLessThan(0.03); // no sudden turns
         last = a;
       }
-      expect(last).toBeCloseTo(CLIMB_ANGLE, 6);
+      expect(peak).toBeCloseTo(CLIMB_ANGLE, 1);
     });
     it(`style ${s}: arriving only ever brings the planet closer, nose slightly down, and ends in the floating pose`, () => {
       let last = Infinity;
@@ -87,6 +92,9 @@ describe("floating scene: leaving and arriving", () => {
       expect(lengthOf({ x: end.centre.x - c.x, y: end.centre.y - c.y, z: end.centre.z - c.z })).toBeLessThan(1e-9);
       expect(end.pitch).toBeCloseTo(0, 9);
       expect(lengthOf(arrivePose(c, 0).centre)).toBeGreaterThan(FAR_DISTANCE * 0.8);
+      expect(arrivePose(c, 0).pitch).toBeCloseTo(0, 9); // level, like the warp it comes out of
+      // The first part of the approach holds still (same view as the warp), then it eases into the arrival.
+      expect(lengthOf(arrivePose(c, 0).centre)).toBeCloseTo(lengthOf(arrivePose(c, ARRIVE_HOLD).centre), 6);
     });
     it(`style ${s}: the planet is never in the way (the ship stays clear of the surface all through leaving and arriving)`, () => {
       const r = floatLayout(s).radius;

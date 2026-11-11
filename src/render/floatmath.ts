@@ -78,10 +78,16 @@ function smooth(x: number): number {
   const t = Math.min(1, Math.max(0, x));
   return t * t * (3 - 2 * t);
 }
-/** The ship's nose-up angle after `p` (0..1) of a departure: 0 in orbit, then it pitches up and keeps climbing. */
+/**
+ * The ship's nose-up angle after `p` (0..1) of a departure: level in orbit, pitches up into the climb, then straightens out again
+ * so it is level (like in the warp) when the warp starts. Smooth all the way: no sudden turns.
+ */
 export function climbAngle(p: number): number {
-  return CLIMB_ANGLE * smooth(p / 0.75);
+  return CLIMB_ANGLE * smooth(p / 0.35) * (1 - smooth((p - 0.55) / 0.45));
 }
+
+/** An arrival holds still for this first share of the approach (same camera and ship as in the warp), then eases into the arrival flight. */
+export const ARRIVE_HOLD = 0.15;
 
 /** How far the ship has flown (system units) after `p` of a departure. It speeds up, so the planet is far and small by the end. */
 function flown(p: number): number {
@@ -119,7 +125,7 @@ export function departPose(centre: V3, p: number): { centre: V3; pitch: number }
  * pointing a little down, and flattens out into its orbit (`q` 0..1; at 1 the planet is at `centre` and the pitch is 0).
  */
 export function arrivePose(centre: V3, q: number): { centre: V3; pitch: number } {
-  const r = 1 - Math.min(1, Math.max(0, q));
+  const r = 1 - smooth((q - ARRIVE_HOLD) / (1 - ARRIVE_HOLD));
   const s = departedBy(r); // the same curve, flown backwards in time
   return { centre: { x: centre.x - s.x, y: centre.y - s.y, z: centre.z + s.z }, pitch: -climbAngle(r) };
 }
