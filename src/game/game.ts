@@ -443,7 +443,7 @@ export class Game {
     }
     let loaded: GameState = { ...state, ownedOutposts: real, outpostPrices: prices, outpostCount: real.length };
     // A place that does not exist in this universe cannot be where you float or fly to: you stay docked at the last dock.
-    if (loaded.spacePlanetId !== null && (getPlanet(this.seed, loaded.spacePlanetId) === null || getDock(this.seed, loaded.spacePlanetId) !== null)) {
+    if (typeof loaded.spacePlanetId === "string" && (getPlanet(this.seed, loaded.spacePlanetId) === null || getDock(this.seed, loaded.spacePlanetId) !== null)) {
       loaded = { ...loaded, spacePlanetId: null };
     }
     if (loaded.freeTrip && getPlanet(this.seed, loaded.freeTrip.toId) === null) {

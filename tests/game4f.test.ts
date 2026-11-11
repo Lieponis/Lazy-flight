@@ -17,7 +17,7 @@ import {
   type GameState,
 } from "../src/game";
 import { simulateExplorer } from "./sim/explorer-sim";
-import { MESSAGE_REBUILT, fitToUniverse, loadIntoGame, makeSaveData, migrateSave, type SaveData } from "../src/save";
+import { MESSAGE_REBUILT, fitToUniverse, loadIntoGame, makeSaveData, migrateSave, readSave, type SaveData } from "../src/save";
 import {
   distanceBetweenSystems,
   docksOf,
@@ -441,6 +441,36 @@ describe("the save", () => {
     expect(state.spacePlanetId).toBeNull();
     expect(state.freeTrip).toBeNull();
     expect(state.explored).toEqual({});
+  });
+
+  it("a save made BEFORE stage F1 (the new fields missing) loads through the whole path without crashing", () => {
+    // This is exactly what every existing player has in the browser. (A first version of F1 crashed here.)
+    const start = startDockOf(SEED).id;
+    const raw: Record<string, unknown> = { ...newGameState(start), credits: 4321 };
+    delete raw.spacePlanetId;
+    delete raw.freeTrip;
+    delete raw.explored;
+    const rawState = raw as unknown as GameState;
+    expect(() => fitToUniverse(rawState, SEED, start)).not.toThrow();
+    const save: SaveData = { version: 1, seed: SEED, savedAtRealMs: 1, gameNowMs: 1, universeVersion: 2, state: rawState };
+    const { game } = makeGame();
+    expect(() => loadIntoGame(game, save, rawState, start, 1)).not.toThrow();
+    expect(game.state.credits).toBe(4321);
+    expect(game.state.spacePlanetId).toBeNull();
+    expect(game.state.freeTrip).toBeNull();
+    expect(game.state.explored).toEqual({});
+    expect(game.getBoard().length).toBe(6);
+    // the same with explicit nulls and with wrong types in those fields
+    for (const bad of [null, 7, {}, []]) {
+      const odd = { ...raw, spacePlanetId: bad, freeTrip: bad } as unknown as GameState;
+      expect(() => fitToUniverse(odd, SEED, start)).not.toThrow();
+      expect(() => makeGame().game.loadState(odd)).not.toThrow();
+    }
+    // and through planStart (the real start path) with the old save in storage
+    const storage = new Map<string, string>();
+    const fake = { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => void storage.set(k, v), removeItem: (k: string) => void storage.delete(k) };
+    fake.setItem("lazy-freight.save", JSON.stringify(save));
+    expect(readSave(fake).kind).toBe("ok");
   });
 
   it("garbage in the new fields is repaired, never a crash", () => {
