@@ -23,9 +23,11 @@ The one source of truth is the `main` branch of the GitHub repository `Lieponis/
 | `src/save/` | saving and loading (browser storage) |
 | `src/render/` | all 3D: docked view, system view, flight, starmap, cockpit use |
 | `src/render/assets/` | Agent 8's models (ships, outposts, stations, cockpit base, lens) and the model checker |
-| `src/ui/` | menus, status strip, shipyard, ranks, messages, fonts |
+| `src/ui/` | title screen, menus, status strip (speaker button), shipyard and upgrades, ranks, messages, fonts, sound glue (`sound.ts`) |
+| `src/audio/` | sound effects and music, made by code (Web Audio); settings saved under `lazy-freight.sound` |
 | `src/main.ts` | starts everything |
 | `tests/` | all automatic tests (`npm run check` runs them) |
+| `tests/sim/` | balance simulator (automatic players on the real rules); `npm run balance` prints the tables |
 | `index.html`, `models.html`, `debug.html`, `game-debug.html` | the game, the model viewer, the universe debug page, the game-rules debug page |
 
 ## Layer rules (a test enforces them)

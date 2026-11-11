@@ -143,3 +143,35 @@ describe("6c: the CSS class names the 'bonk' sound watches still exist", () => {
     for (const cls of [".ui-notice", ".ui-panel-title", ".ui-red"]) expect(css).toContain(`${cls} {`);
   });
 });
+
+// ------------------------------------------------------------ 6c Part B: cockpit fuel screen with upgrades (5d: not verified)
+import { tripFuelCost } from "../src/game";
+import { fuelScreenData } from "../src/render/screendata";
+
+describe("6c: the cockpit fuel screen uses the upgraded tank and burn (same numbers src/ui/index.ts passes)", () => {
+  it("tank level 3 + engines level 2: full at take-off, ends at the fuel left, never above the real tank", () => {
+    const g = rich();
+    g.buyUpgrade("cargo-hauler", "tank");
+    g.buyUpgrade("cargo-hauler", "tank");
+    g.buyUpgrade("cargo-hauler", "tank");
+    g.buyUpgrade("cargo-hauler", "engines");
+    g.buyUpgrade("cargo-hauler", "engines");
+    const tank = g.getShipStats().fuelTankSize;
+    expect(tank).toBe(78); // 60 + 30%
+    const distance = 20;
+    const used = tripFuelCost({ ...g.state, fuel: tank }, distance);
+    expect(used).toBe(Math.ceil(distance * 2 * 0.88)); // 2 per ly, 12% less, rounded up (the game rule)
+    const fuelAfter = tank - used;
+    const start = fuelScreenData({ fuel: fuelAfter, fuelMax: tank, fuelUsed: used }, 0);
+    const end = fuelScreenData({ fuel: fuelAfter, fuelMax: tank, fuelUsed: used }, 1);
+    expect(start.text).toBe(`${tank}/${tank}`);
+    expect(end.text).toBe(`${fuelAfter}/${tank}`);
+    expect(start.fraction).toBeLessThanOrEqual(1);
+  });
+
+  it("the glue in src/ui/index.ts still passes the real numbers (not the base ship numbers)", () => {
+    const glue = src("src/ui/index.ts");
+    expect(glue).toContain("fuelMax: game.getShipStats().fuelTankSize");
+    expect(glue).toContain("fuelUsed: tripFuelCost(game.state, job.totalDistance)");
+  });
+});

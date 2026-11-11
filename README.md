@@ -1,6 +1,6 @@
-# Lazy Freight (working title)
+# Lazy Flight
 
-A relaxing, funny, pixelated space game that runs in your web browser. You fly a small ship through an endless generated galaxy and take delivery jobs (cargo, passengers, tours). Trips keep running while the page is closed. The full plan is in `docs/design-doc.md`.
+A relaxing, funny, pixelated space game that runs in your web browser. You fly a small ship through an endless generated galaxy and take delivery jobs (cargo, passengers, tours), buy ships, outposts and ship upgrades. Trips keep running while the page is closed. Sound and music are made by code (no sound files). The full plan is in `docs/design-doc.md`.
 
 **Play it:** https://lieponis.github.io/Lazy-flight/
 
@@ -41,8 +41,10 @@ Type `npm run check` and press Enter. It builds the game and runs every automati
 - `?seed=777` starts a NEW game in universe 777 (it replaces your save). The game removes it from the address afterwards, so a reload continues that game.
 - `game-debug.html` is the rules test page (add credits, teleport, ranks, outposts). It uses its own save.
 - `debug.html` shows the universe as tables. `models.html` is the 3D model viewer.
-- **MENU** (top right while docked) shows the universe seed and has **NEW GAME**.
-- Your progress saves by itself in this browser. A private window plays without saving.
+- The game opens on the title screen: **PLAY** continues your save (or starts a new game). That tap also switches the sound on.
+- **MENU** (top right while docked) shows the universe seed, **RANKS**, **SETTINGS** (sound on/off, music and effects volume) and **NEW GAME**. The **speaker button** next to it mutes the sound (also during a flight).
+- `?ship=scout` starts in the Scout (for testing the look); `?look=`, `?warp=` switch test looks (see `docs/status.md`).
+- Your progress saves by itself in this browser (sound settings separately). A private window plays without saving.
 
 ## 5. If something breaks
 
@@ -54,6 +56,6 @@ Type `npm run check` and press Enter. It builds the game and runs every automati
 
 ## 6. For agents
 
-- Folders: `src/universe` (the generated galaxy), `src/game` (rules and numbers: `settings.ts`, `ships.ts`), `src/render` (3D), `src/ui` (menus), `src/save` (saving). Rules: `docs/CONVENTIONS.md`.
-- `npm run balance` prints the balance report (a simulator that plays many automatic games with the real rules; `tests/sim/`). Optional: `npm run balance -- 40 0.5` = 40 hours per game, trips half as long (a what-if).
+- Folders: `src/universe` (the generated galaxy), `src/game` (rules and numbers: `settings.ts`, `ships.ts`, `upgrades.ts`), `src/render` (3D), `src/ui` (menus, title screen), `src/audio` (sound and music), `src/save` (saving). Map of everything: `docs/WHERE-TO-LOOK.md`. Rules: `docs/CONVENTIONS.md`.
+- `npm run balance` prints the balance report (a simulator that plays many automatic games with the real rules; `tests/sim/`). Optional: `npm run balance -- 40 0.5 100` = 40 hours per game, trips half as long (a what-if), and 100 hours for the upgrade tables.
 - `package-lock.json` pins the exact tool versions, so every computer and GitHub Actions build the same thing.
