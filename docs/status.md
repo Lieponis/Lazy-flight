@@ -177,3 +177,8 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Known: 1 audio test fails (pre-existing); agent6c needs a real runner.
 - NEXT: F2a Agent 3 (render views, brief docs/briefs/agent-3g-brief.md), THEN F2b Agent 5 (Fly here button, Explorer row, arrival texts; brief written after 3g so the API is real), then F3 Agent 6. Livery feature and release page 7d later.
 - DECISION (Andy 2026-11-11): NO guaranteed starter job. Free travel covers the dead-first-board case. Removed from Agent 6's list (docs/briefs/agent-6d-brief.md item A3 is cancelled; Agent 6 should instead check that a new player stuck on a dead board can reach another dock by free travel).
+
+## Andy's decisions 2026-11-11 (evening)
+- Guaranteed starter job: NOT needed (free travel solves being stuck). Dropped from the 6d plan.
+- Tap empty space in system view: returns to the star-centred view (added to Agent 3's 3g brief, item 6).
+- Liveries are built TOGETHER with the new gameplay: Agent 4 (L1, saved paint jobs, price 500 each, docs/briefs/agent-4g-brief.md) in parallel with Agent 3 F2a (render glue for buildShipModel(shipId, liveryId), item 7 of 3g). Agent 5 F2b then adds the Shipyard picker, wires the worn livery into views, the Fly here button and the Explorer row. Then Agent 6 QA (6d, without the starter job).
