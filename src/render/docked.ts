@@ -253,7 +253,7 @@ export class DockedScreen implements Screen {
       this.content.add(sun);
     }
     // The ground: a very big ball whose top is just under the outpost's ground plate.
-    const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, LIGHT, DOCKED_GROUND_DETAIL);
+    const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, LIGHT, DOCKED_GROUND_DETAIL, { rings: false, clouds: false });
     ground.position.y = -DOCKED_GROUND_RADIUS - model.parking.y - 0.12;
     this.content.add(ground);
 
@@ -276,7 +276,7 @@ export class DockedScreen implements Screen {
     this.bay = bayBoxWorld(entrance, model.parking);
 
     // The planet lies below the station, so the slot points along its surface (a tangent), like in orbit.
-    const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, DOCKED_STATION_PLANET_DETAIL);
+    const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, DOCKED_STATION_PLANET_DETAIL, { rings: false, cloudLift: 0.012 }) // clouds about 2 units up, well under the station;
     const c = stationPlanetCentre(DOCKED_STATION_PLANET_RADIUS, DOCKED_STATION_PLANET_ALTITUDE, STATION_EXIT.straight);
     world.position.set(c.x, c.y, c.z);
     this.content.add(world);

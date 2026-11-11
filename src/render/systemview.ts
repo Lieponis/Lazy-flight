@@ -4,6 +4,7 @@
 import * as THREE from "three";
 import { generateDock, getPlanetsOfSystem, getSystem, type Dock, type Planet, type Seed } from "../universe";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
+import { chooseLook, hasCloud, surfaceColour, type PlanetLook } from "./planetlook";
 import {
   clamp,
   dockKindLabel,
@@ -11,7 +12,6 @@ import {
   hexToNumber,
   nearestScreenPoint,
   orbitDisplayRadius,
-  planetColorMix,
   planetDisplayRadius,
   planetOrbitPosition,
   planetTypeLabel,
@@ -62,31 +62,97 @@ export function disposeAll(root: THREE.Object3D): void {
   });
 }
 
-/** A planet is a low-poly ball. Its patches are colored once (two colors + 4 flat brightness steps), no lights needed. */
-export function makePlanetMesh(planet: Planet, radius: number, toStar: THREE.Vector3, detail = 1): THREE.Mesh {
+/** What extras a planet gets. Rings and clouds are off where they would cut through the dock (docked views). */
+export interface PlanetExtras {
+  rings?: boolean;
+  clouds?: boolean;
+  /** How high the clouds float, as a share of the radius (default 0.05). Lower near a station that sits close above. */
+  cloudLift?: number;
+}
+
+/**
+ * A planet is a low-poly ball. Its patches are colored once (flat colours + 4 brightness steps), no lights needed.
+ * The colours, ice caps, craters, stripes, clouds and rings come from the planet's LOOK (src/render/planetlook.ts,
+ * Agent 7c option B), picked from its id: the same planet always looks the same, and src/universe is untouched.
+ */
+export function makePlanetMesh(planet: Planet, radius: number, toStar: THREE.Vector3, detail = 2, extras: PlanetExtras = {}): THREE.Mesh {
+  const look = chooseLook(planet);
   const geometry = new THREE.IcosahedronGeometry(radius, detail); // not indexed: every triangle has its own 3 corners
   const position = geometry.getAttribute("position");
   const colors = new Float32Array(position.count * 3);
-  const main = new THREE.Color(hexToNumber(planet.colors.primary));
-  const second = new THREE.Color(hexToNumber(planet.colors.secondary));
-  const mixed = new THREE.Color();
+  const base = new THREE.Color();
   const n = new THREE.Vector3();
+  const v = new THREE.Vector3();
   for (let face = 0; face + 2 < position.count; face += 3) {
     n.set(0, 0, 0);
-    for (let k = 0; k < 3; k++) n.add(new THREE.Vector3(position.getX(face + k), position.getY(face + k), position.getZ(face + k)));
+    for (let k = 0; k < 3; k++) n.add(v.set(position.getX(face + k), position.getY(face + k), position.getZ(face + k)));
     n.normalize();
-    const t = planetColorMix(planet.type, n.x, n.y, n.z);
-    mixed.copy(main).lerp(second, t);
+    const c = surfaceColour(planet.type, look, n.x, n.y, n.z);
+    base.setRGB(c[0], c[1], c[2], THREE.SRGBColorSpace);
     const shade = faceShade(n.dot(toStar));
     for (let k = 0; k < 3; k++) {
-      colors[(face + k) * 3] = mixed.r * shade;
-      colors[(face + k) * 3 + 1] = mixed.g * shade;
-      colors[(face + k) * 3 + 2] = mixed.b * shade;
+      colors[(face + k) * 3] = base.r * shade;
+      colors[(face + k) * 3 + 1] = base.g * shade;
+      colors[(face + k) * 3 + 2] = base.b * shade;
     }
   }
   geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  return new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ vertexColors: true }));
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ vertexColors: true }));
+  if (extras.clouds !== false && look.clouds) {
+    const clouds = makeCloudShell(look, radius, toStar, Math.min(detail, 5), extras.cloudLift ?? 0.05);
+    if (clouds) mesh.add(clouds);
+  }
+  if (extras.rings !== false && look.rings) mesh.add(makeRings(look, radius, toStar));
+  return mesh;
 }
+
+/** Cloud patches: a slightly bigger ball that keeps only its cloudy triangles, white with the same 4 light steps. */
+function makeCloudShell(look: PlanetLook, radius: number, toStar: THREE.Vector3, detail: number, lift: number): THREE.Mesh | null {
+  const shell = new THREE.IcosahedronGeometry(radius * (1 + lift), Math.max(2, detail));
+  const p = shell.getAttribute("position");
+  const pos: number[] = [];
+  const col: number[] = [];
+  const n = new THREE.Vector3();
+  const v = new THREE.Vector3();
+  for (let face = 0; face + 2 < p.count; face += 3) {
+    n.set(0, 0, 0);
+    for (let k = 0; k < 3; k++) n.add(v.set(p.getX(face + k), p.getY(face + k), p.getZ(face + k)));
+    n.normalize();
+    if (!hasCloud(look, n.x, n.y, n.z)) continue;
+    const shade = faceShade(n.dot(toStar));
+    for (let k = 0; k < 3; k++) {
+      pos.push(p.getX(face + k), p.getY(face + k), p.getZ(face + k));
+      col.push(shade, shade, shade);
+    }
+  }
+  shell.dispose();
+  if (pos.length === 0) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false }));
+  m.name = "clouds";
+  return m;
+}
+
+/** Rings: flat bands in rock colours, tilted; the half facing away from the star is a step darker. */
+function makeRings(look: PlanetLook, radius: number, toStar: THREE.Vector3): THREE.Group {
+  const group = new THREE.Group();
+  group.name = "rings";
+  const lit = toStar.y >= 0 ? 1 : 0.72; // which face of the ring plane the star lights
+  for (const band of look.rings ?? []) {
+    const geo = new THREE.RingGeometry(radius * band.inner, radius * band.outer, RING_SEGMENTS, 1);
+    const c = new THREE.Color().setRGB(band.colour[0], band.colour[1], band.colour[2], THREE.SRGBColorSpace).multiplyScalar(lit);
+    const mat = new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide, transparent: true, opacity: band.opacity, depthWrite: false });
+    group.add(new THREE.Mesh(geo, mat));
+  }
+  group.rotation.x = Math.PI / 2 - look.ringTilt.x;
+  group.rotation.y = look.ringTilt.y;
+  return group;
+}
+
+/** Segments around each ring band (2 triangles each). 40 keeps rings round enough at the game's low resolution. */
+export const RING_SEGMENTS = 40;
 
 // Kept for the viewer's "compare with old shape" (models.html). The game screens use Agent 8's designs now.
 /** OUTPOST: a little building (box + pointed roof) standing on the planet surface, on the side facing outwards. */
@@ -194,7 +260,7 @@ export class SystemViewScreen implements Screen {
       group.position.set(at.x, 0, at.z);
       const outward = new THREE.Vector3(at.x, 0, at.z).normalize();
       const toStar = outward.clone().negate();
-      group.add(makePlanetMesh(planet, radius, toStar));
+      group.add(makePlanetMesh(planet, radius, toStar, planet.type === "GAS" ? 3 : 2));
 
       // The dock: the design picked for it, drawn small. (Its own `parking` spot is at the model's origin.)
       const built = buildDockModel(dock.kind, planet.id, planet);

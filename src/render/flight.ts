@@ -645,11 +645,11 @@ export class FlightScreen implements Screen {
     group.add(built.model.group);
     const isStation = dock.kind === "STATION";
     if (!isStation) {
-      const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, WORLD_LIGHT, DOCKED_GROUND_DETAIL);
+      const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, WORLD_LIGHT, DOCKED_GROUND_DETAIL, { rings: false, clouds: false });
       ground.position.y = -DOCKED_GROUND_RADIUS - built.parking.y - 0.12;
       group.add(ground);
     } else {
-      const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, DOCKED_STATION_PLANET_DETAIL);
+      const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, DOCKED_STATION_PLANET_DETAIL, { rings: false, cloudLift: 0.012 }) // clouds about 2 units up, well under the station;
       const c = stationPlanetCentre(DOCKED_STATION_PLANET_RADIUS, FLIGHT_STATION_PLANET_ALTITUDE, STATION_EXIT.straight);
       world.position.set(c.x, c.y, c.z);
       group.add(world);

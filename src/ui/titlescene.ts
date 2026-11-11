@@ -68,8 +68,8 @@ export class TitleScene {
     const pair = pickTitlePlanets(planets, dockId);
     const toStar = new THREE.Vector3(0.8, 0.45, 0.6).normalize(); // light from the upper right
     if (pair) {
-      this.big = makePlanetMesh(pair[0], 1, toStar, 1);
-      this.small = makePlanetMesh(pair[1], 1, toStar, 1);
+      this.big = makePlanetMesh(pair[0], 1, toStar, pair[0].type === "GAS" ? 3 : 2);
+      this.small = makePlanetMesh(pair[1], 1, toStar, pair[1].type === "GAS" ? 3 : 2);
       this.scene.add(this.big, this.small);
       // A station from this system (the one you are at, if it is a station).
       const stationPlanet =

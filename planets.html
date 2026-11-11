@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lazy Flight: planet looks</title>
+    <style>
+      body { margin: 0; background: #05060d; color: #cfe9e6; font-family: ui-monospace, Menlo, monospace; }
+      header { padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+      h1 { font-size: 18px; margin: 0; color: #3fe0d0; }
+      button, input, select { font: inherit; background: #10131f; color: #cfe9e6; border: 1px solid #34405f; padding: 6px 10px; min-height: 36px; }
+      #seed { width: 110px; }
+      #stats { color: #8aa; font-size: 13px; width: 100%; }
+      #wrap { position: relative; }
+      canvas { display: block; width: 100%; image-rendering: pixelated; }
+      .tag { position: absolute; font-size: 12px; text-align: center; color: #cfe9e6; text-shadow: 0 1px 2px #000; pointer-events: none; line-height: 1.2; }
+      .tag b { color: #ffb547; font-weight: normal; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>PLANET LOOKS (Agent 7c)</h1>
+      <label>seed <input id="seed" type="number" /></label>
+      <button id="prev">◀ PREV</button><button id="next">NEXT ▶</button>
+      <select id="filter"><option value="all">all planets</option><option value="rings">only with rings</option><option value="exotic">only surprising colours</option></select>
+      <div id="stats"></div>
+    </header>
+    <div id="wrap"><canvas id="c"></canvas></div>
+    <script type="module" src="/src/planets.ts"></script>
+  </body>
+</html>

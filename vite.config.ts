@@ -7,12 +7,13 @@ export default defineConfig({
     outDir: "dist",
     chunkSizeWarningLimit: 800,
     rollupOptions: {
-      // Four pages are published: the game, the universe debug page, the model viewer and the game debug page.
+      // Five pages are published: the game, the universe debug page, the model viewer, the game debug page and the planet looks preview.
       input: {
         main: "index.html",
         debug: "debug.html",
         models: "models.html",
         gamedebug: "game-debug.html",
+        planets: "planets.html", // planet looks preview (Agent 7c)
       },
     },
   },
