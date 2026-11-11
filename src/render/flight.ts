@@ -522,7 +522,15 @@ export class FlightScreen implements Screen {
       this.ship.group.visible = ownShipVisible(this.mode);
       this.cockpitRig.visible = cockpitRoomVisible(this.mode);
       const height = (phase === "WARP" ? FLIGHT_ORBIT_HEIGHT_WARP : FLIGHT_ORBIT_HEIGHT_DOCK) + Math.sin(this.clockT * 0.4) * 0.6;
-      let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * (this.floating ? FLOAT_ORBIT_SPEED : 0.35), FLIGHT_ORBIT_RADIUS, height);
+      let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * (this.floating ? FLOAT_ORBIT_SPEED : 0.35) + (this.floating ? this.fv.yaw : 0), FLIGHT_ORBIT_RADIUS, height);
+      if (this.floating) {
+        // Player's view: tilt up/down and zoom (the slow orbit carries on from wherever they turned it).
+        const horiz = Math.hypot(rel.x, rel.z);
+        const lift = Math.atan2(rel.y - 0.8, horiz) + this.fv.pitch;
+        const r = Math.max(this.shipR * 1.6, Math.hypot(horiz, rel.y - 0.8) * this.fv.zoom);
+        const f = r / Math.max(1e-6, horiz);
+        rel = { x: rel.x * Math.cos(lift) * f * (horiz > 0 ? 1 : 0), y: 0.8 + r * Math.sin(lift), z: rel.z * Math.cos(lift) * f };
+      }
       if (phase === "LAUNCH" && this.origin?.bayCamera) {
         // Leaving a station: the camera starts inside the bay and swings out once the station is clear.
         const bay = rotateY(this.origin.bayCamera, Math.sin(this.clockT * 0.35) * 0.14);
@@ -544,11 +552,13 @@ export class FlightScreen implements Screen {
       else if ((phase === "APPROACH" || phase === "DONE") && this.dest?.isStation && this.dest.entry) inBay = 1 - smoothstep((this.dest.entry.pose.slide - 4) / 8);
       const vy = rel.y - 0.8;
       const d0 = Math.hypot(rel.x, vy, rel.z);
-      const d1 = d0 > 1e-6 ? lerp(Math.max(d0, fitDistance(this.shipR, this.baseFov, camera.aspect, SHIP_FIT_MARGIN)), d0, inBay) : d0;
+      const d1 = this.floating ? d0 : d0 > 1e-6 ? lerp(Math.max(d0, fitDistance(this.shipR, this.baseFov, camera.aspect, SHIP_FIT_MARGIN)), d0, inBay) : d0;
       if (d0 > 1e-6) rel = { x: (rel.x * d1) / d0, y: 0.8 + (vy * d1) / d0, z: (rel.z * d1) / d0 };
       fov = Math.min(SHIP_FIT_MAX_FOV, Math.max(this.baseFov, fitFov(this.shipR, d1, camera.aspect, SHIP_FIT_MARGIN)));
-      camera.position.set(rel.x, rel.y + shipY, rel.z);
-      camera.lookAt(0, shipY + 0.8, 0);
+      const pan = this.floating ? this.fv.pan : null;
+      camera.position.set(rel.x + (pan?.x ?? 0), rel.y + shipY + (pan?.y ?? 0), rel.z + (pan?.z ?? 0));
+      camera.lookAt(pan?.x ?? 0, shipY + 0.8 + (pan?.y ?? 0), pan?.z ?? 0);
+      camera.updateMatrixWorld();
     } else {
       this.ship.group.visible = ownShipVisible(this.mode); // your own ship is never drawn from inside
       this.cockpitRig.visible = cockpitRoomVisible(this.mode);
@@ -649,7 +659,21 @@ export class FlightScreen implements Screen {
     this.look = { yaw: 0, pitch: 0 };
     this.zoom = 1;
     this.homing = false;
+    this.fv = { yaw: 0, pitch: 0, zoom: 1, pan: new THREE.Vector3() };
   };
+
+  /** Floating at a planet, outside view: the player can drag to rotate, wheel or pinch to zoom, shift/right-drag or two fingers to pan. */
+  private freeOrbit(): boolean {
+    return this.floating !== null && this.mode === "orbit";
+  }
+  private fv = { yaw: 0, pitch: 0, zoom: 1, pan: new THREE.Vector3() };
+  private panBy(dx: number, dy: number): void {
+    const k = 0.04 * this.fv.zoom;
+    const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0);
+    const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 1);
+    this.fv.pan.addScaledVector(right, -dx * k).addScaledVector(up, dy * k);
+    this.fv.pan.clampLength(0, 40);
+  }
 
   /** The cockpit view's side-to-side field of view now: the start view (the approved view zoomed out) changed by the player's zoom. */
   private cockpitFov(): number {
@@ -674,7 +698,7 @@ export class FlightScreen implements Screen {
   }
 
   private onDown = (e: PointerEvent): void => {
-    if (this.mode !== "cockpit") return;
+    if (this.mode !== "cockpit" && !this.freeOrbit()) return;
     try {
       this.opts.host.setPointerCapture(e.pointerId);
     } catch {
@@ -688,12 +712,27 @@ export class FlightScreen implements Screen {
 
   private onMove = (e: PointerEvent): void => {
     const p = this.pointers.get(e.pointerId);
-    if (!p || this.mode !== "cockpit") return;
+    if (!p || (this.mode !== "cockpit" && !this.freeOrbit())) return;
     const dx = e.clientX - p.x;
     const dy = e.clientY - p.y;
     p.x = e.clientX;
     p.y = e.clientY;
     this.moved += Math.abs(dx) + Math.abs(dy);
+    if (this.freeOrbit()) {
+      if (this.pointers.size === 1) {
+        if (e.shiftKey || (e.buttons & 2) !== 0) this.panBy(dx, dy);
+        else {
+          this.fv.yaw -= dx * 0.008;
+          this.fv.pitch = Math.max(-1.2, Math.min(1.2, this.fv.pitch + dy * 0.006));
+        }
+      } else if (this.pointers.size === 2) {
+        const d = this.fingerDistance();
+        if (this.lastPinch > 0 && d > 0) this.fv.zoom = Math.max(0.5, Math.min(3, (this.fv.zoom * this.lastPinch) / d));
+        this.lastPinch = d;
+        this.panBy(dx / 2, dy / 2);
+      }
+      return;
+    }
     if (this.pointers.size === 1) {
       const h = Math.max(1, this.opts.host.clientHeight);
       const perPixel = ((this.cockpitFov() * Math.PI) / 180) / h; // dragging a screen height turns about one field of view
@@ -707,10 +746,11 @@ export class FlightScreen implements Screen {
 
   private onUp = (e: PointerEvent): void => {
     // Double tap or double click (works on phones too): look straight ahead again.
-    if (e.type === "pointerup" && this.mode === "cockpit" && this.pointers.size === 1 && isTap(this.moved)) {
+    if (e.type === "pointerup" && (this.mode === "cockpit" || this.freeOrbit()) && this.pointers.size === 1 && isTap(this.moved)) {
       const now = performance.now();
       if (isDoubleTap(this.lastTapMs, now)) {
-        this.centreLook();
+        if (this.freeOrbit()) this.fv = { yaw: 0, pitch: 0, zoom: 1, pan: new THREE.Vector3() };
+        else this.centreLook();
         this.lastTapMs = 0;
       } else {
         this.lastTapMs = now;
@@ -721,6 +761,11 @@ export class FlightScreen implements Screen {
   };
 
   private onWheel = (e: WheelEvent): void => {
+    if (this.freeOrbit()) {
+      e.preventDefault();
+      this.fv.zoom = Math.max(0.5, Math.min(3, this.fv.zoom * wheelFactor(e.deltaY)));
+      return;
+    }
     if (this.mode !== "cockpit") return;
     e.preventDefault();
     this.homing = false;
