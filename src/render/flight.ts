@@ -103,7 +103,7 @@ import {
   LOOK_FLAME_FLICKER,
   LOOK_FLASH_STEPS,
   FLOAT_DEFAULT_STYLE,
-  FLOAT_ORBIT_SPEED,
+  FLOAT_SHIP_ORBIT_SPEED,
   FLOAT_PLANET_DETAIL,
 } from "./settings";
 import { disposeAll, makePlanetMesh } from "./systemview";
@@ -141,7 +141,15 @@ interface Body {
   /** The dock design. Null for a planet WITHOUT a dock (scenery): then `scenery` is set instead. */
   model: AssetModel | null;
   /** A planet without a dock: where it hangs when the ship floats there (relative to the ship) and its star (drawn far away, not moving with `group`). */
-  scenery: { centre: { x: number; y: number; z: number }; sun: THREE.Mesh } | null;
+  scenery: {
+    centre: { x: number; y: number; z: number };
+    sun: THREE.Mesh;
+    /** The planet's turning axis (the rings' up-direction): the floating ship circles the planet around it. */
+    axis: THREE.Vector3;
+    turn: THREE.Group;
+    baseQuat: THREE.Quaternion;
+    sunStart: THREE.Vector3;
+  } | null;
   isStation: boolean;
   /** Stations only: where the camera sits inside the bay, relative to the ship. */
   bayCamera: Vec3 | null;
@@ -257,6 +265,7 @@ export class FlightScreen implements Screen {
     this.clearBodies();
     this.resetLook();
     this.floating = null;
+    this.free = false;
     this.info = info;
     this.finishing = null;
     this.lastPlan = null;
@@ -289,6 +298,8 @@ export class FlightScreen implements Screen {
       getProgress: () => null,
     };
     this.floating = { planetId, name: planet.name };
+    this.floatT0 = 0;
+    this.free = false;
     this.dest = this.makeBody(planetId);
     this.addBody(this.dest);
     return true;
@@ -319,6 +330,15 @@ export class FlightScreen implements Screen {
   setFloatStyle(style: FloatStyle): void {
     this.floatStyle = style;
     if (this.floating) this.beginFloat(this.floating.planetId);
+  }
+
+  private floatT0 = 0; // clockT when the floating began (the circling starts from zero)
+
+  private spinScenery(s: NonNullable<Body["scenery"]>, angle: number): void {
+    const q = new THREE.Quaternion().setFromAxisAngle(s.axis, angle);
+    s.turn.quaternion.copy(q).multiply(s.baseQuat);
+    const c = new THREE.Vector3(s.centre.x, s.centre.y, s.centre.z);
+    s.sun.position.copy(s.sunStart).sub(c).applyQuaternion(q).add(c);
   }
 
   private addBody(body: Body | null): void {
@@ -361,6 +381,8 @@ export class FlightScreen implements Screen {
         for (const body of [this.origin]) this.removeBody(body);
         this.origin = null;
         this.floating = { planetId: arrivedAt.id, name: arrivedAt.name };
+        this.floatT0 = this.clockT;
+        this.updateModeButton();
         this.dest.group.visible = true;
         onDone();
         return;
@@ -383,6 +405,7 @@ export class FlightScreen implements Screen {
     el.addEventListener("pointerup", this.onUp);
     el.addEventListener("pointercancel", this.onUp);
     el.addEventListener("wheel", this.onWheel, { passive: false });
+    this.updateModeButton();
     this.opts.hud.setVisible(false);
     this.flash.style.display = "block";
     this.hudRoot.style.display = "block";
@@ -480,6 +503,8 @@ export class FlightScreen implements Screen {
       const o = arriveOffset(c, q);
       const drift = this.floating ? floatDrift(this.clockT) : { x: 0, y: 0, z: 0 };
       this.dest.group.position.set(c.x + o.x + drift.x, c.y + o.y + drift.y, c.z + o.z + drift.z);
+      // The ship circles the planet: seen from the ship, the planet turns about its axis and its star goes round with it (so the light stays right).
+      this.spinScenery(this.dest.scenery, this.floating ? (this.clockT - this.floatT0) * FLOAT_SHIP_ORBIT_SPEED : 0);
     } else if ((phase === "APPROACH" || phase === "DONE") && this.dest) {
       const q = phase === "DONE" ? 1 : p;
       if (this.dest.isStation) {
@@ -522,8 +547,8 @@ export class FlightScreen implements Screen {
       this.ship.group.visible = ownShipVisible(this.mode);
       this.cockpitRig.visible = cockpitRoomVisible(this.mode);
       const height = (phase === "WARP" ? FLIGHT_ORBIT_HEIGHT_WARP : FLIGHT_ORBIT_HEIGHT_DOCK) + Math.sin(this.clockT * 0.4) * 0.6;
-      let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * (this.floating ? FLOAT_ORBIT_SPEED : 0.35) + (this.floating ? this.fv.yaw : 0), FLIGHT_ORBIT_RADIUS, height);
-      if (this.floating) {
+      let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * (this.floating ? 0 : 0.35) + (this.freeCam() ? this.fv.yaw : 0), FLIGHT_ORBIT_RADIUS, height);
+      if (this.freeCam()) {
         // Player's view: tilt up/down and zoom (the slow orbit carries on from wherever they turned it).
         const horiz = Math.hypot(rel.x, rel.z);
         const lift = Math.atan2(rel.y - 0.8, horiz) + this.fv.pitch;
@@ -555,7 +580,7 @@ export class FlightScreen implements Screen {
       const d1 = this.floating ? d0 : d0 > 1e-6 ? lerp(Math.max(d0, fitDistance(this.shipR, this.baseFov, camera.aspect, SHIP_FIT_MARGIN)), d0, inBay) : d0;
       if (d0 > 1e-6) rel = { x: (rel.x * d1) / d0, y: 0.8 + (vy * d1) / d0, z: (rel.z * d1) / d0 };
       fov = Math.min(SHIP_FIT_MAX_FOV, Math.max(this.baseFov, fitFov(this.shipR, d1, camera.aspect, SHIP_FIT_MARGIN)));
-      const pan = this.floating ? this.fv.pan : null;
+      const pan = this.freeCam() ? this.fv.pan : null;
       camera.position.set(rel.x + (pan?.x ?? 0), rel.y + shipY + (pan?.y ?? 0), rel.z + (pan?.z ?? 0));
       camera.lookAt(pan?.x ?? 0, shipY + 0.8 + (pan?.y ?? 0), pan?.z ?? 0);
       camera.updateMatrixWorld();
@@ -664,7 +689,11 @@ export class FlightScreen implements Screen {
 
   /** Floating at a planet, outside view: the player can drag to rotate, wheel or pinch to zoom, shift/right-drag or two fingers to pan. */
   private freeOrbit(): boolean {
-    return this.floating !== null && this.mode === "orbit";
+    return this.freeCam();
+  }
+  private free = false; // floating only: the outside view with the player's own controls ("Free view")
+  private freeCam(): boolean {
+    return this.floating !== null && this.mode === "orbit" && this.free;
   }
   private fv = { yaw: 0, pitch: 0, zoom: 1, pan: new THREE.Vector3() };
   private panBy(dx: number, dy: number): void {
@@ -774,13 +803,22 @@ export class FlightScreen implements Screen {
 
   private toggleMode(): void {
     this.resetLook();
-    this.mode = this.mode === "orbit" ? "cockpit" : "orbit";
+    if (this.floating) {
+      // Floating: Orbit view (no controls) > Free view (drag, zoom, pan) > Cockpit.
+      if (this.mode === "cockpit") { this.mode = "orbit"; this.free = false; }
+      else if (!this.free) this.free = true;
+      else { this.free = false; this.mode = "cockpit"; }
+    } else {
+      this.free = false;
+      this.mode = this.mode === "orbit" ? "cockpit" : "orbit";
+    }
     this.hudTimer = 0; // draw the screens at once when the cockpit appears
     this.updateModeButton();
   }
 
   private updateModeButton(): void {
-    this.modeButton.textContent = this.mode === "orbit" ? "Cockpit view" : "Orbit view";
+    const next = this.floating ? (this.mode === "cockpit" ? "Orbit view" : this.free ? "Cockpit view" : "Free view") : this.mode === "orbit" ? "Cockpit view" : "Orbit view";
+    this.modeButton.textContent = next;
     // In the cockpit the trip facts and the funny lines are on the screens, so the text box and the title go away (the bar and the button stay).
     const hideText = this.mode === "cockpit";
     this.text.style.display = hideText ? "none" : "";
@@ -834,10 +872,10 @@ export class FlightScreen implements Screen {
     const distance = lengthOf(centre);
     const look = chooseLook(planet);
     const turn = new THREE.Group();
+    const n = ringNormalWorld({ x: -centre.x / distance, y: -centre.y / distance, z: -centre.z / distance }, tiltForClearance(distance));
     if (look.rings) {
       // The rings' own up-direction (as makeRings builds it), turned to point nearly at the ship: seen at an angle, never cutting it.
       const local = new THREE.Vector3(0, 0, 1).applyEuler(new THREE.Euler(Math.PI / 2 - look.ringTilt.x, look.ringTilt.y, 0));
-      const n = ringNormalWorld({ x: -centre.x / distance, y: -centre.y / distance, z: -centre.z / distance }, tiltForClearance(distance));
       turn.quaternion.setFromUnitVectors(local, new THREE.Vector3(n.x, n.y, n.z));
     }
     const toStarLocal = new THREE.Vector3(STAR_DIRECTION.x, STAR_DIRECTION.y, STAR_DIRECTION.z).applyQuaternion(turn.quaternion.clone().invert());
@@ -852,9 +890,11 @@ export class FlightScreen implements Screen {
       new THREE.IcosahedronGeometry(starDrawRadius(star?.radius ?? 1), 1),
       new THREE.MeshBasicMaterial({ color: star ? hexToNumber(star.color) : 0xfff2c0 }),
     );
-    sun.position.set(STAR_DIRECTION.x * STAR_DISTANCE, STAR_DIRECTION.y * STAR_DISTANCE, STAR_DIRECTION.z * STAR_DISTANCE);
+    const sunStart = new THREE.Vector3(STAR_DIRECTION.x * STAR_DISTANCE, STAR_DIRECTION.y * STAR_DISTANCE, STAR_DIRECTION.z * STAR_DISTANCE);
+    sun.position.copy(sunStart);
     sun.visible = false;
-    return { group, model: null, scenery: { centre: { ...centre }, sun }, isStation: false, bayCamera: null, slide: 0, entry: null, bayBox: null };
+    const scenery = { centre: { ...centre }, sun, axis: new THREE.Vector3(n.x, n.y, n.z), turn, baseQuat: turn.quaternion.clone(), sunStart };
+    return { group, model: null, scenery, isStation: false, bayCamera: null, slide: 0, entry: null, bayBox: null };
   }
 
   private clearBodies(): void {

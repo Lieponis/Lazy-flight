@@ -206,7 +206,7 @@ export const LOOK_FLASH_STEPS = 6; // the warp flash fades in this many chunky s
 /** How the "in space at a planet" scene looks: "A" hovering above, "B" facing the planet, "C" far view (?float=A|B|C tries them). */
 export const FLOAT_DEFAULT_STYLE: "A" | "B" | "C" = "A"; // Andy picked A (Hovering above)
 export const FLOAT_PLANET_DETAIL = 3; // roundness of the planet in that scene (3 = 320 triangles; clouds and rings come on top)
-export const FLOAT_ORBIT_SPEED = 0.12; // how fast the outside camera circles the floating ship (radians per second; flying uses 0.35)
+export const FLOAT_SHIP_ORBIT_SPEED = 0.04; // how fast the ship circles the planet while floating (radians per second: one lap in about 2.5 minutes)
 
 // ---------------------------------------------------------------- the system view with up to 10 planets (stage U3)
 /** How docks are marked in the system view. Andy chose "A": bright orbit lines for docks, dim for scenery ("off" = old look, ?marks=off). */
