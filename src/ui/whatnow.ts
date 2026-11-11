@@ -48,6 +48,7 @@ export class WhatNow {
   /** Show or hide the WHAT NOW? button. */
   showButton(on: boolean): void {
     this.openBtn.hidden = !on;
+    document.body.classList.toggle("ui-whatnow-on", on); // notes move below the button (theme.css)
   }
 
   open(): void {

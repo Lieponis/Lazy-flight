@@ -1079,12 +1079,12 @@ body.ui-planet-panel-on .hud-label {
   font-size: 18px;
 }
 
-/* WHAT NOW? while floating (Andy chose C): one button on the right at mid-height, so the notes at the top and the
-   flight text box at the bottom never cover it. */
+/* WHAT NOW? while floating (Andy chose C): one button at the top right, under the status strip (Andy's placement).
+   While it shows, the fading notes move down below it so they never cover it. */
 .ui-whatnow-btn {
   position: fixed;
   z-index: 30;
-  top: 46%; /* the right side at mid-height: beside the ship, clear of the notes on top and the flight box below */
+  top: calc(var(--ui-top-reserve) + 6px); /* top right, under the status strip (Andy) */
   right: var(--ui-safe-r);
   min-height: 52px;
   letter-spacing: 2px;
@@ -1242,4 +1242,9 @@ body.ui-planet-panel-on .hud-label {
 
 .fh-button[title$=" view"]:active {
   background: rgba(63, 224, 208, 0.25);
+}
+
+/* 5f: while the WHAT NOW? button shows (floating), notes start below it. */
+body.ui-whatnow-on .ui-toast {
+  top: calc(var(--ui-top-reserve) + 66px);
 }
