@@ -22,16 +22,14 @@ import type { AssetModel } from "./assets";
 import type { Hud } from "./hud";
 import { OrbitView } from "./input";
 import { buildDockModel } from "./models3d";
-import { fitDistance, onPicture, orbitRadii, planetDetail, planetFootprint, stationOrbitFor, systemSummary } from "./systemlayout";
+import { fitDistance, orbitRadii, planetDetail, planetFootprint, stationOrbitFor, systemSummary } from "./systemlayout";
 import { markParts, type MarkStyle } from "./systemmarks";
-import { SystemTags } from "./systemtags";
 import type { Screen } from "./screen";
 import {
   STARFIELD_COUNT,
   SYSTEM_LANE_DOCK,
   SYSTEM_LANE_OLD,
   SYSTEM_LANE_SCENERY,
-  SYSTEM_MARK_COLOUR,
   SYSTEM_MARK_STYLE,
   SYSTEM_OUTPOST_SCALE,
   SYSTEM_OUTPOST_SCALE_MAX,
@@ -58,8 +56,6 @@ interface PlanetEntry {
   model: AssetModel | null;
   /** Set only for stations: they slowly circle their planet. */
   station: { object: THREE.Object3D; orbit: number; angle: number } | null;
-  /** Option C: the spinning diamond on a pin above a dock planet. */
-  beacon: THREE.Group | null;
 }
 
 export function disposeAll(root: THREE.Object3D): void {
@@ -212,7 +208,6 @@ export class SystemViewScreen implements Screen {
   private clockT = 0;
   private systemId: string | null = null;
   private markStyle: MarkStyle = SYSTEM_MARK_STYLE;
-  private tags: SystemTags;
   private summary = "";
   private triangles = 0;
 
@@ -231,10 +226,9 @@ export class SystemViewScreen implements Screen {
 
     this.view = new OrbitView(this.camera, opts.host, 8, 90, 40);
     this.view.onTap = (x, y) => this.handleTap(x, y);
-    this.tags = new SystemTags(opts.host.parentElement ?? document.body);
   }
 
-  /** Option A, B or C for marking docks (or "off" for the old look). Rebuilds the picture but keeps the camera. */
+  /** Marks docks with bright orbit lines ("A", the default) or the old look ("off"). Rebuilds the picture but keeps the camera. */
   setMarkStyle(style: MarkStyle): void {
     this.markStyle = style;
     if (!this.systemId) return;
@@ -286,7 +280,6 @@ export class SystemViewScreen implements Screen {
     const sceneryLane = laneMaterial(false);
 
     let outermost = 6;
-    const tagSpecs: { text: string; kind: string }[] = [];
     planets.forEach((planet, index) => {
       const dock = docks[index] ?? null;
       const radius = radii[index] ?? 1;
@@ -332,29 +325,11 @@ export class SystemViewScreen implements Screen {
         object.position.set(Math.cos(station.angle) * orbitAroundPlanet, Math.sin(station.angle) * orbitAroundPlanet * 0.3, Math.sin(station.angle) * orbitAroundPlanet);
       }
 
-      // Option C: a spinning diamond on a thin pin above the planet. It is scaled every frame so it keeps the same size on screen.
-      let beacon: THREE.Group | null = null;
-      if (dock && parts.beacons) {
-        beacon = new THREE.Group();
-        const colour = dock.kind === "OUTPOST" ? SYSTEM_MARK_COLOUR.outpost : SYSTEM_MARK_COLOUR.station;
-        const pin = new THREE.LineSegments(
-          new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0)]),
-          new THREE.LineBasicMaterial({ color: colour }),
-        );
-        const diamond = new THREE.Mesh(new THREE.OctahedronGeometry(0.35, 0), new THREE.MeshBasicMaterial({ color: colour }));
-        diamond.name = "diamond";
-        diamond.position.y = 1.35;
-        beacon.add(pin, diamond);
-        group.add(beacon);
-      }
-      if (dock) tagSpecs.push({ text: dock.name, kind: dock.kind });
-
       this.content.add(group);
-      this.entries.push({ planet, dock, group, radius, model, station, beacon });
+      this.entries.push({ planet, dock, group, radius, model, station });
     });
 
     this.systemId = system.id;
-    this.tags.set(parts.tags ? tagSpecs : []);
     this.summary = systemSummary(
       planets.length,
       docks.filter((d): d is Dock => d !== null).map((d) => ({ name: d.name, kind: dockKindLabel(d.kind) })),
@@ -372,13 +347,11 @@ export class SystemViewScreen implements Screen {
   enter(): void {
     this.view.attach();
     this.opts.hud.setTitle(`SYSTEM - ${this.systemName} (${this.starLabel})`);
-    this.tags.show(true);
     this.refreshHud();
   }
 
   exit(): void {
     this.view.detach();
-    this.tags.show(false);
   }
 
   update(seconds: number): void {
@@ -391,42 +364,12 @@ export class SystemViewScreen implements Screen {
       st.angle += seconds * 0.6;
       st.object.position.set(Math.cos(st.angle) * st.orbit, Math.sin(st.angle) * st.orbit * 0.3, Math.sin(st.angle) * st.orbit);
     }
-    this.updateMarks();
     const chosen = this.entries[this.selected];
     if (chosen) {
       this.selectionMarker.position.copy(chosen.group.position);
       this.selectionMarker.scale.setScalar(chosen.radius * 2.6 + (chosen.station ? chosen.station.orbit : 0.6));
       this.selectionMarker.rotation.y += 0.02;
     }
-  }
-
-  /** Keeps the beacons the same size on screen and puts the name tags above their planets. */
-  private updateMarks(): void {
-    const scale = clamp(this.view.dist / 45, 0.5, 2.5);
-    const showTags = markParts(this.markStyle).tags;
-    const rect = this.opts.host.getBoundingClientRect();
-    const spots: ({ x: number; y: number } | null)[] = [];
-    this.camera.updateMatrixWorld();
-    for (const entry of this.entries) {
-      if (!entry.dock) continue;
-      const beacon = entry.beacon;
-      if (beacon) {
-        beacon.scale.setScalar(scale);
-        beacon.position.y = entry.radius * 1.15;
-        const diamond = beacon.getObjectByName("diamond");
-        if (diamond) {
-          diamond.rotation.y = this.clockT * 1.8;
-          diamond.position.y = 1.35 + Math.sin(this.clockT * 2.2) * 0.12;
-        }
-      }
-      if (showTags) {
-        this.temp.set(entry.group.position.x, entry.radius * 1.15 + (entry.station ? 0.4 : 0.2) * scale + 0.9 * scale, entry.group.position.z).project(this.camera);
-        const x = rect.left + ((this.temp.x + 1) / 2) * rect.width;
-        const y = rect.top + ((1 - this.temp.y) / 2) * rect.height;
-        spots.push(onPicture(x - rect.left, y - rect.top, this.temp.z, rect.width, rect.height) ? { x, y } : null);
-      }
-    }
-    if (showTags) this.tags.place(spots, rect.top + rect.height);
   }
 
   private countTriangles(): number {

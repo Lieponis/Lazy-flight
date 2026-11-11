@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ballTriangles, fitDistance, orbitRadii, planetDetail, planetFootprint, spreadTags, stationOrbitFor, systemSummary } from "../src/render/systemlayout";
+import { ballTriangles, fitDistance, orbitRadii, planetDetail, planetFootprint, stationOrbitFor, systemSummary } from "../src/render/systemlayout";
 import { markParts, parseMarks, parseSystemPreview, previewList } from "../src/render/systemmarks";
 
 describe("system layout: orbit spacing", () => {
@@ -52,28 +52,6 @@ describe("system layout: camera and detail", () => {
   });
 });
 
-describe("system layout: name tags", () => {
-  it("tags that overlap are pushed apart, tags that do not overlap stay", () => {
-    const boxes = [
-      { x: 100, y: 100, w: 80, h: 22 },
-      { x: 110, y: 104, w: 80, h: 22 },
-      { x: 400, y: 100, w: 80, h: 22 },
-    ];
-    const ys = spreadTags(boxes, 600);
-    expect(ys[0]).toBe(100);
-    expect(ys[1]! - ys[0]!).toBeGreaterThanOrEqual(22);
-    expect(ys[2]).toBe(100);
-  });
-  it("tags stay inside the picture", () => {
-    const ys = spreadTags([{ x: 50, y: -30, w: 60, h: 22 }, { x: 50, y: 900, w: 60, h: 22 }], 300);
-    expect(ys[0]!).toBeGreaterThanOrEqual(24);
-    expect(ys[1]!).toBeLessThanOrEqual(298);
-  });
-  it("no tags is fine", () => {
-    expect(spreadTags([], 300)).toEqual([]);
-  });
-});
-
 describe("system layout: summary text and test links", () => {
   it("one dock still reads sensibly", () => {
     const text = systemSummary(1, [{ name: "Foo Hub", kind: "Station" }]);
@@ -85,12 +63,10 @@ describe("system layout: summary text and test links", () => {
     for (const n of ["A (Outpost)", "B (Station)", "C (Outpost)"]) expect(text).toContain(n);
   });
   it("?marks= picks a style and the parts follow", () => {
-    expect(parseMarks("?marks=b")).toBe("B");
+    expect(parseMarks("?marks=a")).toBe("A");
     expect(parseMarks("?marks=off")).toBe("off");
     expect(parseMarks("?marks=Z")).toBe(null);
-    expect(markParts("A")).toEqual({ lanes: true, tags: false, beacons: false });
-    expect(markParts("B").tags).toBe(true);
-    expect(markParts("C").beacons).toBe(true);
+    expect(markParts("A")).toEqual({ lanes: true });
     expect(markParts("off").lanes).toBe(false);
   });
   it("?systempreview=1 opens the buttons unless 0 or false", () => {

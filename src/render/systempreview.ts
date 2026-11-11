@@ -1,5 +1,5 @@
-// THE SYSTEM PREVIEW (a testing aid for stage U3): open the game with ?systempreview=1 for buttons to try the dock marks
-// (OFF / A / B / C), step through systems with 1 to 10 planets, and read the triangle count. Nothing here is part of the real game.
+// THE SYSTEM PREVIEW (a testing aid for stage U3): open the game with ?systempreview=1 for buttons to compare the dock lines
+// (OFF / A), step through systems with 1 to 10 planets, and read the triangle count. Nothing here is part of the real game.
 
 import { MARK_STYLES, type MarkStyle } from "./systemmarks";
 

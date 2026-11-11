@@ -1,32 +1,27 @@
-// THE DOCK MARKS (stage U3), pure part: which look is used and the test links. Andy compares A, B and C.
-//   OFF: the old look (every orbit line the same).
-//   A  "Bright lanes": the orbit line of a planet with a dock is bright blue, scenery planets get a dim line.
-//   B  "Name tags": A plus a small name tag floating above each dock planet.
-//   C  "Beacons": A plus a little spinning diamond on a pin above each dock planet (no text).
+// THE DOCK MARKS (stage U3), pure part. Andy chose option A ("bright lanes"): the orbit line of a planet with a dock is bright blue,
+// scenery planets get a dim line. "off" is the old look (every line the same) and stays only for comparing.
 
-export type MarkStyle = "off" | "A" | "B" | "C";
-export const MARK_STYLES: readonly MarkStyle[] = ["off", "A", "B", "C"];
+export type MarkStyle = "off" | "A";
+export const MARK_STYLES: readonly MarkStyle[] = ["off", "A"];
 
 export interface MarkParts {
   lanes: boolean;
-  tags: boolean;
-  beacons: boolean;
 }
 
 export function markParts(style: MarkStyle): MarkParts {
-  return { lanes: style !== "off", tags: style === "B", beacons: style === "C" };
+  return { lanes: style !== "off" };
 }
 
-/** ?marks=A|B|C|off from the web address, or null. */
+/** ?marks=A|off from the web address, or null. */
 export function parseMarks(search: string): MarkStyle | null {
   const m = /[?&]marks=([a-z]+)/i.exec(search);
   const v = m?.[1]?.toLowerCase();
   if (v === "off") return "off";
-  if (v === "a" || v === "b" || v === "c") return v.toUpperCase() as MarkStyle;
+  if (v === "a") return "A";
   return null;
 }
 
-/** ?systempreview=1 shows the buttons for comparing marks and stepping through systems (anything but 0 or false). */
+/** ?systempreview=1 shows the buttons for stepping through systems (anything but 0 or false). */
 export function parseSystemPreview(search: string): boolean {
   const m = /[?&]systempreview=([^&]*)/i.exec(search);
   if (!m) return false;

@@ -102,10 +102,10 @@ export const DOCKED_STATION_PLANET_DETAIL = 5; // facets of the planet (more = r
 export const FLIGHT_STATION_PLANET_ALTITUDE = 30; // the same in the flight view: higher, so the station never touches the planet
 
 /** System view: how big the dock models are drawn, as a fraction of the planet's drawn radius (clamped to the min and max). */
-export const SYSTEM_OUTPOST_SCALE = 0.05;
-export const SYSTEM_OUTPOST_SCALE_MIN = 0.04;
-export const SYSTEM_OUTPOST_SCALE_MAX = 0.12;
-export const SYSTEM_STATION_SCALE = 0.045;
+export const SYSTEM_OUTPOST_SCALE = 0.01; // Andy: docks 5x smaller in the system view (was 0.05)
+export const SYSTEM_OUTPOST_SCALE_MIN = 0.008;
+export const SYSTEM_OUTPOST_SCALE_MAX = 0.024;
+export const SYSTEM_STATION_SCALE = 0.009;
 
 /** Flight view: the orbit camera around the ship (distance and height) while docking/launching and in warp. */
 export const FLIGHT_ORBIT_RADIUS = 13;
@@ -203,9 +203,8 @@ export const LOOK_FLAME_FLICKER = 0.12; // engine flames change length in chunky
 export const LOOK_FLASH_STEPS = 6; // the warp flash fades in this many chunky steps. 0 = smooth fade.
 
 // ---------------------------------------------------------------- the system view with up to 10 planets (stage U3)
-/** How docks are marked in the system view: "off" (old look), "A" bright lanes, "B" name tags, "C" beacons. ?marks=A|B|C|off tries them. */
-export const SYSTEM_MARK_STYLE: "off" | "A" | "B" | "C" = "B"; // provisional until Andy picks
+/** How docks are marked in the system view. Andy chose "A": bright orbit lines for docks, dim for scenery ("off" = old look, ?marks=off). */
+export const SYSTEM_MARK_STYLE: "off" | "A" = "A";
 export const SYSTEM_LANE_DOCK = 0x5fd4ff; // orbit line of a planet with a dock
 export const SYSTEM_LANE_SCENERY = 0x1d2350; // orbit line of a scenery planet (dim)
 export const SYSTEM_LANE_OLD = 0x2a3170; // the old look: every orbit line the same
-export const SYSTEM_MARK_COLOUR = { outpost: 0xffcf6a, station: 0x5fd4ff }; // beacon and tag colours

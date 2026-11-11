@@ -1,8 +1,6 @@
 // THE SYSTEM VIEW LAYOUT (stage U3, Agent 3): how far apart the planets sit, how far away the camera stands, how detailed
-// each planet ball is, and where the dock name tags go. Pure numbers, no Three.js, so it can be tested.
+// each planet ball is. Pure numbers, no Three.js, so it can be tested.
 // Systems have 1 to 10 planets; only 1 to 3 of them have a dock (the rest is scenery).
-
-import { clamp } from "./helpers";
 
 /** How far a station circles its planet (system units). Rocky worlds about 1.6 to 2.3, gas giants 3.1 to 4.1. */
 export function stationOrbitFor(planetRadius: number): number {
@@ -65,40 +63,6 @@ export function ballTriangles(detail: number): number {
   return 20 * (detail + 1) * (detail + 1);
 }
 
-export interface TagBox {
-  /** Middle of the tag, across (pixels). */
-  x: number;
-  /** Bottom of the tag, down from the top (pixels). */
-  y: number;
-  w: number;
-  h: number;
-}
-
-/**
- * Moves name tags down so no two overlap, and keeps all of them inside the picture. Returns the new bottom edge of each tag
- * (same order as the input). Tags only move up and down, never sideways.
- */
-export function spreadTags(boxes: readonly TagBox[], pictureHeight: number, gap = 2): number[] {
-  const order = boxes.map((_, i) => i).sort((a, b) => (boxes[a]?.y ?? 0) - (boxes[b]?.y ?? 0));
-  const ys = boxes.map((b) => b.y);
-  // From the top down: a tag that sits on one above it is pushed below it.
-  for (let k = 1; k < order.length; k++) {
-    const cur = order[k] as number;
-    const c = boxes[cur] as TagBox;
-    for (let j = k - 1; j >= 0; j--) {
-      const other = order[j] as number;
-      const o = boxes[other] as TagBox;
-      const sideways = Math.abs(c.x - o.x) < (c.w + o.w) / 2;
-      const otherBottom = ys[other] ?? 0;
-      const otherTop = otherBottom - o.h;
-      const myBottom = ys[cur] ?? 0;
-      const myTop = myBottom - c.h;
-      if (sideways && myTop < otherBottom + gap && myBottom > otherTop - gap) ys[cur] = otherBottom + gap + c.h;
-    }
-  }
-  return ys.map((y, i) => clamp(y, (boxes[i]?.h ?? 0) + 2, Math.max(pictureHeight - 2, 0)));
-}
-
 /** The short summary line shown when nothing is selected: how many planets, which of them can be visited. */
 export function systemSummary(planetCount: number, docks: readonly { name: string; kind: string }[]): string {
   const planets = planetCount === 1 ? "1 planet" : `${planetCount} planets`;
@@ -106,9 +70,4 @@ export function systemSummary(planetCount: number, docks: readonly { name: strin
   const list = docks.map((d) => `${d.name} (${d.kind})`).join(", ");
   const count = docks.length === 1 ? "1 dock" : `${docks.length} docks`;
   return `${planets}, ${count}: ${list}\nTap a planet to see it. Drag to turn, pinch to zoom.`;
-}
-
-/** Marks that are in the picture and facing us: false for points behind the camera or far outside the picture. */
-export function onPicture(x: number, y: number, depth: number, width: number, height: number): boolean {
-  return depth <= 1 && x > -40 && y > -40 && x < width + 40 && y < height + 40;
 }
