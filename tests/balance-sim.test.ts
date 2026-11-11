@@ -114,7 +114,7 @@ describe("BUG 6b-1: rank bonus pushes a job over the rank limit at Accept", () =
     game.clock.now = () => game.state.travelEndMs!;
     const arrival = game.update();
     expect(arrival?.reward).toBe(Math.round(job!.reward * 1.05)); // +5% at cargo rank 2
-    expect(game.state.credits).toBe(credits + Math.round(job!.reward * 1.05));
+    expect(game.state.credits).toBe(credits + Math.round(job!.reward * 1.05) + (arrival?.discovery ?? 0)); // + discovery credits (F1)
   });
 });
 

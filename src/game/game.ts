@@ -2,7 +2,18 @@
 // Rules live in rules.ts; this file only connects them to the universe and the clock.
 
 import { getShip } from "./ships";
-import { getDock, getJobBoard, getSystem, hashString, type Job, type Seed } from "../universe";
+import {
+  distanceBetweenSystems,
+  getDock,
+  getDocksOfSystem,
+  getJobBoard,
+  getPlanet,
+  getSystem,
+  hashString,
+  listSystemsNear,
+  type Job,
+  type Seed,
+} from "../universe";
 import { buyShip, shipCatalog, switchShip, type ShipCatalogEntry } from "./fleet";
 import { OUTPOST_LINES } from "./debriefs";
 import {
@@ -15,12 +26,23 @@ import {
   systemOfDock,
   type DockFacts,
 } from "./outposts";
+import { discoveryBase, explorerInfo, hasExploredSystem, parsePlanetId, type ExplorerInfo } from "./explore";
+import {
+  checkFreeTravel,
+  emergencyRefuelInSpace,
+  isStuckInSpace,
+  settleFreeArrival,
+  startFreeTravel,
+  type FreeArrival,
+  type TripFacts,
+} from "./freetravel";
+import { currentPlaceId, isFlying, notDockedReason } from "./location";
 import { rankInfos, type RankInfo } from "./ranks";
 import { UPGRADE_LINES } from "./debriefs";
 import { buyUpgrade, shipStats, upgradeOffers, type ShipStats, type UpgradeOffer } from "./upgrades";
 import type { GameClock } from "./clock";
 import { slotOf } from "./clock";
-import { OUTPOST_DELIVERY_BONUS_PERCENT, OUTPOST_FUEL_DISCOUNT_PERCENT } from "./settings";
+import { EXPLORER_DISCOVERY_BONUS_PERCENT, OUTPOST_DELIVERY_BONUS_PERCENT, OUTPOST_FUEL_DISCOUNT_PERCENT } from "./settings";
 import {
   acceptJob,
   checkJob,
@@ -79,10 +101,32 @@ export interface OwnedOutpost {
   systemName: string;
 }
 
+/** What a free trip to a place would cost and give, or the plain reason it cannot be made. */
+export type FreeTravelCheck =
+  | {
+      ok: true;
+      targetId: string;
+      targetName: string;
+      /** True for a dock, false for a planet without a dock. */
+      isDock: boolean;
+      distanceLy: number;
+      fuelNeeded: number;
+      /** Fuel left on arrival. */
+      fuelLeft: number;
+      seconds: number;
+      /** What exploring this star system would pay now (0 if you have been there). */
+      discoveryCredits: number;
+      /** True if you have never been to this star system. */
+      newSystem: boolean;
+    }
+  | { ok: false; reason: string };
+
 export class Game {
   state: GameState;
   /** The last delivery, shown as a funny debrief until the next job is accepted. */
   lastArrival: Arrival | null = null;
+  /** The last free trip that ended (a funny line, discovery credits). Cleared when a trip or job starts. */
+  lastFreeArrival: FreeArrival | null = null;
   private listeners: GameListener[] = [];
 
   constructor(
@@ -116,7 +160,7 @@ export class Game {
 
   /** The mission board of the dock you are at. Empty while you are flying. */
   getBoard(): BoardEntry[] {
-    if (this.state.currentJob) return [];
+    if (isFlying(this.state) || this.state.spacePlanetId !== null) return [];
     const jobs = this.boardJobs();
     return jobs.map((plain) => {
       // Bonuses are added here, so the card shows exactly what the arrival will pay.
@@ -137,6 +181,8 @@ export class Game {
     if (this.state.currentJob) {
       return { ok: false, block: { code: "busy", text: "You already have a job. Finish it first." } };
     }
+    const away = this.whyNotDocked();
+    if (away !== null) return { ok: false, block: { code: this.state.freeTrip ? "busy" : "wrong-dock", text: away } };
     const plain = this.boardJobs().find((j) => j.id === jobId);
     if (!plain) return { ok: false, block: { code: "wrong-dock", text: "That job is no longer on the board." } };
     // Check the job WITHOUT bonuses (the same check the board shows), so your own rank or outpost bonus can never
@@ -145,12 +191,15 @@ export class Game {
     if (!result.ok) return result;
     this.state = { ...result.state, currentJob: withBonuses(this.state, plain).job };
     this.lastArrival = null;
+    this.lastFreeArrival = null;
     this.changed();
     return { ok: true };
   }
 
   /** Buy fuel. Returns the reason text if nothing was bought. */
   refuel(): { ok: true } | { ok: false; reason: string } {
+    const away = this.whyNotDocked();
+    if (away !== null) return { ok: false, reason: away };
     const result = refuel(this.state);
     if (!result.ok) return result;
     this.state = result.state;
@@ -160,14 +209,18 @@ export class Game {
 
   /** Is the player stuck (no job takeable even after spending all credits on fuel, because of fuel)? */
   isStuck(): boolean {
-    if (this.state.currentJob) return false;
+    if (isFlying(this.state)) return false;
+    if (this.state.spacePlanetId !== null) return isStuckInSpace(this.state, this.nearestDockLy(this.currentSystemId()));
     return isStuck(this.state, this.boardJobs());
   }
 
   /** Free fuel. Works only when stuck. Returns the funny line, or the reason it did not work. */
   emergencyRefuel(): { ok: true; units: number; line: string } | { ok: false; reason: string } {
-    if (this.state.currentJob) return { ok: false, reason: "You can only do this while docked." };
-    const result = emergencyRefuel(this.state, this.boardJobs());
+    if (isFlying(this.state)) return { ok: false, reason: "You can only do this while docked or floating at a planet." };
+    const result =
+      this.state.spacePlanetId !== null
+        ? emergencyRefuelInSpace(this.state, this.nearestDockLy(this.currentSystemId()))
+        : emergencyRefuel(this.state, this.boardJobs());
     if (!result.ok) return result;
     this.state = result.state;
     this.changed();
@@ -181,6 +234,8 @@ export class Game {
 
   /** Buy a ship (any dock, not in flight). Does not switch to it. */
   buyShip(id: string): { ok: true } | { ok: false; reason: string } {
+    const away = this.whyNotDocked();
+    if (away !== null) return { ok: false, reason: away };
     const result = buyShip(this.state, id);
     if (!result.ok) return result;
     this.state = result.state;
@@ -211,6 +266,8 @@ export class Game {
 
   /** Buy the next level of one track ("tank", "hold", "engines" or "comfort") of a ship you own. Any dock, not in flight. */
   buyUpgrade(shipId: string, track: string): { ok: true; price: number; level: number; line: string } | { ok: false; reason: string } {
+    const away = this.whyNotDocked();
+    if (away !== null) return { ok: false, reason: away };
     const result = buyUpgrade(this.state, shipId, track);
     if (!result.ok) return result;
     this.state = result.state;
@@ -270,6 +327,8 @@ export class Game {
   buyOutpost(dockId: string): { ok: true; price: number; line: string } | { ok: false; reason: string } {
     const facts = this.dockFacts(dockId);
     if (!facts) return { ok: false, reason: "There is no such dock." };
+    const away = this.whyNotDocked();
+    if (away !== null) return { ok: false, reason: away };
     const result = buyOutpost(this.state, facts);
     if (!result.ok) return result;
     this.state = result.state;
@@ -290,6 +349,88 @@ export class Game {
     });
   }
 
+  // ------------------------------------------------------------ free travel and exploring (4f)
+
+  /** The name of a dock or planet ("the place" if it does not exist). */
+  placeName(id: string): string {
+    return getDock(this.seed, id)?.name ?? getPlanet(this.seed, id)?.name ?? "the place";
+  }
+
+  /** The funny reason you cannot do dock things (jobs, buying, refuelling) right now, or null when you are docked. */
+  whyNotDocked(): string | null {
+    if (isFlying(this.state)) return null; // the flight messages come from the rules themselves
+    const id = this.state.spacePlanetId;
+    return notDockedReason(this.state, id === null ? "this planet" : this.placeName(id));
+  }
+
+  /** Light years from a star system to the nearest dock (0: every star system has at least one dock). */
+  private nearestDockLy(systemId: string): number {
+    if (getDocksOfSystem(this.seed, systemId).length > 0) return 0;
+    const here = getSystem(this.seed, systemId);
+    if (!here) return 0;
+    for (const near of listSystemsNear(this.seed, here.position, 60)) {
+      if (near.id !== systemId && getDocksOfSystem(this.seed, near.id).length > 0) return distanceBetweenSystems(this.seed, systemId, near.id) ?? 60;
+    }
+    return 60;
+  }
+
+  /** Everything the trip needs (where from and to, how far, how far to the nearest dock), or the reason it cannot be made. */
+  private tripFactsTo(targetId: string): { ok: true; trip: TripFacts; targetName: string; isDock: boolean; targetSystemId: string } | { ok: false; reason: string } {
+    const planet = getPlanet(this.seed, targetId);
+    if (!planet) return { ok: false, reason: "There is no such place." };
+    const fromId = currentPlaceId(this.state);
+    const distanceLy = distanceBetweenSystems(this.seed, this.currentSystemId(), planet.systemId);
+    if (distanceLy === null) return { ok: false, reason: "There is no such place." };
+    return {
+      ok: true,
+      trip: { fromId, toId: targetId, distanceLy, nearestDockLy: this.nearestDockLy(planet.systemId) },
+      targetName: this.placeName(targetId),
+      isDock: getDock(this.seed, targetId) !== null,
+      targetSystemId: planet.systemId,
+    };
+  }
+
+  /** Could you fly to this dock or planet now (no job)? Gives the fuel numbers and what exploring would pay, or the reason not. */
+  canFreeTravel(targetId: string): FreeTravelCheck {
+    const facts = this.tripFactsTo(targetId);
+    if (!facts.ok) return facts;
+    const block = checkFreeTravel(this.state, facts.trip);
+    if (block) return { ok: false, reason: block.text };
+    const fuelNeeded = tripFuelCost(this.state, facts.trip.distanceLy);
+    const newSystem = !hasExploredSystem(this.state.explored, facts.targetSystemId);
+    const rankBonus = EXPLORER_DISCOVERY_BONUS_PERCENT[explorerInfo(this.state.explored).rankIndex];
+    return {
+      ok: true,
+      targetId,
+      targetName: facts.targetName,
+      isDock: facts.isDock,
+      distanceLy: facts.trip.distanceLy,
+      fuelNeeded,
+      fuelLeft: this.state.fuel - fuelNeeded,
+      seconds: tripSeconds(facts.trip.distanceLy),
+      discoveryCredits: newSystem ? Math.round(discoveryBase(this.seed, facts.targetSystemId) * (1 + rankBonus / 100)) : 0,
+      newSystem,
+    };
+  }
+
+  /** Fly to a dock or a planet without a dock, with no job. Costs fuel only. */
+  freeTravel(targetId: string): { ok: true; fuelUsed: number; seconds: number } | { ok: false; reason: string } {
+    const facts = this.tripFactsTo(targetId);
+    if (!facts.ok) return facts;
+    const result = startFreeTravel(this.state, facts.trip, this.clock.now());
+    if (!result.ok) return result;
+    this.state = result.state;
+    this.lastArrival = null;
+    this.lastFreeArrival = null;
+    this.changed();
+    return { ok: true, fuelUsed: result.fuelUsed, seconds: result.seconds };
+  }
+
+  /** The Explorer rank: star systems explored, planets arrived at, discoveries, rank, progress, discovery bonus. */
+  getExplorer(): ExplorerInfo {
+    return explorerInfo(this.state.explored);
+  }
+
   /** Replace the state with saved data (old saves without ownedShips get sensible defaults). */
   loadState(raw: Partial<GameState> & { currentDockId: string }): void {
     const state = normalizeState(raw);
@@ -300,14 +441,43 @@ export class Game {
       const paid = state.outpostPrices[id];
       if (paid !== undefined) prices[id] = paid;
     }
-    this.state = { ...state, ownedOutposts: real, outpostPrices: prices, outpostCount: real.length };
+    let loaded: GameState = { ...state, ownedOutposts: real, outpostPrices: prices, outpostCount: real.length };
+    // A place that does not exist in this universe cannot be where you float or fly to: you stay docked at the last dock.
+    if (loaded.spacePlanetId !== null && (getPlanet(this.seed, loaded.spacePlanetId) === null || getDock(this.seed, loaded.spacePlanetId) !== null)) {
+      loaded = { ...loaded, spacePlanetId: null };
+    }
+    if (loaded.freeTrip && getPlanet(this.seed, loaded.freeTrip.toId) === null) {
+      loaded = { ...loaded, freeTrip: null, travelStartMs: null, travelEndMs: null };
+    }
+    this.state = loaded;
     this.lastArrival = null;
+    this.lastFreeArrival = null;
     this.changed();
   }
 
   /** Checks the clock. If the trip is over: pays, moves, clears the job. Returns the arrival (or null). */
   update(): Arrival | null {
-    const { state, arrival } = settleArrival(this.state, this.clock.now(), (id) => getDock(this.seed, id)?.name ?? "the dock");
+    if (this.state.freeTrip) {
+      const free = settleFreeArrival(
+        this.state,
+        this.clock.now(),
+        (id) => getDock(this.seed, id) !== null,
+        (id) => this.placeName(id),
+        (systemId) => discoveryBase(this.seed, systemId),
+      );
+      if (free.arrival) {
+        this.state = free.state;
+        this.lastFreeArrival = free.arrival;
+        this.changed();
+      }
+      return null;
+    }
+    const { state, arrival } = settleArrival(
+      this.state,
+      this.clock.now(),
+      (id) => getDock(this.seed, id)?.name ?? "the dock",
+      (systemId) => discoveryBase(this.seed, systemId),
+    );
     if (!arrival) return null;
     this.state = state;
     this.lastArrival = arrival;
@@ -320,9 +490,10 @@ export class Game {
     return travelProgress(this.state, this.clock.now());
   }
 
-  /** The system id of the dock you are at. */
+  /** The system id of the place you are at: your dock, or the planet you float at. */
   currentSystemId(): string {
-    return getDock(this.seed, this.state.currentDockId)?.systemId ?? this.state.currentDockId.split("/")[0] ?? "";
+    const placeId = currentPlaceId(this.state);
+    return getDock(this.seed, placeId)?.systemId ?? parsePlanetId(placeId)?.systemId ?? placeId.split("/")[0] ?? "";
   }
 
   currentSystemName(): string {

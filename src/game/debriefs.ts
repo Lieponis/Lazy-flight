@@ -66,3 +66,32 @@ export const UPGRADE_LINES: string[] = [
   "The {ship} proudly wears {upgrade} level {level}. It would like you to notice.",
   "Level {level} {upgrade} installed. The {ship} did a tiny happy wobble on the pad.",
 ];
+
+// Free travel (no job). Shown after arriving at a dock without a job. {place} = the dock's name.
+export const DOCK_VISIT_LINES: string[] = [
+  "No cargo, no pay, just vibes. {place} waves politely.",
+  "You dropped by {place} for no reason at all. The dockmaster respects that.",
+  "{place} was not expecting visitors. A small robot offers you a biscuit anyway.",
+  "A leisurely trip to {place}. The ship enjoyed the scenery more than you did.",
+  "Docked at {place}. Nobody asked what you are doing here. Best kind of place.",
+];
+
+// Free travel to a planet with no dock. {place} = the planet's name.
+export const SCENERY_LINES: string[] = [
+  "You parked above {place} and looked out of the window for a while. Very relaxing. Nobody here to sell you anything.",
+  "{place} is quiet, round and has no dock. You wave at it anyway.",
+  "Just you, the stars and {place}. The ship purrs softly.",
+  "No dock on {place}, so no coffee. The view makes up for it.",
+  "You float near {place}. A faraway moon winks. You wink back.",
+];
+
+// What you are told when you try to do dock things while floating in space. {place} = the planet's name.
+export const IN_SPACE_LINES: string[] = [
+  "There is nobody at {place} to talk to. Fly to a dock first.",
+  "{place} has no dock. The planet politely declines your business.",
+  "You shout your request at {place}. The silence is very, very large. Fly to a dock first.",
+  "No counter, no clerk, no coffee at {place}. A dock would help.",
+];
+
+// What you are told when you are already flying and try something that needs you to stay put.
+export const FLYING_LINE = "You are flying right now. Wait until you arrive.";

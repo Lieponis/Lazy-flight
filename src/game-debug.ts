@@ -8,6 +8,7 @@ import {
   formatDuration,
   getShip,
   parseSpeedParam,
+  tripFuelCost,
   type BoardEntry,
   type GameClock,
 } from "./game";
@@ -27,10 +28,13 @@ import {
 } from "./save";
 import {
   UNIVERSE_VERSION,
+  distanceBetweenSystems,
   docksOf,
   generateJobBoard,
   getDock,
   getJobBoard,
+  getPlanet,
+  getPlanetsOfSystem,
   getSystem,
   listSystemsNear,
   startDockOf,
@@ -111,6 +115,15 @@ function dockLabel(dockId: string): string {
   const dock = getDock(seed, dockId);
   const system = dock ? getSystem(seed, dock.systemId) : null;
   return dock ? `${dock.name} (${system?.name ?? "?"})` : dockId;
+}
+
+/** The name of a dock, or of a planet without a dock, with its star system. */
+function placeLabel(id: string): string {
+  const dock = getDock(seed, id);
+  if (dock) return dockLabel(id);
+  const planet = getPlanet(seed, id);
+  const system = planet ? getSystem(seed, planet.systemId) : null;
+  return planet ? `${planet.name} (${system?.name ?? "?"}, no dock)` : id;
 }
 
 function say(text: string): void {
@@ -213,8 +226,9 @@ function render(): void {
   if (!app) return;
   const s = game.state;
   const ship = getShip(s.shipId);
-  const flying = s.currentJob !== null;
+  const flying = s.currentJob !== null || s.freeTrip !== null;
   const stuck = game.isStuck();
+  const explorer = game.getExplorer();
   app.replaceChildren();
   countdownEl = null;
 
@@ -225,13 +239,22 @@ function render(): void {
   status.append(
     h("div", {}, `Credits: ${s.credits}   |   Fuel: ${s.fuel}/${game.getShipStats().fuelTankSize}   |   Active ship: ${ship.name}`),
     h("div", {}, `Owned ships: ${owned.join("; ")}`),
-    h("div", {}, `Dock: ${dockLabel(s.currentDockId)}   |   Game speed: x${speed}   |   Time slot: ${game.currentSlot()}`),
+    h("div", {}, s.spacePlanetId !== null && !flying
+      ? `Location: FLOATING IN SPACE at ${placeLabel(s.spacePlanetId)} (last dock: ${dockLabel(s.currentDockId)})   |   Game speed: x${speed}   |   Time slot: ${game.currentSlot()}`
+      : `Dock: ${dockLabel(s.currentDockId)}   |   Game speed: x${speed}   |   Time slot: ${game.currentSlot()}`),
+    h("div", {}, `Explorer: ${explorer.systems} systems and ${explorer.planets} planets explored = ${explorer.discoveries} discoveries   |   Rank ${explorer.rankNumber}: ${explorer.rankName}   |   Discovery bonus +${explorer.discoveryBonusPercent}%   |   Next: ${explorer.nextRankName ?? "(top rank)"}${explorer.discoveriesToNext === null ? "" : ` in ${explorer.discoveriesToNext} discoveries`}`),
   );
   const stuckLine = h("div", {}, "Stuck? ");
   stuckLine.append(h("span", { class: stuck ? "bad" : "ok" }, stuck ? "YES (no job can be taken, even by spending all credits on fuel)" : "no"));
   status.append(stuckLine);
   if (flying && s.currentJob) {
     const line = h("div", {}, `In flight: ${s.currentJob.kind} ${s.currentJob.amount} x ${s.currentJob.itemName} to ${dockLabel(s.currentJob.destinationDockId)}. Arrives in `);
+    countdownEl = h("b");
+    line.append(countdownEl);
+    status.append(line);
+    tick();
+  } else if (flying && s.freeTrip) {
+    const line = h("div", {}, `Free trip (no job) to ${placeLabel(s.freeTrip.toId)}, ${s.freeTrip.distanceLy.toFixed(1)} ly. Arrives in `);
     countdownEl = h("b");
     line.append(countdownEl);
     status.append(line);
@@ -268,7 +291,14 @@ function render(): void {
       if (end === null) return say("No trip is running.");
       offsetMs += Math.max(0, end - clock.now()) + 1;
       const arrival = game.update();
-      say(arrival ? `Arrived! Paid ${arrival.reward} credits. ${arrival.debrief}` : "Not there yet.");
+      const free = game.lastFreeArrival;
+      say(
+        arrival
+          ? `Arrived! Paid ${arrival.reward} credits${arrival.discovery > 0 ? ` + ${arrival.discovery} discovery credits` : ""}. ${arrival.debrief}`
+          : free
+            ? `Arrived. ${free.line}${free.discovery > 0 ? ` +${free.discovery} discovery credits.` : ""}`
+            : "Not there yet.",
+      );
     }, { test: true, disabled: !flying }),
     button("TEST: next job board (+6 game hours)", () => {
       if (flying) return say("Not during a flight.");
@@ -285,8 +315,17 @@ function render(): void {
   app.append(row, h("div", { class: "msg" }, message));
 
   if (game.lastArrival && !flying) {
-    app.append(h("div", { class: "debrief" }, `Last delivery: +${game.lastArrival.reward} credits. ${game.lastArrival.debrief}`));
+    const a = game.lastArrival;
+    app.append(h("div", { class: "debrief" }, `Last delivery: +${a.reward} credits${a.discovery > 0 ? ` and +${a.discovery} discovery credits (new star system)` : ""}. ${a.debrief}${a.explorerRankUp ? ` EXPLORER RANK UP: ${a.explorerRankUp.rankName}!` : ""}`));
   }
+  if (game.lastFreeArrival && !flying) {
+    const f = game.lastFreeArrival;
+    app.append(h("div", { class: "debrief" }, `Last free trip: ${f.line}${f.discovery > 0 ? ` +${f.discovery} discovery credits (new star system).` : ""}${f.explorerRankUp ? ` EXPLORER RANK UP: ${f.explorerRankUp.rankName}!` : ""}`));
+  }
+
+  // Free travel and exploring (stage F1)
+  app.append(h("h2", {}, "10. Free travel and exploring (no job)"));
+  app.append(freeTravelBox(flying));
 
   // Ship catalog
   app.append(h("h2", {}, "3. Ship catalog (numbers include upgrades)"));
@@ -373,8 +412,8 @@ function render(): void {
     h("div", { class: "note" }, "Pick a dock with passenger or tour jobs for your active ship, then teleport there. Counts only include jobs the active ship could take with a full tank."),
     select,
     button("TEST: teleport here", () => {
-      if (game.state.currentJob) return say("Not during a flight.");
-      game.state = { ...game.state, currentDockId: select.value };
+      if (flying) return say("Not during a flight.");
+      game.state = { ...game.state, currentDockId: select.value, spacePlanetId: null };
       pendingSelect = "";
       say(`Teleported to ${dockLabel(select.value)}.`);
     }, { test: true, disabled: flying }),
@@ -478,6 +517,7 @@ function render(): void {
   app.append(h("h2", {}, `8. Job board of ${dockLabel(s.currentDockId)}`));
   const board: BoardEntry[] = game.getBoard();
   if (flying) app.append(h("p", { class: "note" }, "No board while you are flying."));
+  else if (s.spacePlanetId !== null) app.append(h("p", { class: "note" }, game.whyNotDocked() ?? "No board while you float in space."));
   else if (board.length === 0) app.append(h("p", { class: "note" }, "This board is empty."));
   else {
     const t = h("table");
@@ -508,6 +548,80 @@ function render(): void {
     }
     app.append(h("div", { class: "scroll" }, t));
   }
+}
+
+/** The free-travel section: places to fly to (this star system and the nearest others), with the plain numbers and reasons. */
+function freeTravelBox(flying: boolean): HTMLElement {
+  const box = h("div", { class: "box" });
+  box.append(
+    h("div", { class: "note" }, "Fly to a dock or to a planet without a dock, with no job. You pay fuel only. A trip is refused if you could not reach a dock afterwards. The first arrival in a star system pays 50 to 100 discovery credits, once."),
+  );
+  const row = h("div");
+  row.append(
+    button("TEST: set fuel to 3", () => {
+      game.state = { ...game.state, fuel: 3 };
+      say("Fuel set to 3.");
+    }, { test: true }),
+    button("TEST: set fuel to exactly what the nearest other star system needs (so that trip would strand you)", () => {
+      const from = getSystem(seed, game.currentSystemId());
+      const near = from ? listSystemsNear(seed, from.position, 40).find((x) => x.id !== from.id) : undefined;
+      if (!from || !near) return say("No other star system is near.");
+      const need = tripFuelCost(game.state, distanceBetweenSystems(seed, from.id, near.id) ?? 0);
+      game.state = { ...game.state, fuel: need };
+      say(`Fuel set to ${need}: exactly the trip to ${near.name}. The game should refuse it (you would arrive with 0).`);
+    }, { test: true }),
+    button("TEST: add 24 made-up explored systems (48 discoveries: the next arrival ranks up)", () => {
+      const fake: Record<string, number> = { ...game.state.explored };
+      for (let i = 0; i < 24; i++) fake[`fake:${i}`] = 1;
+      game.state = { ...game.state, explored: fake };
+      say("Added 24 made-up systems.");
+    }, { test: true }),
+    button("TEST: forget everything explored", () => {
+      game.state = { ...game.state, explored: {} };
+      say("Explored list cleared.");
+    }, { test: true }),
+    button("TEST: show the explored list as saved", () => {
+      const text = JSON.stringify(game.state.explored);
+      say(`Explored list (${Object.keys(game.state.explored).length} systems, ${text.length} characters): ${text.length > 300 ? `${text.slice(0, 300)}...` : text}`);
+    }, { test: true }),
+  );
+  box.append(row);
+
+  const here = getSystem(seed, game.currentSystemId());
+  if (!here) return box;
+  const systems = [here, ...listSystemsNear(seed, here.position, 40).filter((x) => x.id !== here.id).slice(0, 6)];
+  const table = h("table");
+  table.append(h("tr", {}, ...["Place", "What", "Star system", "Distance", "Trip", ""].map((t) => h("th", {}, t))));
+  for (const system of systems) {
+    const dockIds = new Set(docksOf(seed, system).map((d) => d.id));
+    for (const planet of getPlanetsOfSystem(seed, system.id)) {
+      const isDock = dockIds.has(planet.id);
+      const dock = isDock ? getDock(seed, planet.id) : null;
+      const check = game.canFreeTravel(planet.id);
+      const ly = distanceBetweenSystems(seed, game.currentSystemId(), system.id) ?? 0;
+      const act = h("td");
+      act.append(
+        button("Fly here", () => {
+          const r = game.freeTravel(planet.id);
+          say(r.ok ? `Flying to ${placeLabel(planet.id)}: fuel -${r.fuelUsed}, ${formatDuration(r.seconds)}.` : r.reason);
+        }, { disabled: flying || !check.ok, title: check.ok ? "" : check.reason }),
+      );
+      table.append(
+        h("tr", {},
+          h("td", {}, dock ? dock.name : planet.name),
+          h("td", {}, dock ? `${dock.kind.toLowerCase()} on ${planet.name}` : `planet without a dock (${planet.type.toLowerCase()})`),
+          h("td", {}, `${system.name}${system.id === here.id ? " (here)" : ""}`),
+          h("td", {}, `${ly.toFixed(1)} ly`),
+          check.ok
+            ? h("td", { class: "ok" }, `fuel ${check.fuelNeeded}, left ${check.fuelLeft}, ${formatDuration(check.seconds)}${check.newSystem ? `, NEW SYSTEM +${check.discoveryCredits} cr` : ""}`)
+            : h("td", { class: "bad" }, check.reason),
+          act,
+        ),
+      );
+    }
+  }
+  box.append(h("div", { class: "scroll" }, table));
+  return box;
 }
 
 /** Updates the "arrives in" text (real seconds left), without rebuilding the page. */

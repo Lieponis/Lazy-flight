@@ -125,3 +125,28 @@ export const UPGRADE_COMFORT_PERCENT_PER_LEVEL = 6;
  * the price paid if the save stored it, otherwise this flat amount (old prices ran from about 5,000 to 40,000).
  */
 export const OUTPOST_REFUND_ESTIMATE = 20000;
+
+// ---------------------------------------------------------------- FREE TRAVEL AND EXPLORING (stage F1)
+
+/**
+ * Discovery credits: the FIRST time you arrive in a star system (by free travel or by a job) you are paid a
+ * number from MIN to MAX credits (the same number every time for the same system and seed). Once per system, ever.
+ */
+export const DISCOVERY_MIN_CREDITS = 50;
+export const DISCOVERY_MAX_CREDITS = 100;
+
+/**
+ * Explorer rank. "Discoveries" = star systems explored + planets (docks and scenery planets) arrived at.
+ * { [50, 200] } = rank 2 (Cartographer) at 50 discoveries, rank 3 (Mr Galaxy-wide) at 200. Andy chose these (option B).
+ */
+export const EXPLORER_DISCOVERIES_NEEDED: [number, number] = [50, 200];
+
+/** Extra percent on discovery credits at Explorer rank 1, 2 and 3. It never changes job pay. */
+export const EXPLORER_DISCOVERY_BONUS_PERCENT: [number, number, number] = [0, 10, 20];
+
+/**
+ * Safety limit for the explored list in the save: at most this many star systems are remembered
+ * (about 20 bytes each, so well under 1 MB). Reaching it takes over 1,000 hours of play; after it, new systems
+ * simply are not recorded.
+ */
+export const MAX_EXPLORED_SYSTEMS = 20000;

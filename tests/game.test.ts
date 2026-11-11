@@ -287,11 +287,12 @@ describe("Game object", () => {
     advance(1);
     const arrival = game.update();
     expect(arrival?.reward).toBe(entry.job.reward);
-    expect(game.state.credits).toBe(credits + entry.job.reward);
+    // The job pays its reward; the first arrival in a new star system also pays discovery credits (stage F1).
+    expect(game.state.credits).toBe(credits + entry.job.reward + (arrival?.discovery ?? 0));
     expect(game.state.currentDockId).toBe(entry.job.destinationDockId);
     expect(game.currentSystemId()).toBe(entry.job.destinationDockId.split("/")[0]);
     expect(game.update()).toBeNull(); // not paid twice
-    expect(game.state.credits).toBe(credits + entry.job.reward);
+    expect(game.state.credits).toBe(credits + entry.job.reward + (arrival?.discovery ?? 0));
   });
 
   it("with speed 120 a 2 hour trip takes one real minute", () => {
