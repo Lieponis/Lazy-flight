@@ -133,3 +133,9 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Preview wall: `/planets.html` (`?filter=rings` is a good release screenshot).
 - Not verified: Android, phone frame rate. Suggestions (unapproved): darker night steps; lava glow and city lights (option C); show "ringed" in the planet label.
 - Looks depend only on planet id, so the fewer-docks change will not affect them.
+
+## Universe v2, stage U1 (2026-11-11): Agent 2 DONE on branch `universe-v2` (not on main)
+- Lead review: passed against brief. Up to 10 planets, 1-3 docks per system (avg 1.4), UNIVERSE_VERSION 2, 48 universe tests; boards stay full (6 jobs, none under 3) over 60 seeds, so MAX_JOB_DISTANCE stays 25.
+- Full check red ONLY in other layers (13 tests: start dock = planet 0 no longer always a dock). That is why it is on a branch. Andy must NOT merge; Agent 4 fixes it in U2 (brief docs/briefs/agent-4e-brief.md), then merges.
+- Not verified by Agent 2: real npm run check, 4 three.js test files (assets, lens, planetlook, title). Agent 4 must run them.
+- Next: U2 Agent 4 -> Andy verifies live -> U3 Agents 3/5 (system view) -> U4 Agent 6.
