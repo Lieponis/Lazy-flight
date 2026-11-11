@@ -18,10 +18,11 @@ export function fitToUniverse(state: GameState, seed: Seed, startDockId: string)
     out = { ...out, currentJob: null, travelStartMs: null, travelEndMs: null };
   }
   // A free trip to, or a float at, a place that does not exist here is dropped: you stay docked at your dock.
-  if (out.freeTrip && !getPlanet(seed, out.freeTrip.toId)) {
+  // (The state may come straight from an old save that has no such fields yet, so check the types, not just null.)
+  if (out.freeTrip && (typeof out.freeTrip.toId !== "string" || !getPlanet(seed, out.freeTrip.toId))) {
     out = { ...out, freeTrip: null, travelStartMs: null, travelEndMs: null };
   }
-  if (out.spacePlanetId !== null && (!getPlanet(seed, out.spacePlanetId) || getDock(seed, out.spacePlanetId))) {
+  if (out.spacePlanetId != null && (typeof out.spacePlanetId !== "string" || !getPlanet(seed, out.spacePlanetId) || getDock(seed, out.spacePlanetId))) {
     out = { ...out, spacePlanetId: null };
   }
   return out;

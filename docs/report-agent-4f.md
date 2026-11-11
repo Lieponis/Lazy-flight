@@ -21,6 +21,9 @@ Free travel to a dock and to a scenery planet; fuel, tank and strand rules (text
 ## 3. How to check it (Andy)
 On `/game-debug.html`: section 10 "Fly here" on a dock in another star system (fuel and a NEW SYSTEM credit shown) and then the fast-forward button; fly to a planet without a dock; Refuel and the job board refuse with a funny line; "set fuel to 0" then Emergency refuel works from the planet; "set fuel to exactly what the nearest other star system needs" shows the refusal "Not enough fuel to come back safely"; discovery credits appear once; "add 24 made-up explored systems" then one new system ranks you up to Cartographer; reload keeps everything.
 
+## 3b. Bug found by Andy after the first merge (fixed)
+Loading ANY save made before F1 crashed the page (`undefined ... indexOf`, in the repair step `fitToUniverse`, which looked at the new `spacePlanetId` before it had a default). It hit the real game and the debug page. My tests covered `normalizeState` but not the whole load path, and my first headless test was flawed (the page re-saves itself on reload and overwrote the old save I planted). Fixed with type checks in `fitToUniverse` and `Game.loadState`; new test loads a pre-F1 save through `fitToUniverse`, `loadIntoGame` and `loadState`, with missing and wrong-typed fields; reproduced in a real browser (crash before, 4,321 credits kept after). The debug page also got a red box that shows crash reasons in plain text.
+
 ## 4. Known issues, NOT verified
 - I could not run `npm run check` or the Vite build here (no Three.js, no network for installs); I ran the strict type check, all runnable tests with a stand-in runner and the real debug page in a headless browser. **The branch check on Actions (green, run 43038239124) was the real proof.**
 - `audio` has 1 failing test (same as on main), `agent6c` needs a real runner. Not run here: `assets`, `lens`, `planetlook`, `title` (they need Three).
