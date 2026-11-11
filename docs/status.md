@@ -199,3 +199,7 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Not verified: free-trip sound by ear; camera styling depends on render button title ending " view"; first-time hints need a "seen" flag (not approved).
 - ALL planned features are now built: universe v2, free travel + discovery + Explorer, paint jobs, planet looks, title, sound.
 - NEXT: Agent 6 QA/balance (brief docs/briefs/agent-6d-brief.md, updated: no starter job, new systems, old-save whole-path lesson), then Agent 7 release page (7d) and v1.0.
+
+## Offline app roadmap (Andy approved 2026-11-12)
+- Approved: installable offline app (PWA), save file moving (export/import), offline test workflow. Roadmap: docs/ROADMAP-offline-app.md. Stages: P1 Agent 1 (manifest, icons, service worker, safe updates), P2 Agent 6/4 (export/import logic), P3 Agent 5 (Save panel + install hint), P4 Agent 6 (offline test workflow `npm run offline-check` + phone checklist), P5 Agent 7 (icon, release page). Approved small save field: a "seen" flag for the install hint.
+- General QA (6d) is optional/skipped; P4 is the offline QA. Release page 7d merges into P5.
