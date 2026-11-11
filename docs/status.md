@@ -193,3 +193,9 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Paint jobs in rules and save: getLiveryCatalog, buyLivery, setLivery, currentLivery; per-ship owned/worn; 500 credits each extra, standard free; buy only at a dock; id table checked by a test against liveriesFor; old saves load. Income: one paint job ~6 min for a sensible player, ~1 h for a casual one; all 9 extras 4,500. Nothing retuned.
 - Note: Actions green on main (8903a91).
 - NEXT: F2b Agent 5 (brief docs/briefs/agent-5f-brief.md): Fly here button, floating panel, arrival line, Explorer row, camera icon, Shipyard paint picker + wear wiring, sound timing for free trips, hints. Then Agent 6 QA (6d, no starter job), then 7d release page, v1.0.
+
+## Agent 5 stage F2b (5f) (2026-11-11): DONE, Andy click-tested on phone (upright and sideways, all "matches"); Lead review passed
+- FLY HERE on planet card (option B), floating screen with WHAT NOW? (option C, top right), free-arrival note with discovery credits, Explorer row in Ranks, paint jobs in the Shipyard card (option A, Wear now, worn paint on pad/flight/floating), pixel-eye camera button (CSS only), free-trip flight sounds (1.6x phases), hints on Jobs and Explorer. 683 tests, Actions green. Only src/ui, CSS, ui tests.
+- Not verified: free-trip sound by ear; camera styling depends on render button title ending " view"; first-time hints need a "seen" flag (not approved).
+- ALL planned features are now built: universe v2, free travel + discovery + Explorer, paint jobs, planet looks, title, sound.
+- NEXT: Agent 6 QA/balance (brief docs/briefs/agent-6d-brief.md, updated: no starter job, new systems, old-save whole-path lesson), then Agent 7 release page (7d) and v1.0.
