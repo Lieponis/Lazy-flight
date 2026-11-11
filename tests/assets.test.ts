@@ -1,4 +1,5 @@
 import { COCKPIT_BASE_WIP } from '../src/render/assets/cockpitBase';
+import { DEFAULT_LIVERY, liveriesFor } from '../src/render/assets/liveries';
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -125,6 +126,53 @@ describe('base cockpit screen anchors', () => {
     expect(right.size!.h).toBeCloseTo(fuel.size!.h, 5);
     for (const name of ['screenInfo', 'screenMap', 'screenFuel', 'screenRightWing']) expect(m.anchors[name]?.size, name).toBeDefined();
   });
+});
+
+describe('ship liveries (paint jobs)', () => {
+  const colours = (m: { group: THREE.Group }): number[] => {
+    const out: number[] = [];
+    m.group.traverse((o) => {
+      const g = (o as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
+      const c = g?.getAttribute('color');
+      if (c) for (let i = 0; i < c.count * 3; i++) out.push(c.array[i]!);
+    });
+    return out;
+  };
+  const glowColours = (m: { group: THREE.Group }): number[] => {
+    const out: number[] = [];
+    m.group.traverse((o) => {
+      if (o.name !== 'body' && (o as THREE.Mesh).isMesh) {
+        const c = (o as THREE.Mesh).geometry.getAttribute('color');
+        if (c) for (let i = 0; i < c.count * 3; i++) out.push(c.array[i]!);
+      }
+    });
+    return out;
+  };
+  for (const ship of ASSETS.filter((a) => a.kind === 'ship')) {
+    const list = liveriesFor(ship.id);
+    it(`${ship.id}: standard first, at least 4 liveries, unique ids`, () => {
+      expect(list[0]!.id).toBe(DEFAULT_LIVERY);
+      expect(list.length).toBeGreaterThanOrEqual(4);
+      expect(new Set(list.map((l) => l.id)).size).toBe(list.length);
+    });
+    it(`${ship.id}: no livery, "standard" and an unknown id all look exactly as before`, () => {
+      const base = colours(ship.build());
+      expect(colours(ship.build({ livery: DEFAULT_LIVERY }))).toEqual(base);
+      expect(colours(ship.build({ livery: 'no-such-paint' }))).toEqual(base);
+    });
+    for (const l of list.slice(1)) {
+      it(`${ship.id} / ${l.id}: same shape, anchors and lights, new paint, checker clean`, () => {
+        const base = ship.build();
+        const m = ship.build({ livery: l.id });
+        expect(countModel(m)).toEqual(countModel(base));
+        expect(Object.keys(m.anchors).sort()).toEqual(Object.keys(base.anchors).sort());
+        for (const [k, a] of Object.entries(base.anchors)) expect(m.anchors[k]!.pos.distanceTo(a.pos)).toBeLessThan(1e-9);
+        expect(colours(m)).not.toEqual(colours(base));
+        expect(glowColours(m)).toEqual(glowColours(base)); // lights, glass glow and flames never repainted
+        expect(checkModel(m, 'ship', ship)).toEqual(checkModel(base, 'ship', ship));
+      });
+    }
+  }
 });
 
 describe('model kit', () => {

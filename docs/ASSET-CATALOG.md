@@ -12,6 +12,28 @@ All ships: nose to -Z, up +Y, origin = `parking` (ground point between the feet)
 | passenger-liner | Passenger Liner | Passengers and tours | Long, grand white liner with a raised top deck, eight lit windows each side, blue company stripe, swept tail fin, wide engine bank (Dolphin + Orca feel) | none | 684 | 5.2 x 2.8 x 7.0 | engineL, engineR | INTEGRATED (part 3d; was APPROVED: Lead check passed 2026-11-08; kept by Andy, revision 1) |
 | scout | Scout | Scanning and exploring | Small, angular grey explorer with two dark side pods, short swept fins, teal company marks and one big engine (Diamondback Explorer feel) | none | 540 | 4.5 x 1.4 x 4.1 | engineMain | INTEGRATED (part 3d; was APPROVED: Lead check passed 2026-11-08; kept by Andy, revision 1) |
 
+## Liveries (ship paint jobs, 2026-11-11)
+Cosmetic only. A livery repaints a ship's paint parts (hull, panels, dark parts, underside, company marks); shape,
+triangles, anchors, glass, lights and flames stay the same. `standard` (or no livery) = the original look. Defined in
+`src/render/assets/liveries.ts`; pass `getAsset(shipId).build({ livery: id })`. Andy's choices: 3 new plus the
+standard per ship, smart company-fleet colours, nothing jokey, a set per ship's job, colours only, option C (bright
+company colours: the whole hull in one bold colour).
+
+| Ship | ID | Name | Description | Status |
+|---|---|---|---|---|
+| cargo-hauler | standard | Standard | The original paint. | default |
+| cargo-hauler | hazard-yellow | Hazard Yellow | Yellow hull, black panels, white marks: heavy site machinery. | DRAFT |
+| cargo-hauler | teal-line | Teal Line | White hull, teal panels, navy marks: a tidy freight company. | DRAFT |
+| cargo-hauler | orange-express | Orange Express | Orange hull, white panels, navy marks: the fast parcel service. | DRAFT |
+| passenger-liner | standard | Standard | The original paint. | default |
+| passenger-liner | sky-blue | Sky Blue Air | Sky blue hull, white panels, yellow marks: a cheerful holiday airline. | DRAFT |
+| passenger-liner | royal-purple | Royal Purple | Deep purple hull, white panels, gold marks: the luxury line. | DRAFT |
+| passenger-liner | coral-sunset | Coral Sunset | Coral hull, cream panels, navy marks: a warm tour company. | DRAFT |
+| scout | standard | Standard | The original paint. | default |
+| scout | survey-lime | Survey Lime | Lime hull, black side pods, white marks: the survey office. | DRAFT |
+| scout | rescue-red | Rescue Red | Red hull, white side pods, dark marks: search and rescue. | DRAFT |
+| scout | electric-blue | Electric Blue | Bright blue hull, white side pods, yellow marks: a sporty explorer. | DRAFT |
+
 ## Outposts (stage S2)
 All outposts: origin = landing pad centre on the ground, up +Y, buildings on the +X side, doors face the pad (-X). Pad 9 wide, pad top at y 0.34. Planet colour (tint) goes only on the ground plate and dust piles (`tint` = planet primary colour, made safe). Anchors: `parking` (pad centre, top of the deck), `beacon` (red blinking light), `entrance` (outside the main door, facing the pad). Animation: pad lights blink in two groups, the beacon blinks with group A. Picked per dock by `pickOutpostVariant(dockId, planetType)`.
 

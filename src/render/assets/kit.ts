@@ -84,16 +84,19 @@ export class ModelKit {
   private spinSpeed = 0;
   private spinAxis = new THREE.Vector3(0, 1, 0);
   private tint: number;
+  private recolour: Partial<Record<string, number>>;
 
-  constructor(options: { tint?: number } = {}) {
+  /** `recolour`: palette colours to replace (ship liveries); glow colours are never passed here. */
+  constructor(options: { tint?: number; recolour?: Partial<Record<string, number>> } = {}) {
     this.tint = options.tint ?? 0xb5653a;
+    this.recolour = options.recolour ?? {};
   }
 
   /** The colour number for a palette name or "tint" / "tintDark". */
   color(name: ColorName): number {
     if (name === "tint") return safeTint(this.tint);
     if (name === "tintDark") return safeTintDark(this.tint);
-    return PAL[name];
+    return this.recolour[name] ?? PAL[name];
   }
 
   // ------------------------------------------------------------ shapes

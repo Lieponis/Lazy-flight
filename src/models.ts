@@ -30,6 +30,7 @@ import {
 } from "./render/assets/style";
 import type { AssetEntry, AssetModel } from "./render/assets/types";
 import { CockpitLens } from "./render/assets/lens";
+import { DEFAULT_LIVERY, liveriesFor } from "./render/assets/liveries";
 import { cameraFov, clamp, orbitCameraPosition, renderSizeFor, starfieldPositions } from "./render/helpers";
 import { buildCargoHauler } from "./render/ship";
 import { makeOutpost, makeStation } from "./render/systemview";
@@ -48,6 +49,8 @@ interface ViewState {
   asset: string;
   variant: number;
   tint: number;
+  /** Ships: paint job id (liveries.ts). */
+  livery: string;
   mode: Mode;
   bg: Bg;
   anim: boolean;
@@ -91,6 +94,7 @@ function readAddress(): ViewState {
     asset,
     variant: Math.max(0, Math.floor(Number(q.get("variant") ?? 0)) || 0),
     tint: parseHexColor(q.get("tint")) ?? DEFAULT_TINT,
+    livery: q.get("livery") ?? DEFAULT_LIVERY,
     mode: oneOf(q.get("mode"), ["normal", "wire", "flat"] as const, "normal"),
     bg: oneOf(q.get("bg"), ["space", "planet", "bright"] as const, "space"),
     anim: q.get("anim") !== "0",
@@ -122,6 +126,7 @@ function addressFor(s: ViewState): string {
   q.set("asset", s.asset);
   q.set("variant", String(s.variant));
   q.set("tint", toHexText(s.tint));
+  if (s.livery !== DEFAULT_LIVERY) q.set("livery", s.livery);
   q.set("mode", s.mode);
   q.set("bg", s.bg);
   q.set("anim", s.anim ? "1" : "0");
@@ -315,7 +320,7 @@ function rebuild(): void {
 
   const entry = findEntry(S.asset) ?? ALL[0]!;
   S.variant = clamp(S.variant, 0, entry.variants - 1);
-  model = entry.build({ variant: S.variant, tint: S.tint });
+  model = entry.build({ variant: S.variant, tint: S.tint, livery: S.livery });
   stage.add(model.group);
   bounds = boundsOf(model);
   if (bounds.isEmpty()) bounds.set(new THREE.Vector3(-1, 0, -1), new THREE.Vector3(1, 1, 1));
@@ -793,6 +798,13 @@ function refreshPanel(): void {
     for (const f of [50, 60, 70, 80, 90]) row.appendChild(button(String(f), Math.round(S.fov) === f, () => set("fov", f, false)));
     row.appendChild(button(S.lens ? "Lens: on" : "Lens: off", S.lens, () => set("lens", !S.lens, false)));
     if (S.sit) panel.appendChild(el("p", { class: "note" }, "Drag to look around, scroll or pinch to change the field of view."));
+  }
+  if (entry.kind === "ship") {
+    const list = liveriesFor(entry.id);
+    const current = list.find((l) => l.id === S.livery) ?? list[0]!;
+    row = section(`Paint job (livery): ${current.name}`);
+    for (const l of list) row.appendChild(button(l.name, l.id === current.id, () => set("livery", l.id)));
+    panel.appendChild(el("p", { class: "note" }, current.description));
   }
   row = section("Look");
   row.appendChild(button("Normal", S.mode === "normal", () => set("mode", "normal")));

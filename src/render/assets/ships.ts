@@ -8,6 +8,7 @@
 //   passenger-liner  long, grand liner with a raised top deck and a row of lit windows (Dolphin + Orca feel)
 //   scout            small, angular explorer with two side pods (Diamondback Explorer feel)
 
+import { liveryRecolour } from "./liveries";
 import { ModelKit, type ColorName, type LoftSection } from "./kit";
 import type { AssetModel, BuildOptions } from "./types";
 
@@ -52,8 +53,8 @@ function flames(k: ModelKit, dx: number, y: number, z: number, r: number, len: n
 
 // ------------------------------------------------------------------ Cargo Hauler
 
-export function buildCargoHauler(_o: BuildOptions = {}): AssetModel {
-  const k = new ModelKit();
+export function buildCargoHauler(o: BuildOptions = {}): AssetModel {
+  const k = new ModelKit({ recolour: liveryRecolour("cargo-hauler", o.livery) });
   // Body: a wide, flat faceted wedge. The cargo is inside.
   k.loft("hull", [
     { z: -3.1, w: 1.3, h: 0.45, y: 1.0, ct: 0.15, cb: 0.1 },
@@ -120,8 +121,8 @@ export function buildCargoHauler(_o: BuildOptions = {}): AssetModel {
 const linerHalfWidth = (z: number): number => 1.3 + ((z + 0.8) / 2.6) * 0.4;
 const LINER_SIDE_ANGLE = Math.atan(0.4 / 2.6);
 
-export function buildPassengerLiner(_o: BuildOptions = {}): AssetModel {
-  const k = new ModelKit();
+export function buildPassengerLiner(o: BuildOptions = {}): AssetModel {
+  const k = new ModelKit({ recolour: liveryRecolour("passenger-liner", o.livery) });
   k.loft("hull", [
     { z: -3.8, w: 0.4, h: 0.3, y: 1.05, ct: 0.1, cb: 0.1 },
     { z: -2.6, w: 1.6, h: 0.95, y: 1.15, ct: 0.35, cb: 0.2 },
@@ -194,8 +195,8 @@ export function buildPassengerLiner(_o: BuildOptions = {}): AssetModel {
 
 // ------------------------------------------------------------------ Scout
 
-export function buildScout(_o: BuildOptions = {}): AssetModel {
-  const k = new ModelKit();
+export function buildScout(o: BuildOptions = {}): AssetModel {
+  const k = new ModelKit({ recolour: liveryRecolour("scout", o.livery) });
   // Angular body with a sharp wedge nose.
   k.loft("body", [
     { z: -2.0, w: 0.5, h: 0.2, y: 0.8, ct: 0.08, cb: 0.05 },

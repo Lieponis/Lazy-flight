@@ -58,6 +58,8 @@ export interface BuildOptions {
   variant?: number;
   /** Planet colour as a number, e.g. 0xff8844. Only parts marked "tinted" use it. */
   tint?: number;
+  /** Ships only: paint job id (see liveries.ts). Missing or unknown = the standard look. */
+  livery?: string;
 }
 
 export interface AssetEntry {
