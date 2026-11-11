@@ -1,8 +1,8 @@
-// SCREEN 3: the flight. Launch from the origin dock, warp tunnel, approach to the destination dock.
+// SCREEN 3: the flight. Launch from the origin dock, warp, approach to the destination dock.
 // What you see is decided ONLY by the real travel times (see flightplan.ts), so opening the page or returning to the tab
 // in the middle of a flight shows the right phase straight away.
 //
-// The ship never moves: it sits at the middle of the scene pointing forward (-Z). The docks and the tunnel move past it.
+// The ship never moves: it sits at the middle of the scene pointing forward (-Z). The docks and the warp move past it.
 // The ship is Agent 8's design for the ship the player owns. The docks are Agent 8's outpost and station designs,
 // placed so that the dock's parking spot is exactly where the ship is (so the launch starts, and the approach ends, in the dock).
 
@@ -174,7 +174,7 @@ export class FlightScreen implements Screen {
   private lastPinch = 0;
   private moved = 0; // how far the finger or mouse travelled since it went down (a tap barely moves)
   private lastTapMs = 0;
-  private tunnel = buildWarp(parseWarpStyle(window.location.search) ?? WARP_DEFAULT_STYLE); // the warp (stars, haze); ?warp=A|B|C picks the look
+  private warp = buildWarp(parseWarpStyle(window.location.search) ?? WARP_DEFAULT_STYLE); // the warp (stars, haze); ?warp=A|B|C picks the look
   private origin: Body | null = null;
   private dest: Body | null = null;
   private info: FlightInfo | null = null;
@@ -200,7 +200,7 @@ export class FlightScreen implements Screen {
     this.screens.onFontLoaded = () => (this.hudTimer = 0); // redraw with the pixel font as soon as it is there
     this.cockpitRig.add(this.cockpitModel.group);
     this.cockpitRig.visible = false;
-    this.scene.add(this.ship.group, this.tunnel.group, this.cockpitRig, this.camera);
+    this.scene.add(this.ship.group, this.warp.group, this.cockpitRig, this.camera);
 
     this.flash.className = "flight-flash";
     this.hudRoot.className = "flight-hud";
@@ -360,7 +360,7 @@ export class FlightScreen implements Screen {
     // Which things are visible in this phase.
     if (this.origin) this.origin.group.visible = phase === "LAUNCH";
     if (this.dest) this.dest.group.visible = phase === "APPROACH" || phase === "DONE";
-    this.tunnel.group.visible = phase === "WARP";
+    this.warp.group.visible = phase === "WARP";
 
     // The docks slide past the ship. The ship's parking spot and the dock's parking spot are the same point at the two ends.
     if (phase === "LAUNCH" && this.origin) {
@@ -386,7 +386,7 @@ export class FlightScreen implements Screen {
         this.dest.group.position.set(o.x, o.y, o.z);
       }
     }
-    if (phase === "WARP") this.tunnel.update(this.clockT);
+    if (phase === "WARP") this.warp.update(this.clockT);
 
     // Only what is on screen is updated: blinking lights and the spinning ring.
     this.ship.update(this.clockT);
@@ -513,7 +513,7 @@ export class FlightScreen implements Screen {
 
   /** Which warp look is shown (A, B or C). Used by the warp preview to compare them. */
   setWarpStyle(style: WarpStyle): void {
-    this.tunnel.setStyle(style);
+    this.warp.setStyle(style);
   }
 
   /** Frees the lens and the cockpit's geometry and materials (for when the flight screen is thrown away). */
@@ -521,7 +521,7 @@ export class FlightScreen implements Screen {
     this.lens?.dispose();
     this.lens = null;
     this.screens.dispose();
-    this.tunnel.dispose();
+    this.warp.dispose();
     this.scene.remove(this.cockpitRig);
     disposeAll(this.cockpitRig);
     this.flash.remove();

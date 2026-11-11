@@ -10,7 +10,6 @@ import {
   type PhaseSettings,
 } from '../src/render/flightplan';
 import { COMPUTER_LINES } from '../src/render/flightlines';
-import { tunnelStreakData } from '../src/render/helpers';
 
 const S: PhaseSettings = { launchSeconds: 5, approachSeconds: 10, minWarpSeconds: 3 };
 
@@ -143,22 +142,5 @@ describe('flash, lines and clock text', () => {
     expect(formatCountdown(3_661_000)).toBe('1:01:01');
     expect(formatCountdown(0)).toBe('0:00');
     expect(formatCountdown(-5)).toBe('0:00');
-  });
-});
-
-describe('warp tunnel data', () => {
-  it('makes the same streaks every time, inside the tube', () => {
-    const a = tunnelStreakData(40, 120, 3, 15, 4, 10);
-    const b = tunnelStreakData(40, 120, 3, 15, 4, 10);
-    expect(a.positions).toEqual(b.positions);
-    expect(a.positions.length).toBe(240);
-    expect(a.tints.length).toBe(40);
-    for (let i = 0; i < 40; i++) {
-      const x = a.positions[i * 6] ?? 0;
-      const y = a.positions[i * 6 + 1] ?? 0;
-      expect(Math.hypot(x, y)).toBeGreaterThanOrEqual(2.99);
-      expect(Math.hypot(x, y)).toBeLessThanOrEqual(15.01);
-      expect(a.tints[i] ?? 9).toBeLessThan(4);
-    }
   });
 });

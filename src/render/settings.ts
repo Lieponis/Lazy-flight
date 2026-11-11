@@ -112,10 +112,8 @@ export const FLIGHT_ORBIT_RADIUS = 13;
 export const FLIGHT_ORBIT_HEIGHT_DOCK = 7;
 export const FLIGHT_ORBIT_HEIGHT_WARP = 3;
 
-/** Flight view: how far the origin dock slides away during the launch, and how far ahead the destination dock starts. */
-export const FLIGHT_LAUNCH_FAR = { y: 240, z: 260 };
+/** Flight view: how far ahead (and how high) the destination outpost starts on the approach. */
 export const FLIGHT_APPROACH_FROM_OUTPOST = { y: 60, z: 200 };
-export const FLIGHT_APPROACH_FROM_STATION = { y: 0, z: 260 }; // stations: straight in, no up or down
 
 /**
  * Leaving a station. The ship flies straight out of the slot (`straight` units), then curves round the planet
