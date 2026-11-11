@@ -28,7 +28,7 @@ import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
 import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, fovForMagnification, shakeShare, startFov, zoomMagnification, type Look, type ViewMode } from "./cockpitview";
 import { pinchFactor, wheelFactor } from "./dockedcam";
 import { hexToNumber, starfieldPositions } from "./helpers";
-import { arrivePose, departPose, floatDrift, shipRoll, floatLayout, lengthOf, parseFloatStyle, ringNormalWorld, STAR_DIRECTION, STAR_DISTANCE, starDrawRadius, tiltForClearance, type FloatStyle } from "./floatmath";
+import { SCENERY_TIME_FACTOR, arrivePose, departPose, floatDrift, shipRoll, floatLayout, lengthOf, parseFloatStyle, ringNormalWorld, STAR_DIRECTION, STAR_DISTANCE, starDrawRadius, tiltForClearance, type FloatStyle } from "./floatmath";
 import { chooseLook } from "./planetlook";
 import type { Hud } from "./hud";
 import type { Screen } from "./screen";
@@ -279,7 +279,12 @@ export class FlightScreen implements Screen {
     this.dest = this.makeBody(info.destinationDockId);
     this.addBody(this.origin);
     this.addBody(this.dest);
-    this.phases = { ...BASE_PHASES, approachSeconds: this.dest?.isStation ? FLIGHT_APPROACH_SECONDS_STATION : FLIGHT_APPROACH_SECONDS };
+    this.phases = {
+      ...BASE_PHASES,
+      // A planet without a dock: more time for the curves (the climb, straightening out, and the arrival).
+      launchSeconds: BASE_PHASES.launchSeconds * (this.origin?.scenery ? SCENERY_TIME_FACTOR : 1),
+      approachSeconds: (this.dest?.isStation ? FLIGHT_APPROACH_SECONDS_STATION : FLIGHT_APPROACH_SECONDS) * (this.dest?.scenery ? SCENERY_TIME_FACTOR : 1),
+    };
   }
 
   /** Shows the ship floating at a planet that has no dock (page opened while in space, or the preview). Call before enter(). */

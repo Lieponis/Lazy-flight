@@ -86,6 +86,9 @@ export function climbAngle(p: number): number {
   return CLIMB_ANGLE * smooth(p / 0.35) * (1 - smooth((p - 0.55) / 0.45));
 }
 
+/** Launches from, and arrivals at, a planet without a dock take this many times longer than at a dock (more time for the curves). */
+export const SCENERY_TIME_FACTOR = 1.6;
+
 /** An arrival holds still for this first share of the approach (same camera and ship as in the warp), then eases into the arrival flight. */
 export const ARRIVE_HOLD = 0.15;
 
