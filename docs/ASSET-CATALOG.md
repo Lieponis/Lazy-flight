@@ -17,22 +17,24 @@ Cosmetic only. A livery repaints a ship's paint parts (hull, panels, dark parts,
 triangles, anchors, glass, lights and flames stay the same. `standard` (or no livery) = the original look. Defined in
 `src/render/assets/liveries.ts`; pass `getAsset(shipId).build({ livery: id })`. Andy's choices: 3 new plus the
 standard per ship, smart company-fleet colours, nothing jokey, a set per ship's job, colours only, option C (bright
-company colours: the whole hull in one bold colour).
+company colours: the whole hull in one bold colour) for the Hauler and Scout; the Liner uses option B of its own
+round (a pale body with a bold top deck and tail; Andy changed purple and coral to green and pink). The Liner's top deck
+and tail use the new palette slot `paintTrim` (same white as `paintWhite`, so its standard look is unchanged).
 
 | Ship | ID | Name | Description | Status |
 |---|---|---|---|---|
 | cargo-hauler | standard | Standard | The original paint. | default |
-| cargo-hauler | hazard-yellow | Hazard Yellow | Yellow hull, black panels, white marks: heavy site machinery. | DRAFT |
-| cargo-hauler | teal-line | Teal Line | White hull, teal panels, navy marks: a tidy freight company. | DRAFT |
-| cargo-hauler | orange-express | Orange Express | Orange hull, white panels, navy marks: the fast parcel service. | DRAFT |
+| cargo-hauler | hazard-yellow | Hazard Yellow | Yellow hull, black panels, white marks: heavy site machinery. | APPROVED (Andy) |
+| cargo-hauler | teal-line | Teal Line | White hull, teal panels, navy marks: a tidy freight company. | APPROVED (Andy) |
+| cargo-hauler | orange-express | Orange Express | Orange hull, white panels, navy marks: the fast parcel service. | APPROVED (Andy) |
 | passenger-liner | standard | Standard | The original paint. | default |
-| passenger-liner | sky-blue | Sky Blue Air | Sky blue hull, white panels, yellow marks: a cheerful holiday airline. | DRAFT |
-| passenger-liner | royal-purple | Royal Purple | Deep purple hull, white panels, gold marks: the luxury line. | DRAFT |
-| passenger-liner | coral-sunset | Coral Sunset | Coral hull, cream panels, navy marks: a warm tour company. | DRAFT |
+| passenger-liner | sky-blue | Sky Blue Air | Pale blue body, sky blue top deck and tail, yellow marks: a cheerful holiday airline. | DRAFT (option B chosen; waiting for Andy's check) |
+| passenger-liner | spring-green | Spring Green | Pale green body, green top deck and tail, yellow marks: a calm countryside line. | DRAFT (option B chosen; waiting for Andy's check) |
+| passenger-liner | rose-line | Rose Line | Pale pink body, pink top deck and tail, navy marks: the friendly tour company. | DRAFT (option B chosen; waiting for Andy's check) |
 | scout | standard | Standard | The original paint. | default |
-| scout | survey-lime | Survey Lime | Lime hull, black side pods, white marks: the survey office. | DRAFT |
-| scout | rescue-red | Rescue Red | Red hull, white side pods, dark marks: search and rescue. | DRAFT |
-| scout | electric-blue | Electric Blue | Bright blue hull, white side pods, yellow marks: a sporty explorer. | DRAFT |
+| scout | survey-lime | Survey Lime | Lime hull, black side pods, white marks: the survey office. | APPROVED (Andy) |
+| scout | rescue-red | Rescue Red | Red hull, white side pods, dark marks: search and rescue. | APPROVED (Andy) |
+| scout | electric-blue | Electric Blue | Bright blue hull, white side pods, yellow marks: a sporty explorer. | APPROVED (Andy) |
 
 ## Outposts (stage S2)
 All outposts: origin = landing pad centre on the ground, up +Y, buildings on the +X side, doors face the pad (-X). Pad 9 wide, pad top at y 0.34. Planet colour (tint) goes only on the ground plate and dust piles (`tint` = planet primary colour, made safe). Anchors: `parking` (pad centre, top of the deck), `beacon` (red blinking light), `entrance` (outside the main door, facing the pad). Animation: pad lights blink in two groups, the beacon blinks with group A. Picked per dock by `pickOutpostVariant(dockId, planetType)`.

@@ -19,6 +19,7 @@ export const PAL = {
   frame: 0x3a3f66,
   // Ship paint (revision 1, Andy: white/grey hulls with company marks, less cartoonish).
   paintWhite: 0xe6e8ec,
+  paintTrim: 0xe6e8ec, // same white as paintWhite; a separate slot so liveries can colour the Liner's top deck and tail
   paintGrey: 0xa7adb8,
   metalDark: 0x4b505c,
   underside: 0x33363e,
@@ -59,6 +60,7 @@ export const SWATCHES: Swatch[] = [
   { key: "hullDark", hex: PAL.hullDark, name: "Hull dark", use: "Engines, undersides" },
   { key: "frame", hex: PAL.frame, name: "Frame", use: "Struts, pads, racks" },
   { key: "paintWhite", hex: PAL.paintWhite, name: "Ship white", use: "Main paint of ships" },
+  { key: "paintTrim", hex: PAL.paintTrim, name: "Ship trim", use: "Passenger Liner top deck and tail (same white; paint jobs colour it)" },
   { key: "paintGrey", hex: PAL.paintGrey, name: "Ship grey", use: "Wings, engine pods" },
   { key: "metalDark", hex: PAL.metalDark, name: "Dark metal", use: "Engines, frames, intakes" },
   { key: "underside", hex: PAL.underside, name: "Underside", use: "Industrial belly plates" },

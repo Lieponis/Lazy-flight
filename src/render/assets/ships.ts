@@ -136,7 +136,7 @@ export function buildPassengerLiner(o: BuildOptions = {}): AssetModel {
     { z: 0.2, w: 1.7, h: 0.5, y: 1.95, ct: 0.2 },
     { z: 2.4, w: 1.9, h: 0.5, y: 1.95, ct: 0.2 },
     { z: 3.0, w: 1.5, h: 0.3, y: 1.85, ct: 0.12 },
-  ], "paintWhite");
+  ], "paintTrim");
   k.loft("belly", [
     { z: -2.4, w: 1.2, h: 0.25, y: 0.75, cb: 0.08 },
     { z: 3.0, w: 2.8, h: 0.3, y: 0.66, cb: 0.1 },
@@ -169,7 +169,7 @@ export function buildPassengerLiner(o: BuildOptions = {}): AssetModel {
   k.hull8("tail fin", [
     [-0.12, 2.1, 1.9], [0.12, 2.1, 1.9], [0.12, 2.1, 3.0], [-0.12, 2.1, 3.0],
     [-0.08, 2.85, 2.85], [0.08, 2.85, 2.85], [0.08, 2.85, 3.25], [-0.08, 2.85, 3.25],
-  ], "paintWhite");
+  ], "paintTrim");
   k.box("fin company mark", 0.2, 0.3, 0.45, "blue", { at: [0, 2.7, 2.98] });
   pair(k, "side wing", [
     [1.55, 0.85, 0.9], [2.4, 0.78, 2.3], [2.4, 0.78, 3.0], [1.55, 0.85, 3.0],

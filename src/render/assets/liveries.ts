@@ -13,6 +13,7 @@ export interface LiveryColours {
   dark?: number; // metalDark: dark metal parts
   underside?: number; // underside: the belly
   marks?: number; // the company-colour patches (orange / blue / teal)
+  trim?: number; // Passenger Liner only: top deck and tail fin (paintTrim)
 }
 
 export interface Livery {
@@ -29,7 +30,7 @@ export const DEFAULT_LIVERY = "standard";
  *  are dark metal, so on the Scout "hull" = paintGrey and "panels" = metalDark.) */
 const ROLES: Record<string, Partial<Record<keyof LiveryColours, PalKey>>> = {
   "cargo-hauler": { hull: "paintWhite", panels: "paintGrey", dark: "metalDark", underside: "underside", marks: "orange" },
-  "passenger-liner": { hull: "paintWhite", panels: "paintGrey", dark: "metalDark", underside: "underside", marks: "blue" },
+  "passenger-liner": { hull: "paintWhite", trim: "paintTrim", panels: "paintGrey", dark: "metalDark", underside: "underside", marks: "blue" },
   scout: { hull: "paintGrey", panels: "metalDark", underside: "underside", marks: "teal" },
 };
 
@@ -45,11 +46,12 @@ export const LIVERIES: Record<string, Livery[]> = {
     { id: "orange-express", name: "Orange Express", description: "Orange hull with white panels and navy marks: the fast parcel service.", colours: { hull: 0xf08a3c, panels: 0xe6e8ec, dark: 0x3c4150, marks: 0x2f3d5c } },
   ],
   // Airline colours.
+  // Airline colours, option B (Andy): a pale body with a bold top deck and tail in the same colour family.
   "passenger-liner": [
     STANDARD,
-    { id: "sky-blue", name: "Sky Blue Air", description: "Sky blue hull with white panels and yellow marks: a cheerful holiday airline.", colours: { hull: 0x5aa7e6, panels: 0xe6e8ec, dark: 0x3c4150, marks: 0xffd23d } },
-    { id: "royal-purple", name: "Royal Purple", description: "Deep purple hull with white panels and gold marks: the luxury line.", colours: { hull: 0x6a4fb5, panels: 0xe6e8ec, dark: 0x3a3550, marks: 0xffd23d } },
-    { id: "coral-sunset", name: "Coral Sunset", description: "Coral hull with cream panels and navy marks: a warm tour company.", colours: { hull: 0xef6f5a, panels: 0xf2e6d8, dark: 0x4a3c3c, marks: 0x2f3d5c } },
+    { id: "sky-blue", name: "Sky Blue Air", description: "Pale blue body, sky blue top deck and tail, yellow marks: a cheerful holiday airline.", colours: { hull: 0xc9e2f7, trim: 0x3d8fd6, marks: 0xffd23d } },
+    { id: "spring-green", name: "Spring Green", description: "Pale green body, green top deck and tail, yellow marks: a calm countryside line.", colours: { hull: 0xd3ecd9, trim: 0x3a9a5a, marks: 0xffd23d } },
+    { id: "rose-line", name: "Rose Line", description: "Pale pink body, pink top deck and tail, navy marks: the friendly tour company.", colours: { hull: 0xf7d6e4, trim: 0xe0679b, marks: 0x2f3d5c } },
   ],
   // Explorer colours.
   scout: [
