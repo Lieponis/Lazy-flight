@@ -6,7 +6,7 @@
 // Colors, dock kind and names come from the universe.
 
 import * as THREE from "three";
-import { generateDock, getPlanet, getSystem, type Seed } from "../universe";
+import { getDock, getPlanet, getSystem, type Seed } from "../universe";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import {
   camPosition,
@@ -197,9 +197,9 @@ export class DockedScreen implements Screen {
   /** Builds the scene for one dock. Call before enter(). Returns false if the dock does not exist. */
   open(dockId: string): boolean {
     const { seed } = this.opts;
-    const planet = getPlanet(seed, dockId);
-    if (!planet) return false;
-    const dock = generateDock(seed, planet);
+    const dock = getDock(seed, dockId); // null for a planet without a dock
+    const planet = dock ? getPlanet(seed, dockId) : null;
+    if (!planet || !dock) return false;
     const system = getSystem(seed, planet.systemId);
 
     // Throw away the previous dock completely (no memory growth).

@@ -5,7 +5,7 @@
 
 import "./theme.css";
 import { Game, createClock, parseSpeedParam, tripFuelCost, type Arrival } from "../game";
-import { getDock, getPlanetsOfSystem, getSystem } from "../universe";
+import { getDock, getSystem, startDockOf } from "../universe";
 import type { RenderApi } from "../render";
 import { START_SEED } from "../render/settings";
 import {
@@ -50,9 +50,7 @@ export function chooseStart(): StartInfo {
 export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = chooseStart()): Game {
   const { plan, storage } = start;
   const seed = plan.seed; // the same seed main.ts gave the render layer
-  const startSystemId = api.state.get().currentSystemId; // the start system picked by Agent 3's settings
-  const firstDock = getPlanetsOfSystem(seed, startSystemId)[0];
-  if (!firstDock) throw new Error("The start system has no dock.");
+  const firstDock = startDockOf(seed); // the same start dock for the game, the save and the debug pages
 
   const game = new Game(seed, firstDock.id, createClock(parseSpeedParam(window.location.search)));
   // Saved progress goes in before anything listens or draws (trip times are moved onto the new clock).

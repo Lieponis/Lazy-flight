@@ -8,7 +8,7 @@ import {
   MIN_PRICE_MULTIPLIER,
   distance,
   distanceBetweenDocks,
-  generateDock,
+  docksOf,
   generateJobBoard,
   getDock,
   getMarket,
@@ -33,7 +33,7 @@ function sampleSystems(seed: number | string, count = 12) {
 function sampleDocks(seed: number | string, systemCount = 8): Dock[] {
   const docks: Dock[] = [];
   for (const system of sampleSystems(seed, systemCount)) {
-    for (const planet of getPlanetsOfSystem(seed, system.id)) docks.push(generateDock(seed, planet));
+    docks.push(...docksOf(seed, system)); // only planets that have a dock (universe version 2)
   }
   return docks;
 }
@@ -112,7 +112,7 @@ describe("order independence", () => {
 });
 
 describe("systems, planets and docks", () => {
-  it("every system has 1 to 8 planets", () => {
+  it("every system has 1 to 10 planets", () => {
     for (const system of sampleSystems(SEED, 25)) {
       expect(system.planetCount).toBeGreaterThanOrEqual(1);
       expect(system.planetCount).toBeLessThanOrEqual(MAX_PLANETS);
@@ -120,12 +120,14 @@ describe("systems, planets and docks", () => {
     }
   });
 
-  it("every planet has exactly one dock, either an outpost or a station", () => {
+  it("every dock is an outpost or a station on one of its system's planets (the dock rule itself is in universe-v2.test.ts)", () => {
     for (const system of sampleSystems(SEED, 25)) {
-      for (const planet of getPlanetsOfSystem(SEED, system.id)) {
-        const dock = getDock(SEED, planet.id);
-        expect(dock).not.toBe(null);
-        if (!dock) continue;
+      const docks = docksOf(SEED, system);
+      expect(docks.length).toBeGreaterThanOrEqual(1);
+      for (const dock of docks) {
+        const planet = getPlanet(SEED, dock.id);
+        expect(planet).not.toBe(null);
+        if (!planet) continue;
         expect(dock.id).toBe(planet.id);
         expect(["OUTPOST", "STATION"]).toContain(dock.kind);
         if (planet.type === "GAS") expect(dock.kind).toBe("STATION");
@@ -173,7 +175,8 @@ describe("names", () => {
       expect(system.name.trim().length).toBeGreaterThan(0);
       for (const planet of getPlanetsOfSystem(SEED, system.id)) {
         expect(planet.name.trim().length).toBeGreaterThan(0);
-        const dock = generateDock(SEED, planet);
+      }
+      for (const dock of docksOf(SEED, system)) {
         expect(dock.name.trim().length).toBeGreaterThan(0);
       }
     }

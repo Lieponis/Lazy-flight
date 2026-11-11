@@ -13,20 +13,27 @@ import {
 } from "./game";
 import {
   browserPageEvents,
+  checkSaveData,
   getBrowserStorage,
   loadIntoGame,
+  makeSaveData,
+  migrateSave,
   readSave,
   startAutoSave,
+  universeVersionOf,
   type AutoSaver,
+  type SaveData,
   type StorageLike,
 } from "./save";
 import {
-  generateDock,
+  UNIVERSE_VERSION,
+  docksOf,
   generateJobBoard,
   getDock,
-  getPlanetsOfSystem,
+  getJobBoard,
   getSystem,
   listSystemsNear,
+  startDockOf,
   type Seed,
 } from "./universe";
 
@@ -38,12 +45,7 @@ const speed = parseSpeedParam(window.location.search);
 // ------------------------------------------------------------ the page's own game and clock
 
 function findStartDockId(): string {
-  for (const radius of [10, 20, 40, 80, 160, 320]) {
-    const system = listSystemsNear(seed, { x: 0, y: 0, z: 0 }, radius)[0];
-    const planet = system ? getPlanetsOfSystem(seed, system.id)[0] : undefined;
-    if (planet) return planet.id;
-  }
-  throw new Error("No start dock found.");
+  return startDockOf(seed).id; // the same start dock the real game uses
 }
 
 let offsetMs = 0; // TEST buttons move game time forward by changing this
@@ -63,8 +65,9 @@ const browserStorage = getBrowserStorage();
 const storage: StorageLike | null = browserStorage ? prefixed(browserStorage, "gamedebug.") : null;
 let saver: AutoSaver | null = null;
 
+let startNotice: string | null = null; // set when a loaded save was from an older universe and was moved
 let game = makeGame(true);
-let message = storage ? "Welcome. This page saves its own test game, so a reload keeps it." : "Welcome. Saving is off in this browser.";
+let message = startNotice ?? (storage ? "Welcome. This page saves its own test game, so a reload keeps it." : "Welcome. Saving is off in this browser.");
 
 function makeGame(tryLoad: boolean): Game {
   saver?.stop(); // the old game must not be written over the new one
@@ -73,7 +76,10 @@ function makeGame(tryLoad: boolean): Game {
   if (tryLoad) {
     const saved = readSave(storage);
     if (saved.kind === "ok" && saved.data.seed === seed && saved.data.state) {
-      loadIntoGame(g, saved.data, saved.data.state, startDockId, Date.now());
+      // A save from an older universe is moved first (same rules as the real game), and the message is shown once.
+      const moved = migrateSave(saved.data);
+      if (moved.message) startNotice = moved.message;
+      if (moved.data.state) loadIntoGame(g, moved.data, moved.data.state, startDockId, Date.now());
     }
   }
   g.subscribe(() => render());
@@ -126,8 +132,7 @@ function dockList(): { id: string; text: string }[] {
   const list: { id: string; text: string }[] = [];
   const tank = game.getShipStats().fuelTankSize;
   for (const system of listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 30).slice(0, 25)) {
-    for (const planet of getPlanetsOfSystem(seed, system.id)) {
-      const dock = generateDock(seed, planet);
+    for (const dock of docksOf(seed, system)) {
       const board = generateJobBoard(seed, dock, slot);
       let passengers = 0;
       let tours = 0;
@@ -140,13 +145,63 @@ function dockList(): { id: string; text: string }[] {
       }
       const offer = game.getOutpostOffer(dock.id);
       const place = offer.isOutpost ? `OUTPOST ${offer.price} cr${offer.owned ? " (yours)" : ""}` : "station";
-      list.push({ id: dock.id, text: `${dock.name} (${system.name}) - ${place} - passenger jobs: ${passengers}, tours: ${tours}` });
+      list.push({ id: dock.id, text: `${dock.name} (${system.name}, ${system.planetCount} planets, ${docksOf(seed, system).length} dock(s)) - ${place} - passenger jobs: ${passengers}, tours: ${tours}` });
     }
   }
   dockCacheKey = key;
   dockCache = list;
   return list;
 }
+
+
+// ------------------------------------------------------------ old saves (universe version 1)
+
+/** Moves an old save to the current universe the same way the real game does, and plays it here. */
+function playMovedSave(save: SaveData): void {
+  if (save.seed !== Number(seed)) {
+    say(`That save is for seed ${save.seed}, this page uses seed ${seed}. Open this page with ?seed=${save.seed} first.`);
+    return;
+  }
+  const moved = migrateSave(save);
+  if (!moved.data.state) {
+    say("That save held no progress, so there is nothing to move.");
+    return;
+  }
+  offsetMs = 0;
+  game = makeGame(false);
+  loadIntoGame(game, moved.data, moved.data.state, findStartDockId(), Date.now());
+  dockCacheKey = "";
+  say(moved.message ?? "That save was already current: loaded as it is.");
+}
+
+/** A made-up save as universe version 1 wrote it: an old dock id, a job in flight, two outposts, no universeVersion. */
+function sampleOldSave(): SaveData {
+  const here = game.state.currentDockId;
+  const job = (getJobBoard(seed, here, game.currentSlot()) ?? [])[0] ?? null;
+  const outposts: string[] = [];
+  for (const system of listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 40)) {
+    for (const dock of docksOf(seed, system)) {
+      if (dock.kind === "OUTPOST" && outposts.length < 2) outposts.push(dock.id);
+    }
+  }
+  const now = clock.now();
+  const state = {
+    ...game.state,
+    currentDockId: "1:1:1:0/6", // a dock of the OLD universe: it does not exist now
+    currentJob: job,
+    travelStartMs: job ? now : null,
+    travelEndMs: job ? now + 3 * HOUR_MS : null,
+    ownedOutposts: outposts,
+    outpostCount: outposts.length,
+    outpostPrices: {},
+    deliveredJobIds: ["old-1", "old-2"],
+  };
+  const { universeVersion: _drop, ...old } = makeSaveData(Number(seed), state, now, Date.now());
+  void _drop;
+  return old;
+}
+
+let pastedSaveText = "";
 
 // ------------------------------------------------------------ drawing the page
 
@@ -385,6 +440,39 @@ function render(): void {
   const mine = game.getOwnedOutposts();
   outBox.append(h("div", {}, mine.length === 0 ? "You own no outposts yet." : `You own ${mine.length}: ${mine.map((o) => `${o.dockName} (${o.systemName})`).join("; ")}`));
   app.append(outBox);
+
+  // Old saves
+  app.append(h("h2", {}, `9. Old saves (universe version 1 -> ${UNIVERSE_VERSION})`));
+  const oldBox = h("div", { class: "box" });
+  oldBox.append(
+    h("div", { class: "note" }, "An old save keeps credits, ranks, ships and upgrades. The ship moves to the start dock, a job in flight is cancelled (fuel back), each outpost is refunded and the delivered list is cleared."),
+    button("TEST: turn this game into an OLD save and load it", () => playMovedSave(sampleOldSave()), { test: true }),
+  );
+  const box = h("textarea");
+  box.rows = 4;
+  box.cols = 60;
+  box.placeholder = "Or paste a whole old save here (the text from localStorage lazy-freight.save)";
+  box.value = pastedSaveText;
+  box.addEventListener("input", () => (pastedSaveText = box.value));
+  oldBox.append(
+    box,
+    button("Load pasted save", () => {
+      try {
+        const parsed: unknown = JSON.parse(pastedSaveText);
+        const bad = checkSaveData(parsed);
+        if (bad) {
+          say(`That is not a usable save: ${bad}.`);
+          return;
+        }
+        const save = parsed as SaveData;
+        say(`Save is from universe version ${universeVersionOf(save)}.`);
+        playMovedSave(save);
+      } catch {
+        say("That text is not a save (it is not valid JSON).");
+      }
+    }),
+  );
+  app.append(oldBox);
 
   // Job board
   app.append(h("h2", {}, `8. Job board of ${dockLabel(s.currentDockId)}`));

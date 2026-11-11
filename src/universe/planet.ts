@@ -40,7 +40,7 @@ export interface PlanetColors {
 }
 
 export interface Planet {
-  /** "<system id>/<planet number>", e.g. "3:-2:5:0/2". The planet's dock uses this same id. */
+  /** "<system id>/<planet number>", e.g. "3:-2:5:0/2". If the planet has a dock, the dock uses this same id. */
   id: string;
   systemId: string;
   /** 0 = closest to the star. */

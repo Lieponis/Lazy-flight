@@ -21,6 +21,8 @@
       .cheap { color: #0a7a2f; font-weight: bold; }
       .dear { color: #b3261e; font-weight: bold; }
       .note { color: #555; font-size: 0.9rem; }
+      tr.no-dock td { color: #777; background: #f3f3f3; }
+      tr.has-dock td { background: #eefaf0; }
       button { padding: 4px 10px; font-size: 0.95rem; cursor: pointer; }
       .pick { background: none; border: none; color: #0645ad; text-decoration: underline; padding: 0; }
     </style>
@@ -29,7 +31,7 @@
     <h1>Universe debug view</h1>
     <p class="note">
       Plain text and tables, no graphics. Type a seed, then press <b>Show</b>. The same seed always shows the same universe.
-      Click a blue system name or planet number to look closer. <a href="./">Back to the cube page</a>.
+      Universe version 2: not every planet has a dock (1 to 3 docks per system). Click a blue system name or planet number to look closer. <a href="./">Back to the cube page</a>.
     </p>
 
     <div class="box">
@@ -48,7 +50,7 @@
     <h2>2. One system and its planets</h2>
     <div class="box">
       <label>System id <input id="systemId" type="text" placeholder="e.g. 0:0:0:0" /></label>
-      <label>Planet number <input id="planetIndex" type="number" value="0" step="1" min="0" max="7" /></label>
+      <label>Planet number <input id="planetIndex" type="number" value="0" step="1" min="0" max="9" /></label>
       <button id="showSystem" type="button">Show this system</button>
     </div>
     <div id="system"></div>
@@ -58,6 +60,15 @@
 
     <h2>4. Job board of that dock</h2>
     <div id="jobs"></div>
+
+    <h2>5. Many seeds at once (does the universe look sensible?)</h2>
+    <div class="box">
+      <label>First seed <input id="surveyFirst" type="number" value="1" step="1" /></label>
+      <label>How many seeds (1 to 200) <input id="surveyCount" type="number" value="50" step="1" min="1" max="200" /></label>
+      <button id="runSurvey" type="button">Run survey (about 10 seconds)</button>
+      <p class="note">Uses the look-around point and counts docks, reachable docks and job boards for each seed.</p>
+    </div>
+    <div id="survey"></div>
 
     <script type="module" src="/src/debug.ts"></script>
   </body>

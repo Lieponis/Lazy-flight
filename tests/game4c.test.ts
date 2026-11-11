@@ -23,14 +23,14 @@ import {
   withBonuses,
   type GameState,
 } from "../src/game";
-import { generateDock, generateJobBoard, getPlanetsOfSystem, listSystemsNear, type Dock, type Job } from "../src/universe";
+import { generateJobBoard, listSystemsNear, type Dock, type Job, docksOf } from "../src/universe";
 
 const SEED = 12345;
 const ORIGIN = { x: 0, y: 0, z: 0 };
 
 const docks: Dock[] = [];
 for (const system of listSystemsNear(SEED, ORIGIN, 40).slice(0, 14)) {
-  for (const planet of getPlanetsOfSystem(SEED, system.id)) docks.push(generateDock(SEED, planet));
+  docks.push(...docksOf(SEED, system));
 }
 const OUTPOST = docks.find((d) => d.kind === "OUTPOST")!;
 const STATION = docks.find((d) => d.kind === "STATION")!;
@@ -198,8 +198,10 @@ describe("outposts: perks", () => {
 
   it("makes jobs that end in the system pay more, and the board shows it", () => {
     const top = { TRADE: 99, PASSENGER: 99, TOUR: 99 };
-    const job = JOBS.find((j) => systemOf(j.destinationDockId) === OUTPOST.systemId && systemOf(j.originDockId) !== OUTPOST.systemId && j.kind === "TRADE")
-      ?? JOBS.find((j) => systemOf(j.destinationDockId) === OUTPOST.systemId && j.kind === "TRADE");
+    // A cargo job the starter Cargo Hauler can carry (the sample has fewer docks now, so look at all of them).
+    const fits = (j: Job): boolean => j.kind === "TRADE" && j.amount <= 30 && j.totalDistance * 2 <= 60;
+    const job = JOBS.find((j) => fits(j) && systemOf(j.destinationDockId) === OUTPOST.systemId && systemOf(j.originDockId) !== OUTPOST.systemId)
+      ?? JOBS.find((j) => fits(j) && systemOf(j.destinationDockId) === OUTPOST.systemId);
     expect(job).toBeDefined();
     if (!job) return;
     const pay = (owned: string[]): number => {

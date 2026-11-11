@@ -5,6 +5,7 @@
 // When storage does not work, the game simply plays on without saving (the UI shows a small notice).
 
 import type { GameState } from "../game";
+import { UNIVERSE_VERSION } from "../universe";
 
 /** Bump this when the save layout changes in a way old saves cannot follow. */
 export const SAVE_VERSION = 1;
@@ -24,6 +25,11 @@ export interface SaveData {
   gameNowMs: number;
   /** The player's progress. Null is read as "start fresh in this universe". */
   state: GameState | null;
+  /**
+   * Which universe rules this progress was made in (UNIVERSE_VERSION when saved). A save without it is from
+   * universe version 1. An older number is moved to the current universe on load (see migrate.ts).
+   */
+  universeVersion?: number;
 }
 
 /** The three things we need from localStorage. Tests pass a fake one. */
@@ -67,6 +73,9 @@ export function checkSaveData(raw: unknown): string | null {
   if (!isFiniteNumber(d.seed) || !Number.isInteger(d.seed)) return "bad seed";
   if (!isFiniteNumber(d.savedAtRealMs)) return "bad save time";
   if (!isFiniteNumber(d.gameNowMs)) return "bad game time";
+  if (d.universeVersion !== undefined && (!isFiniteNumber(d.universeVersion) || !Number.isInteger(d.universeVersion) || d.universeVersion < 1)) {
+    return "bad universe version";
+  }
   if (d.state === null) return null; // "start fresh in this universe"
   if (!d.state || typeof d.state !== "object") return "no state";
   const s = d.state as Record<string, unknown>;
@@ -126,6 +135,7 @@ export function makeSaveData(seed: number, state: GameState | null, gameNowMs: n
     seed,
     savedAtRealMs: realNowMs,
     gameNowMs,
+    universeVersion: UNIVERSE_VERSION,
     state: state ? (JSON.parse(JSON.stringify(state)) as GameState) : null,
   };
 }

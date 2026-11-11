@@ -119,3 +119,9 @@ export const UPGRADE_ENGINE_PERCENT_PER_LEVEL = 6;
 
 /** PASSENGER COMFORT track: every level adds this many percent pay on passenger and tour jobs (added to the rank and outpost bonuses). */
 export const UPGRADE_COMFORT_PERCENT_PER_LEVEL = 6;
+
+/**
+ * When an old save (universe version 1) is moved to a rebuilt universe, each outpost it owned is refunded:
+ * the price paid if the save stored it, otherwise this flat amount (old prices ran from about 5,000 to 40,000).
+ */
+export const OUTPOST_REFUND_ESTIMATE = 20000;

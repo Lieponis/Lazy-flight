@@ -2,12 +2,11 @@
 import { describe, expect, it } from "vitest";
 import { Game, createClock, newGameState, type GameState } from "../src/game";
 import { RANK_MAX_REWARD } from "../src/game/settings";
-import { findStartSystem } from "../src/render/start";
-import { getJobBoard, getPlanetsOfSystem, listSystemsNear, type Job } from "../src/universe";
+import { getJobBoard, getPlanetsOfSystem, listSystemsNear, startDockOf, type Job } from "../src/universe";
 import { STRATEGIES, simulate } from "./sim/balance-sim";
 
 const SEED = 12345;
-const startDock = (): string => getPlanetsOfSystem(SEED, findStartSystem(SEED)!.id)[0]!.id;
+const startDock = (): string => startDockOf(SEED).id;
 
 describe("balance simulator (smoke test; full report: npm run balance)", () => {
   it("every strategy plays 30 game hours without errors and earns money", () => {
@@ -38,7 +37,7 @@ describe("emergency fuel through normal rules", () => {
   it("one job and then spending your credits never leaves you stuck", () => {
     let tries = 0;
     for (const seed of [SEED, 777]) {
-      const start = getPlanetsOfSystem(seed, findStartSystem(seed)!.id)[0]!.id;
+      const start = startDockOf(seed).id;
       for (let h = 0; h < 120; h += 6) {
         const t = { n: h * 3_600_000 };
         const game = new Game(seed, start, createClock(1, () => t.n));

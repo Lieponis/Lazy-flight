@@ -7,7 +7,8 @@
 //   no ?seed, no or broken save   -> new game with the default seed
 
 import type { GameState } from "../game";
-import { readSave, type SaveData, type StorageLike } from "./save";
+import { migrateSave } from "./migrate";
+import { readSave, writeSave, type SaveData, type StorageLike } from "./save";
 
 /** Reads ?seed=NUMBER (same pattern the render layer uses). Null if it is not there or not a number. */
 export function seedFromAddress(search: string): number | null {
@@ -55,9 +56,13 @@ export function planStart(search: string, storage: StorageLike | null, defaultSe
   }
   const read = readSave(storage);
   if (read.kind === "ok") {
-    const save = read.data;
+    // An old save (older universe) is moved to the current one first, and written back at once,
+    // so the "universe was rebuilt" message is shown only one time.
+    const moved = migrateSave(read.data);
+    const save = moved.data;
+    if (save !== read.data) writeSave(storage, save);
     if (save.state === null) return { seed: save.seed, state: null, save: null, why: "fresh", notice: null };
-    return { seed: save.seed, state: save.state, save, why: "continue", notice: null };
+    return { seed: save.seed, state: save.state, save, why: "continue", notice: moved.message ?? noStorage };
   }
   if (read.kind === "bad") {
     return { seed: defaultSeed, state: null, save: null, why: "bad-save", notice: NOTICE_BAD_SAVE };
