@@ -263,6 +263,8 @@ export class FlightScreen implements Screen {
 
   /** Gets a new flight ready. Call before enter(). */
   begin(info: FlightInfo): void {
+    this.flightCounter++;
+    this.carrySpin = this.floating && this.floating.planetId === info.originDockId ? (this.clockT - this.floatT0) * FLOAT_SHIP_ORBIT_SPEED : 0;
     this.clearBodies();
     this.resetLook();
     this.floating = null;
@@ -284,6 +286,7 @@ export class FlightScreen implements Screen {
   beginFloat(planetId: string): boolean {
     const planet = getPlanet(this.opts.seed, planetId);
     if (!planet) return false;
+    this.flightCounter++;
     this.clearBodies();
     this.resetLook();
     this.finishing = null;
@@ -333,6 +336,19 @@ export class FlightScreen implements Screen {
     if (this.floating) this.beginFloat(this.floating.planetId);
   }
 
+  // Continuous camera: whenever the camera's wanted place jumps (a new phase, a new flight, another view), the old place is kept as an
+  // offset that fades away over about a second, so the picture glides instead of cutting.
+  private dt = 0.016;
+  private camOff = new THREE.Vector3();
+  private lookOff = new THREE.Vector3();
+  private lastCamPos = new THREE.Vector3();
+  private lastCamLook = new THREE.Vector3();
+  private lastCamKey = "";
+  private lastCamMs = 0;
+  private flightCounter = 0; // changes with every begin(), so a new flight counts as a "jump" too
+  private cockpitPitch: number | null = null; // the cockpit's tilt, eased between phases
+  private carrySpin = 0; // the floating circling angle when a launch starts (so the planet does not jump)
+  private rollNow = 0;
   private shipPitch = 0; // nose-up angle while leaving or arriving at a planet without a dock
   private floatT0 = 0; // clockT when the floating began (the circling starts from zero)
 
@@ -433,6 +449,7 @@ export class FlightScreen implements Screen {
   update(seconds: number): void {
     if (!this.info) return;
     this.clockT += seconds;
+    this.dt = seconds;
     this.glideHome(seconds);
     this.lastFrameMs = performance.now();
 
@@ -490,7 +507,7 @@ export class FlightScreen implements Screen {
       const pose = departPose(this.origin.scenery.centre, p);
       this.origin.group.position.set(pose.centre.x, pose.centre.y, pose.centre.z);
       this.shipPitch = pose.pitch;
-      this.spinScenery(this.origin.scenery, 0);
+      this.spinScenery(this.origin.scenery, this.carrySpin); // keeps the circling angle it had
     } else if (phase === "LAUNCH" && this.origin && this.origin.model) {
       // Station: straight out of the slot, then round the planet. Outpost: lift off, tilt, angled line, then curve into orbit.
       const pose = this.origin.isStation
@@ -535,7 +552,8 @@ export class FlightScreen implements Screen {
 
     // Engine flames (the design's own flame parts): short at the dock, 1 flying, 3 in warp.
     // Floating: the ship rolls slowly from side to side while it circles the planet (its nose already points along the surface).
-    this.ship.group.rotation.z = this.floating ? shipRoll(this.clockT - this.floatT0) : 0;
+    this.rollNow += ((this.floating ? shipRoll(this.clockT - this.floatT0) : 0) - this.rollNow) * Math.min(1, this.dt * 2.5); // eased, so it never snaps
+    this.ship.group.rotation.z = this.rollNow;
     this.ship.group.rotation.x = this.shipPitch;
     this.shipPitch = 0; // set again each frame by the scenery launch / arrival above
     const flame = flameLength(phase, p, this.clockT);
@@ -557,7 +575,8 @@ export class FlightScreen implements Screen {
       this.ship.group.visible = ownShipVisible(this.mode);
       this.cockpitRig.visible = cockpitRoomVisible(this.mode);
       // Just before the warp starts, the camera glides down to the warp camera height (it used to jump there when the warp began).
-      const toWarp = phase === "LAUNCH" ? smoothstep((p - 0.7) / 0.3) : phase === "WARP" ? 1 : 0;
+      // ...and glides back up after the warp, over the first part of the approach.
+      const toWarp = phase === "LAUNCH" ? smoothstep((p - 0.45) / 0.55) : phase === "WARP" ? 1 : phase === "APPROACH" ? 1 - smoothstep(p / 0.4) : 0;
       const height = lerp(FLIGHT_ORBIT_HEIGHT_DOCK, FLIGHT_ORBIT_HEIGHT_WARP, toWarp) + Math.sin(this.clockT * 0.4) * 0.6;
       let rel = orbitPosition(ORBIT_START_ANGLE + this.clockT * (this.freeCam() ? 0 : 0.35) + (this.freeCam() ? this.fv.yaw : 0), FLIGHT_ORBIT_RADIUS, height);
       if (this.freeCam()) {
@@ -593,14 +612,40 @@ export class FlightScreen implements Screen {
       if (d0 > 1e-6) rel = { x: (rel.x * d1) / d0, y: 0.8 + (vy * d1) / d0, z: (rel.z * d1) / d0 };
       fov = Math.min(SHIP_FIT_MAX_FOV, Math.max(this.baseFov, fitFov(this.shipR, d1, camera.aspect, SHIP_FIT_MARGIN)));
       const pan = this.freeCam() ? this.fv.pan : null;
-      camera.position.set(rel.x + (pan?.x ?? 0), rel.y + shipY + (pan?.y ?? 0), rel.z + (pan?.z ?? 0));
-      camera.lookAt(pan?.x ?? 0, shipY + 0.8 + (pan?.y ?? 0), pan?.z ?? 0);
+      const wantPos = new THREE.Vector3(rel.x + (pan?.x ?? 0), rel.y + shipY + (pan?.y ?? 0), rel.z + (pan?.z ?? 0));
+      const wantLook = new THREE.Vector3(pan?.x ?? 0, shipY + 0.8 + (pan?.y ?? 0), pan?.z ?? 0);
+      // Continuous view: if the wanted place jumped since last frame (new phase, new flight, other view), start from where the camera was.
+      const key = `${phase}|${this.floating ? 1 : 0}|${this.freeCam() ? 1 : 0}|${this.flightCounter}`;
+      if (key !== this.lastCamKey) {
+        if (this.lastCamKey !== "" && performance.now() - this.lastCamMs < 300) {
+          this.camOff.copy(this.lastCamPos).sub(wantPos);
+          this.lookOff.copy(this.lastCamLook).sub(wantLook);
+        } else {
+          this.camOff.set(0, 0, 0);
+          this.lookOff.set(0, 0, 0);
+        }
+        this.lastCamKey = key;
+      }
+      const fade = Math.exp(-this.dt / 0.7);
+      this.camOff.multiplyScalar(fade);
+      this.lookOff.multiplyScalar(fade);
+      wantPos.add(this.camOff);
+      wantLook.add(this.lookOff);
+      this.lastCamPos.copy(wantPos);
+      this.lastCamLook.copy(wantLook);
+      this.lastCamMs = performance.now();
+      camera.position.copy(wantPos);
+      camera.lookAt(wantLook);
       camera.updateMatrixWorld();
     } else {
       this.ship.group.visible = ownShipVisible(this.mode); // your own ship is never drawn from inside
       this.cockpitRig.visible = cockpitRoomVisible(this.mode);
       // The camera sits at the design's eye spot and looks forward. A bit downwards while leaving a dock (to see it fall away) and while approaching one.
-      const pitch = phase === "LAUNCH" ? -0.25 + 0.19 * p : phase === "WARP" ? -0.06 : -0.1;
+      const pitchWanted = phase === "LAUNCH" ? -0.25 + 0.19 * p : phase === "WARP" ? -0.06 : -0.1;
+      // Eased between phases so the view never jumps.
+      this.cockpitPitch = this.cockpitPitch === null ? pitchWanted : this.cockpitPitch + (pitchWanted - this.cockpitPitch) * Math.min(1, this.dt * 3);
+      const pitch = this.cockpitPitch;
+      this.lastCamMs = 0; // the outside camera has nothing to continue from after the cockpit
       const eye = pilotEye(this.ship.anchors.eye?.pos, shipY);
       camera.position.set(eye.x, eye.y, eye.z);
       this.cockpitRig.position.set(eye.x, eye.y, eye.z); // the room's eye spot is its origin; placed before the pitch and shake are added
