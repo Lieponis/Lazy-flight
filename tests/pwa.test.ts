@@ -59,8 +59,10 @@ describe("pwa-mode.txt (the kill switch word)", () => {
     expect(readMode(undefined)).toBe("on");
     expect(readMode("something odd")).toBe("on");
   });
-  it("the real pwa-mode.txt in the repository says on", () => {
-    expect(readMode(readFileSync(join(root, "pwa-mode.txt"), "utf8"))).toBe("on");
+  it("the real pwa-mode.txt exists and holds a word the build understands (on OR retire: both must keep publishing)", () => {
+    const text = readFileSync(join(root, "pwa-mode.txt"), "utf8");
+    expect(["on", "retire"]).toContain(readMode(text));
+    expect(text).toMatch(/^(on|retire)\s*$/im); // an actual line "on" or "retire", not only the comment lines
   });
 });
 
