@@ -7,6 +7,21 @@ import { getDock, getPlanet, type Seed } from "../universe";
 import { makeSaveData, shiftTravelTimes, writeSave, type SaveData, type StorageLike } from "./save";
 
 /**
+ * Changed by every save-file import and undo (src/save/transfer.ts). Kept here so the autosaver needs no import of
+ * the transfer code. The autosaver remembers the value when it starts and stops writing as soon as it changes.
+ */
+export const SAVE_GENERATION_KEY = "lazy-freight.save.generation";
+
+function readGeneration(storage: StorageLike | null): string | null {
+  if (!storage) return null;
+  try {
+    return storage.getItem(SAVE_GENERATION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Makes saved progress safe for this universe: a dock that does not exist sends you to the start dock,
  * and a job to a dock that does not exist is dropped (you stay where you left from).
  * The same goes for a free trip or a float at a place that does not exist.
@@ -54,7 +69,7 @@ export function browserPageEvents(): PageEvents {
 export interface AutoSaver {
   /** Save now. Returns false if storage refused. */
   saveNow(): boolean;
-  /** Stop saving (used by NEW GAME so the old game is not written back while the page reloads). */
+  /** Stop saving (used by NEW GAME so the old game is not written back while the page reloads). An import stops it by itself. */
   stop(): void;
   /** True while saves are being written successfully. */
   readonly working: boolean;
@@ -68,8 +83,15 @@ export function startAutoSave(
 ): AutoSaver {
   let stopped = false;
   let working = storage !== null;
+  // If an import (or undo) replaces the save while this game is still open (this tab or another one), the
+  // generation changes: from then on this game must never write its old state over the new save.
+  const generation = readGeneration(storage);
   const saveNow = (): boolean => {
     if (stopped) return false;
+    if (readGeneration(storage) !== generation) {
+      stopped = true;
+      return false;
+    }
     working = writeSave(storage, makeSaveData(Number(game.seed), game.state, game.clock.now(), realNow()));
     return working;
   };

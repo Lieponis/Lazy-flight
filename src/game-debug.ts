@@ -14,8 +14,15 @@ import {
   type GameClock,
 } from "./game";
 import {
+  MAX_IMPORT_CHARS,
+  SAVE_KEY,
+  applyImport,
   browserPageEvents,
+  canUndoImport,
   checkSaveData,
+  exportSaveFile,
+  inspectImport,
+  undoImport,
   getBrowserStorage,
   loadIntoGame,
   makeSaveData,
@@ -25,6 +32,7 @@ import {
   universeVersionOf,
   type AutoSaver,
   type SaveData,
+  type SaveSummary,
   type StorageLike,
 } from "./save";
 import {
@@ -216,6 +224,170 @@ function sampleOldSave(): SaveData {
 }
 
 let pastedSaveText = "";
+
+// ------------------------------------------------------------ save file (stage P2): export, import, undo
+
+let exportView: { title: string; filename: string; json: string; text: string; summary: SaveSummary } | null = null;
+let importText = "";
+let importNote: { ok: boolean; lines: string[] } | null = null;
+
+/** Plain lines describing a save (all shown as text, never as HTML). */
+function summaryLines(sum: SaveSummary): string[] {
+  return [
+    `Credits: ${sum.credits}   |   Seed: ${sum.seed}   |   Saved: ${sum.savedAt.replace("T", " ").slice(0, 16)} UTC`,
+    `Ships: ${sum.ships.join(", ")} (flying the ${sum.activeShip})   |   Outposts: ${sum.outposts}   |   Extra paint jobs: ${sum.paintJobs}`,
+    `Ranks: ${sum.ranks.map((r) => `${r.label} ${r.rankName} (rank ${r.rankNumber}, ${r.jobsDone} jobs)`).join("; ")}`,
+    `Explorer: ${sum.explorer.rankName}, ${sum.explorer.systems} systems and ${sum.explorer.planets} planets   |   ${sum.travelling ? "A trip was under way" : "Docked or floating"}   |   Universe version ${sum.universeVersion}`,
+  ];
+}
+
+/** After an import or undo the page starts again from storage (the cleanest way), in the save's own universe. */
+function reloadFor(seedOfSave: number | null): void {
+  const params = new URLSearchParams(window.location.search);
+  if (seedOfSave !== null) params.set("seed", String(seedOfSave));
+  const q = params.toString();
+  window.setTimeout(() => window.location.assign(`${window.location.pathname}${q ? `?${q}` : ""}`), 900);
+}
+
+function downloadFile(filename: string, json: string): void {
+  const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function saveFileSection(): HTMLElement[] {
+  const out: HTMLElement[] = [h("h2", {}, "10. Save file: export and import (stage P2)")];
+  const box = h("div", { class: "box" });
+  box.append(
+    h("div", { class: "note" }, "Export makes a copy of THIS page's test game as a file or as one line of text. Import puts such a copy back (it first keeps the current test game, so Undo can bring it back). The real game page gets its own buttons later (stage P3)."),
+    button("Export this test game", () => {
+      saver?.saveNow(); // the freshest state, also mid-trip
+      const r = exportSaveFile(storage);
+      exportView = r.ok ? { title: "This test game", filename: r.filename, json: r.json, text: r.text, summary: r.summary } : null;
+      say(r.ok ? `Exported. File name: ${r.filename} (${r.json.length} characters).` : r.reason);
+    }),
+    button("Export the REAL game's save (read only)", () => {
+      const r = exportSaveFile(browserStorage);
+      exportView = r.ok ? { title: "The real game (main page)", filename: r.filename, json: r.json, text: r.text, summary: r.summary } : null;
+      say(r.ok ? `Exported the real game's save. Nothing was changed there. File name: ${r.filename}.` : `Real game: ${r.reason}`);
+    }),
+  );
+  if (exportView) {
+    const view = exportView;
+    const ex = h("div", { class: "debrief" });
+    ex.append(h("div", {}, h("b", {}, `${view.title}:`)));
+    for (const line of summaryLines(view.summary)) ex.append(h("div", {}, line));
+    const area = h("textarea");
+    area.rows = 3;
+    area.cols = 60;
+    area.readOnly = true;
+    area.value = view.text;
+    area.addEventListener("focus", () => area.select());
+    ex.append(
+      area,
+      h("div", {}),
+      button("Download the file", () => downloadFile(view.filename, view.json)),
+      button("Copy the text", () => {
+        const done = (ok: boolean): void => say(ok ? "Copied. Paste it on the other device." : "Could not copy here: select the text in the box and copy it by hand.");
+        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(view.text).then(() => done(true), () => done(false));
+        else done(false);
+      }),
+    );
+    box.append(ex);
+  }
+
+  // Import
+  const im = h("div", { class: "box" });
+  const area = h("textarea");
+  area.rows = 3;
+  area.cols = 60;
+  area.placeholder = "Paste the save text (starts with LFSAVE1:) or a whole save file here";
+  area.value = importText;
+  area.addEventListener("input", () => (importText = area.value));
+  const picker = h("input");
+  picker.type = "file";
+  picker.accept = ".json,application/json,text/plain";
+  picker.addEventListener("change", () => {
+    const file = picker.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_IMPORT_CHARS) {
+      importNote = { ok: false, lines: ["That file is far too big to be a Lazy Flight save."] };
+      render();
+      return;
+    }
+    file.text().then(
+      (t) => {
+        importText = t;
+        const r = inspectImport(t, Number(seed));
+        importNote = r.ok ? { ok: true, lines: [`File "${file.name}" is a good save:`, ...summaryLines(r.summary), ...r.warnings.map((w) => `Note: ${w}`)] } : { ok: false, lines: [r.reason] };
+        render();
+      },
+      () => {
+        importNote = { ok: false, lines: ["That file could not be read."] };
+        render();
+      },
+    );
+  });
+  im.append(
+    h("div", {}, h("b", {}, "Import into this test page")),
+    area,
+    h("div", {}, "Or choose a save file: ", picker),
+    button("Check it (changes nothing)", () => {
+      const r = inspectImport(importText, Number(seed));
+      importNote = r.ok ? { ok: true, lines: ["This is a good save:", ...summaryLines(r.summary), ...r.warnings.map((w) => `Note: ${w}`)] } : { ok: false, lines: [r.reason] };
+      render();
+    }),
+    button("Import it (replaces this test game)", () => {
+      const r = applyImport(storage, importText, Number(seed));
+      if (!r.ok) {
+        importNote = { ok: false, lines: [r.reason] };
+        render();
+        return;
+      }
+      importNote = { ok: true, lines: ["Imported. The page starts again with it in a moment...", ...summaryLines(r.summary)] };
+      render();
+      reloadFor(r.summary.seed);
+    }),
+    button("Undo the last import", () => {
+      const r = undoImport(storage);
+      if (!r.ok) {
+        importNote = { ok: false, lines: [r.reason] };
+        render();
+        return;
+      }
+      importNote = { ok: true, lines: ["Undone. The page starts again with the previous game in a moment... (Undo again brings the import back.)"] };
+      render();
+      let backSeed: number | null = null;
+      try {
+        const back: unknown = storage ? JSON.parse(storage.getItem(SAVE_KEY) ?? "null") : null;
+        if (back && typeof back === "object" && typeof (back as SaveData).seed === "number") backSeed = (back as SaveData).seed;
+      } catch {
+        backSeed = null;
+      }
+      reloadFor(backSeed);
+    }, { disabled: !canUndoImport(storage) }),
+    button("TEST: wipe this page's save (as on a new phone)", () => {
+      saver?.stop();
+      storage?.removeItem(SAVE_KEY);
+      importNote = { ok: true, lines: ["Wiped. The page starts again with a new test game in a moment..."] };
+      render();
+      reloadFor(null);
+    }, { test: true }),
+  );
+  if (importNote) {
+    const note = h("div", { class: importNote.ok ? "debrief" : "msg" });
+    if (!importNote.ok) note.append(h("span", { class: "bad" }, "Refused: "));
+    for (const line of importNote.lines) note.append(h("div", {}, line));
+    im.append(note);
+  }
+  out.push(box, im);
+  return out;
+}
 
 // ------------------------------------------------------------ drawing the page
 
@@ -517,6 +689,8 @@ function render(): void {
     }),
   );
   app.append(oldBox);
+
+  app.append(...saveFileSection());
 
   // Job board
   app.append(h("h2", {}, `8. Job board of ${dockLabel(s.currentDockId)}`));
