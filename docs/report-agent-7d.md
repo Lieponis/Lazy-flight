@@ -29,14 +29,14 @@ Commits on `main`: `ab9fd40` (icon, version; started earlier, paused while 7f ra
   - **install** steps for iPhone, Android and computer, and how updates work;
   - **move your save** (SAVE FILE export / import / undo);
   - what's in 1.0.0;
-  - **credits**: three.js (MIT), VT323 font (OFL); everything else made by code.
+  - no credits section (Andy chose B, 2026-11-12): instead, one small line at the bottom, "Uses three.js (MIT) and the VT323 font (OFL) · licences", linking to `licenses.txt`. That file is published with the site and holds both full licence texts, which the licences ask to travel with the code and the font. Before this, the built site contained neither text.
 - **No external requests** (checked in a browser: zero requests to other sites; tested in code). Child-friendly, no weapons.
 - **Offline app:** `about.html` is **online only**. It is in `DEV_PAGES` in `scripts/pwa/lib.mjs`, so its css and images are never kept offline; offline it shows the friendly page. The build log lists it under "online-only".
 - **Not linked from inside the game** (the brief said: only if tiny and Andy agrees; not asked yet). Its web address is in the README.
 - **Not done:** the floating-scene and cockpit screenshots (the warp shot was used instead); a "splash" image beyond the icon (the installed app uses the manifest colours).
 
 ## 4. Files
-`public/icons/*` (4 PNGs), `scripts/pwa/icon-art.mjs` (new), `scripts/pwa/make-icons.mjs`, `scripts/pwa/lib.mjs` (one list entry), `package.json` (version, description), `vite.config.ts` (define, env, input), `src/ui/title.ts` + `src/ui/theme.css` (version text), `src/save/transfer.ts` (appVersion), `about.html`, `src/about.css`, `public/about/*.png`, `README.md` (top section), `docs/CREDITS.md`.
+`public/icons/*` (4 PNGs), `scripts/pwa/icon-art.mjs` (new), `scripts/pwa/make-icons.mjs`, `scripts/pwa/lib.mjs` (one list entry), `package.json` (version, description), `vite.config.ts` (define, env, input), `src/ui/title.ts` + `src/ui/theme.css` (version text), `src/save/transfer.ts` (appVersion), `about.html`, `src/about.css`, `public/about/*.png`, `public/licenses.txt`, `README.md` (top section), `docs/CREDITS.md`.
 Tests: `tests/release.test.ts` (new, 9), `tests/save-transfer.test.ts` (+1 check).
 
 ## 5. Known issues and NOT verified

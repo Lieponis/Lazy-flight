@@ -61,12 +61,17 @@ describe("app icon (look A, ringed planet; drawn by code)", () => {
 describe("release page (about.html)", () => {
   const html = readFileSync("about.html", "utf8");
 
-  it("has a big PLAY button to the game, the version, install steps and credits", () => {
+  it("has a big PLAY button to the game, the version, install steps and a small licences line (Andy chose B)", () => {
     expect(html).toMatch(/class="play" href="\.\/"/);
     expect(html).toContain("%VITE_APP_VERSION%");
     expect(html).toContain("Add to Home Screen");
     expect(html).toContain("SAVE FILE");
-    expect(html).toMatch(/CREDITS/);
+    expect(html).not.toMatch(/<h2>CREDITS/);
+    expect(html).toMatch(/Uses three\.js \(MIT\) and the VT323 font \(OFL\)/);
+    expect(html).toContain('href="./licenses.txt"'); // relative: the site lives in /Lazy-flight/
+    const lic = readFileSync("public/licenses.txt", "utf8");
+    expect(lic).toContain("MIT License");
+    expect(lic).toContain("SIL Open Font License");
   });
 
   it("loads nothing from other websites (links are fine, loading is not)", () => {

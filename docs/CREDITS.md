@@ -12,3 +12,5 @@ See the reports of Agents 5 and 8 (fonts in `src/ui/fonts`, models built from co
 The app icon (look A, ringed planet) is drawn pixel by pixel by `scripts/pwa/icon-art.mjs` (no image files used to make it).
 The screenshots on `about.html` are taken from the game itself. The release page loads nothing from other websites.
 Third-party parts of the game: three.js (MIT licence) and the VT323 font by Peter Hull (SIL Open Font License, `src/ui/fonts/OFL-VT323.txt`).
+
+Licence texts are published with the site in `public/licenses.txt` (three.js MIT + VT323 OFL), linked from the small line at the bottom of `about.html` (Andy chose B, 2026-11-12: no credits section on the page).
