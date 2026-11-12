@@ -1,6 +1,7 @@
-// Draws the PLACEHOLDER app icons (a chunky pixel planet with a ring on dark space) and writes PNG files.
-// Plain Node, no libraries. Run it only when you want new placeholder icons:  node scripts/pwa/make-icons.mjs
-// The real icon art is stage P5. To use real art, just replace the four PNG files in public/icons/ (same names and sizes).
+// Draws the app icons (Agent 7d, stage P5) and writes the four PNG files in public/icons/ (same names and sizes).
+// Plain Node, no libraries:  node scripts/pwa/make-icons.mjs
+// The pictures are in icon-art.mjs. To try another look:  ICON_STYLE=B node scripts/pwa/make-icons.mjs
+// Optional: OUT_DIR=some/folder writes the files there instead (used for previews).
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -8,41 +9,13 @@ import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const outDir = join(root, "public", "icons");
+const outDir = process.env.OUT_DIR ? resolve(process.env.OUT_DIR) : join(root, "public", "icons");
 
-const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-const SPACE = hex("#05060d");
-const STAR = hex("#7d979c");
-const PLANET = [hex("#ffd27a"), hex("#ffb547"), hex("#c8602a")]; // light, middle, shadow
-const RING = [hex("#3fe0d0"), hex("#1f8a80")]; // bright, dim
+import { iconPixel } from "./icon-art.mjs";
 
-function starAt(px, py) {
-  const h = Math.imul(px * 73856093 ^ py * 19349663, 2654435761) >>> 0;
-  return h % 41 === 0;
-}
-
-/** One logical pixel of the picture. (x, y) run from -1 to 1 across the icon; size is how much of the icon the picture fills. */
-function colourAt(px, py, n, size) {
-  const x = ((px + 0.5) / n * 2 - 1) / size;
-  const y = ((py + 0.5) / n * 2 - 1) / size;
-  const inPlanet = x * x + (y - 0.04) * (y - 0.04) <= 0.42 * 0.42;
-  const a = -0.38;
-  const xr = x * Math.cos(a) + y * Math.sin(a);
-  const yr = -x * Math.sin(a) + y * Math.cos(a);
-  const e = (xr / 0.95) ** 2 + (yr / 0.27) ** 2;
-  const onRing = e >= 0.7 && e <= 1.0;
-  const front = yr > 0;
-  if (onRing && front) return e > 0.88 ? RING[1] : RING[0];
-  if (inPlanet) {
-    const shade = x * 0.55 + (y - 0.04) * 0.75; // light comes from the top left
-    const band = Math.floor(((y + 1) * 9) % 2);
-    const tone = shade < -0.12 ? 0 : shade < 0.2 ? 1 : 2;
-    return band === 1 && tone < 2 ? PLANET[tone + 1] : PLANET[tone];
-  }
-  if (onRing) return e > 0.88 ? RING[1] : RING[0];
-  if (size > 0.8 && starAt(px, py)) return STAR;
-  return SPACE;
-}
+/** Which look is the app icon: "A" ringed planet, "B" Scout over a planet, "C" LF emblem (Andy picks, Agent 7d). */
+export const ICON_STYLE = process.env.ICON_STYLE || "A";
+const colourAt = (px, py, n, size) => iconPixel(ICON_STYLE, px, py, n, size);
 
 /** n x n logical pixels, scaled up to "pixels" x "pixels" with no smoothing (whole-pixel blocks). */
 function picture(n, pixels, size) {
@@ -110,5 +83,5 @@ const ICONS = [
 mkdirSync(outDir, { recursive: true });
 for (const [name, pixels, grid, size] of ICONS) {
   writeFileSync(join(outDir, name), png(pixels, picture(grid, pixels, size)));
-  console.log(`wrote public/icons/${name} (${pixels}x${pixels})`);
+  console.log(`wrote ${join(outDir, name)} (${pixels}x${pixels}, look ${ICON_STYLE})`);
 }

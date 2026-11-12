@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 // Agent 6e (stage P2): save file export and import. Every import is followed through the WHOLE start path a page
 // load uses (planStart -> migrate -> new Game -> loadIntoGame -> autosave), because a crash once slipped past
 // smaller unit tests (F1).
@@ -148,6 +149,8 @@ describe("export", () => {
     const r = exported(storageWithSave(richState()));
     const file = JSON.parse(r.json);
     expect(Object.keys(file).sort()).toEqual(["appVersion", "checksum", "exportedAt", "format", "formatVersion", "save", "sound", "summary"]);
+    // Agent 7d: the game version from package.json goes into the file
+    expect(file.appVersion).toBe((JSON.parse(readFileSync("package.json", "utf8")) as { version: string }).version);
     expect(r.json).not.toMatch(/@|userAgent|navigator|Mozilla|iPhone/);
   });
 

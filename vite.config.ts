@@ -10,10 +10,13 @@ try {
   /* no file = on */
 }
 
+// The game's version: written in ONE place (package.json "version"), put into the code at build time (Agent 7d).
+const appVersion: string = (JSON.parse(readFileSync("package.json", "utf8")) as { version: string }).version;
+
 // base "./" makes the built site work under any address, including GitHub Pages project sites.
 export default defineConfig({
   base: "./",
-  define: { __PWA_ENABLED__: JSON.stringify(pwaMode === "on") },
+  define: { __PWA_ENABLED__: JSON.stringify(pwaMode === "on"), __APP_VERSION__: JSON.stringify(appVersion) },
   build: {
     outDir: "dist",
     chunkSizeWarningLimit: 800,
