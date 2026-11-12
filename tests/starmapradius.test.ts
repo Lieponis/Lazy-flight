@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reachBeyondMap, starLabelText, starmapCameraLimits, starmapHint, starmapRadius } from "../src/render/starmapradius";
+import { parseReachParam, reachBeyondMap, starLabelText, starmapCameraLimits, starmapHint, starmapRadius } from "../src/render/starmapradius";
 import { STARMAP_MAX_RADIUS_LY, STARMAP_RADIUS_LY, STARMAP_RADIUS_PAD_LY } from "../src/render/settings";
 
 describe("map radius follows the reach", () => {
@@ -68,5 +68,13 @@ describe("camera limits grow with the map", () => {
     expect(big.maxDist).toBeGreaterThan(small.maxDist);
     expect(big.far).toBeGreaterThan(big.backdropRadius + big.maxDist); // everything stays inside the far clip
     expect(big.backdropRadius).toBeGreaterThan(big.maxDist); // the background stays outside the camera's reach
+  });
+});
+
+describe("?reach= testing aid", () => {
+  it("reads a positive number, ignores everything else", () => {
+    expect(parseReachParam("?reach=60")).toBe(60);
+    expect(parseReachParam("?speed=5&reach=42.5")).toBe(42.5);
+    for (const bad of ["", "?reach=", "?reach=abc", "?reach=-3", "?reach=0", "?reach=99999"]) expect(parseReachParam(bad)).toBeNull();
   });
 });

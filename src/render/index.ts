@@ -29,7 +29,7 @@ import { mountSystemPreview } from "./systempreview";
 import { mountWarpPreview } from "./warppreview";
 import { parseFloatPreview, parseFloatStyle } from "./floatmath";
 import { floatCandidates } from "./floatpick";
-import { reachBeyondMap, starmapRadius } from "./starmapradius";
+import { parseReachParam, reachBeyondMap, starmapRadius } from "./starmapradius";
 import { mountFloatPreview } from "./floatpreview";
 import { FLOAT_DEFAULT_STYLE } from "./settings";
 import { parseWarpPreview, parseWarpStyle } from "./warpmath";
@@ -100,7 +100,8 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     screen.enter();
   }
 
-  let reachLy: number | null = null; // set by the app (api.setReachLy)
+  const forcedReach = parseReachParam(window.location.search); // testing aid ?reach=NUMBER (map size only)
+  let reachLy: number | null = forcedReach; // set by the app (api.setReachLy)
   function makeStarmap(here: StarSystem): StarMapScreen {
     return new StarMapScreen({
       seed,
@@ -172,7 +173,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     setReachLy(value: number | null): void {
       const before = starmapRadius(reachLy);
       const noteBefore = reachBeyondMap(reachLy);
-      reachLy = value;
+      reachLy = forcedReach ?? value;
       if (starmapRadius(reachLy) === before && reachBeyondMap(reachLy) === noteBefore) return; // nothing the map shows has changed
       const here = getSystem(seed, state.get().currentSystemId);
       if (here) rebuildStarmap(here);

@@ -20,6 +20,14 @@ export function starmapRadius(
   return Math.min(top, Math.max(base, Math.ceil(reachLy + pad)));
 }
 
+/** Testing aid: ?reach=60 pretends the ship can fly 60 ly (map size only; the game rules do not change). Null if absent or nonsense. */
+export function parseReachParam(search: string): number | null {
+  const raw = new URLSearchParams(search).get("reach");
+  if (raw === null || raw.trim() === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 && n <= 1000 ? n : null;
+}
+
 /** True when the ship can fly farther than the map shows (then the map says so). */
 export function reachBeyondMap(reachLy: number | null | undefined, cap: number = STARMAP_MAX_RADIUS_LY): boolean {
   return reachLy !== null && reachLy !== undefined && Number.isFinite(reachLy) && reachLy > cap;
