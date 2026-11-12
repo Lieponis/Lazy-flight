@@ -14,6 +14,7 @@ import {
   deviceKind,
   hintToShow,
   isSaveFileName,
+  repairPastedText,
   parseHints,
   storedTestSpeed,
   summaryLines,
@@ -87,6 +88,35 @@ describe("P3: what a save holds, in plain words", () => {
     expect(SAVE_FILE_TIP.length).toBeLessThan(60);
     expect(isSaveFileName("lazy-flight-save-2026-11-12.json")).toBe(true);
     expect(isSaveFileName("photo.jpg")).toBe(false);
+  });
+});
+
+describe("P3: pasted text repaired the way phones break it (Andy's iPhone)", () => {
+  it("fixes the start's letter case and removes spaces and line breaks, but only in the one-line text form", () => {
+    expect(repairPastedText("lfsave1:eyJmb3J-_x")).toBe("LFSAVE1:eyJmb3J-_x");
+    expect(repairPastedText("  Lfsave1 : eyJm\nb3J x \r\n")).toBe("LFSAVE1:eyJmb3Jx");
+    expect(repairPastedText("LFSAVE1:abc")).toBe("LFSAVE1:abc");
+    expect(repairPastedText('{"format":"lazy-flight-save","name":"Cargo Hauler"}')).toBe('{"format":"lazy-flight-save","name":"Cargo Hauler"}');
+    expect(repairPastedText("hello")).toBe("hello");
+  });
+
+  it("a real exported text survives the iPhone change and still imports; a damaged one is still refused", async () => {
+    const { Game, createClock } = await import("../src/game");
+    const { getPlanetsOfSystem, listSystemsNear } = await import("../src/universe");
+    const { exportSaveFile, inspectImport, makeSaveData, SAVE_KEY } = await import("../src/save");
+    const sys = listSystemsNear(1337, { x: 0, y: 0, z: 0 }, 30).find((x) => getPlanetsOfSystem(1337, x.id).length > 0)!;
+    const game = new Game(1337, getPlanetsOfSystem(1337, sys.id)[0]!.id, createClock(1));
+    const store = new Map<string, string>();
+    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
+    storage.setItem(SAVE_KEY, JSON.stringify(makeSaveData(1337, game.state, game.clock.now(), Date.now())));
+    const exported = exportSaveFile(storage);
+    expect(exported.ok).toBe(true);
+    if (!exported.ok) return;
+    const broken = `lfsave1:${exported.text.slice(8, 40)}\n${exported.text.slice(40)} `;
+    expect(inspectImport(broken, 1337).ok).toBe(false); // what Andy's phone gave: refused before the fix
+    expect(inspectImport(repairPastedText(broken), 1337).ok).toBe(true); // repaired: accepted
+    const damaged = repairPastedText(`${exported.text.slice(0, -4)}AAAA`);
+    expect(inspectImport(damaged, 1337).ok).toBe(false); // the checksum still guards the rest
   });
 });
 

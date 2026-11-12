@@ -56,6 +56,20 @@ export function warningLines(warnings: readonly string[]): string[] {
 /** The red line on the big confirm button: it must be clear this replaces the current game. */
 export const REPLACE_WARNING = "This replaces the game on this device. You can undo it once with UNDO LAST IMPORT.";
 
+/**
+ * Repairs what phones do to pasted save text before src/save checks it (found on Andy's iPhone, 2026-11-12):
+ * the keyboard changed "LFSAVE1:" to "lfsave1:", and pasting can add spaces or line breaks. For the one-line text
+ * form only: the start becomes "LFSAVE1:" again and every space or line break is removed (the text itself never
+ * contains any). A JSON file (starts with "{") is left exactly as it is: names inside it may contain spaces.
+ * The checksum in the text still guards everything else, so a damaged text is still refused.
+ */
+export function repairPastedText(input: string): string {
+  const trimmed = input.trim();
+  const m = /^lfsave1\s*:/i.exec(trimmed);
+  if (!m) return trimmed;
+  return `LFSAVE1:${trimmed.slice(m[0].length).replace(/\s+/g, "")}`;
+}
+
 /** "lazy-flight-save-2026-11-12.json" is what the save code names the file; this just checks a name looks sane. */
 export function isSaveFileName(name: string): boolean {
   return /\.(json|txt)$/i.test(name.trim());

@@ -18,7 +18,7 @@ import {
 } from "../save";
 import { button, el } from "./dom";
 import { Popup } from "./popup";
-import { REPLACE_WARNING, compareRows, summaryLines, warningLines } from "./savefilelogic";
+import { REPLACE_WARNING, compareRows, repairPastedText, summaryLines, warningLines } from "./savefilelogic";
 
 export interface SaveFileHooks {
   storage: StorageLike | null;
@@ -233,6 +233,11 @@ export class SaveFilePanel {
     box.rows = 3;
     box.placeholder = "Paste the save text here (it starts with LFSAVE1:)";
     box.setAttribute("aria-label", "Save text");
+    // Phones must not "correct" the text (an iPhone changed LFSAVE1: to lfsave1:).
+    box.setAttribute("autocapitalize", "off");
+    box.setAttribute("autocorrect", "off");
+    box.setAttribute("autocomplete", "off");
+    box.spellcheck = false;
     this.pasteBox = box;
     this.say("");
     this.render();
@@ -251,7 +256,8 @@ export class SaveFilePanel {
   }
 
   /** Checks the text with src/save and, if it is a good save, shows the side-by-side confirm. */
-  private check(text: string): void {
+  private check(raw: string): void {
+    const text = repairPastedText(raw); // undo what a phone keyboard or paste may have changed
     const r = inspectImport(text, this.hooks.currentSeed());
     if (!r.ok) {
       this.say(r.reason, true); // refusals exactly as src/save words them; nothing changed
