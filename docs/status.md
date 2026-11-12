@@ -223,3 +223,6 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Lead DECISION: hint-seen flags in their own slot lazy-freight.hints (per device, never exported) is accepted (instead of a save field).
 - Not tested: Android install button.
 - NEXT (parallel, different files): P4 Agent 6 offline test workflow (docs/briefs/agent-6f-brief.md; general QA 6d stays skipped) and P5 Agent 7 icon + version + release page (docs/briefs/agent-7d-brief.md). Then v1.0.
+
+## Small change G1 (Andy 2026-11-12)
+- Jobs stay capped at 25 ly. Free travel is capped only by fuel on board (the game already works so). ALL range circles removed from the galaxy map; "in fuel range" wording removed; map radius follows the real reach of the ship's fuel (capped after measuring). Brief docs/briefs/agent-3h-brief.md (Agent 3, runs in parallel with P4 and P5: different files).
