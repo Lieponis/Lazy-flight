@@ -204,3 +204,10 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Approved: installable offline app (PWA), save file moving (export/import), offline test workflow. Roadmap: docs/ROADMAP-offline-app.md. Stages: P1 Agent 1 (manifest, icons, service worker, safe updates), P2 Agent 6/4 (export/import logic), P3 Agent 5 (Save panel + install hint), P4 Agent 6 (offline test workflow `npm run offline-check` + phone checklist), P5 Agent 7 (icon, release page). Approved small save field: a "seen" flag for the install hint.
 - General QA (6d) is optional/skipped; P4 is the offline QA. Release page 7d merges into P5.
 - P1 started (2026-11-12): Agent 1 brief docs/briefs/agent-1b-brief.md. Kill switch required; developer pages stay online-only; installed iPhone app starts a new game until P2/P3.
+
+## Agent 1 stage P1 (1b) (2026-11-12): DONE, merged, Andy installed on iPhone and checked offline (airplane mode); Lead review passed
+- Installable offline app: manifest, placeholder icons (public/icons, replace in P5), service worker built from the file list with SHA-256 checks (all-or-nothing box), safe update (REFRESH note when no job/trip/flight), developer pages online-only (friendly page offline), kill switch (pwa-mode.txt = retire; README 4b). 714 tests, Actions green, 19/19 headless checks on a stand-in.
+- Not verified: Android, desktop install, real iPhone cleanup, the update note on a real device (check after next publish), kill switch on a real phone, headless run on the REAL built game (P4). Corrected plan: a first visit made offline is impossible; P4 test 7 now = stored copy wiped.
+- Andy: please delete the leftover branch `p1-retire-test` on GitHub (Code > Branches > trash). Never merge it.
+- Suggestion awaiting Andy: test-speed switch in SETTINGS for the installed app (no address bar to add ?speed=).
+- NEXT: P2 Agent 6 (docs/briefs/agent-6e-brief.md) save export/import logic; then P3 Agent 5, P4 Agent 6, P5 Agent 7.

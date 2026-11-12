@@ -62,7 +62,7 @@ Headless browser (Playwright/Chromium) against the built game served from a loca
 4. Visit every screen offline (title, galaxy map, system view, docked, flight, floating, Jobs, Shipyard, Ranks, Save panel) at phone and desktop sizes. Fail on any console error, any request to the network, or any "can't be reached" page.
 5. Update test: serve version A, load, go offline, serve version B online, come online, trigger update; check the game still runs, the save loads, no mixed files (A and B never mixed), old cache gone.
 6. Old-save test through the whole path in the offline app (pre-F1, universe v1, pre-4g files).
-7. First-visit-offline test: new browser profile, offline: the friendly in-game message appears (not the browser error).
+7. Stored-copy-wiped test (replaces "first visit offline", which is impossible: nothing exists on the phone yet, Agent 1 report P1): load online, delete the cached files, go offline, open: the friendly in-game message appears (not the browser error). Also developer pages offline show the friendly page.
 8. Export/import test offline (it is local only): export, wipe storage, import, state identical.
 9. Added as `npm run offline-check`; Actions runs it on every branch and on main. A failure blocks publishing.
 
