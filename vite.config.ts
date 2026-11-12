@@ -12,6 +12,8 @@ try {
 
 // The game's version: written in ONE place (package.json "version"), put into the code at build time (Agent 7d).
 const appVersion: string = (JSON.parse(readFileSync("package.json", "utf8")) as { version: string }).version;
+// The release page (about.html) shows it too: Vite replaces %VITE_APP_VERSION% in html files.
+process.env.VITE_APP_VERSION = appVersion;
 
 // base "./" makes the built site work under any address, including GitHub Pages project sites.
 export default defineConfig({
@@ -21,13 +23,15 @@ export default defineConfig({
     outDir: "dist",
     chunkSizeWarningLimit: 800,
     rollupOptions: {
-      // Five pages are published: the game, the universe debug page, the model viewer, the game debug page and the planet looks preview.
+      // Six pages are published: the game, the universe debug page, the model viewer, the game debug page, the planet looks preview
+      // and the release page (about.html).
       input: {
         main: "index.html",
         debug: "debug.html",
         models: "models.html",
         gamedebug: "game-debug.html",
         planets: "planets.html", // planet looks preview (Agent 7c)
+        about: "about.html", // release page (Agent 7d), online only
       },
     },
   },

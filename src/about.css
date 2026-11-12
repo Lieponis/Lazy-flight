@@ -1,0 +1,184 @@
+/* Release page (about.html, Agent 7d): the game's pixel style, no outside files, light on phones. */
+@font-face {
+  font-family: "VT323";
+  src: url("./ui/fonts/VT323-Regular.woff2") format("woff2");
+  font-display: swap;
+}
+
+:root {
+  --navy: #0b0828;
+  --panel: #0e1424;
+  --line: #24304a;
+  --text: #cfe9e6;
+  --dim: #8fa3b8;
+  --teal: #3fe0d0;
+  --amber: #ffb547;
+  --name: #9ff6ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--navy);
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: "VT323", ui-monospace, monospace;
+  font-size: 22px;
+  line-height: 1.3;
+  background:
+    radial-gradient(circle at 12% 18%, #ffffff 0 1px, transparent 2px),
+    radial-gradient(circle at 78% 9%, #ffe14a 0 1px, transparent 2px),
+    radial-gradient(circle at 55% 32%, #9b5cff 0 1px, transparent 2px),
+    radial-gradient(circle at 90% 60%, #3fe0f0 0 1px, transparent 2px),
+    radial-gradient(circle at 30% 75%, #ffffff 0 1px, transparent 2px),
+    var(--navy);
+  background-size: 340px 340px;
+}
+
+main {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 60px max(16px, env(safe-area-inset-left));
+}
+
+header {
+  text-align: center;
+  padding: 28px 0 8px;
+}
+
+.logo {
+  width: 96px;
+  height: 96px;
+  image-rendering: pixelated;
+  border-radius: 22px;
+}
+
+h1 {
+  margin: 10px 0 0;
+  font-size: clamp(48px, 11vw, 92px);
+  line-height: 1;
+  letter-spacing: 4px;
+  color: var(--name);
+  text-shadow: 3px 3px 0 #1b2a8a, 0 0 14px rgba(80, 200, 255, 0.55);
+}
+
+.tagline {
+  margin: 8px 0 0;
+  font-size: clamp(22px, 4.5vw, 30px);
+  letter-spacing: 2px;
+  color: #b9c6ff;
+}
+
+.pitch {
+  max-width: 640px;
+  margin: 18px auto 0;
+  color: var(--text);
+}
+
+.play {
+  display: inline-block;
+  margin: 22px 0 6px;
+  padding: 10px 46px;
+  font-size: 40px;
+  letter-spacing: 5px;
+  color: #1a0f00;
+  background: var(--amber);
+  border: 2px solid var(--amber);
+  text-decoration: none;
+  box-shadow: 0 0 16px rgba(255, 181, 71, 0.55);
+}
+
+.play:active {
+  transform: translateY(1px);
+}
+
+.version {
+  color: var(--dim);
+  font-size: 18px;
+}
+
+h2 {
+  margin: 38px 0 10px;
+  font-size: 32px;
+  color: var(--amber);
+  border-bottom: 2px solid var(--line);
+  letter-spacing: 2px;
+}
+
+h3 {
+  margin: 14px 0 4px;
+  color: var(--teal);
+  font-size: 24px;
+}
+
+p {
+  margin: 6px 0;
+}
+
+.shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+figure {
+  margin: 0;
+  background: var(--panel);
+  border: 2px solid var(--line);
+}
+
+figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+
+figcaption {
+  padding: 6px 10px 8px;
+  color: var(--dim);
+  font-size: 19px;
+}
+
+.box {
+  background: var(--panel);
+  border: 2px solid var(--line);
+  padding: 10px 14px;
+  margin: 10px 0;
+}
+
+ul,
+ol {
+  margin: 6px 0;
+  padding-left: 26px;
+}
+
+li {
+  margin: 3px 0;
+}
+
+b {
+  color: var(--teal);
+  font-weight: normal;
+}
+
+code {
+  font-family: inherit;
+  color: var(--amber);
+}
+
+a {
+  color: var(--teal);
+}
+
+footer {
+  margin-top: 40px;
+  text-align: center;
+  color: var(--dim);
+  font-size: 18px;
+}

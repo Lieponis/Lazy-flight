@@ -12,8 +12,8 @@ import { join, posix } from "node:path";
 export const CACHE_PREFIX = "lazy-flight-";
 export const GAME_PAGE = "index.html";
 export const OFFLINE_PAGE = "offline.html";
-/** Developer pages: online only, never kept offline. */
-export const DEV_PAGES = ["debug.html", "game-debug.html", "models.html", "planets.html"];
+/** Online-only pages: developer pages and the release page (about.html, Agent 7d). Never kept offline; offline they show the friendly page. */
+export const DEV_PAGES = ["debug.html", "game-debug.html", "models.html", "planets.html", "about.html"];
 /** The helper script itself is never in its own list. */
 export const SW_FILE = "sw.js";
 

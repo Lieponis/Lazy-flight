@@ -1,8 +1,13 @@
 # Lazy Flight
 
-A relaxing, funny, pixelated space game that runs in your web browser. You fly a small ship through an endless generated galaxy and take delivery jobs (cargo, passengers, tours), buy ships, outposts and ship upgrades. Trips keep running while the page is closed. Sound and music are made by code (no sound files). The full plan is in `docs/design-doc.md`.
+**Version 1.0.0** · *Space hauling at the speed of nap.*
+
+A relaxing, funny, pixelated space game that runs in your web browser. Fly a small ship through an endless generated galaxy, take delivery jobs (cargo, passengers, tours), explore planets nobody has visited, buy ships, paint jobs, outposts and upgrades. No fighting, no stress. Trips keep running while the page is closed. It installs like an app and works offline. Sound and music are made by code (no sound files). The full plan is in `docs/design-doc.md`.
 
 **Play it:** https://lieponis.github.io/Lazy-flight/
+**About, screenshots, how to install:** https://lieponis.github.io/Lazy-flight/about.html
+
+The version number lives in ONE place: `"version"` in `package.json`. Change it for every release (for example 1.0.1 for a small fix, 1.1.0 for new content); the title screen, the release page and save files pick it up when the site is built. The app icon is drawn by `node scripts/pwa/make-icons.mjs` (pictures in `scripts/pwa/icon-art.mjs`).
 
 Words you will see: **GitHub** stores the project files online. **GitHub Desktop** is the program on your computer that sends your changes to GitHub ("commit" = save a change, "push" = send it). **GitHub Actions** builds and tests the game and publishes it on **GitHub Pages** (the free website). **Node.js** runs the build tools on your computer. **Terminal** is a text window where you type commands.
 
