@@ -9,6 +9,7 @@
 
 import { SOUND_LEVELS, type Mood, type SoundEvent } from "./cues";
 import { busGains, isSilent, VOLUME_GLIDE_S, type SoundPrefs } from "./prefs";
+import { useAmbientAudioSession } from "./session";
 import { makeNoiseBuffer, makeReverb, Music, playSound, startBed, type Bed, type Kit } from "./synth";
 
 type AudioCtor = typeof AudioContext;
@@ -70,6 +71,7 @@ export class SoundEngine {
         this.failed = true;
         return;
       }
+      useAmbientAudioSession(); // iPhone: mix with Spotify / YouTube instead of stopping them (bug S1)
       try {
         this.build(new Ctor());
       } catch {
@@ -103,6 +105,7 @@ export class SoundEngine {
       this.sleepTimer = null;
     }
     this.lastKickMs = Date.now();
+    useAmbientAudioSession();
     try {
       if (ctx.state === "running") ctx.suspend().catch(() => undefined);
       ctx.resume().catch(() => undefined);
@@ -145,6 +148,7 @@ export class SoundEngine {
     } catch {
       // already closed
     }
+    useAmbientAudioSession(); // again for the new engine (iPhone may reset it after an app switch)
     try {
       this.build(new Ctor());
     } catch {
@@ -274,7 +278,10 @@ export class SoundEngine {
       this.sleep(400); // let the fade finish, then rest
       return;
     }
-    if (this.ctx.state !== "running") this.ctx.resume().catch(() => undefined); // also wakes Safari's "interrupted"
+    if (this.ctx.state !== "running") {
+      useAmbientAudioSession();
+      this.ctx.resume().catch(() => undefined); // also wakes Safari's "interrupted"
+    }
   }
 
   private sleep(afterMs: number): void {

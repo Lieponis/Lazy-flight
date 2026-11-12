@@ -3,6 +3,8 @@
 // Layer rule: src/audio imports nothing from render, ui, game, save or universe (tests/audio.test.ts checks it).
 
 export { SoundEngine } from "./engine";
+export { useAmbientAudioSession } from "./session";
+export type { NavigatorLike, SessionResult } from "./session";
 export {
   ALL_SOUNDS,
   CUE_LOOKAHEAD_S,
