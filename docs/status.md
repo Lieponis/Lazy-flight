@@ -216,3 +216,10 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Save file logic in src/save: exportSaveFile, inspectImport, applyImport, undoImport; checksum (not a security lock); backup slot lazy-freight.save.beforeimport; lazy-freight.save.generation stops an open game's autosave from overwriting an import; src/save handles the sound key itself (layer rule) with a test equal to src/audio/prefs.ts. 747 tests; Actions green. appVersion is null (suggestion: version number in the build, P5).
 - NEXT: P3 Agent 5 (docs/briefs/agent-5g-brief.md): SAVE FILE panel, install hint (+ "installHintSeen" save field approved), tip in installed app. Then P4 Agent 6, P5 Agent 7.
 - Andy approved (2026-11-12): TESTER speed switch in MENU > SETTINGS for the installed app (key lazy-freight.testspeed, applied after reload, ?speed= wins). Added to Agent 5's P3 brief (item 5; smallest edit in src/game/clock.ts allowed).
+
+## Agent 5 stage P3 (5g) (2026-11-12): DONE, Andy tested on iPhone (Safari export, file import into the installed app, garbage refused, undo, tester 60x across restart, install hint once, upright/sideways); Lead review passed
+- SAVE FILE panel (option A), side-by-side import confirm (A), undo, install hint once per device (A) + "import your game" tip in the installed app, TESTER speeds 1/10/20/60/300/1000x stored outside the save (lazy-freight.testspeed; startSpeed() in src/game/clock.ts, the only edit outside src/ui). 761 tests; Actions green.
+- Fixed on the iPhone: the keyboard changed "LFSAVE1:" to "lfsave1:"; paste box has no autocorrect and the UI repairs the start and stray spaces before src/save checks (checksum still refuses damage).
+- Lead DECISION: hint-seen flags in their own slot lazy-freight.hints (per device, never exported) is accepted (instead of a save field).
+- Not tested: Android install button.
+- NEXT (parallel, different files): P4 Agent 6 offline test workflow (docs/briefs/agent-6f-brief.md; general QA 6d stays skipped) and P5 Agent 7 icon + version + release page (docs/briefs/agent-7d-brief.md). Then v1.0.
