@@ -4,7 +4,6 @@ import * as THREE from "three";
 import { distance, listSystemsNear, type Seed, type StarSystem } from "../universe";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import {
-  formatLy,
   hexToNumber,
   nearestScreenPoint,
   starfieldPositions,
@@ -14,7 +13,8 @@ import {
 import type { Hud } from "./hud";
 import { OrbitView } from "./input";
 import type { Screen } from "./screen";
-import { FUEL_RANGE_LY, STARFIELD_COUNT, STARMAP_RADIUS_LY, TAP_RADIUS_PX } from "./settings";
+import { STARFIELD_COUNT, STARMAP_RADIUS_LY, TAP_RADIUS_PX } from "./settings";
+import { starLabelText, starmapCameraLimits, starmapHint } from "./starmapradius";
 import type { StateStore } from "./state";
 
 export interface StarMapOptions {
@@ -24,19 +24,10 @@ export interface StarMapOptions {
   state: StateStore;
   current: StarSystem;
   onOpenSystem: (systemId: string) => void;
-}
-
-function makeRing(radius: number, color: number, axis: "x" | "y" | "z"): THREE.LineLoop {
-  const points: THREE.Vector3[] = [];
-  const steps = 64;
-  for (let i = 0; i < steps; i++) {
-    const a = (i / steps) * Math.PI * 2;
-    const c = Math.cos(a) * radius;
-    const s = Math.sin(a) * radius;
-    points.push(axis === "y" ? new THREE.Vector3(c, 0, s) : axis === "x" ? new THREE.Vector3(0, c, s) : new THREE.Vector3(c, s, 0));
-  }
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  return new THREE.LineLoop(geometry, new THREE.LineBasicMaterial({ color }));
+  /** The map shows every system closer than this (light years). Default 35. */
+  radiusLy?: number;
+  /** True when the ship can fly farther than the map shows: the hint then says so. */
+  farNote?: boolean;
 }
 
 function makeMarker(color: number): THREE.LineSegments {
@@ -46,7 +37,7 @@ function makeMarker(color: number): THREE.LineSegments {
 
 export class StarMapScreen implements Screen {
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(50, RENDER_WIDTH / RENDER_HEIGHT, 0.5, 700);
+  readonly camera = new THREE.PerspectiveCamera(50, RENDER_WIDTH / RENDER_HEIGHT, 0.5, 700); // far is set for the map size in the constructor
 
   private view: OrbitView;
   private systems: StarSystem[];
@@ -58,7 +49,11 @@ export class StarMapScreen implements Screen {
 
   constructor(private opts: StarMapOptions) {
     const origin = opts.current.position;
-    this.systems = listSystemsNear(opts.seed, origin, STARMAP_RADIUS_LY);
+    const radius = opts.radiusLy ?? STARMAP_RADIUS_LY;
+    const limits = starmapCameraLimits(radius);
+    this.camera.far = limits.far;
+    this.camera.updateProjectionMatrix();
+    this.systems = listSystemsNear(opts.seed, origin, radius);
     // The map is centered on the current system, so the current system sits at (0,0,0).
     this.positions = this.systems.map(
       (s) => new THREE.Vector3(s.position.x - origin.x, s.position.y - origin.y, s.position.z - origin.z),
@@ -87,18 +82,15 @@ export class StarMapScreen implements Screen {
     if (stars.instanceColor) stars.instanceColor.needsUpdate = true;
     this.scene.add(stars);
 
-    // Fuel range: three crossing rings around the current system.
-    for (const axis of ["x", "y", "z"] as const) this.scene.add(makeRing(FUEL_RANGE_LY, 0x2fd6c0, axis));
-
     // Background stars: single dots far away.
     const bg = new THREE.BufferGeometry();
-    bg.setAttribute("position", new THREE.BufferAttribute(starfieldPositions(STARFIELD_COUNT, 450), 3));
+    bg.setAttribute("position", new THREE.BufferAttribute(starfieldPositions(STARFIELD_COUNT, limits.backdropRadius), 3));
     this.scene.add(new THREE.Points(bg, new THREE.PointsMaterial({ color: 0x8890c8, size: 1, sizeAttenuation: false })));
 
     this.selectionMarker.visible = false;
     this.scene.add(this.selectionMarker, this.currentMarker);
 
-    this.view = new OrbitView(this.camera, opts.host, 8, 90, 52);
+    this.view = new OrbitView(this.camera, opts.host, 8, limits.maxDist, 52);
     this.view.onTap = (x, y) => this.handleTap(x, y);
   }
 
@@ -154,10 +146,9 @@ export class StarMapScreen implements Screen {
     if (system) {
       const d = distance(system.position, current.position);
       const here = system.id === current.id;
-      const range = here ? "you are here" : d <= FUEL_RANGE_LY ? "in fuel range" : "out of fuel range";
-      hud.setLabel(`${system.name}\n${system.star.label} - ${formatLy(d)} - ${range}`);
+      hud.setLabel(starLabelText(system.name, system.star.label, d, here));
     } else {
-      hud.setLabel("Tap a star to select it.\nDrag to turn the map, scroll or pinch to zoom.");
+      hud.setLabel(starmapHint(this.opts.farNote === true));
     }
     hud.setButtons([
       {

@@ -16,15 +16,17 @@ export const START_SYSTEM_ID: string | null = null;
 /** The middle of the galaxy, in light years. Used when START_SYSTEM_ID is null. */
 export const START_POINT = { x: 0, y: 0, z: 0 };
 
-/**
- * Fuel range in light years: the ring drawn around the current system.
- * For now one fixed number. Agent 4 will replace it with the real fuel of the ship.
- * (Same value as MAX_JOB_DISTANCE in src/universe/settings.ts.)
- */
-export const FUEL_RANGE_LY = 25;
-
-/** The starmap shows every system closer than this to the current one, in light years. */
+/** The starmap shows every system closer than this to the current one, in light years, as a minimum. */
 export const STARMAP_RADIUS_LY = 35;
+
+/**
+ * With more fuel on board the map grows to show every star the ship can reach (plus the padding), but never past the cap.
+ * Measured with the real universe (seed 12345, from the start system): 35 ly = 184 stars, 60 ly = 998, 75 ly = 1,970 (about 15,800
+ * triangles, listed in about 16 ms on a computer), 90 ly = 3,366, 110 ly = 6,102. 75 ly covers every ship with a full tank
+ * (Hauler 30 ly, Liner 50, Scout 55) and several upgrades. Free travel itself has NO distance cap: only fuel.
+ */
+export const STARMAP_MAX_RADIUS_LY = 75;
+export const STARMAP_RADIUS_PAD_LY = 3;
 
 /** How close (in screen pixels) a tap must be to a star or planet to select it. */
 export const TAP_RADIUS_PX = 18;

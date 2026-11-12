@@ -29,6 +29,7 @@ import { mountSystemPreview } from "./systempreview";
 import { mountWarpPreview } from "./warppreview";
 import { parseFloatPreview, parseFloatStyle } from "./floatmath";
 import { floatCandidates } from "./floatpick";
+import { reachBeyondMap, starmapRadius } from "./starmapradius";
 import { mountFloatPreview } from "./floatpreview";
 import { FLOAT_DEFAULT_STYLE } from "./settings";
 import { parseWarpPreview, parseWarpStyle } from "./warpmath";
@@ -45,6 +46,12 @@ export interface RenderApi {
   showSystem(systemId: string): void;
   /** Move the "you are here" system (the starmap ring and label follow). Used by the game on arrival. */
   setCurrentSystem(systemId: string): void;
+  /**
+   * How far (light years) the current ship can fly with the fuel it carries (the app works it out: fuel divided by the fuel one light
+   * year burns). The galaxy map grows to show every reachable star, up to a cap (see STARMAP_MAX_RADIUS_LY). Call it whenever fuel,
+   * ship or engines change; the map is only rebuilt when its radius really changes. null = the normal 35 ly map.
+   */
+  setReachLy(reachLy: number | null): void;
   /** Show the flight screen (launch, warp, approach) for a trip the game has started. */
   startFlight(info: FlightInfo): void;
   /** The game says the trip is over: finish the animation, then show the docked view at the destination dock. */
@@ -93,6 +100,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     screen.enter();
   }
 
+  let reachLy: number | null = null; // set by the app (api.setReachLy)
   function makeStarmap(here: StarSystem): StarMapScreen {
     return new StarMapScreen({
       seed,
@@ -101,7 +109,21 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
       state,
       current: here,
       onOpenSystem: (id) => api.showSystem(id),
+      radiusLy: starmapRadius(reachLy),
+      farNote: reachBeyondMap(reachLy),
     });
+  }
+  /** Builds the map again (the map is centred on the current system and sized by the reach), keeping the screen the player is on. */
+  function rebuildStarmap(here: StarSystem): void {
+    const wasShowing = active === starmap;
+    if (wasShowing) {
+      starmap.exit();
+      active = null;
+    }
+    starmap = makeStarmap(here);
+    resize(); // give the new map the right camera shape
+    state.set({ selectedSystemId: null });
+    if (wasShowing) show(starmap);
   }
   let starmap = makeStarmap(current);
   // The dock the ship is parked at (the first one shown). Navigation buttons live in src/ui (Agent 5).
@@ -144,15 +166,16 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     setCurrentSystem(systemId: string): void {
       const here = getSystem(seed, systemId);
       if (!here || here.id === state.get().currentSystemId) return;
-      const wasShowing = active === starmap;
-      if (wasShowing) {
-        starmap.exit();
-        active = null;
-      }
-      starmap = makeStarmap(here); // the map is centered on the current system, so build a new one
-      resize(); // give the new map the right camera shape
-      state.set({ currentSystemId: here.id, selectedSystemId: null });
-      if (wasShowing) show(starmap);
+      state.set({ currentSystemId: here.id });
+      rebuildStarmap(here); // the map is centered on the current system, so build a new one
+    },
+    setReachLy(value: number | null): void {
+      const before = starmapRadius(reachLy);
+      const noteBefore = reachBeyondMap(reachLy);
+      reachLy = value;
+      if (starmapRadius(reachLy) === before && reachBeyondMap(reachLy) === noteBefore) return; // nothing the map shows has changed
+      const here = getSystem(seed, state.get().currentSystemId);
+      if (here) rebuildStarmap(here);
     },
     setShip(id: string, livery?: string): void {
       shipId = resolveShipId(id, forcedShip);
