@@ -78,8 +78,13 @@ Each import is followed by a full "page load": `planStart` → universe move →
 - The brief allowed `src/audio/prefs.ts`. The layer rule test, however, forbids `src/save` from importing `src/audio`, and I kept that rule. So the save file reads and writes the `lazy-freight.sound` key itself, with a copy of the 10-line cleaning rule. A test checks that the key, defaults and cleaning stay equal to `src/audio/prefs.ts`. `src/audio` is unchanged.
 - New storage keys (added, none changed): `lazy-freight.save.beforeimport` (undo slot) and `lazy-freight.save.generation` (autosave guard). `SAVE_KEY`, `SAVE_VERSION` and its meaning are unchanged.
 
-## 7. NOT verified
-- Real iPhone (Safari tab ↔ installed app): Andy's check after this merge.
+## 7. Andy's checks (2026-11-12, /game-debug.html): ALL PASSED
+1. Export: summary shown, text copied, file downloaded. OK.
+2. Wipe, then import the text: 50,200 credits came back. OK.
+3. Garbage and an edited text refused with the friendly messages, nothing lost; Undo brought the previous game back. OK.
+
+## 7b. NOT verified
+- Moving a save between the Safari tab and the installed iPhone app (that needs the P3 screens in the real game).
 - Android, desktop Safari and Firefox.
 - The iPhone "Files" app: how a downloaded `.json` file is picked again for import. P3 should test with the paste text first.
 - The real game's own screens: those are P3 (Agent 5). Today only the debug page can import, and only into its own test game.
