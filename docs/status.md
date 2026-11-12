@@ -239,3 +239,6 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Music now plays on top of the player's own music. Lead recommends option A (keep: music slider at 0 or the speaker button already does what a separate toggle would). Options B (lower default) and C (toggle) not built; awaiting Andy's choice.
 - Not tested: Android, iPad, iOS version unknown.
 - DECISION (Andy 2026-11-12): music option A, keep as is (S1 closed). Players use the music slider or speaker button.
+
+## New request E1 (Andy 2026-11-12): rare Earth-like planets
+- Blue oceans, green land, white clouds; 2-3 % of planets; render-only (planetlook.ts), no rings on them, no gameplay effect. Brief docs/briefs/agent-7f-brief.md (Agent 7, separate chat from P5). Suggestion (not approved): an "Earth-like" tag on the planet info card.
