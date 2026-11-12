@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import { getDock, getPlanetsOfSystem, getSystem, type Dock, type Planet, type Seed } from "../universe";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
-import { chooseLook, hasCloud, surfaceColour, type PlanetLook } from "./planetlook";
+import { chooseLook, hasCloud, surfaceColour, type EarthStyle, type PlanetLook } from "./planetlook";
 import {
   clamp,
   dockKindLabel,
@@ -75,6 +75,8 @@ export interface PlanetExtras {
   clouds?: boolean;
   /** How high the clouds float, as a share of the radius (default 0.05). Lower near a station that sits close above. */
   cloudLift?: number;
+  /** Only for the /planets.html comparison of Earth looks (7f); the game leaves it out (mix of A and C). */
+  earthStyle?: EarthStyle;
 }
 
 /**
@@ -83,7 +85,7 @@ export interface PlanetExtras {
  * Agent 7c option B), picked from its id: the same planet always looks the same, and src/universe is untouched.
  */
 export function makePlanetMesh(planet: Planet, radius: number, toStar: THREE.Vector3, detail = 2, extras: PlanetExtras = {}): THREE.Mesh {
-  const look = chooseLook(planet);
+  const look = chooseLook(planet, extras.earthStyle);
   const geometry = new THREE.IcosahedronGeometry(radius, detail); // not indexed: every triangle has its own 3 corners
   const position = geometry.getAttribute("position");
   const colors = new Float32Array(position.count * 3);

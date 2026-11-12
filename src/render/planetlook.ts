@@ -30,6 +30,56 @@ export interface PlanetLook {
   rings: RingBand[] | null;
   ringTilt: { x: number; y: number };
   noiseSeed: number;
+  /** Agent 7f: a rare "little Earth" (blue seas, green land, lots of white clouds), or null. */
+  earth: EarthStyle | null;
+  /** Higher = fewer clouds. Earth-likes have more clouds than other worlds. */
+  cloudThreshold: number;
+}
+
+// ------------------------------------------------------------------ Earth-like planets (Agent 7f, Andy 2026-11-12)
+// Very special: about 2.5 % of all planets. Decided by their OWN hash (like the rings), only for planet types that
+// fit (ocean and jungle most, rocky sometimes; never gas, lava, ice, desert or barren). Only the picture changes.
+
+export type EarthStyle = "A" | "B" | "C";
+/**
+ * The Earth looks used in the game. Andy (2026-11-12) chose BOTH A "classic" and C "tropical", picked per planet
+ * from its own hash, with fewer clouds than the first try. (B "blue marble" was shown and not chosen.)
+ */
+export const EARTH_STYLES_IN_GAME: readonly EarthStyle[] = ["A", "C"];
+/** Chance per planet type. With today's type mix this gives about 2.5 % of all planets (tested: 2 to 3 %). */
+export const EARTH_CHANCE: Readonly<Record<string, number>> = { OCEAN: 0.13, JUNGLE: 0.13, ROCKY: 0.037 };
+
+interface EarthPalette {
+  sea: Rgb;
+  shallow: Rgb | null; // light water along the coasts (C)
+  beach: Rgb | null; // a thin sandy edge (C)
+  land: Rgb;
+  high: Rgb; // brown-green highlands
+  landAbove: number; // noise above this = land (higher = more ocean)
+  caps: number; // 0 = no ice caps, else where they start
+  clouds: number; // cloud threshold (lower = more clouds)
+}
+
+export const EARTH_PALETTES: Readonly<Record<EarthStyle, EarthPalette>> = {
+  // A "Classic Earth": deep blue, green and brown-green continents, small white caps, plenty of clouds
+  A: { sea: [0.1, 0.25, 0.62], shallow: null, beach: null, land: [0.24, 0.55, 0.25], high: [0.45, 0.43, 0.22], landAbove: 0.53, caps: 0.86, clouds: 0.61 },
+  // B "Blue marble": mostly ocean, bright green land, big caps, swirls of cloud everywhere
+  B: { sea: [0.07, 0.21, 0.58], shallow: null, beach: null, land: [0.2, 0.62, 0.28], high: [0.38, 0.5, 0.24], landAbove: 0.57, caps: 0.8, clouds: 0.565 },
+  // C "Tropical": turquoise shallows and sandy beaches round green islands, no ice, medium clouds
+  C: { sea: [0.06, 0.24, 0.6], shallow: [0.2, 0.62, 0.72], beach: [0.86, 0.79, 0.52], land: [0.2, 0.58, 0.26], high: [0.4, 0.46, 0.22], landAbove: 0.53, caps: 0, clouds: 0.62 },
+};
+
+/** True if this planet is one of the rare Earth-likes (its own hash: the other looks' choices are not touched). */
+export function isEarthLike(planet: { id: string; type: string }): boolean {
+  const chance = EARTH_CHANCE[planet.type] ?? 0;
+  return chance > 0 && streamFrom(hashString(`earth:${planet.id}`))() < chance;
+}
+
+/** Which of the game's Earth looks (A or C) this planet gets: from the same hash stream, so it never changes. */
+export function earthStyleOf(planet: { id: string }): EarthStyle {
+  const r = streamFrom(hashString(`earth:${planet.id}`));
+  r(); // the first number decided "Earth-like or not"
+  return EARTH_STYLES_IN_GAME[Math.floor(r() * EARTH_STYLES_IN_GAME.length)]!;
 }
 
 /** About 8 % of planets have rings (Andy: 5 to 10 %, random which). */
@@ -155,7 +205,8 @@ const CLOUD_TYPES = new Set(["OCEAN", "JUNGLE"]);
 /** Surprising turns of the colour wheel (a quarter, a third, ...), so exotic colours really differ. */
 const EXOTIC_TURNS = [0.25, 0.33, 0.5, 0.62, 0.75, 0.85];
 
-export function chooseLook(planet: PlanetForLook): PlanetLook {
+/** `earthStyle` forces one Earth look (only for the /planets.html comparison); the game leaves it out. */
+export function chooseLook(planet: PlanetForLook, earthStyle?: EarthStyle): PlanetLook {
   const seed = hashString(`look:${planet.id}`);
   const r = streamFrom(seed);
   const exotic = r() < EXOTIC_CHANCE;
@@ -192,7 +243,7 @@ export function chooseLook(planet: PlanetForLook): PlanetLook {
       inner += w;
     }
   }
-  return {
+  const look: PlanetLook = {
     exotic,
     primary: base(planet.colors.primary),
     secondary: base(planet.colors.secondary),
@@ -204,7 +255,14 @@ export function chooseLook(planet: PlanetForLook): PlanetLook {
     rings,
     ringTilt: { x: 0.25 + rr() * 0.45, y: (rr() - 0.5) * 0.6 },
     noiseSeed: seed % 100000,
+    earth: null,
+    cloudThreshold: CLOUD_THRESHOLD,
   };
+  if (!isEarthLike(planet)) return look;
+  // A little Earth: its own colours (never surprising hue shifts), lots of clouds, no rings, no craters.
+  const style = earthStyle ?? earthStyleOf(planet);
+  const pal = EARTH_PALETTES[style];
+  return { ...look, exotic: false, primary: pal.sea, secondary: pal.land, accent: pal.high, caps: pal.caps, clouds: true, craters: [], swirl: 0, rings: null, earth: style, cloudThreshold: pal.clouds };
 }
 
 // ------------------------------------------------------------------ the colour of one patch of surface
@@ -216,6 +274,17 @@ const CLOUD_THRESHOLD = 0.62;
 export function surfaceColour(type: string, look: PlanetLook, nx: number, ny: number, nz: number): Rgb {
   const s = look.noiseSeed;
   let c: Rgb;
+  if (look.earth) {
+    const pal = EARTH_PALETTES[look.earth];
+    const h = fbm3(nx * 2.2 + 3, ny * 2.2, nz * 2.2, s);
+    if (h > pal.landAbove + 0.13) c = pal.high;
+    else if (h > pal.landAbove + 0.015 || (h > pal.landAbove && !pal.beach)) c = pal.land;
+    else if (h > pal.landAbove && pal.beach) c = pal.beach;
+    else if (pal.shallow && h > pal.landAbove - 0.05) c = pal.shallow;
+    else c = pal.sea;
+    if (look.caps > 0 && Math.abs(ny) > look.caps) c = CAP_COLOUR;
+    return c;
+  }
   if (type === "GAS") {
     const warp = fbm3(nx * 2, ny * 2, nz * 2, s) * look.swirl;
     const band = Math.sin(ny * 11 + warp * 3);
@@ -239,5 +308,5 @@ export function surfaceColour(type: string, look: PlanetLook, nx: number, ny: nu
 
 /** True where the cloud shell has a cloud (direction nx, ny, nz). */
 export function hasCloud(look: PlanetLook, nx: number, ny: number, nz: number): boolean {
-  return look.clouds && fbm3(nx * 2.5 + 9, ny * 4, nz * 2.5, look.noiseSeed + 31) > CLOUD_THRESHOLD;
+  return look.clouds && fbm3(nx * 2.5 + 9, ny * 4, nz * 2.5, look.noiseSeed + 31) > look.cloudThreshold;
 }

@@ -1,11 +1,12 @@
 // PLANET LOOKS PREVIEW (/planets.html, Agent 7c): a wall of real planets from a seed, drawn with the game's own
 // makePlanetMesh, so Andy can check the new looks (colours, caps, craters, clouds, stripes, rings) in one place.
-// Address: ?seed=NUMBER&page=N&filter=all|rings|exotic. Reads the universe only; changes nothing.
+// Address: ?seed=NUMBER&page=N&filter=all|rings|exotic|earthlike (&earth=A|B|C to compare Earth looks, 7f).
+// Reads the universe only; changes nothing.
 
 import * as THREE from "three";
 import { getPlanetsOfSystem, listSystemsNear, type Planet, type Seed } from "./universe";
 import { makePlanetMesh, disposeAll } from "./render/systemview";
-import { chooseLook } from "./render/planetlook";
+import { chooseLook, type EarthStyle } from "./render/planetlook";
 import { parseSeedParam } from "./render/helpers";
 
 const COLS = 5;
@@ -17,7 +18,9 @@ const params = new URLSearchParams(location.search);
 const state = {
   seed: parseSeedParam(location.search, 12345),
   page: Math.max(0, Number(params.get("page") ?? 0) || 0),
-  filter: (params.get("filter") ?? "all") as "all" | "rings" | "exotic",
+  filter: (params.get("filter") ?? "all") as "all" | "rings" | "exotic" | "earthlike",
+  /** Force one Earth look for comparing (&earth=A|B|C); empty = the game's own mix of A and C. */
+  earth: (["A", "B", "C"].includes(params.get("earth") ?? "") ? params.get("earth") : undefined) as EarthStyle | undefined,
 };
 
 function allPlanets(seed: Seed): Planet[] {
@@ -38,18 +41,20 @@ let content = new THREE.Group();
 scene.add(content);
 
 function show(): void {
-  const url = `?seed=${state.seed}&page=${state.page}&filter=${state.filter}`;
+  const url = `?seed=${state.seed}&page=${state.page}&filter=${state.filter}${state.earth ? `&earth=${state.earth}` : ""}`;
   history.replaceState(null, "", url);
   (document.getElementById("seed") as HTMLInputElement).value = String(state.seed);
   (document.getElementById("filter") as HTMLSelectElement).value = state.filter;
   const planets = allPlanets(state.seed);
-  const looks = planets.map((p) => chooseLook(p));
+  const looks = planets.map((p) => chooseLook(p, state.earth));
   const ringed = looks.filter((l) => l.rings).length;
   const exotic = looks.filter((l) => l.exotic).length;
+  const earth = looks.filter((l) => l.earth).length;
   document.getElementById("stats")!.textContent =
     `${planets.length} planets near the start: ${ringed} with rings (${((100 * ringed) / planets.length).toFixed(1)} %), ` +
-    `${exotic} with surprising colours (${((100 * exotic) / planets.length).toFixed(0)} %). Page ${state.page + 1}.`;
-  const list = planets.filter((_p, i) => state.filter === "all" || (state.filter === "rings" ? looks[i]!.rings : looks[i]!.exotic));
+    `${exotic} with surprising colours (${((100 * exotic) / planets.length).toFixed(0)} %), ` +
+    `${earth} Earth-like (${((100 * earth) / planets.length).toFixed(1)} %, ${state.earth ? `forced look ${state.earth}` : "looks A + C"}). Page ${state.page + 1}.`;
+  const list = planets.filter((_p, i) => state.filter === "all" || (state.filter === "rings" ? looks[i]!.rings : state.filter === "earthlike" ? looks[i]!.earth : looks[i]!.exotic));
   const pageItems = list.slice(state.page * PER_PAGE, (state.page + 1) * PER_PAGE);
 
   disposeAll(content);
@@ -60,14 +65,14 @@ function show(): void {
   pageItems.forEach((planet, i) => {
     const col = i % COLS;
     const row = Math.floor(i / COLS);
-    const look = chooseLook(planet);
+    const look = chooseLook(planet, state.earth);
     const radius = look.rings ? 0.2 : 0.32; // ringed planets smaller so the rings fit the cell
-    const mesh = makePlanetMesh(planet, radius, toStar, planet.type === "GAS" ? 3 : 2);
+    const mesh = makePlanetMesh(planet, radius, toStar, planet.type === "GAS" ? 3 : 2, { earthStyle: state.earth });
     mesh.position.set(col + 0.5, -row - 0.45, 0);
     content.add(mesh);
     const tag = document.createElement("div");
     tag.className = "tag";
-    const extras = [look.exotic ? "surprising" : "", look.rings ? `rings ×${look.rings.length}` : "", look.clouds ? "clouds" : "", look.caps ? "caps" : "", look.craters.length ? "craters" : ""]
+    const extras = [look.earth ? `EARTH-LIKE ${look.earth}` : "", look.exotic ? "surprising" : "", look.rings ? `rings ×${look.rings.length}` : "", look.clouds ? "clouds" : "", look.caps ? "caps" : "", look.craters.length ? "craters" : ""]
       .filter(Boolean)
       .join(" · ");
     tag.innerHTML = `${planet.name}<br><b>${planet.type.toLowerCase()}</b> ${extras}`;
