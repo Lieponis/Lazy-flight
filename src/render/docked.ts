@@ -255,7 +255,7 @@ export class DockedScreen implements Screen {
       this.content.add(sun);
     }
     // The ground: a very big ball whose top is just under the outpost's ground plate.
-    const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, LIGHT, DOCKED_GROUND_DETAIL, { rings: false, clouds: false });
+    const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, LIGHT, DOCKED_GROUND_DETAIL, { rings: false, clouds: false, outpostGround: true });
     ground.position.y = -DOCKED_GROUND_RADIUS - model.parking.y - 0.12;
     this.content.add(ground);
 

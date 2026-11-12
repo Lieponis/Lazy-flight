@@ -310,3 +310,83 @@ export function surfaceColour(type: string, look: PlanetLook, nx: number, ny: nu
 export function hasCloud(look: PlanetLook, nx: number, ny: number, nz: number): boolean {
   return look.clouds && fbm3(nx * 2.5 + 9, ny * 4, nz * 2.5, look.noiseSeed + 31) > look.cloudThreshold;
 }
+
+// ------------------------------------------------------------------ Earth-like outposts on a coast (Agent 7f, Andy)
+// Docked at an outpost, the camera looks at the TOP of the planet ball. On an Earth-like that could be an ice cap or
+// open sea. Andy wants the outpost "on land (green or sand) near the water". So for the docked ground only, the
+// planet's pattern is turned so that a coastal land spot comes to the top. Only the picture moves; nothing else.
+
+export type Vec3Like = { x: number; y: number; z: number };
+
+function isLand(type: string, look: PlanetLook, v: Vec3Like): boolean {
+  const pal = look.earth ? EARTH_PALETTES[look.earth] : null;
+  if (!pal) return false;
+  const c = surfaceColour(type, look, v.x, v.y, v.z);
+  return c === pal.land || c === pal.high || c === pal.beach;
+}
+function isSea(type: string, look: PlanetLook, v: Vec3Like): boolean {
+  const pal = look.earth ? EARTH_PALETTES[look.earth] : null;
+  if (!pal) return false;
+  const c = surfaceColour(type, look, v.x, v.y, v.z);
+  return c === pal.sea || c === pal.shallow;
+}
+
+/** A point at angle `a` (radians) from unit vector d, in direction `turn` around it. */
+function around(d: Vec3Like, a: number, turn: number): Vec3Like {
+  // two unit vectors at right angles to d
+  const t = Math.abs(d.y) < 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
+  let ux = t.y * d.z - t.z * d.y;
+  let uy = t.z * d.x - t.x * d.z;
+  let uz = t.x * d.y - t.y * d.x;
+  const ul = Math.hypot(ux, uy, uz) || 1;
+  ux /= ul;
+  uy /= ul;
+  uz /= ul;
+  const wx = d.y * uz - d.z * uy;
+  const wy = d.z * ux - d.x * uz;
+  const wz = d.x * uy - d.y * ux;
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  const ct = Math.cos(turn);
+  const st = Math.sin(turn);
+  return {
+    x: d.x * c + (ux * ct + wx * st) * s,
+    y: d.y * c + (uy * ct + wy * st) * s,
+    z: d.z * c + (uz * ct + wz * st) * s,
+  };
+}
+
+/** How close the coast must be: land right under the outpost, sea somewhere within this angle (about the view). */
+export const COAST_LAND_RADIUS = 0.05;
+export const COAST_SEA_MIN = 0.1;
+export const COAST_SEA_MAX = 0.24;
+
+/**
+ * For an Earth-like: a direction on the planet that is land (green, brown-green or sand) with sea close by and away
+ * from the ice caps. The same planet always gives the same spot. Null if the planet is not Earth-like or no spot exists.
+ */
+export function coastSpot(type: string, look: PlanetLook): Vec3Like | null {
+  if (!look.earth) return null;
+  const capLimit = look.caps > 0 ? look.caps - 0.12 : 0.9;
+  const n = 900;
+  const start = look.noiseSeed % n; // different planets start the search in different places
+  for (let k = 0; k < n; k++) {
+    const i = (start + k) % n;
+    const y = 1 - (2 * (i + 0.5)) / n;
+    if (Math.abs(y) > capLimit) continue;
+    const r = Math.sqrt(1 - y * y);
+    const a = i * 2.399963229728653; // golden angle: points spread evenly over the ball
+    const d = { x: Math.cos(a) * r, y, z: Math.sin(a) * r };
+    if (!isLand(type, look, d)) continue;
+    let landAround = true;
+    for (let j = 0; j < 6 && landAround; j++) landAround = isLand(type, look, around(d, COAST_LAND_RADIUS, (j * Math.PI) / 3));
+    if (!landAround) continue;
+    let seaNear = false;
+    for (const ang of [COAST_SEA_MIN, (COAST_SEA_MIN + COAST_SEA_MAX) / 2, COAST_SEA_MAX]) {
+      for (let j = 0; j < 12 && !seaNear; j++) seaNear = isSea(type, look, around(d, ang, (j * Math.PI) / 6));
+      if (seaNear) break;
+    }
+    if (seaNear) return d;
+  }
+  return null;
+}

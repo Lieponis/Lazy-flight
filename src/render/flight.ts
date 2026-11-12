@@ -910,7 +910,7 @@ export class FlightScreen implements Screen {
     group.add(built.model.group);
     const isStation = dock.kind === "STATION";
     if (!isStation) {
-      const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, WORLD_LIGHT, DOCKED_GROUND_DETAIL, { rings: false, clouds: false });
+      const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, WORLD_LIGHT, DOCKED_GROUND_DETAIL, { rings: false, clouds: false, outpostGround: true });
       ground.position.y = -DOCKED_GROUND_RADIUS - built.parking.y - 0.12;
       group.add(ground);
     } else {

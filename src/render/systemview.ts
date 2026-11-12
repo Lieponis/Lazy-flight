@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import { getDock, getPlanetsOfSystem, getSystem, type Dock, type Planet, type Seed } from "../universe";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
-import { chooseLook, hasCloud, surfaceColour, type EarthStyle, type PlanetLook } from "./planetlook";
+import { chooseLook, coastSpot, hasCloud, surfaceColour, type EarthStyle, type PlanetLook } from "./planetlook";
 import {
   clamp,
   dockKindLabel,
@@ -77,6 +77,11 @@ export interface PlanetExtras {
   cloudLift?: number;
   /** Only for the /planets.html comparison of Earth looks (7f); the game leaves it out (mix of A and C). */
   earthStyle?: EarthStyle;
+  /**
+   * The ground under a docked outpost (7f): on an Earth-like, turn the pattern so a coast (land with sea nearby)
+   * is at the top, where the outpost stands. No effect on other planets.
+   */
+  outpostGround?: boolean;
 }
 
 /**
@@ -86,6 +91,10 @@ export interface PlanetExtras {
  */
 export function makePlanetMesh(planet: Planet, radius: number, toStar: THREE.Vector3, detail = 2, extras: PlanetExtras = {}): THREE.Mesh {
   const look = chooseLook(planet, extras.earthStyle);
+  // Earth-like outpost ground: bring a coastal land spot to the top (the pattern turns; the ball does not).
+  const spot = extras.outpostGround ? coastSpot(planet.type, look) : null;
+  const turn = spot ? new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(spot.x, spot.y, spot.z)) : null;
+  const pick = new THREE.Vector3();
   const geometry = new THREE.IcosahedronGeometry(radius, detail); // not indexed: every triangle has its own 3 corners
   const position = geometry.getAttribute("position");
   const colors = new Float32Array(position.count * 3);
@@ -96,7 +105,9 @@ export function makePlanetMesh(planet: Planet, radius: number, toStar: THREE.Vec
     n.set(0, 0, 0);
     for (let k = 0; k < 3; k++) n.add(v.set(position.getX(face + k), position.getY(face + k), position.getZ(face + k)));
     n.normalize();
-    const c = surfaceColour(planet.type, look, n.x, n.y, n.z);
+    if (turn) pick.copy(n).applyQuaternion(turn);
+    else pick.copy(n);
+    const c = surfaceColour(planet.type, look, pick.x, pick.y, pick.z);
     base.setRGB(c[0], c[1], c[2], THREE.SRGBColorSpace);
     const shade = faceShade(n.dot(toStar));
     for (let k = 0; k < 3; k++) {
