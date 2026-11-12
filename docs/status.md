@@ -226,3 +226,6 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 
 ## Small change G1 (Andy 2026-11-12)
 - Jobs stay capped at 25 ly. Free travel is capped only by fuel on board (the game already works so). ALL range circles removed from the galaxy map; "in fuel range" wording removed; map radius follows the real reach of the ship's fuel (capped after measuring). Brief docs/briefs/agent-3h-brief.md (Agent 3, runs in parallel with P4 and P5: different files).
+
+## Bug S1 (Andy 2026-11-12): opening the game stops other apps' media (YouTube, Spotify) on iPhone
+- Brief docs/briefs/agent-7e-brief.md (Agent 7, src/audio only): audio session "ambient" so the game mixes with other audio. Open: with mixing, game music plays on top of Spotify; options to Lead. Silent switch will mute the game with ambient.
