@@ -238,3 +238,4 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - navigator.audioSession.type = "ambient" (feature-detected, never throws), set before the AudioContext is created on first tap and again on rebuild/resume. Spotify/YouTube never stop, both mix, game keeps sound after switching apps, silent switch mutes the game. Only src/audio. 776 tests; Actions green.
 - Music now plays on top of the player's own music. Lead recommends option A (keep: music slider at 0 or the speaker button already does what a separate toggle would). Options B (lower default) and C (toggle) not built; awaiting Andy's choice.
 - Not tested: Android, iPad, iOS version unknown.
+- DECISION (Andy 2026-11-12): music option A, keep as is (S1 closed). Players use the music slider or speaker button.
