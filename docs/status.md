@@ -229,3 +229,7 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 
 ## Bug S1 (Andy 2026-11-12): opening the game stops other apps' media (YouTube, Spotify) on iPhone
 - Brief docs/briefs/agent-7e-brief.md (Agent 7, src/audio only): audio session "ambient" so the game mixes with other audio. Open: with mixing, game music plays on top of Spotify; options to Lead. Silent switch will mute the game with ambient.
+
+## Agent 3 stage G1 (3h) (2026-11-12): DONE, Andy confirmed all four checks; Lead review passed
+- Range rings, FUEL_RANGE_LY and "in/out of fuel range" removed. Map size follows reach: at least 35 ly, else ceil(reach+3), cap 75 ly (1,970 stars, ~15,800 triangles, 16 ms to list on a computer); beyond it the map says "Farther stars are out of the map for now." Full-tank reach: Hauler 30 ly, Liner 50, Scout 55 (tank upgrades add more). Free travel has no distance cap, only fuel; jobs stay 25 ly. Testing aid ?reach=NUMBER. Glue: reachNow() + api.setReachLy in src/ui/index.ts.
+- Not verified: phone frame rate at 75 ly (15,800 triangles is heavy for a phone: if slow, lower the cap to 60 or use a cheaper star shape); "Farther stars" line on a device.
