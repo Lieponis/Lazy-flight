@@ -211,3 +211,7 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Andy: please delete the leftover branch `p1-retire-test` on GitHub (Code > Branches > trash). Never merge it.
 - Suggestion awaiting Andy: test-speed switch in SETTINGS for the installed app (no address bar to add ?speed=).
 - NEXT: P2 Agent 6 (docs/briefs/agent-6e-brief.md) save export/import logic; then P3 Agent 5, P4 Agent 6, P5 Agent 7.
+
+## Agent 6 stage P2 (6e) (2026-11-12): DONE, Andy checked on /game-debug.html (export, wipe + import, refusals, undo); Lead review passed
+- Save file logic in src/save: exportSaveFile, inspectImport, applyImport, undoImport; checksum (not a security lock); backup slot lazy-freight.save.beforeimport; lazy-freight.save.generation stops an open game's autosave from overwriting an import; src/save handles the sound key itself (layer rule) with a test equal to src/audio/prefs.ts. 747 tests; Actions green. appVersion is null (suggestion: version number in the build, P5).
+- NEXT: P3 Agent 5 (docs/briefs/agent-5g-brief.md): SAVE FILE panel, install hint (+ "installHintSeen" save field approved), tip in installed app. Then P4 Agent 6, P5 Agent 7.
