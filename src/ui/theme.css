@@ -653,6 +653,11 @@
   flex-direction: column;
   gap: 12px;
   padding: 12px 12px 14px;
+  /* P3: MENU and SETTINGS (with TESTER) can be taller than a sideways phone: they scroll inside, the page never does */
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .ui-menu-line {
@@ -1247,4 +1252,170 @@ body.ui-planet-panel-on .hud-label {
 /* 5f: while the WHAT NOW? button shows (floating), notes start below it. */
 body.ui-whatnow-on .ui-toast {
   top: calc(var(--ui-top-reserve) + 66px);
+}
+
+/* ------------------------------------------------------------ stage P3: SAVE FILE panel, install hint, TESTER */
+
+.ui-savefile-part {
+  display: grid;
+  gap: 6px;
+}
+
+.ui-savefile-part > .ui-chip {
+  justify-self: start;
+}
+
+.ui-savefile-line {
+  font-size: 19px;
+}
+
+.ui-savefile-small {
+  color: var(--ui-dim);
+  font-size: 17px;
+}
+
+.ui-savefile-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.ui-savefile-row .ui-btn-wide {
+  margin-top: 0;
+}
+
+.ui-savefile-note {
+  font-size: 18px;
+  color: var(--ui-teal);
+  overflow-wrap: anywhere;
+}
+
+.ui-savefile-note:empty {
+  display: none;
+}
+
+.ui-savefile-text {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 14px;
+  color: var(--ui-text);
+  background: #03060b;
+  border: 1px solid var(--ui-line);
+  padding: 6px;
+  resize: vertical;
+  touch-action: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ui-savefile-warning {
+  color: var(--ui-amber);
+  font-size: 18px;
+}
+
+.ui-savefile-confirm {
+  display: grid;
+  gap: 8px;
+  border-left-color: var(--ui-red);
+}
+
+/* THIS FILE vs NOW (Andy chose A: side by side) */
+.ui-compare {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 2px 10px;
+  font-size: 18px;
+}
+
+.ui-compare-head {
+  color: var(--ui-dim);
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+
+.ui-compare-label {
+  color: var(--ui-dim);
+  font-size: 15px;
+  letter-spacing: 1px;
+  align-self: center;
+}
+
+.ui-compare-file {
+  color: var(--ui-amber);
+  overflow-wrap: anywhere;
+}
+
+.ui-compare-now {
+  overflow-wrap: anywhere;
+}
+
+.ui-menu-tip {
+  color: var(--ui-dim);
+  font-size: 17px;
+  margin: -2px 0 4px;
+}
+
+/* TESTER in SETTINGS (Andy's six speeds) */
+.ui-tester-title {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ui-line-dim);
+  color: var(--ui-amber);
+  letter-spacing: 2px;
+}
+
+.ui-tester-warning {
+  color: var(--ui-amber);
+  font-size: 17px;
+}
+
+.ui-tester-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.ui-tester-grid .ui-btn-wide {
+  margin-top: 0;
+}
+
+.ui-tester-status {
+  font-size: 17px;
+}
+
+/* Install hint (Andy chose A): a small card above the bottom buttons, with ✕. */
+.ui-installhint {
+  position: fixed;
+  z-index: 35;
+  left: var(--ui-safe-l);
+  right: var(--ui-safe-r);
+  bottom: calc(var(--ui-bottom-reserve) + 76px); /* above the dock's name label, which sits just over the buttons */
+  max-width: 520px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  background: var(--ui-bg-panel);
+  border: 1px solid var(--ui-amber);
+  font-family: var(--ui-font);
+  color: var(--ui-text);
+  font-size: 19px;
+}
+
+.ui-installhint-text {
+  flex: 1 1 auto;
+}
+
+.ui-installhint-close {
+  flex: 0 0 auto;
+}
+
+/* Narrow phones: REPLACE MY GAME and CANCEL stack, so the long label is never cut. */
+@media (max-width: 480px) {
+  .ui-savefile-confirm .ui-savefile-row {
+    grid-template-columns: 1fr;
+  }
 }

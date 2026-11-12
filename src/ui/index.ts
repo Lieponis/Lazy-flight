@@ -4,7 +4,7 @@
 // This is the only place where the game and the screens meet; src/render never imports src/game.
 
 import "./theme.css";
-import { Game, createClock, parseSpeedParam, tripFuelCost, type Arrival, type FreeArrival } from "../game";
+import { Game, createClock, tripFuelCost, type Arrival, type FreeArrival } from "../game";
 import { getDock, getPlanet, getSystem, startDockOf } from "../universe";
 import type { RenderApi } from "../render";
 import { START_SEED } from "../render/settings";
@@ -27,6 +27,10 @@ import { GameMenu, showToast, type NewGameChoice } from "./gamemenu";
 import { JobsMenu } from "./jobsmenu";
 import { freeArrivalNote, locationText, overlayAllowed, placeLabel, startNotice, visibleControls, type Overlay } from "./logic";
 import { Popup } from "./popup";
+import { SaveFilePanel } from "./savefile";
+import { InstallHint } from "./installhint";
+import { TEST_SPEED_KEY, storedTestSpeed } from "./savefilelogic";
+import { startSpeed } from "../game/clock";
 import { WhatNow } from "./whatnow";
 import { PlanetPanel } from "./planetpanel";
 import { NavBar } from "./navbar";
@@ -56,7 +60,15 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   const seed = plan.seed; // the same seed main.ts gave the render layer
   const firstDock = startDockOf(seed); // the same start dock for the game, the save and the debug pages
 
-  const game = new Game(seed, firstDock.id, createClock(parseSpeedParam(window.location.search)));
+  // ?speed= in the address wins; otherwise the tester speed from MENU > SETTINGS > TESTER (P3); otherwise 1.
+  const storedSpeedText = ((): string | null => {
+    try {
+      return storage?.getItem(TEST_SPEED_KEY) ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  const game = new Game(seed, firstDock.id, createClock(startSpeed(window.location.search, storedSpeedText)));
   // Saved progress goes in before anything listens or draws (trip times are moved onto the new clock).
   if (plan.state && plan.save) loadIntoGame(game, plan.save, plan.state, firstDock.id, Date.now());
   // ?seed= has done its job (new game). Remove it so a reload continues this game instead of restarting it.
@@ -141,7 +153,57 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
       refresh();
     },
     { get: sound.getPrefs, set: setSoundPrefs }, // MENU -> SETTINGS (7a)
+    {
+      onSaveFile: () => {
+        overlay = "savefile"; // MENU -> SAVE FILE (P3)
+        refresh();
+      },
+      tester: {
+        chosen: () => storedTestSpeed(readTestSpeed()),
+        choose: (speed) => {
+          try {
+            if (speed === 1) storage?.removeItem(TEST_SPEED_KEY);
+            else storage?.setItem(TEST_SPEED_KEY, String(speed));
+          } catch {
+            // storage off: the choice simply does not stick
+          }
+        },
+        running: () => game.clock.speed,
+        fromAddress: () => /[?&]speed=/.test(window.location.search),
+        reload: () => reloadWithoutSeed(),
+      },
+    },
   );
+  function readTestSpeed(): string | null {
+    try {
+      return storage?.getItem(TEST_SPEED_KEY) ?? null;
+    } catch {
+      return null;
+    }
+  }
+  /** Reloads the game page WITHOUT ?seed= (the seed comes from the save), after an import, undo or tester change. */
+  function reloadWithoutSeed(): void {
+    saver.saveNow(); // keep the latest progress (an import already moved the autosaver aside, see src/save)
+    saver.stop();
+    const { pathname, hash } = window.location;
+    window.location.assign(pathname + addressWithoutSeed(window.location.search) + hash);
+  }
+  // P3: SAVE FILE panel (Andy chose A) and the once-only install hint (Andy chose A).
+  const saveFilePanel = new SaveFilePanel(
+    layer,
+    {
+      storage,
+      saveNow: () => saver.saveNow(),
+      currentSeed: () => Number(seed),
+      reload: () => {
+        saver.stop(); // never write the old game over the imported one
+        const { pathname, hash } = window.location;
+        window.location.assign(pathname + addressWithoutSeed(window.location.search) + hash);
+      },
+    },
+    closeOverlay,
+  );
+  const installHint = new InstallHint(layer, storage);
   // The start-up note (e.g. "universe was rebuilt") is reworded and stays longer (5e, Andy chose the fading note).
   // It appears when PLAY is pressed, so the title screen never hides it. Tap closes it.
   const showStartNotice = (): void => {
@@ -238,6 +300,9 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     if (overlay === "menu") {
       if (!menu.opened) menu.open();
     } else menu.close();
+    if (overlay === "savefile") {
+      if (!saveFilePanel.opened) saveFilePanel.open();
+    } else saveFilePanel.close();
     if (overlay === "ranks") {
       if (!ranks.opened) ranks.open();
     } else ranks.close();
@@ -248,6 +313,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     const controls = visibleControls(screen, overlay, flying, floating);
     nav.apply(controls);
     whatNow.showButton(controls.whatNow);
+    installHint.update(controls.dockButtons); // only docked, no menu, no trip
     strip.showMenuButton(controls.dockButtons); // MENU sits at the right end of the strip, docked only
     refreshStrip();
   }
@@ -353,6 +419,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     if (jobs.messageOpen) jobs.closeMessage();
     else if (shipyard.messageOpen) shipyard.closeMessage();
     else if (menu.messageOpen) menu.closeMessage();
+    else if (saveFilePanel.messageOpen) saveFilePanel.closeMessage();
     else if (overlay !== "none") closeOverlay();
     else if (message.opened) message.close();
     else if (screen === "system" || screen === "starmap") backHome();

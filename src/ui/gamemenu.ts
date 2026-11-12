@@ -2,11 +2,29 @@
 // Shows the universe seed and whether saving works, and NEW GAME:
 //   NEW GAME -> "Same universe" or "New random universe" -> "Really start over?" -> the page starts again.
 // SETTINGS (Agent 7a, Andy's choice): a mute button and two volume sliders (music, sound effects).
+// P3 (Agent 5g): a SAVE FILE button (opens src/ui/savefile.ts) with a one-line tip, and in SETTINGS a TESTER part:
+// a speed choice stored under its own key and used after a reload (src/game/clock.ts startSpeed).
 
 import type { SoundPrefs } from "../audio";
 import { button, el } from "./dom";
 import { Popup } from "./popup";
 import { GAME_NAME } from "./titlelogic";
+import { SAVE_FILE_TIP, TESTER_WARNING, TEST_SPEEDS, testSpeedLabel, testSpeedStatus } from "./savefilelogic";
+
+/** MENU -> SETTINGS -> TESTER (P3): the stored tester speed and the speed the game runs at now. */
+export interface TesterHooks {
+  chosen(): number;
+  choose(speed: number): void;
+  running(): number;
+  /** True when ?speed= in the web address decides the speed. */
+  fromAddress(): boolean;
+  reload(): void;
+}
+
+export interface MenuExtras {
+  onSaveFile?: () => void;
+  tester?: TesterHooks;
+}
 
 /** MENU -> SETTINGS reads and changes the sound settings through these (src/ui/sound.ts). */
 export interface SoundSettingsHooks {
@@ -51,6 +69,7 @@ export class GameMenu {
     private onClose: () => void,
     private onRanks?: () => void,
     private sound?: SoundSettingsHooks,
+    private extras: MenuExtras = {},
   ) {
     this.root.setAttribute("role", "dialog");
     this.root.setAttribute("aria-label", "Menu");
@@ -63,6 +82,9 @@ export class GameMenu {
     // RANKS (part 5c): your ranks and the outposts you own.
     if (this.onRanks) body.append(button("RANKS & OUTPOSTS", "ui-btn-primary ui-btn-wide", () => this.onRanks?.()));
     if (this.sound) body.append(button("SETTINGS", "ui-btn-primary ui-btn-wide", () => this.showSettings(true)));
+    if (this.extras.onSaveFile) {
+      body.append(button("SAVE FILE", "ui-btn-primary ui-btn-wide", () => this.extras.onSaveFile?.()), el("div", "ui-menu-tip", SAVE_FILE_TIP));
+    }
     body.append(this.seedLine, this.saveLine, button("NEW GAME", "ui-btn-amber ui-btn-wide", () => this.askUniverse()));
     if (this.sound) this.buildSettings(this.sound);
     this.settingsView.hidden = true;
@@ -107,6 +129,31 @@ export class GameMenu {
       v.append(label, input);
       this.sliders.push({ key, name, input, label });
     }
+    if (this.extras.tester) this.buildTester(this.extras.tester);
+  }
+
+  private testerButtons: { speed: number; btn: HTMLButtonElement }[] = [];
+  private testerStatus = el("div", "ui-menu-line ui-tester-status");
+
+  /** TESTER (P3, Andy's speeds): for testing in the installed app, where there is no address bar for ?speed=. */
+  private buildTester(t: TesterHooks): void {
+    const v = this.settingsView;
+    const grid = el("div", "ui-tester-grid");
+    for (const speed of TEST_SPEEDS) {
+      const b = button(testSpeedLabel(speed), "ui-btn-wide", () => {
+        t.choose(speed);
+        this.renderSettings();
+      });
+      this.testerButtons.push({ speed, btn: b });
+      grid.append(b);
+    }
+    v.append(
+      el("div", "ui-tester-title", "TESTER"),
+      el("div", "ui-menu-line ui-tester-warning", TESTER_WARNING),
+      grid,
+      this.testerStatus,
+      button("RELOAD NOW", "ui-btn-wide", () => t.reload()),
+    );
   }
 
   private showSettings(on: boolean): void {
@@ -126,6 +173,12 @@ export class GameMenu {
     for (const s of this.sliders) {
       s.input.value = String(Math.round(p[s.key] * 100));
       s.label.textContent = volumeLabel(s.name, p[s.key]);
+    }
+    const t = this.extras.tester;
+    if (t) {
+      const chosen = t.chosen();
+      for (const { speed, btn } of this.testerButtons) btn.classList.toggle("ui-btn-on", speed === chosen);
+      this.testerStatus.textContent = testSpeedStatus(chosen, t.running(), t.fromAddress());
     }
   }
 

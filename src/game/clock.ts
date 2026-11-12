@@ -13,6 +13,17 @@ export function parseSpeedParam(search: string): number {
   return Math.min(value, MAX_SPEED);
 }
 
+/**
+ * The speed the game starts with (stage P3, tester speed switch). ?speed= in the address wins when present;
+ * otherwise the stored tester choice (the text kept under "lazy-freight.testspeed", read by the caller); otherwise 1.
+ * Junk is ignored the same way as in parseSpeedParam.
+ */
+export function startSpeed(search: string, storedTestSpeed: string | null): number {
+  if (/[?&]speed=/.test(search)) return parseSpeedParam(search);
+  if (storedTestSpeed === null || !/^\d+(?:\.\d+)?$/.test(storedTestSpeed.trim())) return 1;
+  return parseSpeedParam(`?speed=${storedTestSpeed.trim()}`);
+}
+
 export interface GameClock {
   /** Game time now, in milliseconds. */
   now(): number;
