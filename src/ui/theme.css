@@ -900,6 +900,16 @@
   padding: var(--ui-safe-t) var(--ui-safe-r) var(--ui-safe-b) var(--ui-safe-l);
 }
 
+.ui-title-version {
+  position: absolute;
+  right: calc(var(--ui-safe-r) + 10px);
+  bottom: calc(var(--ui-safe-b) + 8px);
+  font-size: 18px;
+  letter-spacing: 1px;
+  color: #6f7aa8;
+  pointer-events: none;
+}
+
 .ui-title-name {
   image-rendering: pixelated;
   filter: drop-shadow(0 0 6px rgba(80, 200, 255, 0.7));

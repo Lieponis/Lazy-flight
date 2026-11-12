@@ -9,6 +9,9 @@ import { GAME_NAME, GLYPH_HEIGHT, TAGLINE, loadingText, titleCellSize, titleLine
 import { TitleScene } from "./titlescene";
 
 const NAME_COLOUR = "#9ff6ff";
+/** The game version, from package.json at build time (Agent 7d). */
+declare const __APP_VERSION__: string | undefined;
+export const VERSION_TEXT = typeof __APP_VERSION__ === "string" ? `v${__APP_VERSION__}` : "";
 const NAME_SHADOW = "#1b2a8a";
 
 export interface TitleOptions {
@@ -53,6 +56,7 @@ export class TitleScreen {
     parent.append(this.root);
     this.scene = new TitleScene(this.root, opts.seed, opts.dockId, opts.systemId);
     this.root.append(content);
+    if (VERSION_TEXT) this.root.append(el("div", "ui-title-version", VERSION_TEXT)); // small, bottom corner
     this.drawName();
     window.addEventListener("resize", this.onResize);
     window.addEventListener("keydown", this.onKey, true);

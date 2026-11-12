@@ -18,6 +18,10 @@ import { SAVE_GENERATION_KEY, loadIntoGame } from "./autosave";
 import { migrateSave, universeVersionOf } from "./migrate";
 import { SAVE_KEY, SAVE_VERSION, checkSaveData, type SaveData, type StorageLike } from "./save";
 
+/** The game version, put in at build time from package.json (vite.config.ts `define`). null if not built by Vite. */
+declare const __APP_VERSION__: string | undefined;
+export const APP_VERSION: string | null = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : null;
+
 // ------------------------------------------------------------ sound settings
 // The layer rule keeps src/save from importing src/audio, so the save file handles the sound settings itself, in the
 // SAME shape and key as src/audio/prefs.ts (a test checks they stay equal): { muted, music 0..1, effects 0..1 }.
@@ -284,7 +288,7 @@ export function exportSaveFile(storage: StorageLike | null, now: Date = new Date
   const body: Omit<SaveFile, "checksum"> = {
     format: SAVE_FILE_FORMAT,
     formatVersion: SAVE_FILE_FORMAT_VERSION,
-    appVersion: null,
+    appVersion: APP_VERSION, // the game version that wrote the file (package.json, Agent 7d)
     exportedAt: now.toISOString(),
     save,
     sound,
