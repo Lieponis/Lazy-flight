@@ -1,7 +1,7 @@
 # Report: Agent 7, stage P5 (7d): app icon, version number, release page, v1.0.0
 
-**Status:** BUILT and PUBLISHED as **v1.0.0** on 2026-11-12. Actions green; `npm run check`: 797 tests pass.
-**Andy's phone checks are pending** (list in section 6).
+**Status:** DONE. PUBLISHED as **v1.0.0** on 2026-11-12. Actions green; `npm run check`: 797 tests pass.
+**Verified by Andy on 2026-11-13:** the new icon shows after re-adding the app, the title shows v1.0.0, and the release page works on phone and computer.
 Live: https://lieponis.github.io/Lazy-flight/ · release page https://lieponis.github.io/Lazy-flight/about.html
 Commits on `main`: `ab9fd40` (icon, version; started earlier, paused while 7f ran, then brought back) and `ee31ec7` (release page, README, credits, tests).
 
@@ -41,14 +41,12 @@ Tests: `tests/release.test.ts` (new, 9), `tests/save-transfer.test.ts` (+1 check
 
 ## 5. Known issues and NOT verified
 - **Not verified:**
-  - the new icon on a real iPhone home screen (needs remove and re-add);
-  - the "NEW VERSION READY" note in the installed app after this publish;
-  - the release page on a real phone (checked in a test browser at phone and desktop size);
+  - the "NEW VERSION READY" note in an older installed copy after this publish (check 4 was optional, no result);
   - Android install.
 - The leftover side branch `p5-icon-version-wip` on GitHub is **already merged**; my session could not delete it (403). Andy: GitHub → Branches → trash icon.
 - The commit `ab9fd40` says "WIP (paused)" in its title; its content is final and was finished by `ee31ec7`.
 
-## 6. Andy checks (pending)
+## 6. Andy checks (all passed 2026-11-13: 1 icon is in, 2 version shows, 3 page works on both)
 1. iPhone: delete the Lazy Flight app from the home screen, open the game in Safari, Share → Add to Home Screen. Is the new ringed-planet icon there?
 2. Open the installed app: title shows `v1.0.0` bottom right; play a little.
 3. Open https://lieponis.github.io/Lazy-flight/about.html on the phone and on a computer: does it read well, do PLAY and the screenshots work?
