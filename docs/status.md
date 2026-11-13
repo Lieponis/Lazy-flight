@@ -257,3 +257,5 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 
 ## Agent 7 stage E1 (7f) (2026-11-12): DONE, Andy: "keep"
 - Rare Earth-like planets (options A and C together, fewer clouds), 2.41 % of 5,193 planets, only OCEAN/JUNGLE/ROCKY types, no rings or surprising colours, no gameplay effect; later outposts placed on a coast. Filter /planets.html?filter=earthlike. 788 tests then. Lead review: passed.
+- N1 follow-up (Agent 2): names cached, simulation test limit 30 s; "Build and publish" on main is GREEN again (81126e6). Andy still to check /debug.html (names, search, collisions 0).
+- NEXT (parallel, different files): N2 Agent 4 (docs/briefs/agent-4h-brief.md: seed lock, ?dev=1, other-seed saves moved + refunded), N3a Agent 5 (docs/briefs/agent-5h-brief.md: names fit every menu), N3b Agent 3 (docs/briefs/agent-3i-brief.md: names fit the 3D screens). Optional N4 Agent 6.
