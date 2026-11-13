@@ -242,3 +242,7 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 
 ## New request E1 (Andy 2026-11-12): rare Earth-like planets
 - Blue oceans, green land, white clouds; 2-3 % of planets; render-only (planetlook.ts), no rings on them, no gameplay effect. Brief docs/briefs/agent-7f-brief.md (Agent 7, separate chat from P5). Suggestion (not approved): an "Earth-like" tag on the planet info card.
+
+## World seed and unique names (Andy 2026-11-13): APPROVED
+- ONE shared, non-changeable world seed (12345, so existing saves continue); every name unique in the whole universe: system "Kopipex 4F-92" (style B) plus a small share of pure unique names; planets "<system> II"; docks unique too. Plan docs/plan-unique-names-world-seed.md. Stages: N1 Agent 2 (docs/briefs/agent-2c-brief.md), N2 Agent 4 (seed lock + dev flag + move/refund for other seeds), N3 Agents 5/3 (menu entry removed, longer names fit everywhere), N4 Agent 6 optional.
+- Multiplayer stays out of v1; the shared seed keeps the design ready (same seed = same map for everyone, players differ only by coordinates).
