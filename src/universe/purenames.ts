@@ -10,7 +10,7 @@
 
 import { PURE_ADJECTIVES, PURE_NOUNS } from "./data/purenames";
 import { SYSTEM_ENDS, SYSTEM_STARTS } from "./data/words";
-import { getSitesInSector, parseSystemId } from "./galaxy";
+import { getSitesInSector } from "./galaxy";
 import { rngFor, type Seed } from "./random";
 import { PURE_NAME_REGION } from "./settings";
 
@@ -74,16 +74,9 @@ function tableFor(seed: Seed): Table {
   return table;
 }
 
-function insideRegion(systemId: string): boolean {
-  const p = parseSystemId(systemId);
-  if (!p) return false;
-  const r = PURE_NAME_REGION;
-  return [p.sx, p.sy, p.sz].every((v) => v >= -r && v < r);
-}
-
 /** The pure name of a system, or null if it has none (most systems have none). */
 export function pureNameOf(seed: Seed, systemId: string): string | null {
-  if (!insideRegion(systemId)) return null;
+  // The table only holds systems inside the region, so a plain lookup is enough (and much faster than parsing the id).
   return tableFor(seed).bySystem.get(systemId) ?? null;
 }
 

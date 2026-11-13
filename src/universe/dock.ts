@@ -80,7 +80,20 @@ function shortNamesOf(seed: Seed, system: StarSystem, extraIndex: number): Map<n
   return names;
 }
 
+const planetNameCache = new Map<string, string>();
+
 function shortNameFor(seed: Seed, planet: Planet): string {
+  // Asked for very often (every dock lookup), so remember the answer. Names only depend on seed and planet id.
+  const key = `${seed}|${planet.id}`;
+  const known = planetNameCache.get(key);
+  if (known !== undefined) return known;
+  const name = computeShortName(seed, planet);
+  if (planetNameCache.size > 20000) planetNameCache.clear();
+  planetNameCache.set(key, name);
+  return name;
+}
+
+function computeShortName(seed: Seed, planet: Planet): string {
   const site = getSite(seed, planet.systemId);
   if (!site) return kindAndFirstName(seed, planet).name;
   const system = generateSystem(seed, site);

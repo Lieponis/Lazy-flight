@@ -123,9 +123,18 @@ export function encodeSystemCode(sx: number, sy: number, sz: number, index: numb
 
 /** The code of a system from its id like "3:-2:5:0". Null if the id is not valid. */
 export function systemCodeOfId(systemId: string): string | null {
+  const known = codeCache.get(systemId);
+  if (known !== undefined) return known;
   const parsed = parseSystemId(systemId);
-  return parsed ? encodeSystemCode(parsed.sx, parsed.sy, parsed.sz, parsed.index) : null;
+  const code = parsed ? encodeSystemCode(parsed.sx, parsed.sy, parsed.sz, parsed.index) : null;
+  if (code !== null) {
+    if (codeCache.size > 50000) codeCache.clear();
+    codeCache.set(systemId, code); // the same systems are asked for again and again (BigInt maths is slow)
+  }
+  return code;
 }
+
+const codeCache = new Map<string, string>();
 
 /** Cleans what a person typed: capitals, no spaces or hyphens. Null if a symbol is not one of the 17. */
 export function normalizeSystemCode(text: string): string | null {

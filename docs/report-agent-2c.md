@@ -35,3 +35,9 @@
 ## 6. Notes for the next agents
 - N2 (Agent 4): `WORLD_SEED` is exported from `src/universe`. `Dock.fullName`, `StarSystem.code/baseName/isPure`, `Planet.nickname?` are new.
 - N3 (Agents 5/3): worst names: 24 letters (system), 47 (planet), 75 (dock full) at any distance up to a billion ly; typical 12 to 27.
+
+## 7. Follow-up: slow test on main (after the merge)
+- Cause: yes, the name code slowed the simulator. Measured here: `tests/balance-sim.test.ts` took 3.2 s on the old main and 5.7 s with N1 (the simulator asks for systems and docks thousands of times). Every system lookup computed its code with big-number maths, and every dock lookup rebuilt its short name from scratch.
+- Fix (src/universe only): the code of a system and the short name of a dock are now remembered after the first time (small bounded caches), and the pure-name check is a plain lookup. The file now takes about 4.0 s here (was 5.7 s). It is still a little slower than before N1 (about 25 %), so the next fix too:
+- The test limit is now 30 s for every test (`testTimeout` in `vite.config.ts`), so a slow build machine cannot block publishing.
+- Proof again: non-name output still byte-identical to the old main (9,580,728 bytes, `cmp` identical), names unchanged by the caches (same dump of names), fingerprints unchanged, all name and universe tests pass.

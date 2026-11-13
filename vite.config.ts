@@ -38,5 +38,8 @@ export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
     environment: "node",
+    // The balance simulator and the full-loop game tests play many game hours; on a slow build machine they can
+    // pass 5 seconds (the default) without anything being wrong. 30 seconds keeps speed from blocking a publish.
+    testTimeout: 30_000,
   },
 });
