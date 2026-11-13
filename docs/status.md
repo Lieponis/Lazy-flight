@@ -251,3 +251,9 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Review: passed on content. Only names changed (byte-identical proof over 9.6 MB for 5 seeds), 0 collisions, WORLD_SEED 12345, codes like "Kopipex 2N-83", 4,200 pure names (about 6.9 % of systems within 150 ly, none beyond ~190 ly), planets "<system> II", docks with fullName. Name limits: system 42, planet 47, dock full name 75 letters.
 - PROBLEM: after the merge, "Build and publish" on main failed twice: tests/balance-sim.test.ts "players who keep a small reserve ..." timed out at 5 s (took 6.0 s; on main before N1 it took 2.6 s, on the branch check 4.75 s). Either the name code slowed down the hot path (each dock/job call builds names) or CI is slow. The red build does NOT publish, so the live game still runs the previous good version. Fix assigned to Agent 2: (1) find out why the sim got ~2x slower and cache/avoid name building in the hot paths; (2) give that test a longer limit (Agent 6 had flagged slow tests before).
 - Also noticed: Agent 7d (v1.0.0, icon, version, release page) and Agent 7f (Earth-like planets) have reports on main; status.md entries for them still to be written by the Lead.
+
+## Agent 7 stage P5 (7d) (2026-11-12/13): DONE, v1.0.0 PUBLISHED, verified by Andy
+- New icon (option A, ringed planet, drawn by code), version 1.0.0 in package.json shown on the title screen and in the save file (appVersion), release page https://lieponis.github.io/Lazy-flight/about.html. 797 tests at that time. Lead review: passed (read from the report; Andy verified icon, title version and page).
+
+## Agent 7 stage E1 (7f) (2026-11-12): DONE, Andy: "keep"
+- Rare Earth-like planets (options A and C together, fewer clouds), 2.41 % of 5,193 planets, only OCEAN/JUNGLE/ROCKY types, no rings or surprising colours, no gameplay effect; later outposts placed on a coast. Filter /planets.html?filter=earthlike. 788 tests then. Lead review: passed.
