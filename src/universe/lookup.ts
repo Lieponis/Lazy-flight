@@ -4,7 +4,9 @@
 import { dockPlanetIndexes, docksOf, generateDock, type Dock } from "./dock";
 import { distance, getSite, listSitesNear, type Vec3 } from "./galaxy";
 import { generatePlanet, generatePlanets, type Planet } from "./planet";
+import { systemIdOfPureName } from "./purenames";
 import type { Seed } from "./random";
+import { decodeSystemCode, normalizeSystemCode } from "./syscode";
 import { generateSystem, type StarSystem } from "./system";
 
 /** Finds a system by id (like "3:-2:5:0"). Null if it does not exist. */
@@ -88,4 +90,25 @@ export function startDockOf(seed: Seed): Dock {
     if (first) return first;
   }
   throw new Error("The galaxy has no system to start in.");
+}
+
+/**
+ * Find a system by what a player might type: its full name ("Kopipex 4F-92"), only its code ("4F-92", with or
+ * without the hyphen), or a pure name ("Lazy Harbour"). Capitals and extra spaces do not matter.
+ * Returns null if no such system exists.
+ */
+export function findSystemByName(seed: Seed, text: string): StarSystem | null {
+  const clean = text.trim().replace(/\s+/g, " ");
+  if (!clean) return null;
+  const pureId = systemIdOfPureName(seed, clean);
+  if (pureId) return getSystem(seed, pureId);
+  const words = clean.split(" ");
+  const code = normalizeSystemCode(words[words.length - 1]!);
+  if (!code) return null;
+  const id = decodeSystemCode(code);
+  const system = id ? getSystem(seed, id) : null;
+  if (!system) return null;
+  // If a word part was typed too, it must be the right one.
+  if (words.length > 1 && words.slice(0, -1).join(" ").toLowerCase() !== system.baseName.toLowerCase()) return null;
+  return system;
 }

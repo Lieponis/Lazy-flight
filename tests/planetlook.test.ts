@@ -21,31 +21,39 @@ function planetsOf(seed: Seed, radius = 35): Planet[] {
   return listSystemsNear(seed, { x: 0, y: 0, z: 0 }, radius).flatMap((s) => getPlanetsOfSystem(seed, s.id));
 }
 
-/** One number that changes if anything the universe produces changes (systems, planets, docks, markets, job boards). */
+/**
+ * One number that changes if anything the universe produces changes (systems, planets, docks, markets, job boards),
+ * EXCEPT names. Names are cut out on purpose (N1, unique names): system name/baseName/code/isPure, planet name/nickname,
+ * dock name/fullName and job blurbs. Everything else is hashed as before.
+ */
 function universeFingerprint(seed: Seed): string {
   const parts: string[] = [];
   for (const s of listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 12)) {
-    parts.push(JSON.stringify(s));
+    const { name: _n, baseName: _b, code: _c, isPure: _p, ...system } = s as unknown as Record<string, unknown>;
+    parts.push(JSON.stringify(system));
     for (const p of getPlanetsOfSystem(seed, s.id)) {
-      parts.push(JSON.stringify(p));
+      const { name: _pn, nickname: _nn, ...planet } = p as unknown as Record<string, unknown>;
+      parts.push(JSON.stringify(planet));
       const dock = generateDock(seed, p);
-      parts.push(JSON.stringify(dock));
+      const { name: _dn, fullName: _fn, ...dockRest } = dock as unknown as Record<string, unknown>;
+      parts.push(JSON.stringify(dockRest));
       parts.push(JSON.stringify(getMarket(seed, dock, 3)));
-      parts.push(JSON.stringify(getJobBoard(seed, dock.id, 3)));
+      const board = getJobBoard(seed, dock.id, 3);
+      parts.push(JSON.stringify(board === null ? null : board.map((j) => { const { blurb: _bl, ...job } = j as unknown as Record<string, unknown>; return job; })));
     }
   }
   const text = parts.join("|");
   return `${hashString(text).toString(16)}:${text.length}`;
 }
 
-describe("src/universe output is unchanged (Lead's hard rule)", () => {
-  // Re-recorded by Agent 4e for universe v2 (fewer docks, UNIVERSE_VERSION 2). The v1 values were
-  // 12345 "543ab6f8:148823", 777 "5872a645:196801", 4242 "b4648b38:61798". Same test, same strictness:
-  // these v2 values are identical before and after Agent 4e's work (checked), so only Agent 2's rebuild changed them.
-  // If this fails, the universe changed: saves would break.
-  const RECORDED: Record<string, string> = { "12345": "653a25ba:112766", "777": "a66eedf6:142327", "4242": "6f3a080c:53146" };
+describe("src/universe output is unchanged except names (Lead's hard rule)", () => {
+  // Re-recorded by Agent 2 (N1, unique names) with the fingerprint now ignoring names. These values were computed from
+  // the OLD main (commit 8ad4fb5, before any name change) and are identical with the new code: only names changed.
+  // The v2 fingerprints WITH names were 12345 "653a25ba:112766", 777 "a66eedf6:142327", 4242 "6f3a080c:53146".
+  // If this fails, the universe changed (not just names): saves would break.
+  const RECORDED: Record<string, string> = { "12345": "dca87fd6:104508", "777": "523c0b9d:133025", "4242": "fcec8a42:48518" };
   for (const seed of [12345, 777, 4242]) {
-    it(`seed ${seed}: same systems, planets, docks, markets and jobs`, () => {
+    it(`seed ${seed}: same systems, planets, docks, markets and jobs (names ignored)`, () => {
       expect(universeFingerprint(seed)).toBe(RECORDED[String(seed)]);
     });
   }

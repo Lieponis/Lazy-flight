@@ -8,6 +8,8 @@ import {
   UNIVERSE_VERSION,
   distance,
   docksOf,
+  findSystemByName,
+  nameStats,
   generateJobBoard,
   getDock,
   getMarket,
@@ -85,6 +87,8 @@ function renderNearby(): string {
       const dockCount = docksOf(seed, s).length;
       return `<tr>
         <td><button class="pick" data-system="${esc(s.id)}">${esc(s.name)}</button></td>
+        <td>${esc(s.code)}</td>
+        <td>${s.isPure ? "pure name" : "word + code"}</td>
         <td>${esc(s.id)}</td>
         <td><span class="swatch" style="background:${esc(s.star.color)}"></span>${esc(s.star.label)}</td>
         <td>${s.planetCount}</td>
@@ -94,7 +98,7 @@ function renderNearby(): string {
     })
     .join("");
   return `<p>${systems.length} systems within ${radius} light years of (${center.x}, ${center.y}, ${center.z}), nearest first.</p>
-    <table><tr><th>Name</th><th>Id</th><th>Star</th><th>Planets</th><th>Docks</th><th>Distance (ly)</th></tr>${rows}</table>`;
+    <table><tr><th>Name</th><th>Code</th><th>Name kind</th><th>Id</th><th>Star</th><th>Planets</th><th>Docks</th><th>Distance (ly)</th></tr>${rows}</table>`;
 }
 
 function renderSystem(): string {
@@ -107,11 +111,11 @@ function renderSystem(): string {
     .map((p) => {
       const dock = getDock(seed, p.id);
       const dockCells = dock
-        ? `<td><b>${esc(dock.name)}</b></td><td><b>${esc(dock.kind)}</b></td>`
+        ? `<td><b>${esc(dock.fullName)}</b></td><td><b>${esc(dock.kind)}</b></td>`
         : `<td class="note">no dock</td><td class="note">-</td>`;
       return `<tr class="${dock ? "has-dock" : "no-dock"}">
         <td><button class="pick" data-planet="${p.index}">${p.index}</button></td>
-        <td>${esc(p.name)}</td>
+        <td>${esc(p.name)}${p.nickname ? ` <span class="note">(nickname: ${esc(p.nickname)})</span>` : ""}</td>
         <td>${esc(p.type)}</td>
         <td>${p.radius}</td>
         <td>
@@ -123,7 +127,7 @@ function renderSystem(): string {
       </tr>`;
     })
     .join("");
-  return `<p><b>${esc(system.name)}</b> (id ${esc(system.id)}), ${esc(system.star.label)}
+  return `<p><b>${esc(system.name)}</b> (${system.isPure ? "pure name" : "word + code"}, code ${esc(system.code)}, id ${esc(system.id)}), ${esc(system.star.label)}
       <span class="swatch" style="background:${esc(system.star.color)}"></span>,
       position (${system.position.x.toFixed(1)}, ${system.position.y.toFixed(1)}, ${system.position.z.toFixed(1)}).<br />
       <b>${system.planetCount} planets, ${docks.length} dock(s)</b> (a system with ${system.planetCount} planets can have 1 to ${maxDocksFor(system.planetCount)}).
@@ -161,7 +165,7 @@ function renderDock(): string {
       return `<tr><td>${esc(m.good.name)}</td><td>${esc(m.good.category)}</td><td>${m.good.basePrice}</td><td class="${cls}">${m.price}</td><td class="${cls}">${label}</td></tr>`;
     })
     .join("");
-  return `<p><b>${esc(dock.name)}</b> (${esc(dock.kind)}, id ${esc(dock.id)}). Passenger terminal: ${dock.hasPassengerTerminal ? "yes" : "no"}.<br />${esc(perks)}<br />
+  return `<p><b>${esc(dock.fullName)}</b> (short name "${esc(dock.name)}", ${esc(dock.kind)}, id ${esc(dock.id)}). Passenger terminal: ${dock.hasPassengerTerminal ? "yes" : "no"}.<br />${esc(perks)}<br />
     Prices at time slot ${slot}:</p>
     <table><tr><th>Good</th><th>Category</th><th>Base price</th><th>Price now</th><th>Note</th></tr>${rows}</table>`;
 }
@@ -273,6 +277,31 @@ function runSurvey(): void {
 }
 el("runSurvey").addEventListener("click", runSurvey);
 
+// Names: search and statistics.
+function renderNameSearch(): string {
+  const text = (el("nameSearch") as HTMLInputElement).value;
+  if (text.trim() === "") return `<p class="note">Type a code like 4F-92 or a name like "Lazy Harbour" and press Find.</p>`;
+  const found = findSystemByName(seedBox.value, text);
+  if (!found) return `<p class="dear">No system found for "${esc(text)}".</p>`;
+  return `<p>Found <b><button class="pick" data-system="${esc(found.id)}">${esc(found.name)}</button></b> (code ${esc(found.code)}, ${found.isPure ? "pure name" : "word + code"}, id ${esc(found.id)}). Click the name to open it above.</p>`;
+}
+
+function renderNameStats(): string {
+  const seed = seedBox.value;
+  const center = { x: num(cx, 0), y: num(cy, 0), z: num(cz, 0) };
+  const radius = Math.min(60, Math.max(1, num(radiusBox, 25)));
+  const n = nameStats(seed, center, radius);
+  const share = n.systems === 0 ? 0 : (100 * n.pureSystems) / n.systems;
+  return `<table>
+    <tr><th>Systems in the sample</th><td>${n.systems} (planets ${n.planets}, docks ${n.docks})</td></tr>
+    <tr><th>Share of pure names</th><td>${share.toFixed(1)} % (${n.pureSystems} systems)</td></tr>
+    <tr><th>Longest system name</th><td>${esc(n.longestSystem)} (${n.longestSystem.length} letters)</td></tr>
+    <tr><th>Longest planet name</th><td>${esc(n.longestPlanet)} (${n.longestPlanet.length} letters)</td></tr>
+    <tr><th>Longest dock full name</th><td>${esc(n.longestDock)} (${n.longestDock.length} letters)</td></tr>
+    <tr><th>Collisions found (must be 0)</th><td class="${n.collisions === 0 ? "cheap" : "dear"}">${n.collisions}</td></tr>
+  </table>`;
+}
+
 function renderAll(): void {
   // If no system is chosen yet, take the nearest one, and its first dock.
   if (systemIdBox.value.trim() === "") {
@@ -286,6 +315,8 @@ function renderAll(): void {
   el("system").innerHTML = renderSystem();
   el("dock").innerHTML = renderDock();
   el("jobs").innerHTML = renderJobs();
+  el("nameSearchOut").innerHTML = renderNameSearch();
+  el("nameStats").innerHTML = renderNameStats();
   writeUrl();
 }
 
@@ -296,6 +327,7 @@ el("show").addEventListener("click", () => {
   renderAll();
 });
 el("showSystem").addEventListener("click", renderAll);
+el("nameFind").addEventListener("click", renderAll);
 slotBox.addEventListener("change", renderAll);
 
 // Clicking a system name or planet number.

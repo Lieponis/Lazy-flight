@@ -1,6 +1,7 @@
 // LAYER 3: planets. Uses the system layer. Colors are only data (hex text), nothing is drawn here.
 
-import { generatePlanetName } from "./names";
+import { PLANET_NICKNAMES } from "./data/words";
+import { romanNumeral } from "./names";
 import { rngFor, type Rng, type Seed } from "./random";
 import type { StarSystem } from "./system";
 
@@ -45,7 +46,10 @@ export interface Planet {
   systemId: string;
   /** 0 = closest to the star. */
   index: number;
+  /** Unique in the whole universe: "<system name> II". */
   name: string;
+  /** Optional flavour nickname ("Big Marge"). Not unique, never used as the name. */
+  nickname?: string;
   type: PlanetType;
   /** In Earth radii (1 = Earth sized). */
   radius: number;
@@ -84,11 +88,14 @@ export function generatePlanet(seed: Seed, system: StarSystem, index: number): P
   const zone: Zone = fraction < 0.34 ? "INNER" : fraction < 0.67 ? "MIDDLE" : "OUTER";
   const [type] = rng.weighted(ZONE_WEIGHTS[zone], (entry) => entry[1]);
   const kind = KINDS[type];
+  // The old nickname draws stay, so the radius, colours and orbit below come out exactly as before.
+  const nickname = rng.chance(0.25) ? rng.pick(PLANET_NICKNAMES) : undefined;
   return {
     id: `${system.id}/${index}`,
     systemId: system.id,
     index,
-    name: generatePlanetName(rng, system.name, index),
+    name: `${system.name} ${romanNumeral(index + 1)}`,
+    ...(nickname ? { nickname } : {}),
     type,
     radius: Math.round(rng.float(kind.radius[0], kind.radius[1]) * 100) / 100,
     colors: makeColors(rng, kind),

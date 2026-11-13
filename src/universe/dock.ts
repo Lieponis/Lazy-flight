@@ -4,10 +4,11 @@
 
 import { GOODS } from "./data/goods";
 import { generateOutpostName, generateStationName } from "./names";
+import { getSite } from "./galaxy";
 import { generatePlanet, type Planet } from "./planet";
 import { rngFor, type Seed } from "./random";
 import { DOCK_PLANETS_PER_DOCK, MAX_DOCKS_PER_SYSTEM } from "./settings";
-import type { StarSystem } from "./system";
+import { generateSystem, type StarSystem } from "./system";
 
 export type DockKind = "OUTPOST" | "STATION";
 
@@ -23,7 +24,10 @@ export interface Dock {
   id: string;
   planetId: string;
   systemId: string;
+  /** Short flavour name, unique inside its system: "Lazy Anchor Outpost". */
   name: string;
+  /** Unique in the whole universe: "<short name>, <planet name>", e.g. "Lazy Anchor Outpost, Kopipex 4F-92 II". */
+  fullName: string;
   kind: DockKind;
   /** Good ids this dock makes cheaply (3). */
   produces: string[];
@@ -36,11 +40,57 @@ export interface Dock {
   perks: OutpostPerks | null;
 }
 
-export function generateDock(seed: Seed, planet: Planet): Dock {
+function kindAndFirstName(seed: Seed, planet: Planet): { rng: ReturnType<typeof rngFor>; kind: DockKind; name: string } {
   const rng = rngFor(seed, "dock", planet.id);
   // Gas giants have no surface, so they always get a station.
   const kind: DockKind = planet.type === "GAS" ? "STATION" : rng.chance(0.5) ? "OUTPOST" : "STATION";
   const name = kind === "OUTPOST" ? generateOutpostName(rng) : generateStationName(rng);
+  return { rng, kind, name };
+}
+
+const shortNameCache = new Map<string, Map<number, string>>();
+
+/**
+ * The short names of a system's docks, made unique inside the system. The first dock (smallest planet number)
+ * keeps its first-rolled name; a later dock whose name is already taken re-rolls from its own "dockname" stream.
+ * A planet without a dock (generateDock allows that) is treated as the last one, so it never changes real docks.
+ */
+function shortNamesOf(seed: Seed, system: StarSystem, extraIndex: number): Map<number, string> {
+  const key = `${seed}|${system.id}|${extraIndex}`;
+  const hit = shortNameCache.get(key);
+  if (hit) return hit;
+  const order = dockPlanetIndexes(seed, system);
+  if (extraIndex >= 0 && !order.includes(extraIndex)) order.push(extraIndex);
+  const used = new Set<string>();
+  const names = new Map<number, string>();
+  for (const index of order) {
+    const planet = generatePlanet(seed, system, index);
+    const first = kindAndFirstName(seed, planet);
+    let name = first.name;
+    for (let attempt = 0; used.has(name.toLowerCase()) && attempt < 60; attempt++) {
+      const rng = rngFor(seed, "dockname", planet.id, attempt);
+      name = first.kind === "OUTPOST" ? generateOutpostName(rng) : generateStationName(rng);
+    }
+    if (used.has(name.toLowerCase())) name = `${name} ${index + 1}`; // practically never
+    used.add(name.toLowerCase());
+    names.set(index, name);
+  }
+  if (shortNameCache.size > 2000) shortNameCache.clear();
+  shortNameCache.set(key, names);
+  return names;
+}
+
+function shortNameFor(seed: Seed, planet: Planet): string {
+  const site = getSite(seed, planet.systemId);
+  if (!site) return kindAndFirstName(seed, planet).name;
+  const system = generateSystem(seed, site);
+  const real = dockPlanetIndexes(seed, system).includes(planet.index);
+  return shortNamesOf(seed, system, real ? -1 : planet.index).get(planet.index) ?? kindAndFirstName(seed, planet).name;
+}
+
+export function generateDock(seed: Seed, planet: Planet): Dock {
+  const { rng, kind } = kindAndFirstName(seed, planet);
+  const name = shortNameFor(seed, planet);
 
   const shuffled = rng.shuffled(GOODS.map((g) => g.id));
   const produces = shuffled.slice(0, 3);
@@ -63,6 +113,7 @@ export function generateDock(seed: Seed, planet: Planet): Dock {
     planetId: planet.id,
     systemId: planet.systemId,
     name,
+    fullName: `${name}, ${planet.name}`,
     kind,
     produces,
     wants,

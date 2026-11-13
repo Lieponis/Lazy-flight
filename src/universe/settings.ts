@@ -2,6 +2,13 @@
 // Change a number, and the whole universe adapts (the same seed will then give a
 // different universe, so only change these on purpose).
 
+/**
+ * THE world seed: the one shared universe. Everyone plays in this universe and it must not be changed
+ * (changing it would give every player a different universe and break all saves).
+ * The generator still works for any other seed (tests and developer pages use that); only this one is "the" universe.
+ */
+export const WORLD_SEED = 12345;
+
 /** Size of one cube of space in light years. The galaxy is an endless grid of these cubes. */
 export const SECTOR_SIZE = 10;
 
@@ -47,3 +54,15 @@ export const MAX_PRICE_MULTIPLIER = 2.5;
 /** Tours visit this many stops. */
 export const TOUR_MIN_STOPS = 2;
 export const TOUR_MAX_STOPS = 3;
+
+/**
+ * Names that are just words, like "Lazy Harbour" (no code), exist only in a cube of sectors around the origin:
+ * sector numbers from -PURE_NAME_REGION to PURE_NAME_REGION - 1 on every axis (19 means about 190 light years each way).
+ * About 7 of every 100 systems inside that cube get one. Farther away every system has a name with a code, like "Kopipex 4F-92".
+ */
+export const PURE_NAME_REGION = 19;
+
+/** Longest names the generator can make (checked by a test). */
+export const MAX_SYSTEM_NAME_LENGTH = 42;
+export const MAX_PLANET_NAME_LENGTH = 47;
+export const MAX_DOCK_FULL_NAME_LENGTH = 75;

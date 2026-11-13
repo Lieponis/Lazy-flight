@@ -4,7 +4,6 @@ import type { Rng } from "./random";
 import {
   OUTPOST_ADJECTIVES,
   OUTPOST_NOUNS,
-  PLANET_NICKNAMES,
   STATION_ADJECTIVES,
   STATION_NOUNS,
   SYSTEM_ENDS,
@@ -27,12 +26,6 @@ export function generateSystemName(rng: Rng): string {
   name += rng.pick(SYSTEM_ENDS);
   if (rng.chance(0.2)) name += " " + rng.pick(SYSTEM_SUFFIXES);
   return name;
-}
-
-/** Planet names: "<System> II", or sometimes a friendly nickname like "Big Marge". */
-export function generatePlanetName(rng: Rng, systemName: string, index: number): string {
-  if (rng.chance(0.25)) return rng.pick(PLANET_NICKNAMES);
-  return `${systemName} ${romanNumeral(index + 1)}`;
 }
 
 export function generateOutpostName(rng: Rng): string {

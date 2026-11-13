@@ -15,6 +15,8 @@ export {
   systemIdOf,
 } from "./galaxy";
 export type { SystemSite, Vec3 } from "./galaxy";
+export { decodeSystemCode, encodeSystemCode, normalizeSystemCode, systemCodeOfId } from "./syscode";
+export { PURE_NAMES, pureNameCount, pureNameOf, systemIdOfPureName } from "./purenames";
 export { generateSystem } from "./system";
 export type { Star, StarSystem, StarType } from "./system";
 export { generatePlanet, generatePlanets } from "./planet";
@@ -27,6 +29,7 @@ export { getMarket, getPrice, roleOf } from "./economy";
 export type { MarketEntry, MarketRole } from "./economy";
 export {
   distanceBetweenDocks,
+  findSystemByName,
   getDock,
   getDocksOfSystem,
   getPlanet,
@@ -41,3 +44,5 @@ export { boardPeriodOf, generateJobBoard, getJobBoard } from "./jobs";
 export type { HoldType, Job, JobKind, LoadType, SpecialJobData } from "./jobs";
 export { summarizeSurveys, surveySeed } from "./survey";
 export type { SeedSurvey, SurveyOptions, SurveySummary } from "./survey";
+export { nameStats } from "./namestats";
+export type { NameStats } from "./namestats";

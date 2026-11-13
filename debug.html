@@ -61,7 +61,16 @@
     <h2>4. Job board of that dock</h2>
     <div id="jobs"></div>
 
-    <h2>5. Many seeds at once (does the universe look sensible?)</h2>
+    <h2>5. Names: find a system, and name statistics</h2>
+    <div class="box">
+      <label>Find a system by name or code <input id="nameSearch" type="text" placeholder="e.g. 4F-92 or Lazy Harbour" style="width: 260px" /></label>
+      <button id="nameFind" type="button">Find</button>
+    </div>
+    <div id="nameSearchOut"></div>
+    <p class="note">Statistics for the systems around the look-around point and radius at the top (planets and docks included).</p>
+    <div id="nameStats"></div>
+
+    <h2>6. Many seeds at once (does the universe look sensible?)</h2>
     <div class="box">
       <label>First seed <input id="surveyFirst" type="number" value="1" step="1" /></label>
       <label>How many seeds (1 to 200) <input id="surveyCount" type="number" value="50" step="1" min="1" max="200" /></label>
