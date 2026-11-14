@@ -6,6 +6,8 @@
 //   CANCELLED a job in flight: the cargo goes back and the fuel it burned is given back (no penalty)
 //   REFUNDED each owned outpost: the price paid if the save stored it, otherwise OUTPOST_REFUND_ESTIMATE
 //   CLEARED  the list of delivered jobs, the explored list (old ids mean other places now), a float in space or a free trip
+// The same move is used when a save belongs to ANOTHER SEED than the shared world (stage N2, plan docs/plan-unique-names-world-seed.md):
+// every player lives in the one world universe, so a save made on seed 777 (a test link, "New random universe") is carried over.
 // Pure logic: the storage is not touched here.
 
 import { OUTPOST_REFUND_ESTIMATE, normalizeState, shipStats, tripFuelCost, type GameState } from "../game";
@@ -30,13 +32,20 @@ export interface Migration {
   fuelBack: number;
 }
 
-/** Brings a save up to the current universe. A save that is already current comes back untouched. */
-export function migrateSave(save: SaveData): Migration {
-  if (universeVersionOf(save) >= UNIVERSE_VERSION) return { data: save, message: null, refund: 0, fuelBack: 0 };
+/**
+ * Brings a save up to the current universe. A save that is already current comes back untouched.
+ * `toSeed` (stage N2): when given and the save belongs to another seed, the save is moved to that seed too
+ * (same rule as an old universe: credits, ranks, ships, upgrades, paint jobs kept; the rest reset or refunded).
+ * Without `toSeed` the save keeps its own seed (developer pages, the "continue as it is" path of ?dev=1).
+ */
+export function migrateSave(save: SaveData, toSeed?: number): Migration {
+  const otherSeed = toSeed !== undefined && save.seed !== toSeed;
+  if (universeVersionOf(save) >= UNIVERSE_VERSION && !otherSeed) return { data: save, message: null, refund: 0, fuelBack: 0 };
+  const seed: number = otherSeed ? (toSeed as number) : save.seed;
 
   if (save.state === null) {
     // Nothing to keep: it was "start fresh in this universe". Just stamp it.
-    return { data: { ...save, universeVersion: UNIVERSE_VERSION }, message: null, refund: 0, fuelBack: 0 };
+    return { data: { ...save, seed, universeVersion: UNIVERSE_VERSION }, message: null, refund: 0, fuelBack: 0 };
   }
 
   const old: GameState = normalizeState(save.state);
@@ -51,7 +60,7 @@ export function migrateSave(save: SaveData): Migration {
     ...old,
     credits: old.credits + refund,
     fuel: Math.min(tank, old.fuel + fuelBack),
-    currentDockId: startDockOf(save.seed).id,
+    currentDockId: startDockOf(seed).id,
     spacePlanetId: null,
     currentJob: null,
     freeTrip: null,
@@ -65,5 +74,5 @@ export function migrateSave(save: SaveData): Migration {
   };
 
   const message = refund > 0 ? `${MESSAGE_REBUILT} Your outposts were sold back for ${refund} credits.` : MESSAGE_REBUILT;
-  return { data: { ...save, state: moved, universeVersion: UNIVERSE_VERSION }, message, refund, fuelBack };
+  return { data: { ...save, seed, state: moved, universeVersion: UNIVERSE_VERSION }, message, refund, fuelBack };
 }

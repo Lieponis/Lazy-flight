@@ -120,6 +120,11 @@ function exported(storage: StorageLike): { json: string; text: string } {
   return r;
 }
 
+/** A state whose dock is a real dock of another seed (so the file is a believable seed-777 save). */
+function moveHome(state: GameState, seed: number): GameState {
+  return { ...state, currentDockId: startDockOf(seed).id, explored: {}, ownedOutposts: [], outpostPrices: {}, outpostCount: 0 };
+}
+
 // ------------------------------------------------------------ export
 
 describe("export", () => {
@@ -456,9 +461,13 @@ describe("odd but harmless files", () => {
     expect(inspectImport(broken).ok).toBe(true);
   });
 
-  it("a different seed gives a warning, not a refusal", () => {
-    const r = inspectImport(exported(storageWithSave(richState())).text, 777);
+  it("a file from another seed gives the 'will be moved' warning and the otherSeed flag, not a refusal (N2)", () => {
+    const r = inspectImport(exported(storageWithSave(richState(), { seed: 777, state: moveHome(richState(), 777) })).text, SEED);
     expect(r.ok && r.warnings).toContain(WARN_OTHER_SEED);
+    expect(r.ok && r.otherSeed).toBe(true);
+    const same = inspectImport(exported(storageWithSave(richState())).text, 777);
+    expect(same.ok && same.warnings).not.toContain(WARN_OTHER_SEED);
+    expect(same.ok && same.otherSeed).toBe(false);
   });
 
   it("a trip under way gives a warning", () => {

@@ -8,6 +8,8 @@ import {
   formatDuration,
   getShip,
   LIVERY_PRICE,
+  newGameState,
+  normalizeState,
   parseSpeedParam,
   tripFuelCost,
   type BoardEntry,
@@ -28,6 +30,7 @@ import {
   makeSaveData,
   migrateSave,
   readSave,
+  writeSave,
   startAutoSave,
   universeVersionOf,
   type AutoSaver,
@@ -504,6 +507,10 @@ function render(): void {
   app.append(h("h2", {}, "11. Paint jobs (cosmetic only)"));
   app.append(paintJobsBox());
 
+  // One shared universe (stage N2)
+  app.append(h("h2", {}, "12. One shared universe: test save on another seed"));
+  app.append(worldSeedBox());
+
   // Ship catalog
   app.append(h("h2", {}, "3. Ship catalog (numbers include upgrades)"));
   const shipTable = h("table");
@@ -727,6 +734,48 @@ function render(): void {
     }
     app.append(h("div", { class: "scroll" }, t));
   }
+}
+
+/** A made-up player in universe 777: 12,345 credits, a Scout, a paint job, one outpost bought for 7,000. */
+function otherSeedSave(): SaveData | null {
+  const OTHER = 777;
+  let outpostId: string | null = null;
+  for (const system of listSystemsNear(OTHER, { x: 0, y: 0, z: 0 }, 40)) {
+    for (const dock of docksOf(OTHER, system)) if (!outpostId && dock.kind === "OUTPOST") outpostId = dock.id;
+  }
+  if (!outpostId) return null;
+  const state = normalizeState({
+    ...newGameState(startDockOf(OTHER).id),
+    credits: 12_345,
+    shipId: "scout",
+    ownedShips: { "cargo-hauler": { fuel: 20 } },
+    shipLiveries: { scout: { owned: ["standard", "rescue-red"], worn: "rescue-red" } },
+    ownedOutposts: [outpostId],
+    outpostPrices: { [outpostId]: 7_000 },
+    outpostCount: 1,
+  });
+  return makeSaveData(OTHER, state, 0, Date.now());
+}
+
+/** The world seed section: plants a seed-777 save into the REAL game's storage, to try the carry-over. */
+function worldSeedBox(): HTMLElement {
+  const box = h("div", { class: "box" });
+  box.append(
+    h("div", { class: "note" }, "Everybody plays in one shared universe (seed 12345). A saved game from another seed is carried over when the game page opens: credits, ranks and ships come with you, outposts are paid back, explored places are forgotten."),
+    h("div", { class: "note" }, "The button below REPLACES the real game's save with a made-up player on seed 777: 12,345 credits, a Scout wearing rescue-red paint, one outpost bought for 7,000. Close other tabs of the game first. Then open the normal game page (no ?dev=1): you should see 19,345 credits and the message about the rebuilt universe."),
+  );
+  box.append(
+    button("Plant the seed-777 test save in the real game", () => {
+      const real = getBrowserStorage();
+      const save = otherSeedSave();
+      if (!real || !save) {
+        say("Could not make the test save (no storage, or no outpost found in universe 777).");
+        return;
+      }
+      say(writeSave(real, save) ? "Done. Now open the normal game page (without ?dev=1). Expect 19,345 credits and the rebuilt-universe message." : "The browser refused to store it.");
+    }, { test: true }),
+  );
+  return box;
 }
 
 /** The paint jobs section: every ship you own, its four paint jobs (ids only: the names live in the picture code), buy and wear. */

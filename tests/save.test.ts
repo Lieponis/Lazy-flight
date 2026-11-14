@@ -185,19 +185,20 @@ describe("save: storage that throws or is missing", () => {
 });
 
 describe("save: start-up rules", () => {
-  it("?seed=NUMBER starts a new game with that seed, even with a save", () => {
+  it("?seed=NUMBER alone changes nothing (N2: everybody plays the world seed); with ?dev=1 it starts a new game with that seed", () => {
     const storage = new MemoryStorage();
     writeSave(storage, makeSaveData(SEED, newGameState(startDock()), 0, 0));
-    expect(planStart("?seed=777&speed=60", storage, SEED)).toMatchObject({ seed: 777, state: null, why: "seed-param" });
+    expect(planStart("?seed=777&speed=60", storage, SEED)).toMatchObject({ seed: SEED, why: "continue" });
+    expect(planStart("?dev=1&seed=777&speed=60", storage, SEED)).toMatchObject({ seed: 777, state: null, why: "seed-param" });
   });
 
-  it("no ?seed and a good save: continue it with its own seed", () => {
+  it("no ?seed and a good save on the world seed: continue it with its progress", () => {
     const storage = new MemoryStorage();
     const state = { ...newGameState(startDock()), credits: 4321 };
-    writeSave(storage, makeSaveData(999, state, 0, 0));
+    writeSave(storage, makeSaveData(SEED, state, 0, 0));
     const plan = planStart("?speed=60", storage, SEED);
     expect(plan.why).toBe("continue");
-    expect(plan.seed).toBe(999);
+    expect(plan.seed).toBe(SEED);
     expect(plan.state?.credits).toBe(4321);
   });
 
@@ -205,10 +206,13 @@ describe("save: start-up rules", () => {
     expect(planStart("", new MemoryStorage(), SEED)).toMatchObject({ seed: SEED, why: "fresh", notice: null });
   });
 
-  it("NEW GAME goes to ?seed=NUMBER, keeping ?speed=", () => {
+  it("a developer address keeps ?speed= and ?dev=1 when the seed is set", () => {
     expect(addressWithSeed("?speed=60", 4242)).toBe("?speed=60&seed=4242");
     expect(addressWithSeed("?seed=1&speed=60", 4242)).toBe("?seed=4242&speed=60");
-    expect(planStart(addressWithSeed("", 4242), new MemoryStorage(), SEED)).toMatchObject({ seed: 4242, state: null });
+    expect(addressWithSeed("?dev=1&speed=60", 4242)).toBe("?dev=1&speed=60&seed=4242");
+    expect(planStart(addressWithSeed("?dev=1", 4242), new MemoryStorage(), SEED)).toMatchObject({ seed: 4242, state: null });
+    // without the flag the same address is just the world seed
+    expect(planStart(addressWithSeed("", 4242), new MemoryStorage(), SEED)).toMatchObject({ seed: SEED, why: "fresh" });
   });
 
   it("reads and removes ?seed from the address", () => {
@@ -322,7 +326,7 @@ describe("save: the universe is the same after loading", () => {
     const storage = new MemoryStorage();
     const before = getJobBoard(SEED, startDock(), 7);
     writeSave(storage, makeSaveData(SEED, newGameState(startDock()), 0, 0));
-    const plan = planStart("", storage, 1);
+    const plan = planStart("", storage, SEED);
     expect(plan.seed).toBe(SEED);
     expect(getJobBoard(plan.seed, startDock(), 7)).toEqual(before);
     expect(getPlanetsOfSystem(plan.seed, startDock().split("/")[0]!)).toEqual(

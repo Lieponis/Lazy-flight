@@ -43,11 +43,11 @@ Type `npm run check` and press Enter. It builds the game and runs every automati
 ## 4. Testing aids (add to the end of the web address)
 
 - `?speed=60` makes game time run 60 times faster: a 20-minute trip takes 20 seconds. Leave it out for normal play. (Trips are 1 minute per light year.)
-- `?seed=777` starts a NEW game in universe 777 (it replaces your save). The game removes it from the address afterwards, so a reload continues that game.
+- Everybody plays in ONE shared universe (seed 12345); a normal player cannot change it. `?seed=777` alone does nothing. **Developers:** `?dev=1&seed=777` starts a NEW game in universe 777 (it replaces your save; the game removes `seed` from the address afterwards, so a reload continues that game). `?dev=1` alone continues a save on another seed as it is. Without `?dev=1`, a save made on another seed is carried over to the shared universe (credits, ranks, ships and paint jobs kept; outposts paid back; explored places forgotten) the next time the page opens. The pages `debug.html`, `planets.html`, `game-debug.html` and `models.html` are developer pages and keep using `?seed=777` without the flag.
 - `game-debug.html` is the rules test page (add credits, teleport, ranks, outposts). It uses its own save.
 - `debug.html` shows the universe as tables. `models.html` is the 3D model viewer.
 - The game opens on the title screen: **PLAY** continues your save (or starts a new game). That tap also switches the sound on.
-- **MENU** (top right while docked) shows the universe seed, **RANKS**, **SETTINGS** (sound on/off, music and effects volume) and **NEW GAME**. The **speaker button** next to it mutes the sound (also during a flight).
+- **MENU** (top right while docked) shows **RANKS**, **SETTINGS** (sound on/off, music and effects volume) and **NEW GAME**. The **speaker button** next to it mutes the sound (also during a flight).
 - `?ship=scout` starts in the Scout (for testing the look); `?look=`, `?warp=` switch test looks (see `docs/status.md`).
 - Your progress saves by itself in this browser (sound settings separately). A private window plays without saving.
 

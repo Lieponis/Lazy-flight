@@ -1,6 +1,7 @@
 // MENU: a small overlay over the docked view, same style as the Jobs menu.
-// Shows the universe seed and whether saving works, and NEW GAME:
-//   NEW GAME -> "Same universe" or "New random universe" -> "Really start over?" -> the page starts again.
+// Shows whether saving works, and NEW GAME:
+//   NEW GAME -> "Really start over?" -> the page starts again in the shared world universe (stage N2: one universe
+//   for everybody, so the seed line and the "New random universe" choice are gone).
 // SETTINGS (Agent 7a, Andy's choice): a mute button and two volume sliders (music, sound effects).
 // P3 (Agent 5g): a SAVE FILE button (opens src/ui/savefile.ts) with a one-line tip, and in SETTINGS a TESTER part:
 // a speed choice stored under its own key and used after a reload (src/game/clock.ts startSpeed).
@@ -48,11 +49,10 @@ export interface GameMenuInfo {
   savingWorks: () => boolean;
 }
 
-export type NewGameChoice = "same" | "random";
+export type NewGameChoice = "same";
 
 export class GameMenu {
   private root = el("div", "ui-overlay ui-jobs ui-gamemenu");
-  private seedLine = el("div", "ui-menu-line");
   private saveLine = el("div", "ui-menu-line");
   private popup: Popup;
   private isOpen = false;
@@ -85,7 +85,7 @@ export class GameMenu {
     if (this.extras.onSaveFile) {
       body.append(button("SAVE FILE", "ui-btn-primary ui-btn-wide", () => this.extras.onSaveFile?.()), el("div", "ui-menu-tip", SAVE_FILE_TIP));
     }
-    body.append(this.seedLine, this.saveLine, button("NEW GAME", "ui-btn-amber ui-btn-wide", () => this.askUniverse()));
+    body.append(this.saveLine, button("NEW GAME", "ui-btn-amber ui-btn-wide", () => this.askSure("same")));
     if (this.sound) this.buildSettings(this.sound);
     this.settingsView.hidden = true;
     panel.append(head, body, this.settingsView);
@@ -182,18 +182,6 @@ export class GameMenu {
     }
   }
 
-  private askUniverse(): void {
-    this.popup.show({
-      title: "NEW GAME",
-      text: "Which universe?",
-      buttons: [
-        { text: "SAME UNIVERSE", primary: true, onClick: () => this.askSure("same") },
-        { text: "NEW RANDOM UNIVERSE", onClick: () => this.askSure("random") },
-        { text: "CANCEL" },
-      ],
-    });
-  }
-
   private askSure(choice: NewGameChoice): void {
     // The first card has already closed itself when its button ran this.
     this.popup.show({
@@ -231,7 +219,6 @@ export class GameMenu {
 
   render(): void {
     if (!this.isOpen) return;
-    this.seedLine.textContent = `UNIVERSE SEED: ${String(this.info.seed())}`;
     this.saveLine.textContent = this.info.savingWorks()
       ? "Progress saves by itself."
       : "Saving is off in this browser. Progress is lost on reload.";

@@ -34,7 +34,7 @@ The one source of truth is the `main` branch of the GitHub repository `Lieponis/
 `src/universe` imports nothing from render, ui, game or save. `src/render` never imports `src/game` or `src/ui`. Glue between layers lives in `src/ui/index.ts` and `src/main.ts`. Stay in the files your brief allows.
 
 ## How to prove your work
-`npm run check` (types, build and all tests). Then a green run on the GitHub Actions tab, then Andy's click-test. Live game: https://lieponis.github.io/Lazy-flight/ (testing aids: `?speed=600`, `?seed=NUMBER`, `?ship=scout`). Model viewer: `/models.html`. If you cannot run something, say so honestly in your report.
+`npm run check` (types, build and all tests). Then a green run on the GitHub Actions tab, then Andy's click-test. Live game: https://lieponis.github.io/Lazy-flight/ (testing aids: `?speed=600`, `?dev=1&seed=NUMBER` (the seed works only with `?dev=1`; everybody else plays the shared world seed 12345), `?ship=scout`, `?reach=N`). Model viewer: `/models.html`. If you cannot run something, say so honestly in your report.
 
 ## How to hand in
 - Push to `main` if you have GitHub access (small, clear commits, only the files your brief allows). Otherwise give Andy one zip with ONLY the changed files.

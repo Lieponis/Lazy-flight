@@ -13,7 +13,7 @@
 // Only game data is in the file: the save and the sound settings. No email, no device information.
 
 import { Game, createClock, explorerInfo, getShip, isShipId, normalizeState, rankInfos, type GameState } from "../game";
-import { UNIVERSE_VERSION, startDockOf } from "../universe";
+import { UNIVERSE_VERSION, WORLD_SEED, startDockOf } from "../universe";
 import { SAVE_GENERATION_KEY, loadIntoGame } from "./autosave";
 import { migrateSave, universeVersionOf } from "./migrate";
 import { SAVE_KEY, SAVE_VERSION, checkSaveData, type SaveData, type StorageLike } from "./save";
@@ -104,11 +104,11 @@ export type ExportResult =
   | { ok: false; reason: string };
 
 export type InspectResult =
-  | { ok: true; summary: SaveSummary; warnings: string[]; file: SaveFile }
+  | { ok: true; summary: SaveSummary; warnings: string[]; /** True when the file is from another seed than the shared world: it will be moved (N2). */ otherSeed: boolean; file: SaveFile }
   | { ok: false; reason: string };
 
 export type ApplyResult =
-  | { ok: true; summary: SaveSummary; warnings: string[]; reloadNeeded: true }
+  | { ok: true; summary: SaveSummary; warnings: string[]; otherSeed: boolean; reloadNeeded: true }
   | { ok: false; reason: string };
 
 export type UndoResult = { ok: true; reloadNeeded: true; restored: "save" | "empty" } | { ok: false; reason: string };
@@ -129,7 +129,8 @@ export const REFUSE_WRITE_FAILED = "The phone refused to store the save (storage
 export const WARN_OLD_UNIVERSE =
   "This save is from an older universe. It will be moved: credits, ranks and ships come with you, outposts are paid back.";
 export const WARN_TRAVELLING = "A trip was under way. Time away counts, so it may land as soon as the game starts.";
-export const WARN_OTHER_SEED = "This save is from a different universe seed than your current game.";
+export const WARN_OTHER_SEED =
+  "This save is from another universe. It will be moved to the shared universe: credits, ranks and ships come with you, outposts are paid back, explored places are forgotten.";
 
 // ------------------------------------------------------------ small helpers
 
@@ -206,8 +207,8 @@ export function saveFileName(date: Date): string {
  * Runs a save through the SAME path a page load uses (shape check, universe move, repair, fit to the universe, load
  * into a real Game) and returns the repaired state. Throws if anything in that path would crash.
  */
-function loadThroughGamePath(save: SaveData, realNowMs: number): { state: GameState; moved: boolean } {
-  const migrated = migrateSave(save);
+function loadThroughGamePath(save: SaveData, realNowMs: number, toSeed?: number): { state: GameState; moved: boolean } {
+  const migrated = migrateSave(save, toSeed);
   const data = migrated.data;
   const startDock = startDockOf(data.seed).id;
   const game = new Game(data.seed, startDock, createClock(1, () => realNowMs));
@@ -325,7 +326,7 @@ function parseInput(input: string): { file: Record<string, unknown> } | { reason
 
 /**
  * Checks a save file (JSON or the LFSAVE1 text) WITHOUT changing anything: format name, size, JSON, checksum,
- * versions, and that it loads through the normal repair path. `currentSeed` (optional) adds a warning if it differs.
+ * versions, and that it loads through the normal repair path. `currentSeed` is no longer used (N2): a file from another seed than the world seed always warns that it will be moved.
  */
 export function inspectImport(input: string, currentSeed?: number | null, realNowMs: number = Date.now()): InspectResult {
   const parsed = parseInput(input);
@@ -360,16 +361,19 @@ export function inspectImport(input: string, currentSeed?: number | null, realNo
 
   let loaded: { state: GameState; moved: boolean };
   try {
-    loaded = loadThroughGamePath(save, realNowMs);
+    loaded = loadThroughGamePath(save, realNowMs, WORLD_SEED);
   } catch {
     return { ok: false, reason: REFUSE_BROKEN };
   }
+  const otherSeed = save.seed !== WORLD_SEED;
   const warnings: string[] = [];
-  if (loaded.moved) warnings.push(WARN_OLD_UNIVERSE);
+  // One line about the move: the other-seed text says everything the old-universe text does.
+  if (otherSeed) warnings.push(WARN_OTHER_SEED);
+  else if (loaded.moved) warnings.push(WARN_OLD_UNIVERSE);
   if (save.state.currentJob || (save.state as Partial<GameState>).freeTrip) warnings.push(WARN_TRAVELLING);
-  if (currentSeed !== undefined && currentSeed !== null && currentSeed !== save.seed) warnings.push(WARN_OTHER_SEED);
+  void currentSeed; // since N2 every import is judged against the shared world seed, not the page's seed
   // The summary is rebuilt from the save itself (never trusted from the file's own summary field).
-  return { ok: true, summary: summaryOf(save, loaded.state), warnings, file: { ...body, save, checksum: f.checksum } };
+  return { ok: true, summary: summaryOf(save, loaded.state), warnings, otherSeed, file: { ...body, save, checksum: f.checksum } };
 }
 
 // ------------------------------------------------------------ apply and undo
@@ -440,7 +444,7 @@ export function applyImport(storage: StorageLike | null, input: string, currentS
     }
     return { ok: false, reason: REFUSE_WRITE_FAILED };
   }
-  return { ok: true, summary: checked.summary, warnings: checked.warnings, reloadNeeded: true };
+  return { ok: true, summary: checked.summary, warnings: checked.warnings, otherSeed: checked.otherSeed, reloadNeeded: true };
 }
 
 /** True if there is something to undo. */

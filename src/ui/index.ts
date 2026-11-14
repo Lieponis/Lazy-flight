@@ -5,17 +5,17 @@
 
 import "./theme.css";
 import { Game, createClock, tripFuelCost, type Arrival, type FreeArrival } from "../game";
-import { getDock, getPlanet, getSystem, startDockOf } from "../universe";
+import { WORLD_SEED, getDock, getPlanet, getSystem, startDockOf } from "../universe";
 import type { RenderApi } from "../render";
-import { START_SEED } from "../render/settings";
 import {
   addressWithSeed,
+  devFlagFromAddress,
+  forgetSavedGame,
   addressWithoutSeed,
   browserPageEvents,
   getBrowserStorage,
   loadIntoGame,
   planStart,
-  randomSeed,
   startAutoSave,
   type StartPlan,
   type StorageLike,
@@ -52,7 +52,7 @@ export interface StartInfo {
  */
 export function chooseStart(): StartInfo {
   const storage = getBrowserStorage();
-  return { plan: planStart(window.location.search, storage, Number(START_SEED)), storage };
+  return { plan: planStart(window.location.search, storage, WORLD_SEED), storage };
 }
 
 export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = chooseStart()): Game {
@@ -140,10 +140,13 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   // ------------------------------------------------------------ saving
   const saver = startAutoSave(game, storage, browserPageEvents());
   const startNewGame = (choice: NewGameChoice): void => {
-    const newSeed = choice === "same" ? Number(seed) : randomSeed();
+    void choice; // since N2 there is only one universe to start again in
     saver.stop(); // the old game must not be written back while the page restarts
+    forgetSavedGame(storage); // a normal player starts again on the world seed: no saved game left
     const { pathname, hash } = window.location;
-    window.location.assign(pathname + addressWithSeed(window.location.search, newSeed) + hash);
+    // A developer (?dev=1) stays on the seed they are testing; everybody else reloads without ?seed=.
+    const search = devFlagFromAddress(window.location.search) ? addressWithSeed(window.location.search, Number(seed)) : addressWithoutSeed(window.location.search);
+    window.location.assign(pathname + search + hash);
   };
   const ranks = new RanksScreen(layer, game, closeOverlay);
   const menu = new GameMenu(
