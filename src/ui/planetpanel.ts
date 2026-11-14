@@ -11,7 +11,7 @@
 import type { Game } from "../game";
 import { getDock, getPlanetsOfSystem } from "../universe";
 import { planetTypeLabel } from "../render/helpers";
-import { button, el } from "./dom";
+import { button, el, nameEl } from "./dom";
 import { PLANET_PANEL_HINT, flyHereText, planetPanelText } from "./logic";
 
 export class PlanetPanel {
@@ -68,13 +68,15 @@ export class PlanetPanel {
       dock: dock ? { name: dock.name, kind: dock.kind } : null,
       here,
       owned,
+      nickname: planet.nickname, // shown only on scenery planets (Andy, N3a)
     });
     this.root.className = t.isDock ? "ui-planet ui-planet-dock" : "ui-planet ui-planet-scenery";
     const top = el("div", "ui-card-top");
     top.append(el("span", "ui-chip", t.tag));
     if (t.here) top.append(el("span", "ui-planet-here", t.here));
     else if (floatingHere) top.append(el("span", "ui-planet-here", "YOU ARE HERE"));
-    const parts: HTMLElement[] = [top, el("div", "ui-planet-title", t.title), el("div", "ui-planet-details", t.details)];
+    const parts: HTMLElement[] = [top, nameEl("div", "ui-planet-title", t.title), nameEl("div", "ui-planet-details", t.details)];
+    if (t.nickname) parts.push(el("div", "ui-planet-nickname", t.nickname));
     if (!fly || !fly.canFly) parts.push(el("div", "ui-planet-line", t.line));
 
     // FLY HERE (5f): facts, discovery pay, one tap. Or the game's reason why not.

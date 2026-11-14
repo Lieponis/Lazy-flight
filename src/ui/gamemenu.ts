@@ -186,7 +186,7 @@ export class GameMenu {
     // The first card has already closed itself when its button ran this.
     this.popup.show({
       title: "REALLY START OVER?",
-      text: "Your credits, ships and job will be gone.",
+      text: "Your credits, ships, ranks and job will be gone. You start again at the home dock, in the same universe as everybody.",
       warning: true,
       buttons: [{ text: "YES, START OVER", primary: true, onClick: () => this.onNewGame(choice) }, { text: "CANCEL" }],
     });

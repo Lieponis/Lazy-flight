@@ -4,7 +4,7 @@
 // game.getOwnedOutposts().
 
 import type { Game } from "../game";
-import { button, el } from "./dom";
+import { button, el, nameEl } from "./dom";
 import { explorerRowText, ownedOutpostLine, perksText, rankRowText, type RankRowText } from "./logic";
 
 export class RanksScreen {
@@ -76,7 +76,7 @@ export class RanksScreen {
       for (const o of owned) {
         const perks = this.game.getOutpostOffer(o.dockId).perks;
         const item = el("div", "ui-owned");
-        item.append(el("div", "ui-owned-name", ownedOutpostLine(o)), el("div", "ui-outpost-perks", perksText(perks, o.systemName)));
+        item.append(nameEl("div", "ui-owned-name", ownedOutpostLine(o)), nameEl("div", "ui-outpost-perks", perksText(perks, o.systemName)));
         outposts.append(item);
       }
     }

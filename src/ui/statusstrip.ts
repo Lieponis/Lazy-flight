@@ -1,14 +1,22 @@
 // STATUS STRIP: always on top. Credits, fuel (number and bar), location, a SPEAKER button (sound on/off, always there,
 // Agent 7b) and a small MENU button (docked only; in flight the speaker sits alone at the right end).
 
-import { button, el, publishRoom } from "./dom";
-import { formatCredits, formatFuel, fuelFraction, fuelIsLow } from "./logic";
+import { button, el, fitText, publishRoom } from "./dom";
+import { fitLocation, formatCredits, formatFuel, fuelFraction, fuelIsLow, locationText } from "./logic";
+
+/** Where you are or are going. systemName "" = a planet whose own name already holds the system (N3a). */
+export interface StripLocation {
+  flying: boolean;
+  floating?: boolean;
+  dockName: string;
+  systemName: string;
+}
 
 export interface StatusInfo {
   credits: number;
   fuel: number;
   tank: number;
-  location: string;
+  location: StripLocation;
 }
 
 export class StatusStrip {
@@ -42,6 +50,17 @@ export class StatusStrip {
     this.root.setAttribute("aria-live", "polite");
     parent.appendChild(this.root);
     publishRoom(this.root, "--ui-top-reserve", "top");
+    // Turning the phone changes the room: fit the location again (N3a).
+    window.addEventListener("resize", () => this.fitLocation());
+  }
+
+  private lastLocation: StripLocation | null = null;
+
+  /** The location in one line: long names shorten their word part and keep the code (Andy chose B). */
+  private fitLocation(): void {
+    const loc = this.lastLocation;
+    if (!loc) return;
+    fitText(this.location, locationText(loc), (max) => fitLocation(loc, max));
   }
 
   /** The speaker shows the sound state: on (teal) or muted (red, crossed out). */
@@ -60,15 +79,15 @@ export class StatusStrip {
   }
 
   set(info: StatusInfo): void {
-    const key = `${info.credits}|${info.fuel}|${info.tank}|${info.location}`;
+    const key = `${info.credits}|${info.fuel}|${info.tank}|${JSON.stringify(info.location)}|${this.root.clientWidth}`;
     if (key === this.last) return; // nothing changed, skip the work
     this.last = key;
     this.credits.textContent = formatCredits(info.credits).replace(/ CR$/, "");
     this.fuelText.textContent = formatFuel(info.fuel, info.tank);
     this.fuelFill.style.width = `${(fuelFraction(info.fuel, info.tank) * 100).toFixed(0)}%`;
     this.fuelBar.classList.toggle("ui-low", fuelIsLow(info.fuel, info.tank));
-    this.location.textContent = info.location;
-    this.location.title = info.location;
+    this.lastLocation = info.location;
+    this.fitLocation();
   }
 }
 

@@ -76,9 +76,11 @@ export function placeLabel(dockName: string, systemName: string): string {
 
 /** The location part of the status strip. While flying it shows where you are going. */
 export function locationText(info: { flying: boolean; dockName: string; systemName: string; floating?: boolean }): string {
-  if (info.flying) return `EN ROUTE TO ${placeLabel(info.dockName, info.systemName)}`;
-  if (info.floating) return `IN SPACE AT ${placeLabel(info.dockName, info.systemName)}`; // 5f: at a planet without a dock
-  return placeLabel(info.dockName, info.systemName);
+  // N3a: an empty system name means the place is a planet whose name already holds the system ("Kopipex 2N-83 II").
+  const place = info.systemName ? placeLabel(info.dockName, info.systemName) : info.dockName;
+  if (info.flying) return `EN ROUTE TO ${place}`;
+  if (info.floating) return `IN SPACE AT ${place}`; // 5f: at a planet without a dock
+  return place;
 }
 
 // ------------------------------------------------------------ job cards
@@ -471,6 +473,8 @@ export interface PlanetPanelText {
   line: string;
   /** "YOU ARE HERE" when you are docked there, otherwise "". */
   here: string;
+  /** 'Locals call it "Sleepy Susan".' for scenery planets with a nickname, otherwise absent or "". */
+  nickname?: string;
 }
 
 export interface PlanetPanelInput {
@@ -485,6 +489,8 @@ export interface PlanetPanelInput {
   here: boolean;
   /** For outposts: you own it. */
   owned: boolean;
+  /** The planet's funny nickname, if it has one (shown only on scenery planets, N3a). */
+  nickname?: string;
 }
 
 const SCENERY_LINES = [
@@ -506,7 +512,15 @@ export function sceneryLine(planetId: string): string {
 export function planetPanelText(p: PlanetPanelInput): PlanetPanelText {
   const details = `${p.planetName} · ${p.typeLabel} · ${p.radius.toFixed(1)}x Earth`;
   if (!p.dock) {
-    return { tag: "SCENERY", isDock: false, title: p.planetName, details: `${p.typeLabel} · ${p.radius.toFixed(1)}x Earth`, line: sceneryLine(p.planetId), here: "" };
+    return {
+      tag: "SCENERY",
+      isDock: false,
+      title: p.planetName,
+      details: `${p.typeLabel} · ${p.radius.toFixed(1)}x Earth`,
+      line: sceneryLine(p.planetId),
+      here: "",
+      nickname: nicknameLine(p.nickname),
+    };
   }
   const outpost = p.dock.kind === "OUTPOST";
   let line = "Jobs and fuel here.";
@@ -645,4 +659,88 @@ export function paintRowText(row: LiveryRow, names: { name: string; description:
 /** "1/4" paint jobs owned on the PAINT button. */
 export function paintSummary(rows: readonly LiveryRow[]): string {
   return `${rows.filter((r) => r.owned).length}/${rows.length}`;
+}
+
+// ------------------------------------------------------------ long, unique names (stage N3a, Andy chose B)
+// Names: systems "Kopipex 2N-83" (or a pure name like "Lazy Harbour"), planets "Kopipex 2N-83 II", docks have a short
+// name ("Lonely Basin Outpost", unique inside its system) and a fullName ("Lonely Basin Outpost, Kopipex 2N-83 II").
+// Cards and menus WRAP long names. Only one-line spots (the status strip, a few titles) shorten, and then they
+// shorten the WORD part and always keep the code, because the code is what makes the name unique.
+
+/** The system code ("2N-83", "RP5N3-MT662"): only these letters and digits, with one hyphen (src/universe syscode). */
+const NAME_WITH_CODE = /^(.*\S)\s+([2-9DHJMNPRTV]+-[2-9DHJMNPRTV]+)((?:\s+[IVXLCDM]+)?)$/;
+
+/** Splits "Kopipex 2N-83 II" into word "Kopipex", code "2N-83" and suffix " II". Pure names give null. */
+export function splitCodedName(name: string): { word: string; code: string; suffix: string } | null {
+  const m = NAME_WITH_CODE.exec(name.trim());
+  if (!m) return null;
+  return { word: m[1]!, code: m[2]!, suffix: m[3] ?? "" };
+}
+
+/**
+ * Shortens a name to at most `max` letters (when possible): a coded name keeps its code (and planet number) and
+ * shortens only the word part ("Fizniploo J… 89-3R"); a name without a code is cut at the end with "…".
+ * The shortest a coded name gets is one letter + "…" + code ("F… 89-3R"), even if that is longer than `max`.
+ */
+export function shortenName(name: string, max: number): string {
+  const text = name.trim();
+  if (text.length <= max) return text;
+  const parts = splitCodedName(text);
+  if (parts) {
+    const tail = ` ${parts.code}${parts.suffix}`;
+    const room = Math.max(1, max - tail.length - 1); // letters of the word part to keep, before the "…"
+    return `${parts.word.slice(0, room).trimEnd()}…${tail}`;
+  }
+  if (max <= 1) return "…";
+  return `${text.slice(0, max - 1).trimEnd()}…`;
+}
+
+/** The shortest a name can get with shortenName (its code always stays). */
+export function shortestName(name: string): string {
+  return shortenName(name, 0);
+}
+
+/**
+ * "Dock · System" in at most `max` letters (one-line spots): when too long, the system's word part and the dock name
+ * share the room, the system code always stays. With no system ("" = a planet whose name already holds it), only the
+ * one name is shortened.
+ */
+export function fitPlace(dockName: string, systemName: string, max: number): string {
+  if (!systemName) return shortenName(dockName, max);
+  const full = `${dockName} · ${systemName}`;
+  if (full.length <= max) return full;
+  const sysMin = shortestName(systemName).length;
+  let sysRoom = Math.max(sysMin, Math.min(systemName.length, Math.floor((max - 3) / 2)));
+  let dockRoom = max - 3 - sysRoom;
+  if (dockName.length < dockRoom) {
+    sysRoom += dockRoom - dockName.length; // the dock name is short: give its spare room to the system
+    dockRoom = dockName.length;
+  }
+  return `${shortenName(dockName, Math.max(4, dockRoom))} · ${shortenName(systemName, sysRoom)}`;
+}
+
+/** The status strip's location in at most `max` letters, with its prefix ("EN ROUTE TO ", "IN SPACE AT "). */
+export function fitLocation(info: { flying: boolean; floating?: boolean; dockName: string; systemName: string }, max: number): string {
+  const prefix = info.flying ? "EN ROUTE TO " : info.floating ? "IN SPACE AT " : "";
+  return prefix + fitPlace(info.dockName, info.systemName, Math.max(8, max - prefix.length));
+}
+
+/** The planet nickname line for scenery planets (Andy: nicknames only as flavour, only on planets without a dock). */
+export function nicknameLine(nickname: string | undefined | null): string {
+  const n = (nickname ?? "").trim();
+  return n ? `Locals call it "${n}".` : "";
+}
+
+/** Cuts text into plain parts and system-code parts ("2N-83"), so codes can be kept whole on one line (N3a). */
+export function splitCodes(text: string): { text: string; code: boolean }[] {
+  const parts: { text: string; code: boolean }[] = [];
+  let last = 0;
+  for (const m of text.matchAll(/[2-9DHJMNPRTV]+-[2-9DHJMNPRTV]+/g)) {
+    const at = m.index ?? 0;
+    if (at > last) parts.push({ text: text.slice(last, at), code: false });
+    parts.push({ text: m[0], code: true });
+    last = at + m[0].length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last), code: false });
+  return parts;
 }

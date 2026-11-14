@@ -4,7 +4,7 @@
 // the Refuel button, and a small "+10%" marker on jobs that end in a system where you own an outpost.
 
 import { refuel, type Game } from "../game";
-import { button, el } from "./dom";
+import { button, el, nameEl, setNameText } from "./dom";
 import {
   EMPTY_BOARD_TEXT,
   emergencyVisible,
@@ -106,7 +106,7 @@ export class JobsMenu {
     const game = this.game;
     this.shownSlot = game.currentSlot();
     this.title.textContent = this.names.dockName(game.state.currentDockId);
-    this.subtitle.textContent = `JOB BOARD · ${this.names.here()}`;
+    setNameText(this.subtitle, `JOB BOARD · ${this.names.here()}`);
 
     this.emergencyBtn.hidden = !emergencyVisible(game.isStuck(), game.state.currentJob !== null);
     const fuelBtn = refuelButton(refuel(game.state), game.getPerks().fuelDiscountPercent);
@@ -172,7 +172,7 @@ export class JobsMenu {
     if (c.outpostBonus) reward.prepend(el("span", "ui-bonus", `${c.outpostBonus} OUTPOST`)); // your outpost pays extra
     top.append(el("span", "ui-chip", c.kind), reward);
     const title = el("div", "ui-card-title", c.title);
-    const dest = el("div", "ui-card-dest", `→ ${c.destination}`);
+    const dest = nameEl("div", "ui-card-dest", `→ ${c.destination}`); // codes never split (N3a)
     const facts = el("div", "ui-card-facts");
     facts.append(fact("DIST", c.distance), fact("TIME", c.time), fact("FUEL", c.fuel.replace(/ FUEL$/, "")));
     const blurb = el("div", "ui-card-blurb", c.blurb);

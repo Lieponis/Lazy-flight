@@ -1099,7 +1099,7 @@ body.ui-planet-panel-on .hud-label {
 .ui-whatnow-btn {
   position: fixed;
   z-index: 30;
-  top: calc(var(--ui-top-reserve) + 6px); /* top right, under the status strip (Andy) */
+  top: calc(var(--ui-top-reserve) + 34px); /* top right, under the status strip and the screen title (Andy; N3a) */
   right: var(--ui-safe-r);
   min-height: 52px;
   letter-spacing: 2px;
@@ -1261,7 +1261,7 @@ body.ui-planet-panel-on .hud-label {
 
 /* 5f: while the WHAT NOW? button shows (floating), notes start below it. */
 body.ui-whatnow-on .ui-toast {
-  top: calc(var(--ui-top-reserve) + 66px);
+  top: calc(var(--ui-top-reserve) + 96px);
 }
 
 /* ------------------------------------------------------------ stage P3: SAVE FILE panel, install hint, TESTER */
@@ -1428,4 +1428,47 @@ body.ui-whatnow-on .ui-toast {
   .ui-savefile-confirm .ui-savefile-row {
     grid-template-columns: 1fr;
   }
+}
+
+/* ------------------------------------------------------------ stage N3a: long, unique names */
+
+/* Long names wrap in cards and menus (Andy chose B); only one-line spots shorten (src/ui/dom.ts fitText). */
+.ui-card-dest,
+.ui-planet-title,
+.ui-planet-details,
+.ui-owned-name,
+.ui-outpost-perks,
+.ui-arrival-card .ui-panel-sub,
+.ui-jobs .ui-panel-sub,
+.ui-toast {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+/* The nickname line on scenery planets (Andy: flavour only, never the name). */
+.ui-planet-nickname {
+  color: var(--ui-amber);
+  font-size: 18px;
+}
+
+/* Narrow phones: the place gets its own full-width second line in the status strip, so long names (N3a) need less
+   shortening. Credits, fuel, speaker and MENU stay on the first line. */
+@media (max-width: 520px) {
+  /* line 1: credits, fuel, speaker. line 2: the place, then MENU (when docked) */
+  .ui-strip-speaker {
+    margin-left: auto;
+  }
+  .ui-strip-loc {
+    order: 10;
+    flex: 1 1 60%;
+    text-align: left;
+  }
+  .ui-strip-menu {
+    order: 11;
+  }
+}
+
+/* A system code inside a wrapped name never breaks at its hyphen (N3a). */
+.ui-code {
+  white-space: nowrap;
 }

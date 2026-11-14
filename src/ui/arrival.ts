@@ -1,7 +1,7 @@
 // ARRIVAL CARD: "Delivered", the reward and the funny debrief line. Dismiss, or tap anywhere outside.
 
 import type { Arrival } from "../game";
-import { button, el } from "./dom";
+import { button, el, setNameText } from "./dom";
 import { explorerRankUpLine, formatCredits, rankUpLine } from "./logic";
 
 export class ArrivalCard {
@@ -28,7 +28,7 @@ export class ArrivalCard {
 
   open(arrival: Arrival, placeName: string): void {
     this.reward.textContent = `+${formatCredits(arrival.reward)}`;
-    this.place.textContent = `${arrival.job.amount} × ${arrival.job.itemName} → ${placeName}`;
+    setNameText(this.place, `${arrival.job.amount} × ${arrival.job.itemName} → ${placeName}`); // codes stay whole (N3a)
     this.line.textContent = arrival.debrief; // includes the funny rank-up line when you ranked up
     // Rank up (part 5c): the same card says so, with the new rank's name.
     // 5f: jobs explore too, so a delivery can also raise the Explorer rank.

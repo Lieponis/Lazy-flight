@@ -3,8 +3,8 @@
 // and fuel refusal line, emergency fuel (only when stuck), the menu, or just stay.
 
 import type { Game } from "../game";
-import { button, el } from "./dom";
-import { whatNowChoices } from "./logic";
+import { button, el, fitText } from "./dom";
+import { shortenName, whatNowChoices } from "./logic";
 
 export type WhatNowChoice = ReturnType<typeof whatNowChoices>[number]["id"];
 
@@ -64,6 +64,11 @@ export class WhatNow {
       ),
     );
     this.root.hidden = false;
+    // A long planet name keeps its code and shortens the word part to fit the one-line title (N3a, Andy chose B).
+    if (id) {
+      const name = this.placeName(id).toUpperCase();
+      fitText(this.title, `AT ${name}`, (max) => `AT ${shortenName(name, max - 3)}`);
+    }
   }
 
   close(): void {

@@ -25,7 +25,7 @@ import { el } from "./dom";
 import { ArrivalCard } from "./arrival";
 import { GameMenu, showToast, type NewGameChoice } from "./gamemenu";
 import { JobsMenu } from "./jobsmenu";
-import { freeArrivalNote, locationText, overlayAllowed, placeLabel, startNotice, visibleControls, type Overlay } from "./logic";
+import { freeArrivalNote, overlayAllowed, placeLabel, startNotice, visibleControls, type Overlay } from "./logic";
 import { Popup } from "./popup";
 import { SaveFilePanel } from "./savefile";
 import { InstallHint } from "./installhint";
@@ -281,12 +281,13 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
       credits: game.state.credits,
       fuel: game.state.fuel,
       tank: game.getShipStats().fuelTankSize, // the real tank, with upgrades (5d)
-      location: locationText({
+      location: {
         flying: job !== null || trip !== null,
         floating: isFloating(),
         dockName: placeName(where),
-        systemName: systemNameOfPlace(where),
-      }),
+        // A planet without a dock is named "<system> II": no need to repeat the system (N3a).
+        systemName: getDock(seed, where) ? systemNameOfPlace(where) : "",
+      },
     });
   }
 
