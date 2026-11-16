@@ -31,6 +31,7 @@ import { parseFloatPreview, parseFloatStyle } from "./floatmath";
 import { floatCandidates } from "./floatpick";
 import { parseReachParam, reachBeyondMap, starmapRadius } from "./starmapradius";
 import { mountFloatPreview } from "./floatpreview";
+import { splitCodedName } from "./namefit";
 import { WORST_DOCK_FULL, WORST_PLANET, parseNamePreview, pickSamples } from "./namesamples";
 import { mountNamePreview } from "./namepreview";
 import { FLOAT_DEFAULT_STYLE } from "./settings";
@@ -257,7 +258,12 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
 
   // Testing aid for the system view (stage U3): ?systempreview=1 gives buttons to compare dock marks and step through systems.
   if (parseSystemPreview(window.location.search)) {
-    const near = previewList(listSystemsNear(seed, current.position, 40), 2);
+    const region = listSystemsNear(seed, current.position, 40);
+    // Stage 3i: the longest system name and a pure-name system (no code) come first, to check long names in the title and the summary.
+    const longest = [...region].sort((a, b) => b.name.length - a.name.length)[0];
+    const pure = region.find((s) => splitCodedName(s.name) === null && getDocksOfSystem(seed, s.id).length > 0);
+    const lead = [longest, pure].filter((s): s is NonNullable<typeof s> => s !== undefined);
+    const near = [...lead, ...previewList(region, 2).filter((s) => !lead.some((l) => l.id === s.id))];
     mountSystemPreview(parent, {
       initial: parseMarks(window.location.search) ?? SYSTEM_MARK_STYLE,
       systems: near.map((s) => `${s.name}: ${s.planetCount} planets, ${getDocksOfSystem(seed, s.id).length} docks`),
