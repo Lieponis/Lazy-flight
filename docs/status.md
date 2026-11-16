@@ -283,3 +283,10 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Decisions in docs/feasibility-galaxy.md section 6: about 20 billion systems; spiral shape only (no orbiting); start at 1/3 from centre to rim; map: nearest 10,000 tappable, rest faint back-drop; jobs by nearest docks by count; QA paused until after the galaxy.
 - G1 Agent 2 prototype (docs/briefs/agent-2d-brief.md, branch galaxy-proto, never merged) and G2 Agent 3 map prototype (docs/briefs/agent-3j-brief.md, preview page only) run in parallel; go/no-go with Andy after both. Agent 3's N3b (names fit 3D screens) is still running: finish N3b first if it is not done.
 - Andy 2026-11-16 (late): sky must be a projection of the galaxy from the player's position (Elite Dangerous style), with a faded cloud beyond the nearest stars. Added to the Agent 3 and Agent 2 prototype briefs; agents already running must reread them. See docs/feasibility-galaxy.md section 9.
+
+## N3b / 3i DONE and accepted (Lead 2026-11-17)
+- Agent 3 report docs/report-agent-3i.md. Long unique names fit 3D screens (look B), full unique name on cockpit, "Sharp" text, Actions green, Andy's click-tests matched. Glue: only `flightName` in src/ui/index.ts.
+- Not verified: real shader and frame rate on phones, TRIS counter, galaxy-map label with worst-case name. If a phone is slow: `SCREEN_SUPERSAMPLE` 3 -> 2 (screendata.ts).
+- Rule: do not add more `launchSeconds:` / `this.phases = ` literals in flight.ts (tests/agent6c).
+- Two name-shortening helpers exist (ui and render). Suggestions (unapproved): shared pure folder; compact layout when zoomed out; fix vertical stretch of screen pictures.
+- Agent 3 is now free for G2 (docs/briefs/agent-3j-brief.md).
