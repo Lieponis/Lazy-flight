@@ -11,6 +11,8 @@ Names changed (Agent 2, live on main): systems "Kopipex 2N-83" (some pure like "
 3. Add pure, tested helpers for fitting text (width in pixels -> lines or shortened text) and a preview (a test page or an option on an existing preview, for example `?systempreview=1` or `?floatpreview=1`) that cycles through long and short names so Andy can see them. Also try pure-name systems (`Lazy Harbour` style: use `/debug.html` search or the first systems of seed 12345).
 4. Keep performance and the triangle budgets unchanged. `npm run check` green; Actions green.
 
+5. IMPORTANT (Agent 5h, stage N3a, live): the UI hides the render screen titles when docked or floating through the CSS classes `.hud-title` and `.fh-title` (body classes `ui-docked-on` / `ui-floating-on`). Do NOT rename those classes or move those elements without telling the Lead. Also: `destinationName` passed to render still uses the dock SHORT name; if a destination must be unambiguous on a screen you own, ask the Lead whether Agent 5 should pass `fullName`.
+
 ## Allowed / not allowed
 Allowed: src/render, render tests, preview pages/code, docs. The smallest glue in src/ui/index.ts only if a name must come from there (say exactly what). Not allowed: src/universe, src/game, src/save, menus and HTML texts (Agent 5), new features.
 

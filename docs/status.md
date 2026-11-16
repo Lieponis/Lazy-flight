@@ -264,3 +264,10 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - planStart: seed is always WORLD_SEED (12345); ?seed= only with ?dev=1 (?dev=1 alone continues a save on another seed untouched); saves on another seed are moved + refunded by migrateSave(save, toSeed) (credits, ships, upgrades, paint jobs, job counts kept; trip cancelled; outposts refunded; explored places forgotten, so the Explorer rank resets because it is computed from explored places); message shows once. NEW GAME deletes the save and restarts on the world seed; "New random universe" and the seed line removed from the menu. Import judges a file against the world seed (otherSeed flag; placeholder wording for Agent 5). Developer pages keep ?seed= without the flag. 24 new tests; Actions green (25d34ff).
 - Known: a developer save on seed 777 is moved by the next normal load; other open tabs on old code can write their old seed back.
 - WAITING: N3a Agent 5 (docs/briefs/agent-5h-brief.md) and N3b Agent 3 (docs/briefs/agent-3i-brief.md): names fit every screen. Then optional N4 Agent 6.
+
+## Agent 5 stage N3a (5h) (2026-11-16): DONE, Andy checked live; Lead review passed
+- Long unique names fit every menu/card: one-line spots shorten the word part and keep the code (Andy chose B), cards wrap with codes kept whole, place on its own strip line on phones, nickname only on scenery planet cards, doubled screen title hidden when docked or floating (Andy chose A, via body classes ui-docked-on / ui-floating-on and render classes .hud-title / .fh-title), NEW GAME wording. 862 tests, Actions green (c2db31b, c658b2f, 748976a). Only src/ui, CSS, tests.
+- Not verified: the 75-letter names (far systems are not reachable in play) were tested only in a headless browser by Agent 5; Android.
+- Rule for Agent 3 (added to its brief): do not rename .hud-title / .fh-title. destinationName given to render is still the dock short name.
+- Open Andy decision: gentler Explorer rank rule for carried-over saves ("simple" = rank restarts, recommended; "gentler" = store the rank number separately).
+- WAITING: N3b Agent 3 (docs/briefs/agent-3i-brief.md), then optional N4 Agent 6 QA.
