@@ -82,3 +82,8 @@ Each stage ends with a live build you verify. Stages G1 and G2 can run in parall
 - G1 Agent 2: prototype of the galaxy generator (brief docs/briefs/agent-2d-brief.md). Branch `galaxy-proto`, never merged to main.
 - G2 Agent 3: prototype of the map rendering with stand-in data (brief docs/briefs/agent-3j-brief.md); a separate preview page only (merge allowed because it does not touch the game).
 - Go/no-go meeting with Andy after both reports. Then G3 Agent 2 (universe v3 in main), G4 Agent 4 (jobs by count, fuel/range, migration), G5 Agents 3/5 (real map, UI), G6 Agent 6 (balance, QA, offline tests, phone).
+
+## 9. Added 2026-11-16 (Andy): the sky depends on where you are (Elite Dangerous style)
+- Request: no generic backdrop; the background stars and glow are a projection of the galaxy from the player's position, so every place in the universe shows a different pattern, with a faded cloud of stars beyond the nearest real stars.
+- Lead verdict: feasible, moderate. Near real systems = exact; far sky = the galaxy's density integrated along view rays into a small sky cube (rebuilt only after moving far) plus faint position-seeded fake stars. Costs a little extra shader/CPU work per arrival, not per frame. The in-game starfield could also be seeded per system (easy) and later use the band (medium).
+- Added to briefs docs/briefs/agent-3j-brief.md (update section) and docs/briefs/agent-2d-brief.md (`lineIntegralDensity`).
