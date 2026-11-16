@@ -7,7 +7,7 @@
 //   api.state.subscribe((s) => ...)    // be told when something changes
 
 import type * as THREE from "three";
-import { getDocksOfSystem, getSystem, listSystemsNear, parseDockId, type StarSystem } from "../universe";
+import { getDocksOfSystem, getPlanetsOfSystem, getSystem, listSystemsNear, parseDockId, type StarSystem } from "../universe";
 import type { FlightInfo } from "./flightplan";
 import { Hud } from "./hud";
 import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
@@ -31,6 +31,10 @@ import { parseFloatPreview, parseFloatStyle } from "./floatmath";
 import { floatCandidates } from "./floatpick";
 import { parseReachParam, reachBeyondMap, starmapRadius } from "./starmapradius";
 import { mountFloatPreview } from "./floatpreview";
+import { NAME_STYLE_DEFAULT } from "./infoscreen";
+import { parseNameStyle } from "./namefit";
+import { WORST_DOCK_FULL, WORST_PLANET, parseNamePreview, pickSamples } from "./namesamples";
+import { mountNamePreview } from "./namepreview";
 import { FLOAT_DEFAULT_STYLE } from "./settings";
 import { parseWarpPreview, parseWarpStyle } from "./warpmath";
 
@@ -274,7 +278,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     const picks = floatCandidates(seed, near, 3);
     const docks = getDocksOfSystem(seed, current.id).map((d) => d.id);
     let shown = 0;
-    const tripTo = (toId: string, name: string): void => {
+    const tripTo = (toId: string, name: string, stops?: string[]): void => {
       const fromId = picks[shown]?.planetId;
       if (!fromId) return;
       const startedAt = performance.now();
@@ -283,6 +287,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
         originDockId: fromId,
         destinationDockId: toId,
         destinationName: name,
+        ...(stops ? { stops } : {}),
         speed: 1,
         getProgress: () => {
           const used = performance.now() - startedAt;
@@ -312,7 +317,30 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
         const dock = docks[0];
         if (dock) tripTo(dock, "DOCK");
       },
+      // Stage 3i: the longest names the universe allows, on the cockpit screen (a plain trip, and a tour with three stops).
+      onLongTrip: () => {
+        const next = picks[(shown + 1) % Math.max(1, picks.length)];
+        if (next) tripTo(next.planetId, WORST_PLANET);
+      },
+      onLongTour: () => {
+        const next = picks[(shown + 1) % Math.max(1, picks.length)];
+        if (next) tripTo(next.planetId, WORST_DOCK_FULL, [WORST_DOCK_FULL, WORST_PLANET, WORST_DOCK_FULL]);
+      },
       triangles: () => flight.triangleCount(),
+    });
+  }
+
+  // Testing aid for long unique names (stage 3i): ?namepreview=1 shows a sheet of cockpit information screens with real and worst-case names; buttons A / B / C.
+  if (parseNamePreview(window.location.search)) {
+    const region = listSystemsNear(seed, current.position, 100);
+    const sources = region.map((s) => ({
+      system: s.name,
+      planets: getPlanetsOfSystem(seed, s.id).map((p) => p.name),
+      docks: getDocksOfSystem(seed, s.id).map((d) => ({ name: d.name, fullName: d.fullName })),
+    }));
+    mountNamePreview(parent, {
+      initial: parseNameStyle(new URLSearchParams(window.location.search).get("nameinfo")) ?? NAME_STYLE_DEFAULT,
+      samples: pickSamples(sources),
     });
   }
 

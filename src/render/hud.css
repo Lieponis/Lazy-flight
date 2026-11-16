@@ -17,10 +17,19 @@
   right: max(12px, env(safe-area-inset-right));
   font-size: 18px;
   letter-spacing: 2px;
+  line-height: 1.15;
   color: var(--ui-teal, #3fe0d0);
   text-shadow: 0 1px 0 #000, 0 0 2px #000;
+  /* Stage 3i: long unique names wrap onto up to three lines (a code never splits); before, the end of a long title was cut off,
+     which hid the code. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+/* A system code such as "2N-83" stays whole on one line (src/render/nametext.ts puts it in this span). */
+.nm-code {
   white-space: nowrap;
 }
 

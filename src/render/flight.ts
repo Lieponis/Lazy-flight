@@ -110,6 +110,7 @@ import { disposeAll, makePlanetMesh } from "./systemview";
 import { buildWarp } from "./warp";
 import { parseWarpStyle, type WarpStyle } from "./warpmath";
 import { flameFlicker, stepped } from "./lookmath";
+import { setNameText } from "./nametext";
 import "./flight.css";
 
 const BASE_PHASES: PhaseSettings = {
@@ -691,12 +692,12 @@ export class FlightScreen implements Screen {
       COMPUTER_LINES[computerLineIndex(plan.elapsedSeconds, COMPUTER_LINES.length, hashString(info.destinationDockId), FLIGHT_LINE_SECONDS)] ?? "";
     if (this.floating) {
       // Floating at a planet without a dock: no trip, no countdown.
-      this.title.textContent = `IN SPACE - ${this.floating.name}`;
-      this.text.textContent = `Floating near ${this.floating.name}\n> ${line}`;
+      setNameText(this.title, `IN SPACE - ${this.floating.name}`);
+      setNameText(this.text, `Floating near ${this.floating.name}\n> ${line}`);
     } else {
-      this.title.textContent = `FLIGHT - ${PHASE_NAMES[plan.phase]}`;
+      setNameText(this.title, `FLIGHT - ${PHASE_NAMES[plan.phase]}`);
       const arrives = plan.phase === "DONE" ? "Arrived!" : `Arrives in ${formatCountdown(remainingMs)}  (at ${clockTime})`;
-      this.text.textContent = `To: ${info.destinationName}\n${arrives}\n> ${line}`;
+      setNameText(this.text, `To: ${info.destinationName}\n${arrives}\n> ${line}`);
     }
     (this.barFill.parentElement as HTMLElement).style.display = this.floating ? "none" : "";
     if (this.mode === "cockpit") {

@@ -7,22 +7,10 @@
 
 import * as THREE from "three";
 import type { AssetModel } from "./assets";
-import {
-  SCREEN_PIXEL_WIDTH,
-  canvasHeightFor,
-  SCREEN_DESIGN_WIDTH,
-  type FuelScreenData,
-  type InfoScreenData,
-  type MapScreenData,
-} from "./screendata";
+import { SCREEN_PIXEL_WIDTH, canvasHeightFor, SCREEN_DESIGN_WIDTH, type FuelScreenData, type InfoScreenData, type MapScreenData } from "./screendata";
+import { parseNameStyle, type NameStyle } from "./namefit";
+import { AMBER, CYAN, DARK, FONT, LIGHT, NAME_STYLE_DEFAULT, NAV_BACK, NAV_DIM, drawInfo, thick } from "./infoscreen";
 
-const AMBER = "#c07a22";
-const LIGHT = "#e3e7ff";
-const CYAN = "#3fe0ff";
-const DARK = "#0e2a30";
-const NAV_BACK = "#0b3138"; // the route screen is darker than the others, for contrast
-const NAV_DIM = "#2f8fa3";
-const FONT = '"VT323", ui-monospace, Menlo, Consolas, monospace'; // the game's pixel font if it is loaded, else a plain monospace
 
 /** How far in front of the glowing screen the picture floats (crates). */
 const FLOAT = 0.003;
@@ -69,92 +57,6 @@ function centred(ctx: CanvasRenderingContext2D, text: string, x: number, y: numb
     ctx.font = `${size}px ${FONT}`;
   }
   thick(ctx, text, x, y, color, size);
-}
-
-/** Text with a thin outline of its own colour, so the strokes stay visible when the screen is small on the picture. */
-function thick(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, size: number): void {
-  ctx.fillStyle = color;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(1, size * 0.07);
-  ctx.lineJoin = "round";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.strokeText(text, x, y);
-  ctx.fillText(text, x, y);
-}
-
-/** Breaks `text` into lines no wider than `maxWidth` at the current font. */
-function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const lines: string[] = [];
-  let line = "";
-  for (const word of text.split(/\s+/)) {
-    const test = line ? `${line} ${word}` : word;
-    if (line && ctx.measureText(test).width > maxWidth) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = test;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
-/** Lines of text, all the same size (the biggest up to `maxSize` that fits the width and the height), centred as a block. */
-function drawBlock(ctx: CanvasRenderingContext2D, w: number, h: number, lines: { text: string; color: string }[], maxSize: number, top: number, bottom: number): void {
-  const maxW = w - 8 * (w / SCREEN_DESIGN_WIDTH);
-  const area = h * (bottom - top);
-  let size = maxSize;
-  for (; size > 8; size -= 1) {
-    ctx.font = `${size}px ${FONT}`;
-    if (lines.length * size * 0.9 <= area && lines.every((l) => ctx.measureText(l.text).width <= maxW)) break;
-  }
-  ctx.font = `${size}px ${FONT}`;
-  const lineH = size * 0.9;
-  let y = h * top + (area - lines.length * lineH) / 2 + lineH * 0.82;
-  for (const l of lines) {
-    thick(ctx, l.text, w / 2, y, l.color, size);
-    y += lineH;
-  }
-}
-
-function drawInfo(ctx: CanvasRenderingContext2D, w: number, h: number, d: InfoScreenData): void {
-  const k = w / SCREEN_DESIGN_WIDTH; // everything is laid out on a 96-wide grid and scaled to the picture
-  ctx.fillStyle = NAV_BACK; // the same dark background as the route screen (Andy)
-  ctx.fillRect(0, 0, w, h);
-  const BODY = 19 * k; // one text size on both pages, so nothing overlaps
-  if (d.page === "message") {
-    // A funny line from the ship's computer, wrapped to the screen.
-    ctx.font = `${BODY}px ${FONT}`;
-    let size = BODY;
-    let lines = wrap(ctx, d.message, w - 8 * k);
-    while (size > 12 * k && lines.length * size * 0.9 > h * 0.72) {
-      size -= k;
-      ctx.font = `${size}px ${FONT}`;
-      lines = wrap(ctx, d.message, w - 8 * k);
-    }
-    drawBlock(ctx, w, h, [{ text: "SHIP COMPUTER", color: CYAN }, ...lines.map((text) => ({ text, color: LIGHT }))], size, 0.04, 0.96);
-    return;
-  }
-  ctx.font = `${BODY}px ${FONT}`;
-  // Tours show the next stop (and the tour's end time) instead of the plain destination; the line count stays the same.
-  const heading = d.next ? `${d.next.isFinal ? "FINAL" : "NEXT"} STOP ${d.next.number}/${d.next.total}` : "TO";
-  const destLines = wrap(ctx, (d.next ? d.next.name : d.destination).toUpperCase(), w - 8 * k).slice(0, 2);
-  drawBlock(
-    ctx,
-    w,
-    h,
-    [
-      { text: heading, color: CYAN },
-      ...destLines.map((text) => ({ text, color: LIGHT })),
-      { text: d.next ? "TOUR ENDS IN" : "ARRIVES IN", color: CYAN },
-      { text: d.countdown, color: LIGHT },
-      { text: d.phase, color: CYAN },
-    ],
-    BODY,
-    0.04,
-    0.96,
-  );
 }
 
 function drawMap(ctx: CanvasRenderingContext2D, w: number, h: number, d: MapScreenData): void {
@@ -274,6 +176,7 @@ export class CockpitScreens {
   private fuel: Face | null;
   private rightWing: Face | null;
   private rightWingDrawn = false;
+  private nameStyle: NameStyle = NAME_STYLE_DEFAULT;
   /** Called once when the pixel font finishes loading, so the owner can redraw straight away. */
   onFontLoaded: (() => void) | null = null;
 
@@ -282,6 +185,11 @@ export class CockpitScreens {
     this.map = makeFace(model, "screenMap");
     this.fuel = makeFace(model, "screenFuel");
     this.rightWing = makeFace(model, "screenRightWing");
+    try {
+      this.nameStyle = parseNameStyle(new URLSearchParams(window.location.search).get("nameinfo")) ?? NAME_STYLE_DEFAULT;
+    } catch {
+      // not important: the default style is fine
+    }
     // The UI's CSS loads the VT323 font; wait for it before relying on it (the plain monospace is used meanwhile).
     try {
       void document.fonts?.load(`20px "VT323"`).then(() => this.onFontLoaded?.());
@@ -293,7 +201,7 @@ export class CockpitScreens {
   /** Redraws all three pictures. Call about 4 times a second, not every frame. */
   draw(frame: ScreenFrame): void {
     if (this.info) {
-      drawInfo(this.info.ctx, this.info.canvas.width, this.info.canvas.height, frame.info);
+      drawInfo(this.info.ctx, this.info.canvas.width, this.info.canvas.height, frame.info, this.nameStyle);
       this.info.texture.needsUpdate = true;
     }
     if (this.map) {

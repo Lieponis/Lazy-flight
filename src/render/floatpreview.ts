@@ -13,6 +13,9 @@ export interface FloatPreviewOptions {
   /** Free trip from the shown planet to the next one in the list (or a dock). */
   onTrip: () => void;
   onTripToDock: () => void;
+  /** Stage 3i: a trip and a three-stop tour with the longest names the universe allows. */
+  onLongTrip: () => void;
+  onLongTour: () => void;
   triangles: () => number;
 }
 
@@ -64,6 +67,8 @@ export function mountFloatPreview(parent: HTMLElement, o: FloatPreviewOptions): 
   bar.appendChild(button(">", () => step(1)));
   bar.appendChild(button("TRIP", o.onTrip));
   bar.appendChild(button("TO DOCK", o.onTripToDock));
+  bar.appendChild(button("LONG TRIP", o.onLongTrip));
+  bar.appendChild(button("LONG TOUR", o.onLongTour));
 
   const tris = document.createElement("span");
   tris.style.cssText = "background:rgba(5,9,16,0.8);padding:2px 8px;";

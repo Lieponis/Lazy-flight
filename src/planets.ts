@@ -8,6 +8,7 @@ import { getPlanetsOfSystem, listSystemsNear, type Planet, type Seed } from "./u
 import { makePlanetMesh, disposeAll } from "./render/systemview";
 import { chooseLook, type EarthStyle } from "./render/planetlook";
 import { parseSeedParam } from "./render/helpers";
+import { nameHtml } from "./render/nametext";
 
 const COLS = 5;
 const ROWS = 4;
@@ -75,7 +76,7 @@ function show(): void {
     const extras = [look.earth ? `EARTH-LIKE ${look.earth}` : "", look.exotic ? "surprising" : "", look.rings ? `rings ×${look.rings.length}` : "", look.clouds ? "clouds" : "", look.caps ? "caps" : "", look.craters.length ? "craters" : ""]
       .filter(Boolean)
       .join(" · ");
-    tag.innerHTML = `${planet.name}<br><b>${planet.type.toLowerCase()}</b> ${extras}`;
+    tag.innerHTML = `${nameHtml(planet.name)}<br><b>${planet.type.toLowerCase()}</b> ${extras}`;
     tag.style.left = `${(col / COLS) * 100}%`;
     tag.style.width = `${100 / COLS}%`;
     tag.style.top = `${((row + 0.86) / ROWS) * 100}%`;

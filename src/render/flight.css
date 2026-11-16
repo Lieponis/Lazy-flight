@@ -25,8 +25,15 @@
   /* sits just under the status strip from src/ui (Agent 5 sets --ui-top-reserve) */
   top: calc(max(8px, env(safe-area-inset-top)) + var(--ui-top-reserve, 0px));
   left: 12px;
+  right: 12px; /* stage 3i: a long name wraps inside the screen instead of running off it */
   font-size: 20px;
+  line-height: 1.15;
   text-shadow: 0 1px 0 #000;
+}
+
+.fh-title .nm-code,
+.fh-text .nm-code {
+  white-space: nowrap; /* a system code never splits across lines (also set in hud.css) */
 }
 
 .fh-bottom {

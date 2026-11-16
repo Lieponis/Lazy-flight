@@ -1,5 +1,6 @@
 // The plain HTML text and buttons on top of the picture. Real menus are Agent 5's job.
 
+import { setNameText } from "./nametext";
 import "./hud.css";
 
 export interface HudButton {
@@ -36,11 +37,11 @@ export class Hud {
   }
 
   setTitle(text: string): void {
-    this.title.textContent = text;
+    setNameText(this.title, text);
   }
 
   setLabel(text: string): void {
-    this.label.textContent = text;
+    setNameText(this.label, text);
   }
 
   setButtons(list: readonly HudButton[]): void {
