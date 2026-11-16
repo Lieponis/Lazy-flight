@@ -271,3 +271,7 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Rule for Agent 3 (added to its brief): do not rename .hud-title / .fh-title. destinationName given to render is still the dock short name.
 - Open Andy decision: gentler Explorer rank rule for carried-over saves ("simple" = rank restarts, recommended; "gentler" = store the rank number separately).
 - WAITING: N3b Agent 3 (docs/briefs/agent-3i-brief.md), then optional N4 Agent 6 QA.
+
+## Decisions 2026-11-16 (Andy)
+- Explorer rank for carried-over saves: "simple" (the rank restarts in the shared universe). Closed.
+- Full QA YES, before a big change that Andy has announced (not yet described). Brief docs/briefs/agent-6g-brief.md = P4 (offline tests, brief 6f, never delivered) + general QA/balance (brief 6d, updated for the world seed, unique names, free travel, paint jobs, save file, map reach). Starts after N3b (Agent 3) is verified, or earlier if Andy prefers (they touch different files).
