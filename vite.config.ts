@@ -23,8 +23,8 @@ export default defineConfig({
     outDir: "dist",
     chunkSizeWarningLimit: 800,
     rollupOptions: {
-      // Six pages are published: the game, the universe debug page, the model viewer, the game debug page, the planet looks preview
-      // and the release page (about.html).
+      // Seven pages are published: the game, the universe debug page, the model viewer, the game debug page, the planet looks preview,
+      // the release page (about.html) and the galaxy map prototype page.
       input: {
         main: "index.html",
         debug: "debug.html",
@@ -32,6 +32,7 @@ export default defineConfig({
         gamedebug: "game-debug.html",
         planets: "planets.html", // planet looks preview (Agent 7c)
         about: "about.html", // release page (Agent 7d), online only
+        galaxymap: "galaxy-map-preview.html", // galaxy map prototype G2 (Agent 3), online only
       },
     },
   },

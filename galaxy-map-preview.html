@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#05060d" />
+    <title>Lazy Flight: galaxy map preview (prototype)</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #05060d; color: #cfe9e6; font-family: ui-monospace, Menlo, monospace; overflow: hidden; }
+      #app { position: fixed; inset: 0; }
+      /* The canvas is tiny (320x180 or so); CSS stretches it over the whole window WITHOUT smoothing: the chunky pixel look. */
+      .gm-canvas { display: block; width: 100vw; height: 100vh; image-rendering: crisp-edges; image-rendering: pixelated; touch-action: none; }
+      @supports (height: 100dvh) { .gm-canvas { height: 100dvh; } }
+      .gm-stats { position: absolute; left: 6px; top: 6px; margin: 0; max-width: calc(100vw - 90px); font-size: 11px; line-height: 1.35; color: #9fe8d8; text-shadow: 0 1px 2px #000; white-space: pre-wrap; pointer-events: none; }
+      .gm-menu { position: absolute; right: 6px; top: 6px; min-height: 38px; padding: 6px 12px; font: inherit; font-size: 13px; background: #10131f; color: #cfe9e6; border: 1px solid #34405f; }
+      .gm-panel { position: absolute; left: 0; right: 0; bottom: 0; max-height: 46vh; overflow-y: auto; padding: 6px 8px calc(8px + env(safe-area-inset-bottom)); background: rgba(8, 10, 20, 0.88); border-top: 1px solid #263050; }
+      .gm-panel.hidden { display: none; }
+      .gm-group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 3px 0; }
+      .gm-title { width: 112px; font-size: 11px; color: #7f8fb8; }
+      .gm-group button { min-height: 34px; padding: 4px 8px; font: inherit; font-size: 12px; background: #10131f; color: #cfe9e6; border: 1px solid #34405f; }
+      .gm-group button.on { background: #ffb547; color: #111; border-color: #ffb547; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/galaxy-map-preview.ts"></script>
+  </body>
+</html>

@@ -484,7 +484,7 @@ describe("manifest, icons and page tags", () => {
     expect(html).toContain('rel="apple-touch-icon"');
     expect(html).toContain('name="apple-mobile-web-app-capable"');
     expect(html).toContain('name="apple-mobile-web-app-title" content="Lazy Flight"');
-    for (const page of ["debug.html", "game-debug.html", "models.html", "planets.html"]) {
+    for (const page of ["debug.html", "game-debug.html", "models.html", "planets.html", "galaxy-map-preview.html"]) {
       expect(readFileSync(join(root, page), "utf8")).not.toMatch(/serviceWorker|rel="manifest"/);
     }
   });
