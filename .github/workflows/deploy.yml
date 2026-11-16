@@ -30,6 +30,10 @@ jobs:
         run: npm test
       - name: Build the game
         run: npm run build
+      - name: Install the test browser (headless Chromium, for the offline checks)
+        run: npx playwright install --with-deps chromium
+      - name: Offline checks (installed app, offline play, updates, save file); a failure stops publishing
+        run: node tests/offline/offline-check.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

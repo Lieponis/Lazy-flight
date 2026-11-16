@@ -10,13 +10,15 @@
     "preview": "vite preview",
     "test": "vitest run",
     "check": "npm run build && npm run test",
-    "balance": "vite-node tests/sim/run-balance.ts"
+    "balance": "vite-node tests/sim/run-balance.ts",
+    "offline-check": "npm run build && node tests/offline/offline-check.mjs"
   },
   "dependencies": {
     "three": "0.170.0"
   },
   "devDependencies": {
     "@types/three": "0.170.0",
+    "playwright": "1.63.0",
     "typescript": "~5.6.3",
     "vite": "^8.3.7",
     "vite-node": "^6.0.0",

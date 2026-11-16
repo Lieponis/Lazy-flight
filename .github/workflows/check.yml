@@ -22,3 +22,7 @@ jobs:
         run: npm install
       - name: Run the full check (types, build, tests)
         run: npm run check
+      - name: Install the test browser (headless Chromium, for the offline checks)
+        run: npx playwright install --with-deps chromium
+      - name: Offline checks (installed app, offline play, updates, save file)
+        run: node tests/offline/offline-check.mjs
