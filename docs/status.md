@@ -290,3 +290,9 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Rule: do not add more `launchSeconds:` / `this.phases = ` literals in flight.ts (tests/agent6c).
 - Two name-shortening helpers exist (ui and render). Suggestions (unapproved): shared pure folder; compact layout when zoomed out; fix vertical stretch of screen pictures.
 - Agent 3 is now free for G2 (docs/briefs/agent-3j-brief.md).
+
+## G1 galaxy generator prototype DELIVERED (Agent 2, branch galaxy-proto, report docs/report-agent-2d.md on that branch) - Lead 2026-11-17
+- Built and tested (31 tests): 17.88 billion systems, 4 log-spiral arms, polar cells, 8 slots per cell, ids up to 4.66e10, 9-symbol codes for 85% of systems, 10M random systems all unique, exact-repeat maths (detmath). lineIntegralDensity included (sky cube 6x32x32 in ~60 ms).
+- Numbers: nearest 10,000 at start in 26 ms (cloud; phone est. 80-160 ms); start on inner arm edge, 8.0 ly spacing, 126 systems within 25 ly, 3,349 within 75 ly, nearest 10,000 reach 107.7 ly. Rim: nearest system 80-250 ly away.
+- Recommendation GO with conditions: phone timing + iPhone checksum (with G2); game queries by count only; Andy's choice start at arm edge (8.0 ly) vs arm middle (6.7 ly); rim policy.
+- Lead verdict: accepted as prototype. Waiting for G2 (Agent 3 map preview) before go/no-go. Section 9 of the report = v3 change list by layer (use it for G3-G6 briefs).
