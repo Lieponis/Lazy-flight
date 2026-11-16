@@ -1472,3 +1472,10 @@ body.ui-whatnow-on .ui-toast {
 .ui-code {
   white-space: nowrap;
 }
+
+/* The place shows in the status strip; the render layer's screen title would repeat it (Andy chose A, N3a).
+   Hidden only while docked (.hud-title) and while floating (.fh-title); map and flight titles stay. */
+body.ui-docked-on .hud-title,
+body.ui-floating-on .fh-title {
+  display: none;
+}

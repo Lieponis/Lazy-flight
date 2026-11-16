@@ -317,6 +317,10 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     if (overlay === "whatnow") {
       if (!whatNow.opened) whatNow.open();
     } else whatNow.close();
+    // The status strip already names the place: hide the screen title when docked or floating (Andy chose A, N3a).
+    // The map screens keep theirs (it adds the star type), and so does a flight ("FLIGHT - WARP").
+    document.body.classList.toggle("ui-docked-on", screen === "docked");
+    document.body.classList.toggle("ui-floating-on", floating && screen === "flight");
     const controls = visibleControls(screen, overlay, flying, floating);
     nav.apply(controls);
     whatNow.showButton(controls.whatNow);
