@@ -100,16 +100,6 @@ export function splitCodes(text: string): { text: string; code: boolean }[] {
   return parts;
 }
 
-/** Two parts of a place name for a two-line display: "Lonely Basin Outpost, Kopipex 2N-83 II" -> the dock and where it is. */
-export function splitTwoParts(name: string): { first: string; second: string } {
-  const text = name.trim();
-  const comma = text.indexOf(", ");
-  if (comma > 0) return { first: text.slice(0, comma), second: text.slice(comma + 2).trim() };
-  const coded = splitCodedName(text);
-  if (coded) return { first: coded.word, second: `${coded.code}${coded.suffix}` };
-  return { first: text, second: "" };
-}
-
 /** Words of `text`, with a code and the planet number after it kept together ("2N-83 II" is one piece, so it never splits). */
 export function nameTokens(text: string): string[] {
   const words = text.trim().split(/\s+/).filter(Boolean);
@@ -211,21 +201,14 @@ export function fitWrapped(text: string, measureAt: MeasureAt, o: FitOptions): F
 }
 
 // ------------------------------------------------------------------------------------------------ the cockpit info screen
+// Andy chose this look (stage 3i, option B): the text stays readable, and a name that is too long for the screen is shortened with "..."
+// while its code stays whole. (Options A, smaller and smaller text, and C, name and place on two lines, were tried and dropped.)
 
-/** How the long names look on the info screen: A = smaller text, whole name; B = readable text, shortened; C = name and place on two lines. */
-export type NameStyle = "A" | "B" | "C";
-export const NAME_STYLES: readonly NameStyle[] = ["A", "B", "C"];
-
-export function parseNameStyle(value: string | null | undefined): NameStyle | null {
-  const v = (value ?? "").trim().toUpperCase();
-  return v === "A" || v === "B" || v === "C" ? v : null;
-}
-
-/** One line of the info screen. `label` = cyan caption, `value` = light text, `place` = the second, cyan part of a two-line name. */
+/** One line of the info screen. `label` = cyan caption, `value` = light text. */
 export interface InfoRow {
   text: string;
   size: number;
-  tone: "label" | "value" | "place";
+  tone: "label" | "value";
 }
 
 export interface InfoLayout {
@@ -239,12 +222,10 @@ export interface InfoLayout {
 
 export const ROW_HEIGHT = 0.9;
 
-/** Smallest sizes (in design units, the screen is laid out on a 96-wide grid): captions never below 11, names down to 8 (style A only). */
+/** Smallest text size on the info screen, in design units (the screen is laid out on a 96-wide grid): 11, never smaller. */
 export const CAPTION_MIN = 11;
-export const NAME_MIN_A = 8;
 
 export interface InfoLayoutInput {
-  style: NameStyle;
   /** The caption above the name ("TO", "NEXT STOP 2/3"). */
   heading: string;
   /** The destination's name as shown (capital letters). */
@@ -266,86 +247,42 @@ export interface InfoLayoutInput {
 }
 
 /**
- * Chooses the lines of the info screen's status page. Short names look as they always did (all text one size). For longer names the
- * captions shrink first (down to 11 design units), then the name follows the chosen style:
- *   A: the name gets smaller (down to 8 units) and is always shown whole,
- *   B: the name stays at 11 units or more and is shortened ("LONELY BA… 2N-83 II"),
- *   C: the name and the place go on separate lines: the name above, the place (system and code) below it in cyan.
- * The code always stays whole.
+ * Chooses the lines of the info screen's status page. All the text is one size, the biggest that fits (short names look as they always did).
+ * A longer name takes more lines, so the text gets smaller down to 11 design units; below that the name is shortened ("LONELY BA... 2N-83 II")
+ * and its code always stays whole.
  */
 export function layoutInfo(i: InfoLayoutInput): InfoLayout {
   const maxW = i.width - 8 * i.scale;
   const area = i.height * ((i.bottom ?? 0.96) - (i.top ?? 0.04));
   const captionMin = CAPTION_MIN * i.scale;
-  const nameMin = i.style === "A" ? NAME_MIN_A * i.scale : captionMin;
   const name = i.name.trim();
-  const two = i.style === "C" ? splitTwoParts(name) : { first: name, second: "" };
 
   const fixedFit = (size: number): boolean => [i.heading, i.arrivesLabel, i.countdown, i.phase].every((t) => i.measureAt(size)(t) <= maxW);
-  const build = (size: number, nameRows: NameRows): InfoLayout => {
+  const build = (size: number, name: Fitted): InfoLayout => {
     const rows: InfoRow[] = [
       { text: i.heading, size, tone: "label" },
-      ...nameRows.rows,
+      ...name.lines.map((text) => ({ text, size, tone: "value" as const })),
       { text: i.arrivesLabel, size, tone: "label" },
       { text: i.countdown, size, tone: "value" },
       { text: i.phase, size, tone: "label" },
     ];
     const height = rows.reduce((sum, r) => sum + r.size * ROW_HEIGHT, 0);
-    return { rows, height, shortened: nameRows.shortened, fits: nameRows.fits && height <= area + 1e-6 };
+    return { rows, height, shortened: name.shortened, fits: name.fits && height <= area + 1e-6 };
   };
+  const fitAt = (size: number, room: number): Fitted =>
+    fitWrapped(name, i.measureAt, { maxWidth: maxW, maxHeight: Math.max(0, room), maxSize: size, minSize: size, lineHeight: ROW_HEIGHT });
 
-  // Caption size from big to small. Above the smallest caption size the name is the same size as the captions and may not be shortened;
-  // at the smallest caption size the name may go smaller (style A) or be shortened (B and C).
+  // Text size from big to small. Above the smallest size the name may not be shortened; at the smallest size it may.
   let last: InfoLayout | null = null;
   for (let size = Math.floor(i.bodySize); size >= captionMin - 1e-9; size--) {
     if (!fixedFit(size)) continue;
     const lastTry = size - 1 < captionMin - 1e-9;
-    const room = area - 4 * size * ROW_HEIGHT;
-    const fitted = fitNameRows(two, i.style, i.measureAt, maxW, room, size, lastTry ? nameMin : size);
-    if (!fitted) continue;
+    const fitted = fitAt(size, area - 4 * size * ROW_HEIGHT);
     const layout = build(size, fitted);
     if (fitted.fits && (!fitted.shortened || lastTry)) return layout;
     if (lastTry) last = layout;
   }
   if (last) return last;
   // The captions alone are too wide for the screen: draw at the smallest size anyway.
-  const room = Math.max(0, area - 4 * captionMin * ROW_HEIGHT);
-  const fallback = fitNameRows(two, i.style, i.measureAt, maxW, room, captionMin, nameMin) ?? { rows: [{ text: shortenPlace(name, 0), size: captionMin, tone: "value" as const }], shortened: true, fits: false };
-  return { ...build(captionMin, fallback), fits: false };
-}
-
-interface NameRows {
-  rows: InfoRow[];
-  shortened: boolean;
-  fits: boolean;
-}
-
-/** The name's rows for a given room: one block (styles A and B) or two (style C, name above place). */
-function fitNameRows(two: { first: string; second: string }, style: NameStyle, measureAt: MeasureAt, maxW: number, room: number, maxSize: number, minSize: number): NameRows | null {
-  if (room <= 0) return null;
-  if (style !== "C" || !two.second) {
-    const f = fitWrapped(two.first, measureAt, { maxWidth: maxW, maxHeight: room, maxSize, minSize, lineHeight: ROW_HEIGHT });
-    return { rows: f.lines.map((text) => ({ text, size: f.size, tone: "value" as const })), shortened: f.shortened, fits: f.fits };
-  }
-  // Style C: name above, place below. One shared size, so the two parts look like a pair; the place gets at most two lines.
-  for (let size = maxSize; size >= minSize - 1e-9; size--) {
-    const a = wrapWords(two.first, measureAt(size), maxW);
-    const b = wrapWords(two.second, measureAt(size), maxW);
-    const ok = (ls: string[]): boolean => ls.every((l) => measureAt(size)(l) <= maxW + 1e-6);
-    if (a.length <= 2 && b.length <= 2 && ok(a) && ok(b) && (a.length + b.length) * size * ROW_HEIGHT <= room + 1e-6) {
-      return { rows: [...a.map((text) => ({ text, size, tone: "value" as const })), ...b.map((text) => ({ text, size, tone: "place" as const }))], shortened: false, fits: true };
-    }
-  }
-  // Too long even at the smallest size: shorten each part (the code of the place stays), sharing the room by line count.
-  const size = minSize;
-  const lineRoom = Math.max(2, Math.floor(room / (size * ROW_HEIGHT)));
-  const placeLines = Math.min(2, Math.max(1, Math.floor(lineRoom / 2)));
-  const nameLines = Math.max(1, Math.min(2, lineRoom - placeLines));
-  const a = fitWrapped(two.first, measureAt, { maxWidth: maxW, maxHeight: nameLines * size * ROW_HEIGHT, maxLines: nameLines, maxSize: size, minSize: size, lineHeight: ROW_HEIGHT });
-  const b = fitWrapped(two.second, measureAt, { maxWidth: maxW, maxHeight: placeLines * size * ROW_HEIGHT, maxLines: placeLines, maxSize: size, minSize: size, lineHeight: ROW_HEIGHT });
-  return {
-    rows: [...a.lines.map((text) => ({ text, size, tone: "value" as const })), ...b.lines.map((text) => ({ text, size, tone: "place" as const }))],
-    shortened: a.shortened || b.shortened,
-    fits: a.fits && b.fits && (a.lines.length + b.lines.length) * size * ROW_HEIGHT <= room + 1e-6,
-  };
+  return { ...build(captionMin, fitAt(captionMin, area - 4 * captionMin * ROW_HEIGHT)), fits: false };
 }

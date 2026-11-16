@@ -1,23 +1,17 @@
 // THE LONG-NAME PREVIEW (a testing aid for stage 3i): open the game with ?namepreview=1 for a sheet of cockpit information screens
-// showing real and worst-case names, with buttons A / B / C to compare how long names are laid out. It draws with the very same
-// code as the cockpit (drawInfo), on flat pictures, so nothing here depends on the 3D view. Nothing here is part of the real game.
+// showing real and worst-case names. It draws with the very same code as the cockpit (drawInfo), on flat pictures, so nothing here
+// depends on the 3D view. Nothing here is part of the real game.
 
 import { drawInfo } from "./infoscreen";
 import { formatCountdown } from "./flightplan";
-import { NAME_STYLES, type NameStyle } from "./namefit";
 import type { NameSample } from "./namesamples";
 import { SCREEN_PIXEL_WIDTH, canvasHeightFor, type InfoScreenData } from "./screendata";
 
 export interface NamePreviewOptions {
-  initial: NameStyle;
   samples: readonly NameSample[];
 }
 
-const STYLE_TEXT: Record<NameStyle, string> = {
-  A: "A: the whole name, text gets smaller when the name is long",
-  B: "B: readable text, a very long name is shortened with ... and keeps its code",
-  C: "C: name on top, place and code below it in blue",
-};
+const NOTE = "Text never gets smaller than the game's smallest readable size. A name that is still too long is shortened with the dots and keeps its code.";
 
 /** The cockpit screen is 0.335 wide and 0.38 tall (src/render/assets/cockpitBase.ts), and the picture is stretched to it. */
 const SCREEN_ASPECT = 1.135;
@@ -45,10 +39,6 @@ export function mountNamePreview(parent: HTMLElement, o: NamePreviewOptions): ()
   const bar = document.createElement("div");
   bar.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;";
   const css = "font:inherit;min-width:44px;min-height:44px;border:2px solid #7fe7ff;cursor:pointer;touch-action:manipulation;";
-  const paint = (b: HTMLButtonElement, on: boolean): void => {
-    b.style.background = on ? "#7fe7ff" : "#1a2040";
-    b.style.color = on ? "#05060d" : "#d7dcff";
-  };
   const button = (text: string, onClick: () => void): HTMLButtonElement => {
     const b = document.createElement("button");
     b.type = "button";
@@ -58,10 +48,10 @@ export function mountNamePreview(parent: HTMLElement, o: NamePreviewOptions): ()
     return b;
   };
 
-  let style = o.initial;
   let size: SizeName = "BIG";
   const note = document.createElement("div");
   note.style.cssText = "margin:4px 0 10px;color:#7fe7ff;";
+  note.textContent = NOTE;
   const grid = document.createElement("div");
   grid.style.cssText = "display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;";
 
@@ -71,9 +61,8 @@ export function mountNamePreview(parent: HTMLElement, o: NamePreviewOptions): ()
       const ctx = canvas.getContext("2d");
       if (!ctx) continue;
       ctx.imageSmoothingEnabled = false;
-      drawInfo(ctx, canvas.width, canvas.height, dataFor(sample), style);
+      drawInfo(ctx, canvas.width, canvas.height, dataFor(sample));
     }
-    note.textContent = STYLE_TEXT[style];
   };
   const resize = (): void => {
     for (const { canvas } of canvases) {
@@ -82,16 +71,6 @@ export function mountNamePreview(parent: HTMLElement, o: NamePreviewOptions): ()
     }
   };
 
-  const styleButtons = new Map<NameStyle, HTMLButtonElement>();
-  for (const s of NAME_STYLES) {
-    const b = button(s, () => {
-      style = s;
-      for (const [k, btn] of styleButtons) paint(btn, k === style);
-      draw();
-    });
-    styleButtons.set(s, b);
-    bar.appendChild(b);
-  }
   const sizeButton = button(`SIZE: ${size}`, () => {
     size = size === "BIG" ? "GAME" : "BIG";
     sizeButton.textContent = `SIZE: ${size}`;
@@ -120,7 +99,6 @@ export function mountNamePreview(parent: HTMLElement, o: NamePreviewOptions): ()
   title.style.cssText = "margin-bottom:8px;color:#7fe7ff;";
   root.append(title, bar, note, grid);
   parent.appendChild(root);
-  for (const [k, btn] of styleButtons) paint(btn, k === style);
   resize();
   draw();
   // The pixel font may still be loading: draw again when it is there.

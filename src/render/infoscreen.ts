@@ -1,7 +1,7 @@
 // THE INFORMATION SCREEN'S PICTURE (split off from cockpitscreens.ts in stage 3i so it can be drawn without Three.js: the cockpit uses it on
 // a 3D screen, and the long-name preview (namepreview.ts) uses the very same code on a flat page).
 
-import { layoutInfo, type NameStyle } from "./namefit";
+import { layoutInfo } from "./namefit";
 import { SCREEN_DESIGN_WIDTH, type InfoScreenData } from "./screendata";
 
 export const AMBER = "#c07a22";
@@ -11,9 +11,6 @@ export const DARK = "#0e2a30";
 export const NAV_BACK = "#0b3138"; // the route screen is darker than the others, for contrast
 export const NAV_DIM = "#2f8fa3";
 export const FONT = '"VT323", ui-monospace, Menlo, Consolas, monospace'; // the game's pixel font if it is loaded, else a plain monospace
-
-/** How long names look on the info screen (stage 3i). ?nameinfo=A|B|C overrides it while testing; ?namepreview=1 shows all three. */
-export const NAME_STYLE_DEFAULT: NameStyle = "B";
 
 /** Text with a thin outline of its own colour, so the strokes stay visible when the screen is small on the picture. */
 export function thick(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, size: number): void {
@@ -63,7 +60,7 @@ function drawBlock(ctx: CanvasRenderingContext2D, w: number, h: number, lines: {
 }
 
 /** Draws the information screen. Exported so the name preview (namepreview.ts) can draw the very same picture on a flat page. */
-export function drawInfo(ctx: CanvasRenderingContext2D, w: number, h: number, d: InfoScreenData, style: NameStyle): void {
+export function drawInfo(ctx: CanvasRenderingContext2D, w: number, h: number, d: InfoScreenData): void {
   const k = w / SCREEN_DESIGN_WIDTH; // everything is laid out on a 96-wide grid and scaled to the picture
   ctx.fillStyle = NAV_BACK; // the same dark background as the route screen (Andy)
   ctx.fillRect(0, 0, w, h);
@@ -85,7 +82,6 @@ export function drawInfo(ctx: CanvasRenderingContext2D, w: number, h: number, d:
   const heading = d.next ? `${d.next.isFinal ? "FINAL" : "NEXT"} STOP ${d.next.number}/${d.next.total}` : "TO";
   // Long unique names (stage 3i): namefit.ts decides the lines and their sizes so the whole screen always fits and the code stays whole.
   const layout = layoutInfo({
-    style,
     heading,
     name: (d.next ? d.next.name : d.destination).toUpperCase(),
     arrivesLabel: d.next ? "TOUR ENDS IN" : "ARRIVES IN",

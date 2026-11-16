@@ -1,24 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   CAPTION_MIN,
-  NAME_MIN_A,
-  NAME_STYLES,
   ROW_HEIGHT,
   fitWrapped,
   isCode,
   layoutInfo,
   monoMeasureAt,
   nameTokens,
-  parseNameStyle,
   shortenName,
   shortenPlace,
   shortestName,
   splitCodedName,
   splitCodes,
-  splitTwoParts,
   wrapWords,
   type InfoLayout,
-  type NameStyle,
 } from "../src/render/namefit";
 import { nameHtml } from "../src/render/nametext";
 import {
@@ -89,18 +84,6 @@ describe("name helpers (render side copy of the menu rules)", () => {
     ]);
     expect(splitCodes("no code here")).toEqual([{ text: "no code here", code: false }]);
   });
-
-  it("splits a place into two parts", () => {
-    expect(splitTwoParts("Lonely Basin Outpost, Kopipex 2N-83 II")).toEqual({ first: "Lonely Basin Outpost", second: "Kopipex 2N-83 II" });
-    expect(splitTwoParts("Kopipex 2N-83 II")).toEqual({ first: "Kopipex", second: "2N-83 II" });
-    expect(splitTwoParts("Lazy Harbour")).toEqual({ first: "Lazy Harbour", second: "" });
-  });
-
-  it("reads the style from the address", () => {
-    expect(parseNameStyle("b")).toBe("B");
-    expect(parseNameStyle("x")).toBeNull();
-    expect(parseNameStyle(null)).toBeNull();
-  });
 });
 
 describe("wrapping never cuts a code", () => {
@@ -169,9 +152,8 @@ const BODY = 19 * K;
 const AREA = H * 0.92;
 const MAX_W = W - 8 * K;
 
-function layout(style: NameStyle, name: string, heading = "TO"): InfoLayout {
+function layout(name: string, heading = "TO"): InfoLayout {
   return layoutInfo({
-    style,
     heading,
     name: name.toUpperCase(),
     arrivesLabel: "ARRIVES IN",
@@ -185,99 +167,79 @@ function layout(style: NameStyle, name: string, heading = "TO"): InfoLayout {
   });
 }
 
-const nameRows = (l: InfoLayout): string[] => l.rows.filter((r) => r.tone !== "label" && r.text !== "12:34:56").map((r) => r.text);
+const nameRows = (l: InfoLayout): string[] => l.rows.filter((r) => r.tone === "value" && r.text !== "12:34:56").map((r) => r.text);
 
 describe("the info screen with long names", () => {
-  for (const style of NAME_STYLES) {
-    it(`style ${style}: every name fits the screen (width and height), and the code is always there`, () => {
-      for (const name of NAMES) {
-        const l = layout(style, name);
-        expect(l.fits).toBe(true);
-        expect(l.height).toBeLessThanOrEqual(AREA + 1e-6);
-        for (const row of l.rows) expect(monoMeasureAt(row.size)(row.text)).toBeLessThanOrEqual(MAX_W + 1e-6);
-        const shown = nameRows(l).join(" ");
-        const code = splitCodedName(name)?.code;
-        if (code) expect(shown.includes(code)).toBe(true);
-        // a planet number stays with the code
-        if (/ II$/.test(name) && code) expect(shown.includes(`${code} II`)).toBe(true);
-        // the code is never cut across two rows (rows are joined with a space, so a cut code would not be found above)
-      }
-    });
-
-    it(`style ${style}: a short name looks as before (all text the same size, one line)`, () => {
-      const l = layout(style, "Kopi Station");
-      expect(l.rows).toHaveLength(5);
-      const sizes = new Set(l.rows.map((r) => r.size));
-      expect(sizes.size).toBe(1);
-      expect([...sizes][0]).toBe(32);
-      expect(l.shortened).toBe(false);
-    });
-
-    it(`style ${style}: a tour's "FINAL STOP 12/12" caption fits too`, () => {
-      const l = layout(style, DOCK_LONG, "FINAL STOP 12/12");
+  it("every name fits the screen (width and height), and its code is always there whole", () => {
+    for (const name of NAMES) {
+      const l = layout(name);
       expect(l.fits).toBe(true);
-      expect(l.rows[0]?.text).toBe("FINAL STOP 12/12");
-      expect(monoMeasureAt(l.rows[0]!.size)(l.rows[0]!.text)).toBeLessThanOrEqual(MAX_W + 1e-6);
-    });
-  }
+      expect(l.height).toBeLessThanOrEqual(AREA + 1e-6);
+      for (const row of l.rows) expect(monoMeasureAt(row.size)(row.text)).toBeLessThanOrEqual(MAX_W + 1e-6);
+      const shown = nameRows(l).join(" ");
+      const code = splitCodedName(name)?.code;
+      if (code) expect(shown.includes(code)).toBe(true); // rows are joined with a space, so a code cut across two rows would not be found
+      if (/ II$/.test(name) && code) expect(shown.includes(`${code} II`)).toBe(true); // a planet number stays with the code
+    }
+  });
 
-  it("style A: the whole name is shown, the text only gets smaller (never below 8 units)", () => {
-    const l = layout("A", "Lonely Basin Outpost, Kopipex 2N-83 II");
+  it("text never gets smaller than 11 units", () => {
+    for (const name of NAMES) for (const r of layout(name).rows) expect(r.size).toBeGreaterThanOrEqual(CAPTION_MIN * K);
+  });
+
+  it("a short name looks as before (all text the same size, one line)", () => {
+    const l = layout("Kopi Station");
+    expect(l.rows).toHaveLength(5);
+    const sizes = new Set(l.rows.map((r) => r.size));
+    expect(sizes.size).toBe(1);
+    expect([...sizes][0]).toBe(32);
+    expect(l.shortened).toBe(false);
+  });
+
+  it("a name that fits on a few lines is shown whole, only the text gets smaller", () => {
+    const l = layout("Lonely Basin Outpost, Kopipex 2N-83 II");
     expect(l.shortened).toBe(false);
     expect(nameRows(l).join(" ")).toBe("LONELY BASIN OUTPOST, KOPIPEX 2N-83 II");
-    for (const r of l.rows) expect(r.size).toBeGreaterThanOrEqual(NAME_MIN_A * K);
+    const real = layout("Rattling Windmill Station, Fizniploo Junction 89-3R I");
+    expect(real.shortened).toBe(false);
   });
 
-  it("style B: text never gets smaller than 11 units; a very long name is shortened with its code kept", () => {
-    const l = layout("B", DOCK_LONG);
-    for (const r of l.rows) expect(r.size).toBeGreaterThanOrEqual(CAPTION_MIN * K);
+  it("a very long name is shortened with dots and keeps its code and planet number", () => {
+    const l = layout(DOCK_LONG);
     expect(l.shortened).toBe(true);
-    expect(nameRows(l).join(" ").includes("…")).toBe(true);
-    const medium = layout("B", "Lonely Basin Outpost, Kopipex 2N-83 II");
-    expect(medium.shortened).toBe(false);
+    const shown = nameRows(l).join(" ");
+    expect(shown.includes("…")).toBe(true);
+    expect(shown.endsWith("89-3R VIII")).toBe(true);
   });
 
-  it("style C: the name is above and the place (system and code) below it in cyan", () => {
-    const l = layout("C", "Lonely Basin Outpost, Kopipex 2N-83 II");
-    const place = l.rows.filter((r) => r.tone === "place").map((r) => r.text);
-    const value = nameRows(l).filter((t) => !place.includes(t));
-    expect(place.join(" ")).toBe("KOPIPEX 2N-83 II");
-    expect(value.join(" ")).toBe("LONELY BASIN OUTPOST");
-    const nameAt = l.rows.findIndex((r) => r.tone === "value" && r.text === value[0]);
-    const placeAt = l.rows.findIndex((r) => r.tone === "place");
-    expect(nameAt).toBeLessThan(placeAt);
-  });
-
-  it("style C: a planet name splits into its word and its code", () => {
-    const l = layout("C", "Kopipex 2N-83 II");
-    expect(l.rows.filter((r) => r.tone === "place").map((r) => r.text)).toEqual(["2N-83 II"]);
-  });
-
-  it("a pure name (no code) fits in every style", () => {
-    for (const style of NAME_STYLES) {
-      const l = layout(style, "Lazy Harbour Tradingpost, Lazy Harbour II");
+  it("a tour's caption fits too", () => {
+    for (const heading of ["NEXT STOP 12/12", "FINAL STOP 12/12"]) {
+      const l = layout(DOCK_LONG, heading);
       expect(l.fits).toBe(true);
+      expect(l.rows[0]?.text).toBe(heading);
+      expect(monoMeasureAt(l.rows[0]!.size)(l.rows[0]!.text)).toBeLessThanOrEqual(MAX_W + 1e-6);
     }
+  });
+
+  it("a pure name (no code) fits", () => {
+    expect(layout("Lazy Harbour Tradingpost, Lazy Harbour II").fits).toBe(true);
   });
 
   it("a different picture size still fits (a 96 x 112 picture, scale 1)", () => {
-    for (const style of NAME_STYLES) {
-      const l = layoutInfo({
-        style,
-        heading: "NEXT STOP 2/3",
-        name: DOCK_LONG.toUpperCase(),
-        arrivesLabel: "TOUR ENDS IN",
-        countdown: "12:34:56",
-        phase: "WARP",
-        measureAt: monoMeasureAt,
-        width: 96,
-        height: 112,
-        scale: 1,
-        bodySize: 19,
-      });
-      expect(l.height).toBeLessThanOrEqual(112 * 0.92 + 1e-6);
-      for (const row of l.rows) expect(monoMeasureAt(row.size)(row.text)).toBeLessThanOrEqual(96 - 8 + 1e-6);
-    }
+    const l = layoutInfo({
+      heading: "NEXT STOP 2/3",
+      name: DOCK_LONG.toUpperCase(),
+      arrivesLabel: "TOUR ENDS IN",
+      countdown: "12:34:56",
+      phase: "WARP",
+      measureAt: monoMeasureAt,
+      width: 96,
+      height: 112,
+      scale: 1,
+      bodySize: 19,
+    });
+    expect(l.height).toBeLessThanOrEqual(112 * 0.92 + 1e-6);
+    for (const row of l.rows) expect(monoMeasureAt(row.size)(row.text)).toBeLessThanOrEqual(96 - 8 + 1e-6);
   });
 });
 

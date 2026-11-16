@@ -8,8 +8,7 @@
 import * as THREE from "three";
 import type { AssetModel } from "./assets";
 import { SCREEN_PIXEL_WIDTH, canvasHeightFor, SCREEN_DESIGN_WIDTH, type FuelScreenData, type InfoScreenData, type MapScreenData } from "./screendata";
-import { parseNameStyle, type NameStyle } from "./namefit";
-import { AMBER, CYAN, DARK, FONT, LIGHT, NAME_STYLE_DEFAULT, NAV_BACK, NAV_DIM, drawInfo, thick } from "./infoscreen";
+import { AMBER, CYAN, DARK, FONT, LIGHT, NAV_BACK, NAV_DIM, drawInfo, thick } from "./infoscreen";
 
 
 /** How far in front of the glowing screen the picture floats (crates). */
@@ -176,7 +175,6 @@ export class CockpitScreens {
   private fuel: Face | null;
   private rightWing: Face | null;
   private rightWingDrawn = false;
-  private nameStyle: NameStyle = NAME_STYLE_DEFAULT;
   /** Called once when the pixel font finishes loading, so the owner can redraw straight away. */
   onFontLoaded: (() => void) | null = null;
 
@@ -185,11 +183,6 @@ export class CockpitScreens {
     this.map = makeFace(model, "screenMap");
     this.fuel = makeFace(model, "screenFuel");
     this.rightWing = makeFace(model, "screenRightWing");
-    try {
-      this.nameStyle = parseNameStyle(new URLSearchParams(window.location.search).get("nameinfo")) ?? NAME_STYLE_DEFAULT;
-    } catch {
-      // not important: the default style is fine
-    }
     // The UI's CSS loads the VT323 font; wait for it before relying on it (the plain monospace is used meanwhile).
     try {
       void document.fonts?.load(`20px "VT323"`).then(() => this.onFontLoaded?.());
@@ -201,7 +194,7 @@ export class CockpitScreens {
   /** Redraws all three pictures. Call about 4 times a second, not every frame. */
   draw(frame: ScreenFrame): void {
     if (this.info) {
-      drawInfo(this.info.ctx, this.info.canvas.width, this.info.canvas.height, frame.info, this.nameStyle);
+      drawInfo(this.info.ctx, this.info.canvas.width, this.info.canvas.height, frame.info);
       this.info.texture.needsUpdate = true;
     }
     if (this.map) {

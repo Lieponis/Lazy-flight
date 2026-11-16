@@ -31,8 +31,6 @@ import { parseFloatPreview, parseFloatStyle } from "./floatmath";
 import { floatCandidates } from "./floatpick";
 import { parseReachParam, reachBeyondMap, starmapRadius } from "./starmapradius";
 import { mountFloatPreview } from "./floatpreview";
-import { NAME_STYLE_DEFAULT } from "./infoscreen";
-import { parseNameStyle } from "./namefit";
 import { WORST_DOCK_FULL, WORST_PLANET, parseNamePreview, pickSamples } from "./namesamples";
 import { mountNamePreview } from "./namepreview";
 import { FLOAT_DEFAULT_STYLE } from "./settings";
@@ -330,7 +328,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     });
   }
 
-  // Testing aid for long unique names (stage 3i): ?namepreview=1 shows a sheet of cockpit information screens with real and worst-case names; buttons A / B / C.
+  // Testing aid for long unique names (stage 3i): ?namepreview=1 shows a sheet of cockpit information screens with real and worst-case names.
   if (parseNamePreview(window.location.search)) {
     const region = listSystemsNear(seed, current.position, 100);
     const sources = region.map((s) => ({
@@ -338,10 +336,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
       planets: getPlanetsOfSystem(seed, s.id).map((p) => p.name),
       docks: getDocksOfSystem(seed, s.id).map((d) => ({ name: d.name, fullName: d.fullName })),
     }));
-    mountNamePreview(parent, {
-      initial: parseNameStyle(new URLSearchParams(window.location.search).get("nameinfo")) ?? NAME_STYLE_DEFAULT,
-      samples: pickSamples(sources),
-    });
+    mountNamePreview(parent, { samples: pickSamples(sources) });
   }
 
   // The PS1 pixel look: one extra pass over the finished picture (see look.ts). ?look=A|B|C|off overrides the default.
