@@ -3,6 +3,7 @@
 // two of them, a free trip that ends docked, and read the triangle count. Nothing here is part of the real game.
 
 import { FLOAT_STYLES, floatLayout, type FloatStyle } from "./floatmath";
+import { TEXT_LOOKS, type TextLook } from "./screendata";
 
 export interface FloatPreviewOptions {
   initial: FloatStyle;
@@ -16,6 +17,9 @@ export interface FloatPreviewOptions {
   /** Stage 3i: a trip and a three-stop tour with the longest names the universe allows. */
   onLongTrip: () => void;
   onLongTour: () => void;
+  /** Stage 3i: how sharp the letters on the cockpit screens look. */
+  initialTextLook: TextLook;
+  onTextLook: (look: TextLook) => void;
   triangles: () => number;
 }
 
@@ -67,6 +71,20 @@ export function mountFloatPreview(parent: HTMLElement, o: FloatPreviewOptions): 
   bar.appendChild(button(">", () => step(1)));
   bar.appendChild(button("TRIP", o.onTrip));
   bar.appendChild(button("TO DOCK", o.onTripToDock));
+  const looks = new Map<TextLook, HTMLButtonElement>();
+  const pickLook = (look: TextLook): void => {
+    o.onTextLook(look);
+    for (const [l, b] of looks) paint(b, l === look);
+  };
+  const textLabel = document.createElement("span");
+  textLabel.textContent = "TEXT";
+  textLabel.style.cssText = "background:rgba(5,9,16,0.8);padding:2px 8px;";
+  bar.appendChild(textLabel);
+  for (const look of TEXT_LOOKS) {
+    const b = button(look, () => pickLook(look));
+    looks.set(look, b);
+    bar.appendChild(b);
+  }
   bar.appendChild(button("LONG TRIP", o.onLongTrip));
   bar.appendChild(button("LONG TOUR", o.onLongTour));
 
@@ -79,6 +97,7 @@ export function mountFloatPreview(parent: HTMLElement, o: FloatPreviewOptions): 
 
   parent.appendChild(bar);
   pick(o.initial);
+  pickLook(o.initialTextLook);
   where.textContent = "press > to step";
   return () => {
     window.clearInterval(timer);

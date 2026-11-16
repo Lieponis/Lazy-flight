@@ -23,7 +23,7 @@ import {
 } from "./flightplan";
 import { buildCockpitBase } from "./assets/cockpitBase";
 import { CockpitScreens } from "./cockpitscreens";
-import { fuelScreenData, infoScreenData, mapScreenData } from "./screendata";
+import { fuelScreenData, infoScreenData, mapScreenData, type TextLook } from "./screendata";
 import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
 import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, fovForMagnification, shakeShare, startFov, zoomMagnification, type Look, type ViewMode } from "./cockpitview";
 import { pinchFactor, wheelFactor } from "./dockedcam";
@@ -333,6 +333,15 @@ export class FlightScreen implements Screen {
 
   floatingPlanetId(): string | null {
     return this.floating ? this.floating.planetId : null;
+  }
+
+  getTextLook(): TextLook {
+    return this.screens.getTextLook();
+  }
+
+  /** How sharp the text on the cockpit screens looks (SOFT, SHARP, SHARPER, CRISP). Used by the float preview to compare them. */
+  setTextLook(look: TextLook): void {
+    this.screens.setTextLook(look);
   }
 
   /** Another layout (A, B or C) for the floating scene and the arrivals/departures at planets without a dock. Rebuilds the scene if floating. */

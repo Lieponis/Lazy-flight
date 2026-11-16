@@ -3,6 +3,10 @@ import {
   PHASE_LABELS,
   SCREEN_PIXEL_WIDTH,
   SCREEN_SUPERSAMPLE,
+  TEXT_LOOKS,
+  TEXT_LOOK_DEFAULT,
+  parseTextLook,
+  textLookSettings,
   canvasHeightFor,
   fuelScreenData,
   infoPage,
@@ -201,5 +205,26 @@ describe("cockpit screens: tour stops", () => {
     const [a, b] = twoLines("The Extraordinarily Long Named Harbour Station", 11);
     expect(a.length).toBeLessThanOrEqual(11);
     expect(b.length).toBeLessThanOrEqual(11);
+  });
+});
+
+describe("cockpit screens: how sharp the letters look (stage 3i)", () => {
+  it("has four looks, SOFT being no sharpening at all", () => {
+    expect(TEXT_LOOKS).toEqual(["SOFT", "SHARP", "SHARPER", "CRISP"]);
+    expect(textLookSettings("SOFT")).toEqual({ sharp: 0, hard: 0 });
+  });
+
+  it("SHARPER pushes edges apart more than SHARP, and CRISP snaps them to hard pixels", () => {
+    expect(textLookSettings("SHARPER").sharp).toBeGreaterThan(textLookSettings("SHARP").sharp);
+    expect(textLookSettings("SHARP").sharp).toBeGreaterThan(0);
+    expect(textLookSettings("CRISP").hard).toBe(1);
+    expect(textLookSettings(TEXT_LOOK_DEFAULT).hard).toBe(0);
+  });
+
+  it("reads ?textlook= in any capitals and ignores nonsense", () => {
+    expect(parseTextLook("?textlook=sharper")).toBe("SHARPER");
+    expect(parseTextLook("?a=1&textlook=CRISP")).toBe("CRISP");
+    expect(parseTextLook("?textlook=blurry")).toBeNull();
+    expect(parseTextLook("")).toBeNull();
   });
 });
