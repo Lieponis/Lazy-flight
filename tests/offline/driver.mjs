@@ -165,6 +165,10 @@ export async function selectPlanetWithFly(page, wanted = /SCENERY/) {
 /** MAP -> a scenery planet -> FLY HERE -> waits until floating there. Returns the save after arrival. */
 export async function freeTripToScenery(page) {
   await clickButton(page, /^MAP$/);
+  await page.waitForTimeout(800);
+  // the map remembers its last tab: make sure it shows this star system, not the galaxy
+  const systemTab = page.locator("button:visible", { hasText: /^SYSTEM$/ }).first();
+  if (await systemTab.count()) await systemTab.click();
   await page.waitForTimeout(1200);
   const card = await selectPlanetWithFly(page, /SCENERY/);
   if (!card) throw new Error("no scenery planet with FLY HERE found on the system map");

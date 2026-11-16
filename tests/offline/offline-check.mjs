@@ -171,7 +171,12 @@ await check(2, "Offline reload: the game starts, no errors, nothing asked from t
   await page.reload();
   if (await d.isBrowserErrorPage(page)) problems.push("the browser error page appeared");
   await d.play(page);
-  if (server.log.length) problems.push(`the server was asked ${server.log.length} times while offline: ${server.log.slice(0, 5).join(", ")}`);
+  // The browser's own "is there a new helper?" check of sw.js is not stopped by the pretend-offline switch on some
+  // machines (Chromium sends it outside the page). On a real offline phone it simply fails, harmlessly. Every OTHER
+  // request (a game file) still fails this check.
+  const gameFiles = server.log.filter((p) => !p.endsWith("/sw.js"));
+  if (gameFiles.length) problems.push(`the server was asked for game files while offline: ${gameFiles.slice(0, 5).join(", ")}`);
+  if (server.log.length > gameFiles.length) notes.push(`(the browser's own helper update check, sw.js, reached the test server ${server.log.length - gameFiles.length} time(s): a test-browser quirk, not a game request)`);
   problems.push(...noErrors(w, "offline reload"));
   notes.push(`online reload asked the server ${asked.length} times for game files; offline reload: ${w.network.length} requests, all answered by the helper`);
   await context.close();
