@@ -7,16 +7,22 @@
 import { formatCountdown, type FlightPhase, type FlightPlan } from "./flightplan";
 
 /**
- * Pixel width of every screen's picture. Twice the size a screen has on the game's small picture, and drawn smoothly (mipmapped), so the
- * text is clean instead of broken up (Andy: less pixelated). The drawing is laid out on a 96-wide grid and scaled up to this.
+ * Pixel width of every screen's picture. The pictures were 192 wide; Andy (stage 3i) asked for the screens that show text (information,
+ * route, fuel) to be upscaled while the game itself stays at its own small resolution, so they are now SCREEN_SUPERSAMPLE times as fine.
+ * The drawing is laid out on a 96-wide grid and scaled up to this, and the picture keeps the same shape as before.
  */
-export const SCREEN_PIXEL_WIDTH = 192;
+export const SCREEN_BASE_WIDTH = 192;
+export const SCREEN_SUPERSAMPLE = 3;
+export const SCREEN_PIXEL_WIDTH = SCREEN_BASE_WIDTH * SCREEN_SUPERSAMPLE;
 export const SCREEN_DESIGN_WIDTH = 96;
 
-/** Picture height for a screen of `w` x `h` crates, so the picture is never stretched. Kept between 32 and 160 pixels. */
-export function canvasHeightFor(widthPixels: number, w: number, h: number): number {
+/**
+ * Picture height for a screen of `w` x `h` crates, so the picture is never stretched more than the limits allow. Kept between 32 and 160
+ * pixels (at `scale` 1, a 192-wide picture); a finer picture passes its `scale` (picture width / 192) so it keeps the same shape.
+ */
+export function canvasHeightFor(widthPixels: number, w: number, h: number, scale = 1): number {
   if (!(w > 0) || !(h > 0)) return Math.round(widthPixels);
-  return Math.min(160, Math.max(32, Math.round((widthPixels * h) / w)));
+  return Math.min(Math.round(160 * scale), Math.max(Math.round(32 * scale), Math.round((widthPixels * h) / w)));
 }
 
 export const PHASE_LABELS: Record<FlightPhase, string> = {

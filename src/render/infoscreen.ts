@@ -1,7 +1,7 @@
 // THE INFORMATION SCREEN'S PICTURE (split off from cockpitscreens.ts in stage 3i so it can be drawn without Three.js: the cockpit uses it on
 // a 3D screen, and the long-name preview (namepreview.ts) uses the very same code on a flat page).
 
-import { layoutInfo } from "./namefit";
+import { layoutInfo, type InfoLayout, type InfoLayoutInput } from "./namefit";
 import { SCREEN_DESIGN_WIDTH, type InfoScreenData } from "./screendata";
 
 export const AMBER = "#c07a22";
@@ -54,7 +54,7 @@ function drawBlock(ctx: CanvasRenderingContext2D, w: number, h: number, lines: {
   const maxW = w - 8 * (w / SCREEN_DESIGN_WIDTH);
   const area = h * (bottom - top);
   let size = maxSize;
-  for (; size > 8; size -= 1) {
+  for (; size > (8 * w) / SCREEN_DESIGN_WIDTH; size -= 1) {
     ctx.font = `${size}px ${FONT}`;
     if (lines.length * size * 0.9 <= area && lines.every((l) => ctx.measureText(l.text).width <= maxW)) break;
   }
@@ -66,6 +66,8 @@ function drawBlock(ctx: CanvasRenderingContext2D, w: number, h: number, lines: {
     y += lineH;
   }
 }
+
+let lastLayout: { key: string; layout: InfoLayout } | null = null;
 
 /** Draws the information screen. Exported so the name preview (namepreview.ts) can draw the very same picture on a flat page. */
 export function drawInfo(ctx: CanvasRenderingContext2D, w: number, h: number, d: InfoScreenData): void {
@@ -89,7 +91,7 @@ export function drawInfo(ctx: CanvasRenderingContext2D, w: number, h: number, d:
   // Tours show the next stop (and the tour's end time) instead of the plain destination; the line count stays the same.
   const heading = d.next ? `${d.next.isFinal ? "FINAL" : "NEXT"} STOP ${d.next.number}/${d.next.total}` : "TO";
   // Long unique names (stage 3i): namefit.ts decides the lines and their sizes so the whole screen always fits and the code stays whole.
-  const layout = layoutInfo({
+  const request: InfoLayoutInput = {
     heading,
     name: (d.next ? d.next.name : d.destination).toUpperCase(),
     arrivesLabel: d.next ? "TOUR ENDS IN" : "ARRIVES IN",
@@ -105,7 +107,12 @@ export function drawInfo(ctx: CanvasRenderingContext2D, w: number, h: number, d:
     bodySize: BODY,
     top: 0.04,
     bottom: 0.96,
-  });
+  };
+  // The cockpit redraws this about four times a second with the same words; the layout only changes when a word or the font does.
+  ctx.font = `40px ${FONT}`;
+  const key = `${w}|${h}|${heading}|${request.name}|${request.arrivesLabel}|${request.countdown}|${request.phase}|${ctx.measureText("MMMM").width}`;
+  if (lastLayout?.key !== key) lastLayout = { key, layout: layoutInfo(request) };
+  const layout = lastLayout.layout;
   const area = h * 0.92;
   let y = h * 0.04 + (area - layout.height) / 2;
   for (const row of layout.rows) {

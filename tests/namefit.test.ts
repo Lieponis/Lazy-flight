@@ -137,6 +137,12 @@ describe("fitting a name into a box", () => {
     expect(f.lines.join(" ").includes("…")).toBe(true);
   });
 
+  it("with shortening switched off it only looks for a size where the whole name fits", () => {
+    const f = fitWrapped(PLANET_LONG.toUpperCase(), monoMeasureAt, { ...base, minSize: 38, maxHeight: 70, shorten: false });
+    expect(f.fits).toBe(false);
+    expect(f.shortened).toBe(false);
+  });
+
   it("keeps the code of a long name when it shortens", () => {
     const f = fitWrapped(PLANET_LONG.toUpperCase(), monoMeasureAt, { ...base, minSize: 38, maxHeight: 70 });
     expect(f.shortened).toBe(true);

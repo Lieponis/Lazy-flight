@@ -5,7 +5,7 @@
 import { drawInfo } from "./infoscreen";
 import { formatCountdown } from "./flightplan";
 import type { NameSample } from "./namesamples";
-import { SCREEN_PIXEL_WIDTH, canvasHeightFor, type InfoScreenData } from "./screendata";
+import { SCREEN_PIXEL_WIDTH, SCREEN_SUPERSAMPLE, canvasHeightFor, type InfoScreenData } from "./screendata";
 
 export interface NamePreviewOptions {
   samples: readonly NameSample[];
@@ -84,7 +84,7 @@ export function mountNamePreview(parent: HTMLElement, o: NamePreviewOptions): ()
     tile.style.cssText = "max-width:300px;";
     const canvas = document.createElement("canvas");
     canvas.width = SCREEN_PIXEL_WIDTH;
-    canvas.height = canvasHeightFor(SCREEN_PIXEL_WIDTH, 0.335, 0.38);
+    canvas.height = canvasHeightFor(SCREEN_PIXEL_WIDTH, 0.335, 0.38, SCREEN_SUPERSAMPLE);
     canvas.style.cssText = "display:block;border:1px solid #2f8fa3;background:#0b3138;";
     const caption = document.createElement("div");
     caption.style.cssText = "font-size:15px;margin-top:3px;color:#9fb3c8;";

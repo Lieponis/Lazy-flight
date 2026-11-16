@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PHASE_LABELS,
   SCREEN_PIXEL_WIDTH,
+  SCREEN_SUPERSAMPLE,
   canvasHeightFor,
   fuelScreenData,
   infoPage,
@@ -104,6 +105,13 @@ describe("cockpit screens: picture size", () => {
     expect(canvasHeightFor(96, 1, 100)).toBe(160);
     expect(canvasHeightFor(96, 100, 1)).toBe(32);
     expect(canvasHeightFor(96, 0, 0)).toBe(96);
+  });
+
+  it("a finer picture keeps the same shape (stage 3i: the screens are drawn 3 times as fine)", () => {
+    expect(SCREEN_PIXEL_WIDTH).toBe(192 * SCREEN_SUPERSAMPLE);
+    // the same screen shape as before: 192 x 160, only 3 times bigger
+    expect(canvasHeightFor(SCREEN_PIXEL_WIDTH, 0.335, 0.38, SCREEN_SUPERSAMPLE)).toBe(160 * SCREEN_SUPERSAMPLE);
+    expect(canvasHeightFor(SCREEN_PIXEL_WIDTH, 100, 1, SCREEN_SUPERSAMPLE)).toBe(32 * SCREEN_SUPERSAMPLE);
   });
 });
 

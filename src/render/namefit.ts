@@ -159,6 +159,8 @@ export interface FitOptions {
   minSize: number;
   /** Line height as a multiple of the text size (the cockpit screens use 0.9). */
   lineHeight?: number;
+  /** False = only look for a size where the whole name fits (no shortening): quick. Default true. */
+  shorten?: boolean;
 }
 
 export interface Fitted {
@@ -187,6 +189,7 @@ export function fitWrapped(text: string, measureAt: MeasureAt, o: FitOptions): F
     const lines = wrapWords(source, measureAt(size), o.maxWidth);
     if (linesFit(lines, size, measureAt(size), o)) return { lines, size, shortened: false, fits: true };
   }
+  if (o.shorten === false) return { lines: wrapWords(source, measureAt(o.minSize), o.maxWidth).slice(0, 1), size: o.minSize, shortened: false, fits: false };
   const size = o.minSize;
   const measure = measureAt(size);
   for (let n = source.length - 1; n >= 0; n--) {
@@ -269,20 +272,20 @@ export function layoutInfo(i: InfoLayoutInput): InfoLayout {
     const height = rows.reduce((sum, r) => sum + r.size * ROW_HEIGHT, 0);
     return { rows, height, shortened: name.shortened, fits: name.fits && height <= area + 1e-6 };
   };
-  const fitAt = (size: number, room: number): Fitted =>
-    fitWrapped(name, i.measureAt, { maxWidth: maxW, maxHeight: Math.max(0, room), maxSize: size, minSize: size, lineHeight: ROW_HEIGHT });
+  const fitAt = (size: number, room: number, shorten: boolean): Fitted =>
+    fitWrapped(name, i.measureAt, { maxWidth: maxW, maxHeight: Math.max(0, room), maxSize: size, minSize: size, lineHeight: ROW_HEIGHT, shorten });
 
   // Text size from big to small. Above the smallest size the name may not be shortened; at the smallest size it may.
   let last: InfoLayout | null = null;
   for (let size = Math.floor(i.bodySize); size >= captionMin - 1e-9; size--) {
     if (!fixedFit(size)) continue;
     const lastTry = size - 1 < captionMin - 1e-9;
-    const fitted = fitAt(size, area - 4 * size * ROW_HEIGHT);
+    const fitted = fitAt(size, area - 4 * size * ROW_HEIGHT, lastTry); // only the smallest size may shorten the name
     const layout = build(size, fitted);
     if (fitted.fits && (!fitted.shortened || lastTry)) return layout;
     if (lastTry) last = layout;
   }
   if (last) return last;
   // The captions alone are too wide for the screen: draw at the smallest size anyway.
-  return { ...build(captionMin, fitAt(captionMin, area - 4 * captionMin * ROW_HEIGHT)), fits: false };
+  return { ...build(captionMin, fitAt(captionMin, area - 4 * captionMin * ROW_HEIGHT, true)), fits: false };
 }

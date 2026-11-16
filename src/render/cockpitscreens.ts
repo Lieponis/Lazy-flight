@@ -7,9 +7,8 @@
 
 import * as THREE from "three";
 import type { AssetModel } from "./assets";
-import { SCREEN_PIXEL_WIDTH, canvasHeightFor, SCREEN_DESIGN_WIDTH, type FuelScreenData, type InfoScreenData, type MapScreenData } from "./screendata";
+import { SCREEN_PIXEL_WIDTH, SCREEN_SUPERSAMPLE, canvasHeightFor, SCREEN_DESIGN_WIDTH, type FuelScreenData, type InfoScreenData, type MapScreenData } from "./screendata";
 import { AMBER, CYAN, DARK, FONT, LIGHT, NAV_BACK, NAV_DIM, drawInfo, thick } from "./infoscreen";
-
 
 /** How far in front of the glowing screen the picture floats (crates). */
 const FLOAT = 0.003;
@@ -28,7 +27,7 @@ function makeFace(model: AssetModel, name: ScreenName): Face | null {
   if (!a || !a.size) return null;
   const canvas = document.createElement("canvas");
   canvas.width = SCREEN_PIXEL_WIDTH;
-  canvas.height = canvasHeightFor(SCREEN_PIXEL_WIDTH, a.size.w, a.size.h);
+  canvas.height = canvasHeightFor(SCREEN_PIXEL_WIDTH, a.size.w, a.size.h, SCREEN_SUPERSAMPLE);
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
   ctx.imageSmoothingEnabled = false;
@@ -36,7 +35,7 @@ function makeFace(model: AssetModel, name: ScreenName): Face | null {
   texture.magFilter = THREE.LinearFilter; // smooth, not blocky: the picture is bigger than the screen's share of the game picture
   texture.minFilter = THREE.LinearMipmapLinearFilter; // averaged down cleanly instead of dropping pixels (no broken letters)
   texture.generateMipmaps = true;
-  texture.anisotropy = 4;
+  texture.anisotropy = 8; // sharper when the screen is seen at a slant (the renderer lowers it if the device allows less)
   texture.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.MeshBasicMaterial({ map: texture, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(a.size.w, a.size.h), material);
