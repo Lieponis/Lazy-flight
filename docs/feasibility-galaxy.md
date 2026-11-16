@@ -65,3 +65,20 @@ Each stage ends with a live build you verify. Stages G1 and G2 can run in parall
 4. Pixels: is it acceptable that far pixels are a drawn glow and only the nearest tens of thousands are real selectable systems?
 5. Job reach: keep 25 ly or "nearest docks by count" so every region has jobs?
 6. Timing: do this after QA and before or after the "big change" you mentioned.
+
+## 6. ANDY'S DECISIONS (2026-11-16)
+1. Total: about 20 billion systems. (Exponential spacing curve from about 2 ly at the centre to 160 ly at the rim, disc thickness 2,000 ly at the centre to 500 ly at the rim gives about 2.0e10: Agent 2 fits the curve to land within roughly 15 to 25 billion.)
+2. Spinning = spiral shape only. Stars do not orbit. (A purely visual slow turn of the far glow is NOT requested.)
+3. Start: one third of the way from the centre to the rim (about 16,700 ly from the centre). Local spacing there is about 8.6 ly (very close to today's 9.7 ly), about 2,800 systems within 75 ly, and the nearest 10,000 systems lie within about 115 ly.
+4. Map: the first (nearest) 10,000 systems are real and tappable; everything beyond is an almost invisible back-drop of faint pixels (not tappable). Reachable systems stay diamonds, a bit smaller than now.
+5. Jobs: destinations are the NEAREST DOCKS BY COUNT (not a 25 ly radius), so every region has jobs.
+6. Timing: this IS the "big change". The full QA (docs/briefs/agent-6g-brief.md) is paused; run it AFTER the galaxy is built (QA would otherwise test code that is about to be replaced).
+
+## 7. Still open (Lead flags; decide after the prototypes)
+- The rim. With the curve above, system spacing equals the ships' full-tank range at: 30 ly (Hauler) at 62 % of the radius (about 31,000 ly from the centre), 55 ly (Scout) at 76 %, 82 ly (best upgraded Scout) at 85 %. Beyond that a player cannot hop to the next system. Because the start is at 33 %, normal play is safe, but exploring outward ends at about 60 to 85 % of the radius. Options later: late long-range ship / jump drive upgrade, or leave the outer rim as a view-only edge (the map shows it, the game warns). Andy decides after seeing the prototype.
+- How exactly job destinations are picked when there are thousands of docks nearby (nearest N by count, distance limit by fuel) = Agent 4 in the game stage.
+
+## 8. Stages (approved to start G1 and G2 in parallel as PROTOTYPES, nothing merged into the game)
+- G1 Agent 2: prototype of the galaxy generator (brief docs/briefs/agent-2d-brief.md). Branch `galaxy-proto`, never merged to main.
+- G2 Agent 3: prototype of the map rendering with stand-in data (brief docs/briefs/agent-3j-brief.md); a separate preview page only (merge allowed because it does not touch the game).
+- Go/no-go meeting with Andy after both reports. Then G3 Agent 2 (universe v3 in main), G4 Agent 4 (jobs by count, fuel/range, migration), G5 Agents 3/5 (real map, UI), G6 Agent 6 (balance, QA, offline tests, phone).

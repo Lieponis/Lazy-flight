@@ -278,3 +278,7 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 
 ## Feasibility check, spiral-disc galaxy (2026-11-16, Andy request): see docs/feasibility-galaxy.md
 - Verdict: feasible but a universe + map + economy rebuild (about 6 to 8 stages). Key risks: variable-size cells needed, rim strand (ships reach 30 to 82 ly, rim spacing 150 to 170 ly), job radius, map cannot show every real system in a view direction (layers: diamonds, near pixels, far glow). Awaiting Andy's decisions (section 5). Nothing approved or built.
+
+## BIG CHANGE approved to start as prototypes (Andy 2026-11-16): spiral-disc galaxy
+- Decisions in docs/feasibility-galaxy.md section 6: about 20 billion systems; spiral shape only (no orbiting); start at 1/3 from centre to rim; map: nearest 10,000 tappable, rest faint back-drop; jobs by nearest docks by count; QA paused until after the galaxy.
+- G1 Agent 2 prototype (docs/briefs/agent-2d-brief.md, branch galaxy-proto, never merged) and G2 Agent 3 map prototype (docs/briefs/agent-3j-brief.md, preview page only) run in parallel; go/no-go with Andy after both. Agent 3's N3b (names fit 3D screens) is still running: finish N3b first if it is not done.
