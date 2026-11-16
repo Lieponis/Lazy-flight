@@ -12,15 +12,23 @@ export const NAV_BACK = "#0b3138"; // the route screen is darker than the others
 export const NAV_DIM = "#2f8fa3";
 export const FONT = '"VT323", ui-monospace, Menlo, Consolas, monospace'; // the game's pixel font if it is loaded, else a plain monospace
 
-/** Text with a thin outline of its own colour, so the strokes stay visible when the screen is small on the picture. */
+/**
+ * How much extra outline goes round each letter, as a share of the text size. It used to be 0.07, which made the strokes about twice as
+ * thick as the font's own and smeared them together when a screen was small (Andy, stage 3i). 0 = the font's own thin strokes.
+ */
+export const TEXT_OUTLINE = 0;
+
+/** Text in one colour. With TEXT_OUTLINE above 0 it gets a thin outline of its own colour. */
 export function thick(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, size: number): void {
   ctx.fillStyle = color;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(1, size * 0.07);
-  ctx.lineJoin = "round";
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.strokeText(text, x, y);
+  if (TEXT_OUTLINE > 0) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1, size * TEXT_OUTLINE);
+    ctx.lineJoin = "round";
+    ctx.strokeText(text, x, y);
+  }
   ctx.fillText(text, x, y);
 }
 

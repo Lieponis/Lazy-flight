@@ -10,7 +10,7 @@ import type * as THREE from "three";
 import { getDocksOfSystem, getPlanetsOfSystem, getSystem, listSystemsNear, parseDockId, type StarSystem } from "../universe";
 import type { FlightInfo } from "./flightplan";
 import { Hud } from "./hud";
-import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
+import { cameraFov, parseResParam, renderSizeFor, resolveRenderSeed } from "./helpers";
 import { parseShipParam, resolveShipId } from "./integration";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import type { Screen } from "./screen";
@@ -229,7 +229,8 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
   // Fill the whole window: the small hidden picture takes the shape of the window.
   function resize(): void {
     const aspect = window.innerWidth / Math.max(1, window.innerHeight);
-    const size = renderSizeFor(aspect, RENDER_WIDTH, RENDER_HEIGHT);
+    const baseWidth = parseResParam(window.location.search) ?? RENDER_WIDTH; // ?res=480 is a testing aid (stage 3i)
+    const size = renderSizeFor(aspect, baseWidth, Math.round((baseWidth * RENDER_HEIGHT) / RENDER_WIDTH));
     renderer.setSize(size.width, size.height, false);
     for (const screen of [docked, starmap, systemView, flight]) {
       screen.camera.aspect = size.width / size.height;

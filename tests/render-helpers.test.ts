@@ -9,6 +9,7 @@ import {
   nearestScreenPoint,
   orbitCameraPosition,
   orbitDisplayRadius,
+  parseResParam,
   parseSeedParam,
   planetColorMix,
   planetDisplayRadius,
@@ -42,6 +43,18 @@ describe('seed in the web address', () => {
   it('falls back when missing or not a number', () => {
     expect(parseSeedParam('', 12345)).toBe(12345);
     expect(parseSeedParam('?seed=abc', 12345)).toBe(12345);
+  });
+});
+
+describe('picture width in the web address (testing aid)', () => {
+  it('reads ?res=480 and ignores nonsense', () => {
+    expect(parseResParam('?res=480')).toBe(480);
+    expect(parseResParam('?floatpreview=1&res=640')).toBe(640);
+    expect(parseResParam('')).toBeNull();
+    expect(parseResParam('?res=abc')).toBeNull();
+    expect(parseResParam('?res=100')).toBeNull();
+    expect(parseResParam('?res=99999')).toBeNull();
+    expect(parseResParam('?res=480.5')).toBeNull();
   });
 });
 

@@ -173,6 +173,17 @@ export function renderSizeFor(aspect: number, baseWidth: number, baseHeight: num
   return { width, height };
 }
 
+/**
+ * Testing aid (stage 3i): ?res=480 draws the whole game on a picture 480 pixels wide instead of the usual 320 (finer pixels, sharper screens,
+ * more work for the phone). Anything that is not a whole number between 160 and 1280 is ignored (null).
+ */
+export function parseResParam(search: string): number | null {
+  const raw = new URLSearchParams(search).get("res");
+  if (raw === null || raw.trim() === "") return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 160 && n <= 1280 ? n : null;
+}
+
 /** Vertical field of view in degrees. In tall windows it widens so the sides are not cut off. */
 export function cameraFov(aspect: number, baseFov: number): number {
   if (aspect >= 1) return baseFov;
