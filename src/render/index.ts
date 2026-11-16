@@ -320,8 +320,6 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
         const next = picks[(shown + 1) % Math.max(1, picks.length)];
         if (next) tripTo(next.planetId, WORST_PLANET);
       },
-      initialTextLook: flight.getTextLook(),
-      onTextLook: (look) => flight.setTextLook(look),
       onLongTour: () => {
         const next = picks[(shown + 1) % Math.max(1, picks.length)];
         if (next) tripTo(next.planetId, WORST_DOCK_FULL, [WORST_DOCK_FULL, WORST_PLANET, WORST_DOCK_FULL]);

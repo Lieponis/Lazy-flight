@@ -10,15 +10,12 @@ import type { AssetModel } from "./assets";
 import {
   SCREEN_PIXEL_WIDTH,
   SCREEN_SUPERSAMPLE,
-  TEXT_LOOK_DEFAULT,
+  TEXT_SHARPEN,
   canvasHeightFor,
-  parseTextLook,
   SCREEN_DESIGN_WIDTH,
-  textLookSettings,
   type FuelScreenData,
   type InfoScreenData,
   type MapScreenData,
-  type TextLook,
 } from "./screendata";
 import { AMBER, CYAN, DARK, FONT, LIGHT, NAV_BACK, NAV_DIM, drawInfo, thick } from "./infoscreen";
 
@@ -34,37 +31,23 @@ interface Face {
 }
 
 // The screen's own tiny shader (stage 3i). It shows the picture like a plain textured square would, then gives the edges of the letters back
-// that shrinking the picture took away: a mix of the pixel and its four neighbours one game pixel away (unsharp mask), and for CRISP it
-// snaps each pixel to the lighter or the darker of those neighbours. The sums are done on display colours (gamma), like the picture was drawn.
+// that shrinking the picture took away: the pixel is pushed away from the average of itself and its four neighbours, one game pixel
+// away (an "unsharp mask"). The sums are done on display colours (gamma), like the picture was drawn.
 const SCREEN_VERTEX = "varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }";
 const SCREEN_FRAGMENT = /* glsl */ `
-  uniform sampler2D uMap; uniform float uSharp; uniform float uHard;
+  uniform sampler2D uMap; uniform float uSharp;
   varying vec2 vUv;
   vec3 toGamma(vec3 c) { return pow(max(c, vec3(0.0)), vec3(1.0 / 2.2)); }
   vec3 toLinear(vec3 c) { return pow(max(c, vec3(0.0)), vec3(2.2)); }
-  float lum(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
   void main() {
     vec2 d = fwidth(vUv); // how far one game pixel is, in picture coordinates
     vec3 c = toGamma(texture2D(uMap, vUv).rgb);
-    if (uSharp <= 0.0 && uHard <= 0.0) {
-      gl_FragColor = vec4(toLinear(c), 1.0);
-    } else {
-      vec3 n[4];
-      n[0] = toGamma(texture2D(uMap, vUv - vec2(d.x, 0.0)).rgb);
-      n[1] = toGamma(texture2D(uMap, vUv + vec2(d.x, 0.0)).rgb);
-      n[2] = toGamma(texture2D(uMap, vUv - vec2(0.0, d.y)).rgb);
-      n[3] = toGamma(texture2D(uMap, vUv + vec2(0.0, d.y)).rgb);
-      vec3 mean = (c + n[0] + n[1] + n[2] + n[3]) * 0.2;
-      vec3 soft = clamp(c + uSharp * (c - mean), 0.0, 1.0);
-      vec3 hi = c; vec3 lo = c; float lh = lum(c); float ll = lh;
-      for (int i = 0; i < 4; i++) {
-        float v = lum(n[i]);
-        if (v > lh) { lh = v; hi = n[i]; }
-        if (v < ll) { ll = v; lo = n[i]; }
-      }
-      vec3 hard = lum(c) >= lum(mean) ? hi : lo;
-      gl_FragColor = vec4(toLinear(mix(soft, hard, uHard)), 1.0);
-    }
+    vec3 l = toGamma(texture2D(uMap, vUv - vec2(d.x, 0.0)).rgb);
+    vec3 r = toGamma(texture2D(uMap, vUv + vec2(d.x, 0.0)).rgb);
+    vec3 u = toGamma(texture2D(uMap, vUv - vec2(0.0, d.y)).rgb);
+    vec3 b = toGamma(texture2D(uMap, vUv + vec2(0.0, d.y)).rgb);
+    vec3 mean = (c + l + r + u + b) * 0.2;
+    gl_FragColor = vec4(toLinear(clamp(c + uSharp * (c - mean), 0.0, 1.0)), 1.0);
     #include <colorspace_fragment>
   }
 `;
@@ -87,7 +70,7 @@ function makeFace(model: AssetModel, name: ScreenName): Face | null {
   texture.anisotropy = 8; // sharper when the screen is seen at a slant (the renderer lowers it if the device allows less)
   texture.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.ShaderMaterial({
-    uniforms: { uMap: { value: texture }, uSharp: { value: 0 }, uHard: { value: 0 } },
+    uniforms: { uMap: { value: texture }, uSharp: { value: TEXT_SHARPEN } },
     vertexShader: SCREEN_VERTEX,
     fragmentShader: SCREEN_FRAGMENT,
     toneMapped: false,
@@ -231,7 +214,6 @@ export class CockpitScreens {
   private fuel: Face | null;
   private rightWing: Face | null;
   private rightWingDrawn = false;
-  private textLook: TextLook = TEXT_LOOK_DEFAULT;
   /** Called once when the pixel font finishes loading, so the owner can redraw straight away. */
   onFontLoaded: (() => void) | null = null;
 
@@ -240,32 +222,12 @@ export class CockpitScreens {
     this.map = makeFace(model, "screenMap");
     this.fuel = makeFace(model, "screenFuel");
     this.rightWing = makeFace(model, "screenRightWing");
-    try {
-      this.setTextLook(parseTextLook(window.location.search) ?? TEXT_LOOK_DEFAULT); // ?textlook=sharper while testing
-    } catch {
-      this.setTextLook(TEXT_LOOK_DEFAULT);
-    }
     // The UI's CSS loads the VT323 font; wait for it before relying on it (the plain monospace is used meanwhile).
     try {
       void document.fonts?.load(`20px "VT323"`).then(() => this.onFontLoaded?.());
     } catch {
       // not important: the fallback font is fine
     }
-  }
-
-  /** How sharp the letters look on all the screens (see TextLook in screendata.ts). */
-  setTextLook(look: TextLook): void {
-    this.textLook = look;
-    const { sharp, hard } = textLookSettings(look);
-    for (const face of [this.info, this.map, this.fuel, this.rightWing]) {
-      if (!face) continue;
-      face.material.uniforms.uSharp!.value = sharp;
-      face.material.uniforms.uHard!.value = hard;
-    }
-  }
-
-  getTextLook(): TextLook {
-    return this.textLook;
   }
 
   /** Redraws all three pictures. Call about 4 times a second, not every frame. */

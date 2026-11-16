@@ -26,33 +26,11 @@ export function canvasHeightFor(widthPixels: number, w: number, h: number, scale
 }
 
 /**
- * How sharp the text on the cockpit screens looks (stage 3i, Andy: sharper, less soft edges). The screen pictures are shrunk a lot to fit the
- * game's small picture, which blurs thin letters; a small sharpening step in the screen's shader (cockpitscreens.ts) gives the edges back.
- *   SOFT = no sharpening (as before), SHARP and SHARPER = more edge contrast, CRISP = hard pixel edges (can break letters when small).
+ * How strongly the letters on the cockpit screens are sharpened (stage 3i, Andy chose "SHARP" from four looks). The screen pictures are
+ * shrunk a lot to fit the game's small picture, which softens thin letters; a small sharpening step in the screen's shader
+ * (cockpitscreens.ts) gives the edges back. 0 = no sharpening (the old soft look); 2 was the "SHARPER" look he did not choose.
  */
-export type TextLook = "SOFT" | "SHARP" | "SHARPER" | "CRISP";
-export const TEXT_LOOKS: readonly TextLook[] = ["SOFT", "SHARP", "SHARPER", "CRISP"];
-export const TEXT_LOOK_DEFAULT: TextLook = "SHARP";
-
-/** The shader dials for a look: `sharp` = how strongly edges are pushed apart (0 = off), `hard` = 0..1 how much they snap to hard pixels. */
-export function textLookSettings(look: TextLook): { sharp: number; hard: number } {
-  switch (look) {
-    case "SHARP":
-      return { sharp: 1.2, hard: 0 };
-    case "SHARPER":
-      return { sharp: 2.0, hard: 0 };
-    case "CRISP":
-      return { sharp: 0, hard: 1 };
-    default:
-      return { sharp: 0, hard: 0 };
-  }
-}
-
-/** ?textlook=sharper (any capitals) while testing. Null if absent or not one of the looks. */
-export function parseTextLook(search: string): TextLook | null {
-  const v = (new URLSearchParams(search).get("textlook") ?? "").trim().toUpperCase();
-  return (TEXT_LOOKS as readonly string[]).includes(v) ? (v as TextLook) : null;
-}
+export const TEXT_SHARPEN = 1.2;
 
 export const PHASE_LABELS: Record<FlightPhase, string> = {
   LAUNCH: "LAUNCH",
