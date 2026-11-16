@@ -90,6 +90,9 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   const dockName = (dockId: string): string => getDock(seed, dockId)?.name ?? "Unknown dock";
   // Free travel (3g): a trip may start or end at a planet WITHOUT a dock, so its name comes from the planet.
   const placeName = (id: string): string => getDock(seed, id)?.name ?? getPlanet(seed, id)?.name ?? "Unknown place";
+  // 3i (N3b, Andy chose the full name): the 3D screens get the unique full name ("Lonely Basin Outpost, Kopipex 2N-83 II"), because
+  // short dock names repeat between systems. A planet without a dock keeps its own name ("Kopipex 2N-83 II").
+  const flightName = (id: string): string => getDock(seed, id)?.fullName ?? getPlanet(seed, id)?.name ?? "Unknown place";
   const systemNameOfDock = (dockId: string): string => {
     const dock = getDock(seed, dockId);
     return (dock && getSystem(seed, dock.systemId)?.name) ?? "?";
@@ -365,8 +368,8 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
       api.startFlight({
         originDockId: game.state.currentDockId,
         destinationDockId: job.destinationDockId,
-        destinationName: dockName(job.destinationDockId),
-        stops: job.stops.map(dockName), // tours show their stops in the cockpit (one stop = not a tour)
+        destinationName: flightName(job.destinationDockId),
+        stops: job.stops.map(flightName), // tours show their stops in the cockpit (one stop = not a tour)
         shipId: game.state.shipId,
         livery: game.currentLivery(game.state.shipId), // the worn paint job (5f)
         // For the cockpit's fuel screen: fuel left (the trip is already paid), the tank size, and what this trip burns.
@@ -382,7 +385,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
       api.startFlight({
         originDockId: trip.fromId,
         destinationDockId: trip.toId,
-        destinationName: placeName(trip.toId),
+        destinationName: flightName(trip.toId),
         shipId: game.state.shipId,
         livery: game.currentLivery(game.state.shipId),
         fuel: game.state.fuel,
