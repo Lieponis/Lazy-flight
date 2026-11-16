@@ -275,3 +275,6 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 ## Decisions 2026-11-16 (Andy)
 - Explorer rank for carried-over saves: "simple" (the rank restarts in the shared universe). Closed.
 - Full QA YES, before a big change that Andy has announced (not yet described). Brief docs/briefs/agent-6g-brief.md = P4 (offline tests, brief 6f, never delivered) + general QA/balance (brief 6d, updated for the world seed, unique names, free travel, paint jobs, save file, map reach). Starts after N3b (Agent 3) is verified, or earlier if Andy prefers (they touch different files).
+
+## Feasibility check, spiral-disc galaxy (2026-11-16, Andy request): see docs/feasibility-galaxy.md
+- Verdict: feasible but a universe + map + economy rebuild (about 6 to 8 stages). Key risks: variable-size cells needed, rim strand (ships reach 30 to 82 ly, rim spacing 150 to 170 ly), job radius, map cannot show every real system in a view direction (layers: diamonds, near pixels, far glow). Awaiting Andy's decisions (section 5). Nothing approved or built.
