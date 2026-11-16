@@ -32,6 +32,7 @@ export default defineConfig({
         gamedebug: "game-debug.html",
         planets: "planets.html", // planet looks preview (Agent 7c)
         about: "about.html", // release page (Agent 7d), online only
+        galaxy: "galaxy-debug.html", // galaxy prototype page (Agent 2, G1), online only
       },
     },
   },
