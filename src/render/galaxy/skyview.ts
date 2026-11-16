@@ -1,12 +1,13 @@
-// THE SKY ON SCREEN (prototype G2). Draws the sky cube and the faint stars behind everything else.
+// THE SKY ON SCREEN (prototype G2). Draws the soft sky glow and the back-drop dots behind everything else.
 //
 // Plain words: the sky sits "at infinity": it only turns with the camera, it never gets closer when the camera moves. It is
 // drawn first in its own little scene, then the map is drawn on top. The glow is a big box around the camera; a small shader
-// looks up the right texel of the sky cube for every screen pixel (nearest texel, no smoothing: chunky pixels), then applies
-// the brightness steps and dot pattern of the chosen look.
+// works out, for every screen pixel, which direction it looks in, and mixes the 4 nearest squares of the sky (the ring layout of
+// skysphere.ts) so the glow is smooth and round, never made of visible squares. The dots are drawn on top, one pixel each.
 
 import * as THREE from "three";
-import { BAYER4, PEAK_RGB, SPACE_RGB, type SkyLook } from "./skylook";
+import { ringCountsData, ringsToRows, type RingLayout } from "./skysphere";
+import { PEAK_RGB, SPACE_RGB } from "./skylook";
 import type { FaintStars } from "./skystars";
 
 const SKY_VERTEX = /* glsl */ `
@@ -17,45 +18,42 @@ const SKY_VERTEX = /* glsl */ `
   }
 `;
 
-// The face table below is the same as faceDirection / directionToFace in skycube.ts.
+// This does the same sum as sampleRings in skysphere.ts (the tests and my offline pictures use that one).
 const SKY_FRAGMENT = /* glsl */ `
-  uniform sampler2D uSky;
-  uniform float uFace;
-  uniform float uSteps;
-  uniform float uDither;
-  uniform float uHeight;
+  uniform sampler2D uSky;     // one row per ring: red, green, blue = tint, alpha = brightness level
+  uniform sampler2D uCounts;  // one texel per ring: squares in that ring (red = low 8 bits, green = high bits)
+  uniform float uRings;
+  uniform float uGlow;
   uniform vec3 uSpace;
   uniform vec3 uPeak;
   varying vec3 vDir;
-  const float BAYER[16] = float[16](${BAYER4.map((n) => `${n}.0`).join(", ")});
+  const float PI = 3.14159265358979;
+
+  vec4 ringSample(float ring, float lonFrac) {
+    ring = clamp(ring, 0.0, uRings - 1.0);
+    vec4 c = texelFetch(uCounts, ivec2(int(ring), 0), 0);
+    float n = floor(c.r * 255.0 + 0.5) + 256.0 * floor(c.g * 255.0 + 0.5);
+    float f = lonFrac * n - 0.5;
+    float i0 = floor(f);
+    float t = f - i0;
+    float a = mod(i0 + n, n);
+    float b = mod(i0 + 1.0 + n, n);
+    vec4 ta = texelFetch(uSky, ivec2(int(a), int(ring)), 0);
+    vec4 tb = texelFetch(uSky, ivec2(int(b), int(ring)), 0);
+    return mix(ta, tb, t);
+  }
+
   void main() {
-    vec3 d = vDir;
-    vec3 a = abs(d);
-    float face;
-    vec2 uv;
-    if (a.x >= a.y && a.x >= a.z) {
-      if (d.x > 0.0) { face = 0.0; uv = vec2(-d.z, -d.y) / a.x; } else { face = 1.0; uv = vec2(d.z, -d.y) / a.x; }
-    } else if (a.y >= a.z) {
-      if (d.y > 0.0) { face = 2.0; uv = vec2(d.x, d.z) / a.y; } else { face = 3.0; uv = vec2(d.x, -d.z) / a.y; }
-    } else {
-      if (d.z > 0.0) { face = 4.0; uv = vec2(d.x, -d.y) / a.z; } else { face = 5.0; uv = vec2(-d.x, -d.y) / a.z; }
-    }
-    vec2 t = clamp(uv * 0.5 + 0.5, 0.0, 0.9999);
-    t = (floor(t * uFace) + 0.5) / uFace;
-    vec4 tex = texture2D(uSky, vec2(t.x, (face + t.y) / 6.0));
-    float level = tex.a;
-    if (uSteps > 0.5) {
-      float px = floor(gl_FragCoord.x);
-      float py = uHeight - 1.0 - floor(gl_FragCoord.y);
-      float threshold = 0.5;
-      if (uDither > 0.5) {
-        int idx = int(mod(py, 4.0)) * 4 + int(mod(px, 4.0));
-        threshold = (BAYER[idx] + 0.5) / 16.0;
-      }
-      level = min(1.0, floor(level * uSteps + threshold) / uSteps);
-    }
-    vec3 colour = uSpace + (uPeak * tex.rgb - uSpace) * level;
-    gl_FragColor = vec4(colour, 1.0);
+    vec3 d = normalize(vDir);
+    float lat = asin(clamp(d.y, -1.0, 1.0));
+    float lon = atan(d.z, d.x);
+    if (lon < 0.0) lon += 2.0 * PI;
+    float fr = (lat + 0.5 * PI) / PI * uRings - 0.5;
+    float r0 = floor(fr);
+    float lonFrac = lon / (2.0 * PI);
+    vec4 tex = mix(ringSample(r0, lonFrac), ringSample(r0 + 1.0, lonFrac), fr - r0);
+    float level = tex.a * uGlow;
+    gl_FragColor = vec4(uSpace + (uPeak * tex.rgb - uSpace) * level, 1.0);
   }
 `;
 
@@ -84,7 +82,9 @@ export class SkyView {
   private readonly domeMaterial: THREE.ShaderMaterial;
   private readonly starPoints: THREE.Points;
   private texture: THREE.DataTexture | null = null;
-  private faceSize = 0;
+  private countsTexture: THREE.DataTexture | null = null;
+  private layout: RingLayout | null = null;
+  private glowOn = true;
 
   constructor() {
     this.domeMaterial = new THREE.ShaderMaterial({
@@ -92,10 +92,9 @@ export class SkyView {
       fragmentShader: SKY_FRAGMENT,
       uniforms: {
         uSky: { value: null },
-        uFace: { value: 1 },
-        uSteps: { value: 0 },
-        uDither: { value: 0 },
-        uHeight: { value: 180 },
+        uCounts: { value: null },
+        uRings: { value: 1 },
+        uGlow: { value: 0 },
         uSpace: { value: new THREE.Vector3(SPACE_RGB[0] / 255, SPACE_RGB[1] / 255, SPACE_RGB[2] / 255) },
         uPeak: { value: new THREE.Vector3(PEAK_RGB[0] / 255, PEAK_RGB[1] / 255, PEAK_RGB[2] / 255) },
       },
@@ -121,33 +120,37 @@ export class SkyView {
     this.scene.add(this.starPoints);
   }
 
-  /** Puts a freshly built sky cube on the GPU. `texels` = 4 bytes per texel (see skyToTexels), 6 faces stacked. */
-  setTexels(texels: Uint8Array, faceSize: number): void {
-    if (!this.texture || this.faceSize !== faceSize) {
+  /** Puts a freshly built sky glow on the GPU. `flat` = 4 bytes per square (see skyToTexels), ring after ring. */
+  setTexels(flat: Uint8Array, layout: RingLayout): void {
+    const same = this.layout !== null && this.layout.rings === layout.rings && this.layout.maxCount === layout.maxCount && this.layout.total === layout.total;
+    const rows = ringsToRows(flat, layout, same ? (this.texture?.image.data as Uint8Array) : undefined);
+    if (!same || !this.texture || !this.countsTexture) {
       this.texture?.dispose();
-      const texture = new THREE.DataTexture(texels, faceSize, faceSize * 6, THREE.RGBAFormat, THREE.UnsignedByteType);
-      texture.magFilter = THREE.NearestFilter;
-      texture.minFilter = THREE.NearestFilter;
-      texture.generateMipmaps = false;
-      texture.needsUpdate = true;
-      this.texture = texture;
-      this.faceSize = faceSize;
-      this.domeMaterial.uniforms.uSky.value = texture;
-      this.domeMaterial.uniforms.uFace.value = faceSize;
+      this.countsTexture?.dispose();
+      this.texture = makeTexture(rows, layout.maxCount, layout.rings);
+      this.countsTexture = makeTexture(ringCountsData(layout), layout.rings, 1);
+      this.layout = layout;
+      this.domeMaterial.uniforms.uSky.value = this.texture;
+      this.domeMaterial.uniforms.uCounts.value = this.countsTexture;
+      this.domeMaterial.uniforms.uRings.value = layout.rings;
     } else {
-      this.texture.image.data.set(texels);
       this.texture.needsUpdate = true;
     }
-    this.dome.visible = true;
+    this.refreshDome();
   }
 
-  /** Brightness steps and dot pattern of the chosen look. */
-  setLook(look: SkyLook): void {
-    this.domeMaterial.uniforms.uSteps.value = look.steps;
-    this.domeMaterial.uniforms.uDither.value = look.dither ? 1 : 0;
+  /** How strong the soft glow under the dots is (0..1). */
+  setGlowStrength(strength: number): void {
+    this.domeMaterial.uniforms.uGlow.value = strength;
+    this.refreshDome();
   }
 
-  /** The faint single stars (unit directions plus colours). */
+  /** The glow box is only drawn when it has something to show (a built sky, switched on, strength above 0). */
+  private refreshDome(): void {
+    this.dome.visible = this.glowOn && this.texture !== null && (this.domeMaterial.uniforms.uGlow.value as number) > 0;
+  }
+
+  /** The back-drop dots (unit directions plus colours). */
   setStars(stars: FaintStars): void {
     const g = this.starPoints.geometry;
     g.setAttribute("position", new THREE.BufferAttribute(stars.dirs, 3));
@@ -157,25 +160,36 @@ export class SkyView {
   }
 
   setVisible(glow: boolean, dots: boolean): void {
-    this.dome.visible = glow && this.texture !== null;
+    this.glowOn = glow;
+    this.refreshDome();
     this.starPoints.visible = dots;
   }
 
   /** Copies the way the map camera is turned, so the sky looks the same way (the sky camera never moves). */
-  follow(camera: THREE.PerspectiveCamera, height: number): void {
+  follow(camera: THREE.PerspectiveCamera): void {
     this.camera.quaternion.copy(camera.quaternion);
     this.camera.fov = camera.fov;
     this.camera.aspect = camera.aspect;
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
-    this.domeMaterial.uniforms.uHeight.value = height;
   }
 
   dispose(): void {
     this.texture?.dispose();
+    this.countsTexture?.dispose();
     this.domeMaterial.dispose();
     this.dome.geometry.dispose();
     this.starPoints.geometry.dispose();
     (this.starPoints.material as THREE.Material).dispose();
   }
+}
+
+/** A small RGBA texture that is looked up exactly (no smoothing by the graphics card: the shader mixes the squares itself). */
+function makeTexture(data: Uint8Array, width: number, height: number): THREE.DataTexture {
+  const texture = new THREE.DataTexture(data, width, height, THREE.RGBAFormat, THREE.UnsignedByteType);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  texture.needsUpdate = true;
+  return texture;
 }

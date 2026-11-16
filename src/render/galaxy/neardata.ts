@@ -5,7 +5,7 @@
 // The swap later is: replace `makeNearStars` by a function that returns the same `NearStars` shape from the real generator.
 
 import { mulberry } from "./hash";
-import { nearRadiusFor } from "./skycube";
+import { nearRadiusFor } from "./skyglow";
 
 /** Star types and their colours: the same list as the game (src/universe/system.ts). */
 export const STAR_TYPES = [

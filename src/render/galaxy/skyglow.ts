@@ -1,14 +1,16 @@
-// THE SKY FROM WHERE YOU ARE (prototype G2). Pure maths, no Three.js.
+// THE SKY GLOW FROM WHERE YOU ARE (prototype G2). Pure maths, no Three.js.
 //
-// Plain words: a "sky cube" is the whole sky around you drawn on the 6 inside faces of a cube, a small square picture per
-// face. For every little square ("texel") we shoot a ray from the player's position through the galaxy and add up the
-// starlight along it, dimmed by dust. Standing somewhere else gives a different sum, so a different sky.
+// Plain words: the whole sky around you is cut into small squares ("texels") laid out in rings around the galaxy's up/down axis
+// (skysphere.ts: every square has about the same size, so nothing is squeezed near the poles and no cube edges show). For every
+// square we shoot a ray from the player's position through the galaxy and add up the starlight along it, dimmed by dust.
+// Standing somewhere else gives a different sum, so a different sky.
 //
 // The near stars (the ones drawn one by one on the map) are left out of the sum: the ray starts at `nearRadius`, so
 // nothing is counted twice. What the sum holds is the unresolved glow of everything farther away.
 
 import type { FieldSample, GalaxyField } from "./galaxyfield";
 import { GALAXY_RADIUS_LY } from "./galaxyfield";
+import { ringLayout, ringsForTexels, ringTexelDirection, type RingLayout } from "./skysphere";
 
 export interface Vec3 {
   x: number;
@@ -17,7 +19,10 @@ export interface Vec3 {
 }
 
 export interface SkyParams {
-  /** Texels along one side of one cube face (64 or 128). */
+  /**
+   * Size of the sky in "cube face" units: the sky has about 6 x faceSize x faceSize squares (32 = 6,100, 64 = 24,600, 128 = 98,300),
+   * the number a 6-face sky cube of that face size would have, so the numbers stay comparable with the first prototype.
+   */
   faceSize: number;
   /** Steps along each ray (log-spaced: small steps near you, big steps far away). */
   steps: number;
@@ -37,68 +42,18 @@ const YOUNG_RGB = [0.6, 0.78, 1.0] as const;
 /** Dust dims blue light more than red (so far light looks redder): relative strength per colour. */
 const DUST_RGB = [0.78, 1.0, 1.38] as const;
 
-// ------------------------------------------------------------------------------------------ cube geometry
+// ------------------------------------------------------------------------------------------ the ring layout
 
-/** Direction (not yet length 1) for the point (u, v) on a cube face; u and v run from -1 to 1. */
-export function faceDirection(face: number, u: number, v: number, out: Vec3): Vec3 {
-  switch (face) {
-    case 0:
-      out.x = 1;
-      out.y = -v;
-      out.z = -u;
-      break;
-    case 1:
-      out.x = -1;
-      out.y = -v;
-      out.z = u;
-      break;
-    case 2:
-      out.x = u;
-      out.y = 1;
-      out.z = v;
-      break;
-    case 3:
-      out.x = u;
-      out.y = -1;
-      out.z = -v;
-      break;
-    case 4:
-      out.x = u;
-      out.y = -v;
-      out.z = 1;
-      break;
-    default:
-      out.x = -u;
-      out.y = -v;
-      out.z = -1;
-      break;
+const layouts = new Map<number, RingLayout>();
+
+/** The ring layout (equal-area squares) for a sky size; made once per size. */
+export function layoutFor(faceSize: number): RingLayout {
+  let layout = layouts.get(faceSize);
+  if (!layout) {
+    layout = ringLayout(ringsForTexels(6 * faceSize * faceSize, true), true);
+    layouts.set(faceSize, layout);
   }
-  return out;
-}
-
-/** Which face a direction points at, and where on it (u and v run from -1 to 1). The shader uses the same table. */
-export function directionToFace(x: number, y: number, z: number): { face: number; u: number; v: number } {
-  const ax = Math.abs(x);
-  const ay = Math.abs(y);
-  const az = Math.abs(z);
-  if (ax >= ay && ax >= az) {
-    return x > 0 ? { face: 0, u: -z / ax, v: -y / ax } : { face: 1, u: z / ax, v: -y / ax };
-  }
-  if (ay >= az) {
-    return y > 0 ? { face: 2, u: x / ay, v: z / ay } : { face: 3, u: x / ay, v: -z / ay };
-  }
-  return z > 0 ? { face: 4, u: x / az, v: -y / az } : { face: 5, u: -x / az, v: -y / az };
-}
-
-/** The share of the whole sky (solid angle in steradians) that one texel covers. Texels near a face corner cover less. */
-export function texelSolidAngle(faceSize: number, u: number, v: number): number {
-  const side = 2 / faceSize;
-  return (side * side) / Math.pow(1 + u * u + v * v, 1.5);
-}
-
-/** Index (in texels) of the texel at (i, j) on a face. Faces are stacked: face 0 first, then face 1, and so on. */
-export function texelIndex(faceSize: number, face: number, i: number, j: number): number {
-  return (face * faceSize + j) * faceSize + i;
+  return layout;
 }
 
 // ------------------------------------------------------------------------------------------ one ray
@@ -182,14 +137,16 @@ export function integrateRay(
   out[o + 2] = b;
 }
 
-// ------------------------------------------------------------------------------------------ the whole sky cube
+// ------------------------------------------------------------------------------------------ the whole sky
 
-/** Builds the sky cube a few rows at a time, so a phone can keep drawing frames while it works. */
+/** Builds the sky glow a few squares at a time, so a phone can keep drawing frames while it works. */
 export class SkyBuilder {
-  /** Red, green, blue for every texel (6 faces stacked). Light per steradian, in made-up units. */
+  readonly layout: RingLayout;
+  /** Red, green, blue for every square (ring after ring, see skysphere.ts). Light per steradian, in made-up units. */
   readonly raw: Float32Array;
-  private row = 0;
-  private readonly rows: number;
+  private ring = 0;
+  private index = 0;
+  private done_ = false;
   private readonly sample: FieldSample = { old: 0, young: 0, dust: 0 };
   private readonly dir: Vec3 = { x: 0, y: 0, z: 0 };
   /** Total time spent working (milliseconds), summed over every call of `run`. */
@@ -200,47 +157,52 @@ export class SkyBuilder {
     readonly origin: Vec3,
     readonly params: SkyParams = DEFAULT_SKY,
   ) {
-    this.rows = 6 * params.faceSize;
-    this.raw = new Float32Array(this.rows * params.faceSize * 3);
+    this.layout = layoutFor(params.faceSize);
+    this.raw = new Float32Array(this.layout.total * 3);
   }
 
   get done(): boolean {
-    return this.row >= this.rows;
+    return this.done_;
   }
 
   /** Share finished, 0 to 1. */
   get progress(): number {
-    return this.row / this.rows;
+    if (this.done_) return 1;
+    return ((this.layout.offsets[this.ring] ?? 0) + this.index) / this.layout.total;
   }
 
-  /** Works for about `budgetMs` milliseconds (at least one row). Returns true when the whole cube is finished. */
+  /** Works for about `budgetMs` milliseconds (the clock is looked at every 8 squares). Returns true when the whole sky is finished. */
   run(budgetMs: number, now: () => number = () => performance.now()): boolean {
     const start = now();
-    const n = this.params.faceSize;
-    do {
-      if (this.done) break;
-      const face = Math.floor(this.row / n);
-      const j = this.row - face * n;
-      const v = ((j + 0.5) / n) * 2 - 1;
-      for (let i = 0; i < n; i++) {
-        const u = ((i + 0.5) / n) * 2 - 1;
-        const d = faceDirection(face, u, v, this.dir);
-        const len = Math.hypot(d.x, d.y, d.z);
-        integrateRay(this.field, this.origin, d.x / len, d.y / len, d.z / len, this.params, this.sample, this.raw, ((face * n + j) * n + i) * 3);
+    const layout = this.layout;
+    let sinceClock = 0;
+    while (!this.done_) {
+      const ring = this.ring;
+      const t = (layout.offsets[ring] ?? 0) + this.index;
+      const d = ringTexelDirection(layout, ring, this.index, this.dir);
+      integrateRay(this.field, this.origin, d.x, d.y, d.z, this.params, this.sample, this.raw, t * 3);
+      this.index++;
+      if (this.index >= (layout.counts[ring] ?? 0)) {
+        this.index = 0;
+        this.ring++;
+        if (this.ring >= layout.rings) this.done_ = true;
       }
-      this.row++;
-    } while (now() - start < budgetMs);
+      if (++sinceClock >= 8) {
+        sinceClock = 0;
+        if (now() - start >= budgetMs) break;
+      }
+    }
     this.workMs += now() - start;
-    return this.done;
+    return this.done_;
   }
 }
 
-/** Builds the whole cube at once (for tests and measurements). */
-export function buildSky(field: GalaxyField, origin: Vec3, params: SkyParams = DEFAULT_SKY): { raw: Float32Array; ms: number } {
+/** Builds the whole sky at once (for tests and measurements). */
+export function buildSky(field: GalaxyField, origin: Vec3, params: SkyParams = DEFAULT_SKY): { raw: Float32Array; layout: RingLayout; ms: number } {
   const b = new SkyBuilder(field, origin, params);
   const t0 = performance.now();
   b.run(Infinity);
-  return { raw: b.raw, ms: performance.now() - t0 };
+  return { raw: b.raw, layout: b.layout, ms: performance.now() - t0 };
 }
 
 /** Radius (light years) inside which the nearest `count` systems lie, if systems are `spacing` ly apart: used as the start of the glow. */

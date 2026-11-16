@@ -61,8 +61,14 @@ function armWeight(r: number, phi: number, shift: number): number {
   return Math.exp(ARM_SHARP * (Math.cos(ARM_COUNT * (phi - armPhi)) - 1));
 }
 
-const DUST_AT_START = 9e-4; // optical depth per light year in the mid-plane at the start radius (about 0.5 "magnitudes" per 1,000 ly)
+const DUST_AT_START = 6.5e-4; // optical depth per light year in the mid-plane at the start radius (about 0.5 "magnitudes" per 1,000 ly)
 const DUST_MAX = 3.2e-3;
+/** How far the dust layer waves up and down (light years), and the height above which there is never any dust (5 x 90 ly + the wave). */
+const DUST_WARP_LY = 150;
+/** Closer to the centre than this (light years) there is no dust; it reaches full strength at the second distance. */
+const DUST_CORE_CLEAR_LY = 3000;
+const DUST_CORE_FULL_LY = 9000;
+export const DUST_REACH_LY = 5 * 90 + DUST_WARP_LY + 10;
 
 export const standInField: GalaxyField = {
   spacingAt(x, _y, z) {
@@ -98,15 +104,24 @@ export const standInField: GalaxyField = {
     out.young = yThin > 6 || yThin < -6 ? 0 : 4 * nMid * strength * Math.pow(arm, 1.3) * Math.exp(-0.5 * yThin * yThin) * taper * clump;
 
     // Dust: a thin lumpy layer, most in the dust lanes just before the arms, fewer far from the centre.
-    const yd = y / 90;
+    // The dust layer is not perfectly flat: it waves up and down by up to about 150 light years over thousands of light years, like
+    // the lane of a real edge-on galaxy. Without this, seen from the rim the lane is one perfectly straight line.
+    const warp = Math.abs(y) > DUST_REACH_LY ? 0 : DUST_WARP_LY * (2 * valueNoise(x / 4200, 0.5, z / 4200, 41) - 1);
+    const yd = (y - warp) / 90;
     if (yd > 5 || yd < -5) {
       out.dust = 0;
     } else {
       const lane = ARM_FLOOR + (1 - ARM_FLOOR) * (strength > 0 ? armWeight(r, phi, DUST_ANGLE_SHIFT) : 0.5);
-      const nz = valueNoise(x / 500, y / 190, z / 500, 3);
-      const lump = 0.05 + 3.4 * nz * nz;
-      const radial = Math.exp(-(r - START_RADIUS_LY) / 9000);
-      out.dust = Math.min(DUST_MAX, DUST_AT_START * radial * Math.exp(-0.5 * yd * yd) * lane * lump * taper);
+      const nz = valueNoise(x / 800, y / 190, z / 800, 3);
+      // Big patches (a few thousand light years across) on top of the small lumps: where a patch is thin, the dark lane breaks up
+      // and the stars behind it shine through. Seen from far away this is what stops the lane being one perfect straight line.
+      const nBig = valueNoise(x / 3200, y / 700, z / 3200, 29);
+      const patch = 0.1 + 1.9 * smoothstep(0.3, 0.7, nBig);
+      const lump = (0.03 + 4.5 * nz * nz * nz) * patch; // cubed: more empty gaps, fewer but denser clouds
+      const radial = Math.min(2, Math.exp(-(r - START_RADIUS_LY) / 9000)); // more dust toward the centre, but not too much (the centre should still glow)
+      // No dust clouds near the centre: the dust fades out between 3,000 and 9,000 ly from the centre (Andy's request).
+      const core = smoothstep(DUST_CORE_CLEAR_LY, DUST_CORE_FULL_LY, r);
+      out.dust = Math.min(DUST_MAX, DUST_AT_START * radial * core * Math.exp(-0.5 * yd * yd) * lane * lump * taper);
     }
   },
 };
@@ -147,3 +162,48 @@ export function lookDirection(id: LookId, p: { x: number; y: number; z: number }
   const sign = id === "centre" ? -1 : 1;
   return { x: (sign * p.x) / r, y: 0, z: (sign * p.z) / r };
 }
+
+// ------------------------------------------------------------------------------------------ placing sky dots
+
+/**
+ * A simple "where could a star be" guess used to place sky dots (importance sampling): most stars sit in a thin disc that
+ * thins out with distance from the centre, plus a round bulge. `draw` picks a point from this guess and returns how likely
+ * the guess was to pick it. The dot builder then keeps points in proportion to the real field divided by this guess.
+ * Agent 2's real generator can use the same guess (or its own) later; it only has to return a point and its probability.
+ */
+export interface StarProposal {
+  draw(rand: () => number, out: { x: number; y: number; z: number }): number;
+}
+
+const DISC_SCALE_LY = GALAXY_RADIUS_LY / (3 * LN_RATIO); // the stand-in disc's density falls by e every 3,800 ly
+const BULGE_SCALE_LY = 900;
+const DISC_SHARE = 0.8;
+
+export const standInProposal: StarProposal = {
+  draw(rand, out) {
+    if (rand() < DISC_SHARE) {
+      const r = -DISC_SCALE_LY * Math.log(Math.max(1e-12, rand() * rand()));
+      const a = rand() * Math.PI * 2;
+      const sigma = Math.max(50, discThickness(r) / 4);
+      // A normal (bell curve) random number from two uniform ones.
+      const g = Math.sqrt(-2 * Math.log(Math.max(1e-12, rand()))) * Math.cos(Math.PI * 2 * rand());
+      out.x = r * Math.cos(a);
+      out.z = r * Math.sin(a);
+      out.y = g * sigma * 1.6; // a bit wider than the real disc, so the arms' thin young layer is still covered
+    } else {
+      const rho = -BULGE_SCALE_LY * Math.log(Math.max(1e-18, rand() * rand() * rand()));
+      const c = rand() * 2 - 1;
+      const sn = Math.sqrt(1 - c * c);
+      const a = rand() * Math.PI * 2;
+      out.x = rho * sn * Math.cos(a);
+      out.y = rho * c;
+      out.z = rho * sn * Math.sin(a);
+    }
+    const r = Math.hypot(out.x, out.z);
+    const rho = Math.hypot(r, out.y);
+    const sigma = Math.max(50, discThickness(r) / 4) * 1.6;
+    const disc = Math.exp(-r / DISC_SCALE_LY) / (2 * Math.PI * DISC_SCALE_LY * DISC_SCALE_LY) * Math.exp(-0.5 * (out.y / sigma) ** 2) / (sigma * Math.sqrt(2 * Math.PI));
+    const bulge = Math.exp(-rho / BULGE_SCALE_LY) / (8 * Math.PI * BULGE_SCALE_LY ** 3);
+    return DISC_SHARE * disc + (1 - DISC_SHARE) * bulge;
+  },
+};

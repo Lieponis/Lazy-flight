@@ -9,7 +9,7 @@
 // (measured on the stand-in galaxy). A cell is about a quarter of that distance, so crossing into a new cell is not a jolt.
 
 import { hash32 } from "./hash";
-import type { Vec3 } from "./skycube";
+import type { Vec3 } from "./skyglow";
 
 /** Smallest and biggest cell edge (light years). */
 export const SKY_CELL_MIN_LY = 60;

@@ -13,6 +13,7 @@ import {
   lookDirection,
   spacingAtRadius,
   standInField,
+  standInProposal,
   type LookId,
   type Teleport,
 } from "./galaxyfield";
@@ -29,9 +30,10 @@ import {
   type PreviewParams,
 } from "./previewmath";
 import { skyCellOf, type SkyCell } from "./skycell";
-import { SkyBuilder, type Vec3 } from "./skycube";
-import { SKY_LOOKS, skyToTexels, type SkyLookId } from "./skylook";
-import { makeFaintStars, removeNearOverlaps, type FaintStars } from "./skystars";
+import { DotsBuilder } from "./skydots";
+import { layoutFor, SkyBuilder, type Vec3 } from "./skyglow";
+import { GLOW_LEVELS, SKY_LOOKS, skyToTexels, type SkyLookId } from "./skylook";
+import { removeNearOverlaps } from "./skystars";
 import { SkyView } from "./skyview";
 
 /** Milliseconds per frame the sky build may use (the rest of the frame stays for drawing). */
@@ -45,21 +47,27 @@ const OVERLAP_CELL_DEG = 0.35;
 interface SkyStats {
   /** Wall-clock milliseconds from the start of the build to the finished sky (frames included). */
   wallMs: number;
-  /** Milliseconds of real work (what the build costs the processor). */
-  workMs: number;
+  /** Milliseconds of real work for the soft glow (0 when the glow did not need building again). */
+  glowWorkMs: number;
+  /** Milliseconds of real work for the dots (0 when they did not need building again). */
+  dotsWorkMs: number;
   frames: number;
   maxFrameMs: number;
   cellSize: number;
-  texelsMs: number;
-  starsMs: number;
+  /** Squares in the glow. */
+  squares: number;
+  colourMs: number;
+  overlapMs: number;
   dots: number;
   dotsRemoved: number;
 }
 
 interface PendingSky {
-  builder: SkyBuilder;
+  glow: SkyBuilder | null;
+  dots: DotsBuilder | null;
   cell: SkyCell;
-  signature: string;
+  glowSignature: string;
+  dotsSignature: string;
   startMs: number;
   frames: number;
   maxFrameMs: number;
@@ -109,6 +117,8 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     position: { x: 0, y: 0, z: 0 } as Vec3,
     look: params.look as LookId,
     skyLook: params.sky as SkyLookId,
+    /** Glow strength chosen with the GLOW LEVEL buttons (null = the look's own). */
+    glowLevel: null as number | null,
     face: params.face as number,
     density: params.density as "auto" | number,
     reach: params.reach as number,
@@ -124,9 +134,8 @@ export function mountGalaxyPreview(root: HTMLElement): void {
   let nearCounts: NearCounts = { diamonds: 0, pixels: 0, triangles: 0 };
   let nearMs = 0;
   let pending: PendingSky | null = null;
-  let builtSignature: string | null = null;
-  let builtRaw: Float32Array | null = null;
-  let builtCell: SkyCell | null = null;
+  let builtGlowSignature: string | null = null;
+  let builtDotsSignature: string | null = null;
   let skyStats: SkyStats | null = null;
 
   // ------------------------------------------------------------------ near stars
@@ -148,69 +157,94 @@ export function mountGalaxyPreview(root: HTMLElement): void {
   }
 
   // ------------------------------------------------------------------ the sky
-  /** Starts a new sky build when the player has left the sky cell, or the size or the near-star radius changed a lot. */
+  /**
+   * Starts a new sky build when the player has left the sky cell, or the sky size, the dot count or the near-star radius changed.
+   * The soft glow and the dots are separate builds: changing only the look (dot count) leaves a finished glow alone.
+   */
   function ensureSky(): void {
     const cell = skyCellOf(state.position);
     // The near radius is grouped in steps of about 19 % so a small change does not start a new build.
     const radiusStep = Math.round(Math.log2(Math.max(1, near.radius)) * 4);
-    const signature = `${cell.key}|${state.face}|${radiusStep}`;
-    if (signature === builtSignature || signature === pending?.signature) return;
+    const glowSignature = `${cell.key}|${state.face}|${radiusStep}`;
+    const dotsSignature = `${cell.key}|${radiusStep}|${SKY_LOOKS[state.skyLook].dots}`;
+    if (pending && pending.glowSignature === glowSignature && pending.dotsSignature === dotsSignature) return;
+    const needGlow = glowSignature !== builtGlowSignature;
+    const needDots = dotsSignature !== builtDotsSignature;
+    if (!needGlow && !needDots) {
+      pending = null;
+      return;
+    }
     pending = {
-      builder: new SkyBuilder(standInField, cell.centre, { faceSize: state.face, steps: SKY_STEPS, nearRadius: near.radius }),
+      glow: needGlow ? new SkyBuilder(standInField, cell.centre, { faceSize: state.face, steps: SKY_STEPS, nearRadius: near.radius }) : null,
+      dots: needDots
+        ? new DotsBuilder(standInField, standInProposal, cell.centre, { count: SKY_LOOKS[state.skyLook].dots, nearRadius: near.radius, seed: cell.starSeed, squeeze: 0.5 })
+        : null,
       cell,
-      signature,
+      glowSignature,
+      dotsSignature,
       startMs: performance.now(),
       frames: 0,
       maxFrameMs: 0,
     };
   }
 
+  /** The glow strength now: the look's own, or the one picked with the GLOW LEVEL buttons (only for looks that have a glow). */
+  function glowStrength(): number {
+    const own = SKY_LOOKS[state.skyLook].glow;
+    return own > 0 && state.glowLevel !== null ? state.glowLevel : own;
+  }
+
+  /** The look changed: the glow strength changes at once, a different dot count starts a new dots build. */
   function applySkyLook(): void {
-    if (!builtRaw || !builtCell) return;
-    const look = SKY_LOOKS[state.skyLook];
-    const t0 = performance.now();
-    const texels = skyToTexels(builtRaw, look);
-    sky.setTexels(texels, state.face);
-    sky.setLook(look);
-    const t1 = performance.now();
-    const all: FaintStars = makeFaintStars(builtRaw, state.face, look, look.faintStars, builtCell.starSeed);
-    const kept = removeNearOverlaps(all, directionsOf(near, OVERLAP_STARS), OVERLAP_CELL_DEG);
-    sky.setStars(kept);
-    const t2 = performance.now();
-    if (skyStats) {
-      skyStats.texelsMs = t1 - t0;
-      skyStats.starsMs = t2 - t1;
-      skyStats.dots = kept.count;
-      skyStats.dotsRemoved = all.count - kept.count;
-    }
-    sky.setVisible(state.glow, state.dots);
+    sky.setGlowStrength(glowStrength());
+    ensureSky();
   }
 
   function stepSky(): void {
     if (!pending) return;
     const t0 = performance.now();
-    const done = pending.builder.run(SKY_BUDGET_MS);
-    const used = performance.now() - t0;
-    pending.frames++;
-    pending.maxFrameMs = Math.max(pending.maxFrameMs, used);
-    if (!done) return;
     const p = pending;
+    // The glow is built first, then the dots (each frame spends about SKY_BUDGET_MS on one of them).
+    if (p.glow && !p.glow.done) p.glow.run(SKY_BUDGET_MS);
+    else if (p.dots && !p.dots.done) p.dots.run(SKY_BUDGET_MS);
+    const used = performance.now() - t0;
+    p.frames++;
+    p.maxFrameMs = Math.max(p.maxFrameMs, used);
+    if (!((!p.glow || p.glow.done) && (!p.dots || p.dots.done))) return;
     pending = null;
-    builtRaw = p.builder.raw;
-    builtCell = p.cell;
-    builtSignature = p.signature;
-    skyStats = {
+    const stats: SkyStats = {
       wallMs: performance.now() - p.startMs,
-      workMs: p.builder.workMs,
+      glowWorkMs: p.glow?.workMs ?? 0,
+      dotsWorkMs: p.dots?.workMs ?? 0,
       frames: p.frames,
       maxFrameMs: p.maxFrameMs,
       cellSize: p.cell.size,
-      texelsMs: 0,
-      starsMs: 0,
-      dots: 0,
-      dotsRemoved: 0,
+      squares: skyStats?.squares ?? 0,
+      colourMs: 0,
+      overlapMs: 0,
+      dots: skyStats?.dots ?? 0,
+      dotsRemoved: skyStats?.dotsRemoved ?? 0,
     };
-    applySkyLook();
+    if (p.glow) {
+      const t1 = performance.now();
+      sky.setTexels(skyToTexels(p.glow.raw), p.glow.layout);
+      stats.colourMs = performance.now() - t1;
+      stats.squares = p.glow.layout.total;
+      builtGlowSignature = p.glowSignature;
+    }
+    if (p.dots) {
+      const t1 = performance.now();
+      const all = p.dots.result();
+      const kept = removeNearOverlaps(all, directionsOf(near, OVERLAP_STARS), OVERLAP_CELL_DEG);
+      sky.setStars(kept);
+      stats.overlapMs = performance.now() - t1;
+      stats.dots = kept.count;
+      stats.dotsRemoved = all.count - kept.count;
+      builtDotsSignature = p.dotsSignature;
+    }
+    skyStats = stats;
+    sky.setGlowStrength(glowStrength());
+    sky.setVisible(state.glow, state.dots);
   }
 
   // ------------------------------------------------------------------ actions
@@ -285,9 +319,20 @@ export function mountGalaxyPreview(root: HTMLElement): void {
         })),
       ),
       group(
+        "GLOW LEVEL",
+        GLOW_LEVELS.map((g) => ({
+          label: g === 0.14 ? "LOW" : g === 0.24 ? "MEDIUM" : "HIGH",
+          on: glowStrength() === g,
+          pick: act(() => {
+            state.glowLevel = g;
+            applySkyLook();
+          }),
+        })),
+      ),
+      group(
         "SKY SIZE",
         FACE_SIZES.map((f) => ({
-          label: `${f}x${f}`,
+          label: `${Math.round(layoutFor(f).total / 100) / 10}K SQUARES`,
           on: state.face === f,
           pick: act(() => {
             state.face = f;
@@ -384,9 +429,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     camera.aspect = size.width / size.height;
     camera.fov = cameraFov(camera.aspect, 50);
     camera.updateProjectionMatrix();
-    renderHeight = size.height;
   }
-  let renderHeight = RENDER_HEIGHT;
   resize();
   window.addEventListener("resize", resize);
 
@@ -402,7 +445,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     const t0 = performance.now();
     stepSky();
     orbit.apply();
-    sky.follow(camera, renderHeight);
+    sky.follow(camera);
     renderer.info.reset();
     renderer.clear();
     renderer.render(sky.scene, sky.camera);
@@ -426,12 +469,14 @@ export function mountGalaxyPreview(root: HTMLElement): void {
       `NEAR STARS ${near.count.toLocaleString("en-US")} (made in ${nearMs.toFixed(0)} ms)  diamonds ${nearCounts.diamonds.toLocaleString("en-US")}  pixels ${nearCounts.pixels.toLocaleString("en-US")}`,
     ];
     if (pending) {
-      lines.push(`SKY BUILDING ${Math.round(pending.builder.progress * 100)}%  (${SKY_BUDGET_MS} ms per frame)`);
+      const glowShare = pending.glow ? pending.glow.progress : 1;
+      const dotsShare = pending.dots ? pending.dots.progress : 1;
+      lines.push(`SKY BUILDING glow ${Math.round(glowShare * 100)}%  dots ${Math.round(dotsShare * 100)}%  (${SKY_BUDGET_MS} ms per frame)`);
     }
     if (skyStats) {
       lines.push(
-        `SKY ${state.face}x${state.face}x6, ${SKY_STEPS} steps: built in ${skyStats.wallMs.toFixed(0)} ms over ${skyStats.frames} frames (work ${skyStats.workMs.toFixed(0)} ms, worst frame ${skyStats.maxFrameMs.toFixed(1)} ms)`,
-        `SKY CELL ${lyText(skyStats.cellSize)}  colours ${skyStats.texelsMs.toFixed(1)} ms  dots ${skyStats.dots.toLocaleString("en-US")} (${skyStats.dotsRemoved} removed near real stars, ${skyStats.starsMs.toFixed(1)} ms)`,
+        `SKY BUILT in ${skyStats.wallMs.toFixed(0)} ms over ${skyStats.frames} frames (glow work ${skyStats.glowWorkMs.toFixed(0)} ms + dots work ${skyStats.dotsWorkMs.toFixed(0)} ms, worst frame ${skyStats.maxFrameMs.toFixed(1)} ms)`,
+        `SKY CELL ${lyText(skyStats.cellSize)}  glow ${skyStats.squares.toLocaleString("en-US")} squares (${SKY_STEPS} steps, colours ${skyStats.colourMs.toFixed(1)} ms)  dots ${skyStats.dots.toLocaleString("en-US")} (${skyStats.dotsRemoved} removed near real stars, ${skyStats.overlapMs.toFixed(1)} ms)`,
       );
     }
     lines.push(

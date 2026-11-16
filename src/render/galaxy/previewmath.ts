@@ -3,7 +3,7 @@
 import { DENSITY_SPACINGS } from "./neardata";
 import { TELEPORTS, type LookId, type Teleport } from "./galaxyfield";
 import { SKY_LOOKS, type SkyLookId } from "./skylook";
-import type { Vec3 } from "./skycube";
+import type { Vec3 } from "./skyglow";
 
 /** Orbit camera angles (see OrbitView in ../input.ts) that make the camera LOOK along `dir`. */
 export function orbitAnglesFor(dir: Vec3): { yaw: number; pitch: number } {
@@ -44,7 +44,7 @@ export interface PreviewParams {
 export const DEFAULT_PARAMS: PreviewParams = {
   place: "start",
   look: "centre",
-  sky: "A",
+  sky: "C",
   face: 64,
   density: "auto",
   reach: 55,
