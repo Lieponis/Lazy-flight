@@ -161,14 +161,17 @@ await check(2, "Offline reload: the game starts, no errors, nothing asked from t
   await d.waitForTitle(page);
   const asked = server.log.filter((p) => !p.endsWith("/sw.js"));
   if (asked.length) problems.push(`online reload asked the server for game files: ${asked.slice(0, 5).join(", ")}`);
-  // (b) offline
+  // (b) offline. First let the online reload finish talking to the server (the helper's own update check of sw.js
+  // can arrive a moment later on a slow machine), so nothing from it is counted as an offline request.
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(2500);
   await context.setOffline(true);
   w.reset();
   server.clearLog();
   await page.reload();
   if (await d.isBrowserErrorPage(page)) problems.push("the browser error page appeared");
   await d.play(page);
-  if (server.log.length) problems.push(`the server was asked ${server.log.length} times while offline`);
+  if (server.log.length) problems.push(`the server was asked ${server.log.length} times while offline: ${server.log.slice(0, 5).join(", ")}`);
   problems.push(...noErrors(w, "offline reload"));
   notes.push(`online reload asked the server ${asked.length} times for game files; offline reload: ${w.network.length} requests, all answered by the helper`);
   await context.close();
