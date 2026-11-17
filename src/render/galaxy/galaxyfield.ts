@@ -55,6 +55,28 @@ export function discThickness(r: number): number {
   return 2000 - 1500 * Math.min(r / GALAXY_RADIUS_LY, 1);
 }
 
+/** Vertical spread of the disc's stars (light years): a quarter of the thickness. Used by the sky glow and by the near stars. */
+export function discSigma(r: number): number {
+  return discThickness(r) / 4;
+}
+
+/** Past the galaxy's edge the starlight fades out: 1 up to the edge, then a bell curve over about 3,000 ly (6% of the radius). */
+export function edgeTaper(r: number): number {
+  return r <= GALAXY_RADIUS_LY ? 1 : Math.exp(-(((r - GALAXY_RADIUS_LY) / (0.06 * GALAXY_RADIUS_LY)) ** 2));
+}
+
+/**
+ * The SHAPE of the galaxy's stars (0..1) at a point, ignoring arms and clumps: how thick the disc is there and where its edge is.
+ * 1 on the middle of the disc inside the edge, falling like a bell curve above and below it, and fading out beyond the edge.
+ * The sky glow uses exactly these two pieces (`discSigma`, `edgeTaper`); the near stars use this to take the same shape.
+ */
+export function discEnvelope(x: number, y: number, z: number): number {
+  const r = Math.hypot(x, z);
+  const yv = y / discSigma(r);
+  if (yv > 6 || yv < -6) return 0;
+  return Math.exp(-0.5 * yv * yv) * edgeTaper(r);
+}
+
 /** 1 on the middle of an arm, small between arms. `shift` moves the pattern (used for the dust lanes). */
 function armWeight(r: number, phi: number, shift: number): number {
   const armPhi = ARM_ANGLE_0 + Math.log(Math.max(r, 1) / ARM_START_R) * ARM_TURN + shift;
@@ -79,7 +101,7 @@ export const standInField: GalaxyField = {
     const rho = Math.sqrt(r2 + y * y);
     const bulge = 0.06 * Math.exp(-rho / 900);
     const r = Math.sqrt(r2);
-    const sigma = discThickness(r) / 4;
+    const sigma = discSigma(r);
     const yv = y / sigma;
     // Far above or below the disc only the bulge is left: quick answer (most of the sky's rays spend their time here).
     if (yv > 6 || yv < -6) {
@@ -89,7 +111,7 @@ export const standInField: GalaxyField = {
       return;
     }
     const nMid = Math.exp((-3 * LN_RATIO * Math.min(r, GALAXY_RADIUS_LY * 1.1)) / GALAXY_RADIUS_LY) / (CENTRE_SPACING_LY * CENTRE_SPACING_LY * CENTRE_SPACING_LY);
-    const taper = r <= GALAXY_RADIUS_LY ? 1 : Math.exp(-(((r - GALAXY_RADIUS_LY) / (0.06 * GALAXY_RADIUS_LY)) ** 2));
+    const taper = edgeTaper(r);
     const vert = Math.exp(-0.5 * yv * yv);
     const strength = smoothstep(ARM_START_R, 5500, r);
     const phi = Math.atan2(z, x);

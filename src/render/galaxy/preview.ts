@@ -11,13 +11,15 @@ import { OrbitView } from "../input";
 import {
   TELEPORTS,
   lookDirection,
+  discEnvelope,
+  discThickness,
   spacingAtRadius,
   standInField,
   standInProposal,
   type LookId,
   type Teleport,
 } from "./galaxyfield";
-import { countWithin, directionsOf, makeNearStars, DENSITY_SPACINGS, type NearStars } from "./neardata";
+import { countWithin, directionsOf, makeNearStars, DENSITY_SPACINGS, type NearShape, type NearStars } from "./neardata";
 import { NearLayers, type NearCounts } from "./nearlayers";
 import {
   DIAMOND_CAPS,
@@ -25,11 +27,13 @@ import {
   FLY_TO_DIST_LY,
   MIN_TAP_VISIBILITY,
   MIN_ZOOM_LY,
+  NEAR_SHAPES,
   NEAR_TOTAL,
   REACHES,
   ROOM_AROUND_TARGET_LY,
   TAP_COUNTS,
   ZOOM_OUT_MODES,
+  type NearShapeId,
   type ZoomOutMode,
   autoReach,
   lyText,
@@ -141,6 +145,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     tapCount: params.tap as number,
     zoomOut: params.zoom as ZoomOutMode,
     diamondCap: params.diamonds as number,
+    shape: params.shape as NearShapeId,
     glow: params.glow,
     dots: params.dots,
     pixels: params.pixels,
@@ -177,14 +182,17 @@ export function mountGalaxyPreview(root: HTMLElement): void {
 
   /** The farthest the camera may be from the player now (see zoomOutLimit). */
   function zoomLimit(): number {
-    return zoomOutLimit(state.zoomOut, near.distances, near.count, near.radius);
+    return zoomOutLimit(state.zoomOut, near.distances, near.count, near.radius, near.zoomNearLy);
   }
 
   /** `keepView`: the stars are the same (only reach, caps or tap count changed), so the camera stays where it is. */
   function refreshNear(keepView = false): void {
     const t0 = performance.now();
     const spacing = currentSpacing();
-    near = makeNearStars(NEAR_TOTAL, spacing, Math.round(spacing * 100) + 7);
+    // "galaxy": the ball is thinned out like the galaxy disc around where the player stands (thin at the rim, ends at the edge).
+    const shape: NearShape | undefined =
+      state.shape === "galaxy" ? { origin: state.position, keep: (x, y, z) => discEnvelope(x, y, z) } : undefined;
+    near = makeNearStars(NEAR_TOTAL, spacing, Math.round(spacing * 100) + 7, shape);
     nearMs = performance.now() - t0;
     reachNow = state.reach === "auto" ? autoReach((r) => countWithin(near, r)) : state.reach;
     nearCounts = layers.setStars(near, countWithin(near, reachNow), state.diamondCap);
@@ -456,6 +464,17 @@ export function mountGalaxyPreview(root: HTMLElement): void {
           }),
         })),
       ]),
+      group(
+        "NEAR SHAPE",
+        NEAR_SHAPES.map((id) => ({
+          label: id === "galaxy" ? "GALAXY DISC" : "BALL",
+          on: state.shape === id,
+          pick: act(() => {
+            state.shape = id;
+            refreshNear();
+          }),
+        })),
+      ),
       group("SHIP REACH", [
         {
           label: "AUTO",
@@ -499,7 +518,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
       group(
         "ZOOM OUT LIMIT",
         ZOOM_OUT_MODES.map((m) => ({
-          label: `${m.toUpperCase()} ${lyText(zoomOutLimit(m, near.distances, near.count, near.radius))}`,
+          label: `${m.toUpperCase()} ${lyText(zoomOutLimit(m, near.distances, near.count, near.radius, near.zoomNearLy))}`,
           on: state.zoomOut === m,
           pick: act(() => {
             state.zoomOut = m;
@@ -598,7 +617,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
     const lines = [
       `PLACE ${sameSpot(state.place) ? state.place.label : "MOVED"}  ${lyText(r)} from centre  spacing ${currentSpacing().toFixed(1)} ly`,
-      `NEAR STARS ${near.count.toLocaleString("en-US")} (made in ${nearMs.toFixed(0)} ms, bubble radius ${lyText(near.radius)})  REACH ${state.reach === "auto" ? "auto = " : ""}${reachNow} ly  diamonds ${nearCounts.diamonds.toLocaleString("en-US")}  pixels ${nearCounts.pixels.toLocaleString("en-US")}`,
+      `NEAR STARS ${near.count.toLocaleString("en-US")} of ${near.ballCount.toLocaleString("en-US")} in a full ball (${state.shape === "galaxy" ? `galaxy disc, ${lyText(discThickness(r))} thick here` : "plain ball"}; made in ${nearMs.toFixed(0)} ms, bubble radius ${lyText(near.radius)})  REACH ${state.reach === "auto" ? "auto = " : ""}${reachNow} ly  diamonds ${nearCounts.diamonds.toLocaleString("en-US")}  pixels ${nearCounts.pixels.toLocaleString("en-US")}`,
       `CAMERA ${lyText(orbit.dist)} from its target (closest ${MIN_ZOOM_LY} ly, farthest now ${lyText(orbit.maxDist)}; zoom-out limit ${state.zoomOut} = ${lyText(zoomLimit())} from you)  target ${lyText(Math.hypot(orbit.target.x, orbit.target.y, orbit.target.z))} from you`,
       `TAP grid of ${state.tapCount.toLocaleString("en-US")} stars built in ${gridMs.toFixed(1)} ms  taps ${tapStats.taps}  last ${tapStats.lastMs.toFixed(2)} ms (looked at ${tapStats.lastTested} stars, ${tapStats.lastCircle} inside the tap circle, the nearest to you wins)  worst ${tapStats.worstMs.toFixed(2)} ms  -> ${tapStats.message}`,
     ];

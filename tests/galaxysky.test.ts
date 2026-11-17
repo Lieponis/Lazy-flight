@@ -5,6 +5,10 @@ import {
   START_RADIUS_LY,
   TELEPORTS,
   describePlace,
+  discEnvelope,
+  discSigma,
+  discThickness,
+  edgeTaper,
   lookDirection,
   pointAt,
   spacingAtRadius,
@@ -27,7 +31,7 @@ import { DEFAULT_DOTS, DotsBuilder, buildDots } from "../src/render/galaxy/skydo
 import { GLOW_CURVE, GLOW_LEVELS, SKY_LOOKS, levelOf, shadeGlow, skyToTexels, SPACE_RGB } from "../src/render/galaxy/skylook";
 import { removeNearOverlaps } from "../src/render/galaxy/skystars";
 import { SKY_CELL_MAX_LY, SKY_CELL_MIN_LY, needsNewSky, skyCellLevel, skyCellOf } from "../src/render/galaxy/skycell";
-import { DENSITY_SPACINGS, countWithin, directionsOf, makeNearStars } from "../src/render/galaxy/neardata";
+import { DENSITY_SPACINGS, ZOOM_REFERENCE_STARS, countWithin, directionsOf, makeNearStars, type NearShape } from "../src/render/galaxy/neardata";
 import {
   AUTO_REACH_STARS,
   DEFAULT_PARAMS,
@@ -35,6 +39,7 @@ import {
   MAX_ZOOM_SHARE,
   MIN_TAP_VISIBILITY,
   MIN_ZOOM_LY,
+  NEAR_TOTAL,
   REACHES,
   autoReach,
   zoomOutLimit,
@@ -758,5 +763,196 @@ describe("galaxy prototype: tapping a star", () => {
       }
       expect(hit.along).toBeLessThanOrEqual(nearest * SAME_DEPTH_RATIO + 1e-6);
     }
+  });
+});
+
+describe("galaxy prototype: near stars shaped like the galaxy", () => {
+  const seedFor = (spacing: number): number => Math.round(spacing * 100) + 7;
+  const shapeAt = (origin: Vec3): NearShape => ({ origin, keep: (x, y, z) => discEnvelope(x, y, z) });
+  /** The near stars the preview makes at a teleport, with or without the galaxy shape. */
+  function makeAt(placeIndex: number, shaped: boolean, count = NEAR_TOTAL, origin: Vec3 = TELEPORTS[placeIndex]!.position) {
+    const spacing = describePlace(TELEPORTS[placeIndex]!.position).spacing;
+    return makeNearStars(count, spacing, seedFor(spacing), shaped ? shapeAt(origin) : undefined);
+  }
+  function rms(values: number[]): number {
+    return Math.sqrt(values.reduce((a, v) => a + v * v, 0) / Math.max(1, values.length));
+  }
+
+  it("the shape is the sky's shape: the same thickness, the same edge, nothing above six sigma", () => {
+    for (const r of [0, 400, 16667, 30000, 48000, 50000, 52000]) expect(discSigma(r)).toBe(discThickness(r) / 4);
+    expect(edgeTaper(49999)).toBe(1);
+    expect(edgeTaper(GALAXY_RADIUS_LY)).toBe(1);
+    expect(edgeTaper(GALAXY_RADIUS_LY + 0.06 * GALAXY_RADIUS_LY)).toBeCloseTo(Math.exp(-1), 12);
+    expect(edgeTaper(GALAXY_RADIUS_LY + 6000)).toBeLessThan(0.02);
+    // Mid-plane inside the edge: everything is kept. One sigma up: exp(-1/2). Far above: nothing.
+    expect(discEnvelope(30000, 0, 0)).toBe(1);
+    expect(discEnvelope(30000, discSigma(30000), 0)).toBeCloseTo(Math.exp(-0.5), 12);
+    expect(discEnvelope(30000, 7 * discSigma(30000), 0)).toBe(0);
+    // Past the edge it is thinner by exactly the sky's edge fade.
+    expect(discEnvelope(GALAXY_RADIUS_LY + 3000, 0, 0)).toBeCloseTo(edgeTaper(GALAXY_RADIUS_LY + 3000), 12);
+    // The sky field agrees: where the shape says "nothing", the glow has only the bulge (no disc starlight, no young stars, no dust).
+    const out: FieldSample = { old: 0, young: 0, dust: 0 };
+    const x = 45000;
+    standInField.sample(x, 6.5 * discSigma(x), 0, out);
+    expect(discEnvelope(x, 6.5 * discSigma(x), 0)).toBe(0);
+    expect(out.old).toBeLessThan(1e-12);
+    expect(out.young).toBe(0);
+    expect(out.dust).toBe(0);
+    standInField.sample(x, 0, 0, out);
+    expect(out.old).toBeGreaterThan(1e-8);
+  });
+
+  it("without a shape nothing changed: a plain ball, all stars kept, radius = farthest star, zoom reference = the 1,000th star", () => {
+    const b = makeNearStars(20000, 8.6, 3);
+    expect(b.count).toBe(20000);
+    expect(b.ballCount).toBe(20000);
+    expect(b.radius).toBe(b.distances[19999]);
+    expect(b.zoomNearLy).toBe(b.distances[ZOOM_REFERENCE_STARS - 1]);
+    // With fewer than 1,000 stars the farthest counts, like zoomOutLimit always did.
+    const few = makeNearStars(500, 8.6, 9);
+    expect(few.zoomNearLy).toBe(few.distances[499]);
+  });
+
+  it("a shape only drops stars: keep = 1 gives the identical ball, keep = 0 gives none (the bubble stays the same)", () => {
+    const plain = makeNearStars(8000, 30, 11);
+    const all = makeNearStars(8000, 30, 11, { origin: { x: 0, y: 0, z: 0 }, keep: () => 1 });
+    expect(all.count).toBe(plain.count);
+    expect(Array.from(all.positions)).toEqual(Array.from(plain.positions));
+    expect(Array.from(all.colors)).toEqual(Array.from(plain.colors));
+    expect(all.radius).toBe(plain.radius);
+    const none = makeNearStars(8000, 30, 11, { origin: { x: 0, y: 0, z: 0 }, keep: () => 0 });
+    expect(none.count).toBe(0);
+    expect(none.positions.length).toBe(0);
+    expect(none.ballCount).toBe(8000);
+    expect(none.radius).toBe(plain.radius);
+    expect(none.zoomNearLy).toBe(plain.zoomNearLy);
+    expect(countWithin(none, 1e9)).toBe(0);
+  });
+
+  it("a half-space shape keeps about half the stars and only those on the kept side, in galaxy coordinates", () => {
+    const origin = { x: 100, y: 0, z: 0 };
+    const half = makeNearStars(20000, 8.6, 5, { origin, keep: (x) => (x < 100 ? 1 : 0) });
+    for (let i = 0; i < half.count; i++) expect(half.positions[i * 3]!).toBeLessThan(0);
+    expect(half.count / 20000).toBeGreaterThan(0.47);
+    expect(half.count / 20000).toBeLessThan(0.53);
+  });
+
+  it("shaped stars are a subset of the plain ball: the same stars with the same colours and sizes, nearest first", () => {
+    const plain = makeAt(3, false, 20000);
+    const shaped = makeAt(3, true, 20000);
+    const index = new Map<string, number>();
+    for (let i = 0; i < plain.count; i++) index.set(`${plain.positions[i * 3]},${plain.positions[i * 3 + 1]},${plain.positions[i * 3 + 2]}`, i);
+    expect(shaped.count).toBeLessThan(plain.count * 0.2);
+    for (let i = 0; i < shaped.count; i++) {
+      const j = index.get(`${shaped.positions[i * 3]},${shaped.positions[i * 3 + 1]},${shaped.positions[i * 3 + 2]}`);
+      expect(j === undefined).toBe(false);
+      expect(shaped.colors[i * 3]).toBe(plain.colors[j! * 3]);
+      expect(shaped.colors[i * 3 + 2]).toBe(plain.colors[j! * 3 + 2]);
+      expect(shaped.radii[i]).toBe(plain.radii[j!]);
+      if (i > 0) expect(shaped.distances[i]!).toBeGreaterThanOrEqual(shaped.distances[i - 1]!);
+      expect(shaped.ids[i]).toBe(i);
+      expect(Math.hypot(shaped.positions[i * 3]!, shaped.positions[i * 3 + 1]!, shaped.positions[i * 3 + 2]!)).toBeCloseTo(shaped.distances[i]!, 2);
+    }
+    expect(shaped.ballCount).toBe(20000);
+  });
+
+  it("the same place and seed always give the same shaped stars", () => {
+    const a = makeAt(2, true, 10000);
+    const b = makeAt(2, true, 10000);
+    expect(a.count).toBe(b.count);
+    expect(Array.from(a.positions)).toEqual(Array.from(b.positions));
+  });
+
+  it("centre and start stay balls, the middle thins, the rim is a thin flat disc (the real numbers)", () => {
+    const share = [0, 1, 2, 3].map((i) => makeAt(i, true).count / NEAR_TOTAL);
+    expect(share[0]!).toBeGreaterThan(0.99);
+    expect(share[1]!).toBeGreaterThan(0.95);
+    expect(share[2]!).toBeGreaterThan(0.5);
+    expect(share[2]!).toBeLessThan(0.8);
+    expect(share[3]!).toBeGreaterThan(0.05);
+    expect(share[3]!).toBeLessThan(0.12);
+    // How flat: the up-down spread against the sideways spread.
+    const flat = [0, 1, 2, 3].map((i) => {
+      const s = makeAt(i, true);
+      const ys: number[] = [];
+      const xz: number[] = [];
+      for (let k = 0; k < s.count; k++) {
+        ys.push(s.positions[k * 3 + 1]!);
+        xz.push(Math.hypot(s.positions[k * 3]!, s.positions[k * 3 + 2]!) / Math.SQRT2);
+      }
+      return { y: rms(ys), xz: rms(xz) };
+    });
+    expect(flat[0]!.y / flat[0]!.xz).toBeGreaterThan(0.9); // a ball: the same spread every way
+    expect(flat[1]!.y / flat[1]!.xz).toBeGreaterThan(0.85);
+    // Rim: sigma of the disc there is about 140 ly, and the stars spread over 1,600 ly sideways.
+    expect(flat[3]!.y).toBeGreaterThan(100);
+    expect(flat[3]!.y).toBeLessThan(180);
+    expect(flat[3]!.xz / flat[3]!.y).toBeGreaterThan(8);
+  });
+
+  it("the disc is the galaxy's disc, not a slab around the player: above the disc the stars all lie below you", () => {
+    const rim = TELEPORTS[3]!.position;
+    const above = makeAt(3, true, NEAR_TOTAL, { x: rim.x, y: 500, z: rim.z });
+    const level = makeAt(3, true);
+    let meanY = 0;
+    for (let i = 0; i < above.count; i++) meanY += above.positions[i * 3 + 1]!;
+    meanY /= above.count;
+    expect(meanY).toBeLessThan(-450);
+    expect(meanY).toBeGreaterThan(-550);
+    expect(above.count).toBeGreaterThan(level.count * 0.8); // the disc is still there, just below
+  });
+
+  it("the zoom-out limits do not change with the shape (the reference is the full ball, not the thin disc)", () => {
+    for (const i of [0, 1, 2, 3]) {
+      const plain = makeAt(i, false);
+      const shaped = makeAt(i, true);
+      expect(shaped.radius).toBe(plain.radius);
+      expect(shaped.zoomNearLy).toBe(plain.distances[ZOOM_REFERENCE_STARS - 1]);
+      for (const mode of ["near", "medium", "wide"] as const) {
+        expect(zoomOutLimit(mode, shaped.distances, shaped.count, shaped.radius, shaped.zoomNearLy)).toBe(zoomOutLimit(mode, plain.distances, plain.count, plain.radius));
+      }
+    }
+    // Why the ball is the reference: the 1,000th nearest star of the thin rim disc lies much farther out.
+    const rim = makeAt(3, true);
+    const limit = zoomOutLimit("near", rim.distances, rim.count, rim.radius, rim.zoomNearLy);
+    expect(limit).toBeGreaterThan(700);
+    expect(limit).toBeLessThan(900);
+    expect(rim.distances[ZOOM_REFERENCE_STARS - 1]!).toBeGreaterThan(1.5 * limit);
+  });
+
+  it("zoomOutLimit with a ball distance: near = that distance, medium = twice, both held below the bubble limit", () => {
+    expect(zoomOutLimit("near", [1, 2, 3], 3, 100, 50)).toBe(50);
+    expect(zoomOutLimit("medium", [1, 2, 3], 3, 100, 30)).toBe(60);
+    expect(zoomOutLimit("medium", [1, 2, 3], 3, 100, 50)).toBeCloseTo(90, 9);
+    expect(zoomOutLimit("wide", [1, 2, 3], 3, 100, 50)).toBeCloseTo(90, 9);
+    expect(zoomOutLimit("near", [1, 2, 3], 3, 100)).toBe(3);
+  });
+
+  it("diamonds at the four places (auto reach, default cap 5,000): centre and start as before, the middle a little fewer, the rim about a quarter", () => {
+    const cap = 5000;
+    const diamonds = [0, 1, 2, 3].map((i) => {
+      const s = makeAt(i, true);
+      const plain = makeAt(i, false);
+      const reach = autoReach((r) => countWithin(s, r));
+      expect(reach).toBe(autoReach((r) => countWithin(plain, r))); // the shape does not change the reach auto picks
+      return { reach, shaped: Math.min(cap, countWithin(s, reach)), ball: Math.min(cap, countWithin(plain, reach)) };
+    });
+    expect(diamonds.map((d) => d.reach)).toEqual([55, 55, 250, 1000]);
+    expect(diamonds[0]!.shaped).toBe(cap);
+    expect(diamonds[1]!.shaped).toBeGreaterThan(1000);
+    expect(diamonds[1]!.shaped).toBeGreaterThan(diamonds[1]!.ball * 0.97);
+    expect(diamonds[2]!.shaped).toBeGreaterThan(2500);
+    expect(diamonds[2]!.shaped).toBeLessThan(3200);
+    expect(diamonds[3]!.shaped).toBeGreaterThan(400);
+    expect(diamonds[3]!.shaped).toBeLessThan(560);
+    expect(diamonds[3]!.ball).toBeGreaterThan(1500);
+  });
+
+  it("the page address can pick the shape: galaxy by default, ?shape=ball for the plain ball, a wrong value means galaxy", () => {
+    expect(DEFAULT_PARAMS.shape).toBe("galaxy");
+    expect(parsePreviewParams("").shape).toBe("galaxy");
+    expect(parsePreviewParams("?shape=ball").shape).toBe("ball");
+    expect(parsePreviewParams("?shape=galaxy").shape).toBe("galaxy");
+    expect(parsePreviewParams("?shape=disc").shape).toBe("galaxy");
   });
 });
