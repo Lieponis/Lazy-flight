@@ -45,7 +45,7 @@ export class TitleScene {
   private layout: TitleLayout = titleLayout(1);
   private onResize = (): void => this.resize();
 
-  constructor(private parent: HTMLElement, seed: Seed, dockId: string, systemId: string) {
+  constructor(private parent: HTMLElement, seed: Seed, dockId: string, systemId: number) {
     this.starCanvas.className = "ui-title-stars";
     parent.append(this.starCanvas);
     try {
@@ -63,7 +63,7 @@ export class TitleScene {
     this.raf = requestAnimationFrame(this.frame);
   }
 
-  private build(seed: Seed, dockId: string, systemId: string): void {
+  private build(seed: Seed, dockId: string, systemId: number): void {
     const planets = getPlanetsOfSystem(seed, systemId);
     const pair = pickTitlePlanets(planets, dockId);
     const toStar = new THREE.Vector3(0.8, 0.45, 0.6).normalize(); // light from the upper right

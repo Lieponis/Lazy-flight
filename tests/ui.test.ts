@@ -16,7 +16,8 @@ import {
   type GameState,
   type OutpostOffer,
 } from "../src/game";
-import { getJobBoard, getPlanetsOfSystem, listSystemsNear, type Job } from "../src/universe";
+import { getJobBoard, getPlanetsOfSystem, type Job } from "../src/universe";
+import { nearStart } from "./helpers/near";
 import {
   blockedReason,
   formatCredits,
@@ -184,7 +185,7 @@ describe("ui: job cards", () => {
   });
 
   it("works on a real board from the game (some takeable, some blocked)", () => {
-    const sys = listSystemsNear(1337, { x: 0, y: 0, z: 0 }, 30).find((s) => getPlanetsOfSystem(1337, s.id).length > 0);
+    const sys = nearStart(1337, 30).find((s) => getPlanetsOfSystem(1337, s.id).length > 0);
     expect(sys).toBeDefined();
     const dock = getPlanetsOfSystem(1337, sys!.id)[0]!;
     const game = new Game(1337, dock.id, createClock(1));

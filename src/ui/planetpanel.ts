@@ -17,7 +17,7 @@ import { PLANET_PANEL_HINT, flyHereText, planetPanelText } from "./logic";
 export class PlanetPanel {
   private root = el("div", "ui-planet");
   private shown = "";
-  private last: { screen: string; systemId: string | null; planetId: string | null } = { screen: "", systemId: null, planetId: null };
+  private last: { screen: string; systemId: number | null; planetId: string | null } = { screen: "", systemId: null, planetId: null };
 
   constructor(
     parent: HTMLElement,
@@ -38,7 +38,7 @@ export class PlanetPanel {
   }
 
   /** Call when the screen or the selection changes. */
-  update(screen: string, systemId: string | null, planetId: string | null): void {
+  update(screen: string, systemId: number | null, planetId: string | null): void {
     this.last = { screen, systemId, planetId };
     const onMap = screen === "system" && systemId !== null;
     document.body.classList.toggle("ui-planet-panel-on", onMap); // hides the render layer's plain label (theme.css)

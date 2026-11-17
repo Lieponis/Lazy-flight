@@ -57,18 +57,23 @@ describe("N3a: shortening keeps the code", () => {
     expect(shortenName("Veeky", 1)).toBe("…");
   });
 
-  it("edge lengths: 4 letters and the longest names allowed (75 dock, 47 planet, 42 system)", () => {
+  it("edge lengths: 4 letters and the longest names allowed in universe v3 (62 dock, 34 planet, 29 system)", () => {
     expect(shortenName("Veek", 4)).toBe("Veek");
-    const longDock = `${"Rattling Windmill Station".padEnd(30, "x")}, ${"Wibwadarzooplex Junctionway RP5N3-MT662 VIII"}`;
-    const longest = longDock.slice(0, MAX_DOCK_FULL_NAME_LENGTH);
-    expect(longest.length).toBeLessThanOrEqual(75);
-    expect(shortenName(longest, 75)).toBe(longest);
-    expect(shortenName(longest, 30).length).toBeLessThanOrEqual(30);
-    expect(MAX_PLANET_NAME_LENGTH).toBe(47);
-    expect(MAX_SYSTEM_NAME_LENGTH).toBe(42);
-    const longSystem = "Wibwadarzooplexia Grand Junctionway RP5N3-MT662H"; // a made-up 42+ letter coded name
-    expect(shortenName(longSystem, 20)).toBe("Wibwadar… RP5N3-MT662H".replace("Wibwadar", longSystem.slice(0, 20 - 13 - 1)));
+    expect(MAX_SYSTEM_NAME_LENGTH).toBe(29);
+    expect(MAX_PLANET_NAME_LENGTH).toBe(34);
+    expect(MAX_DOCK_FULL_NAME_LENGTH).toBe(62);
+    // The longest names seen near the start (report-agent-2e section 7).
+    const longSystem = "Snugaploo Junction HH8H3-2526"; // 29
+    const longPlanet = "Wibfugus Junction 5RJ68-4TV8 VIII"; // 33
+    const longDock = "Rattling Biscuit Station, Bimlithus Junction N2M5P-9RJ6 III"; // 59
+    expect(longSystem.length).toBe(29);
+    expect(shortenName(longSystem, 29)).toBe(longSystem);
+    expect(shortenName(longSystem, 20)).toBe("Snugaplo… HH8H3-2526");
     expect(shortenName(longSystem, 20).length).toBe(20);
+    expect(shortenName(longPlanet, 24)).toBe("Wibfugu… 5RJ68-4TV8 VIII");
+    expect(shortenName(longDock, 62)).toBe(longDock);
+    expect(shortenName(longDock, 30)).toContain("N2M5P-9RJ6 III");
+    expect(shortenName(longDock, 30).length).toBeLessThanOrEqual(30);
   });
 });
 

@@ -130,7 +130,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   );
   strip.setSpeaker(sound.getPrefs().muted);
   let overlay: Overlay = "none";
-  let lastViewedSystemId: string | null = null; // the system map the "SYSTEM" tab goes back to
+  let lastViewedSystemId: number | null = null; // the system map the "SYSTEM" tab goes back to
 
   const closeOverlay = (): void => {
     overlay = "none";

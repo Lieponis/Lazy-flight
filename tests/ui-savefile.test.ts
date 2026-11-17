@@ -102,9 +102,10 @@ describe("P3: pasted text repaired the way phones break it (Andy's iPhone)", () 
 
   it("a real exported text survives the iPhone change and still imports; a damaged one is still refused", async () => {
     const { Game, createClock } = await import("../src/game");
-    const { getPlanetsOfSystem, listSystemsNear } = await import("../src/universe");
+    const { getPlanetsOfSystem } = await import("../src/universe");
+    const { nearStart } = await import("./helpers/near");
     const { exportSaveFile, inspectImport, makeSaveData, SAVE_KEY } = await import("../src/save");
-    const sys = listSystemsNear(1337, { x: 0, y: 0, z: 0 }, 30).find((x) => getPlanetsOfSystem(1337, x.id).length > 0)!;
+    const sys = nearStart(1337, 30).find((x) => getPlanetsOfSystem(1337, x.id).length > 0)!;
     const game = new Game(1337, getPlanetsOfSystem(1337, sys.id)[0]!.id, createClock(1));
     const store = new Map<string, string>();
     const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
