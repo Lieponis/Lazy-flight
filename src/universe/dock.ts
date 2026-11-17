@@ -4,10 +4,10 @@
 
 import { GOODS } from "./data/goods";
 import { generateOutpostName, generateStationName } from "./names";
-import { getSite } from "./galaxy";
 import { generatePlanet, type Planet } from "./planet";
 import { rngFor, type Seed } from "./random";
 import { DOCK_PLANETS_PER_DOCK, MAX_DOCKS_PER_SYSTEM } from "./settings";
+import { getSite } from "./sites";
 import { generateSystem, type StarSystem } from "./system";
 
 export type DockKind = "OUTPOST" | "STATION";
@@ -20,13 +20,13 @@ export interface OutpostPerks {
 }
 
 export interface Dock {
-  /** Same id as the planet it sits on, e.g. "3:-2:5:0/2". */
+  /** Same id as the planet it sits on: "<system number>/<planet number>", e.g. "28113904412/2". */
   id: string;
   planetId: string;
-  systemId: string;
+  systemId: number;
   /** Short flavour name, unique inside its system: "Lazy Anchor Outpost". */
   name: string;
-  /** Unique in the whole universe: "<short name>, <planet name>", e.g. "Lazy Anchor Outpost, Kopipex 4F-92 II". */
+  /** Unique in the whole universe: "<short name>, <planet name>", e.g. "Lazy Anchor Outpost, Kopipex N2R4-5HJ7 II". */
   fullName: string;
   kind: DockKind;
   /** Good ids this dock makes cheaply (3). */
@@ -49,6 +49,12 @@ function kindAndFirstName(seed: Seed, planet: Planet): { rng: ReturnType<typeof 
 }
 
 const shortNameCache = new Map<string, Map<number, string>>();
+
+/** The system of a planet (looked up by number, one slot only). */
+function systemOfPlanet(seed: Seed, planet: Planet): StarSystem | null {
+  const site = getSite(seed, planet.systemId);
+  return site ? generateSystem(seed, site) : null;
+}
 
 /**
  * The short names of a system's docks, made unique inside the system. The first dock (smallest planet number)
@@ -94,9 +100,8 @@ function shortNameFor(seed: Seed, planet: Planet): string {
 }
 
 function computeShortName(seed: Seed, planet: Planet): string {
-  const site = getSite(seed, planet.systemId);
-  if (!site) return kindAndFirstName(seed, planet).name;
-  const system = generateSystem(seed, site);
+  const system = systemOfPlanet(seed, planet);
+  if (!system) return kindAndFirstName(seed, planet).name;
   const real = dockPlanetIndexes(seed, system).includes(planet.index);
   return shortNamesOf(seed, system, real ? -1 : planet.index).get(planet.index) ?? kindAndFirstName(seed, planet).name;
 }

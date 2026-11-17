@@ -2,20 +2,20 @@
 // Uses all earlier layers. Accepting and completing jobs is NOT here (that is Agent 4's work).
 
 import { GOODS, getGood } from "./data/goods";
-import { dockPlanetIndexes, type Dock } from "./dock";
+import { type Dock } from "./dock";
 import { getPrice } from "./economy";
-import { distance, getSite, listSitesNear } from "./galaxy";
-import { getDock, parseDockId } from "./lookup";
+import { findDockById, nearestDocks } from "./lookup";
 import { generateBlurb, generatePassengerGroup } from "./names";
 import { rngFor, type Seed } from "./random";
 import {
   JOBS_PER_BOARD,
   JOB_BOARD_REFRESH_SLOTS,
-  MAX_JOB_DISTANCE,
+  JOB_DESTINATION_COUNT,
+  JOB_LIMIT_HOURS_PER_10_LY,
   TOUR_MAX_STOPS,
   TOUR_MIN_STOPS,
 } from "./settings";
-import { generateSystem } from "./system";
+import { distance, getSite, type Vec3 } from "./sites";
 
 export type LoadType = "GOODS" | "PASSENGERS";
 export type HoldType = "CARGO_BAY" | "PASSENGER_CABIN";
@@ -34,7 +34,7 @@ export interface SpecialJobData {
 }
 
 export interface Job {
-  /** Unique, e.g. "3:-2:5:0/2#4#1". */
+  /** Unique, e.g. "28113904412/2#4#1" (origin dock id, board period, offer number). */
   id: string;
   kind: JobKind;
   loadType: LoadType;
@@ -65,22 +65,34 @@ export interface Job {
 
 interface Candidate {
   dockId: string;
-  position: { x: number; y: number; z: number };
+  position: Vec3;
+  /** Light years from the origin dock's system (0 = same system). */
+  distance: number;
 }
 
-/** Every dock (not every planet) within MAX_JOB_DISTANCE of the origin dock's system, except the origin dock itself. */
+const candidateCache = new Map<string, Candidate[]>();
+
+/**
+ * The possible destinations of a dock: its JOB_DESTINATION_COUNT nearest OTHER docks (by count, not by a distance
+ * limit), nearest first. Docks in the same system come first (distance 0). Near the rim these can be far away;
+ * the list is never empty because the galaxy always has more docks than that.
+ */
 function findCandidates(seed: Seed, origin: Dock): Candidate[] {
+  const key = `${seed}|${origin.id}`;
+  const known = candidateCache.get(key);
+  if (known) return known;
   const originSite = getSite(seed, origin.systemId);
   if (!originSite) return [];
+  // The origin dock itself is always among the nearest (distance 0), so ask for one more and leave it out.
+  const near = nearestDocks(seed, originSite.position, JOB_DESTINATION_COUNT + 1);
   const result: Candidate[] = [];
-  for (const site of listSitesNear(seed, originSite.position, MAX_JOB_DISTANCE)) {
-    const system = generateSystem(seed, site);
-    for (const i of dockPlanetIndexes(seed, system)) {
-      const dockId = `${system.id}/${i}`;
-      if (dockId === origin.id) continue;
-      result.push({ dockId, position: site.position });
-    }
+  for (const d of near) {
+    if (d.dockId === origin.id) continue;
+    if (result.length >= JOB_DESTINATION_COUNT) break;
+    result.push({ dockId: d.dockId, position: d.position, distance: d.distance });
   }
+  if (candidateCache.size > 500) candidateCache.clear();
+  candidateCache.set(key, result);
   return result;
 }
 
@@ -120,16 +132,15 @@ export function generateJobBoard(seed: Seed, origin: Dock, slot: number): Job[] 
     // Find stops (docks). Passenger stops must have a passenger terminal.
     const wantedStops = kind === "TOUR" ? rng.int(TOUR_MIN_STOPS, TOUR_MAX_STOPS) : 1;
     const stopDocks: Dock[] = [];
-    let previous = originSite.position;
+    const stopPositions: Vec3[] = [];
     for (const candidate of order) {
       if (stopDocks.length >= wantedStops) break;
-      if (distance(candidate.position, previous) > MAX_JOB_DISTANCE) continue;
       if (stopDocks.some((d) => d.id === candidate.dockId)) continue;
-      const dock = getDock(seed, candidate.dockId);
+      const dock = findDockById(seed, candidate.dockId);
       if (!dock) continue;
       if (kind !== "TRADE" && !dock.hasPassengerTerminal) continue;
       stopDocks.push(dock);
-      previous = candidate.position;
+      stopPositions.push(candidate.position);
       if (kind === "TRADE") break;
     }
 
@@ -137,28 +148,30 @@ export function generateJobBoard(seed: Seed, origin: Dock, slot: number): Job[] 
     if (stopDocks.length < wantedStops && kind !== "TRADE") {
       kind = "TRADE";
       stopDocks.length = 0;
+      stopPositions.length = 0;
       const first = order[0];
-      const dock = first ? getDock(seed, first.dockId) : null;
-      if (dock) stopDocks.push(dock);
+      const dock = first ? findDockById(seed, first.dockId) : null;
+      if (dock && first) {
+        stopDocks.push(dock);
+        stopPositions.push(first.position);
+      }
     }
     const destination = stopDocks[stopDocks.length - 1];
     if (!destination) continue;
 
-    // Distance of the whole trip.
+    // Distance of the whole trip: origin to the first stop, then stop to stop.
     let totalDistance = 0;
     let from = originSite.position;
-    for (const stop of stopDocks) {
-      const parsed = parseDockId(stop.id);
-      const site = parsed ? getSite(seed, parsed.systemId) : null;
-      if (!site) continue;
-      totalDistance += distance(from, site.position);
-      from = site.position;
+    for (const position of stopPositions) {
+      totalDistance += distance(from, position);
+      from = position;
     }
     totalDistance = Math.round(totalDistance * 10) / 10;
     const effectiveDistance = Math.max(totalDistance, 1);
 
     const limitRoll = rng.chance(0.4);
-    const baseLimit = rng.int(12, 48);
+    // The time limit (hours) is a random 12 to 48 plus a little more for long trips.
+    const baseLimit = rng.int(12, 48) + Math.ceil((totalDistance / 10) * JOB_LIMIT_HOURS_PER_10_LY);
 
     if (kind === "TRADE") {
       // Goods: usually something this dock makes cheaply, sometimes anything.
@@ -229,6 +242,6 @@ export function generateJobBoard(seed: Seed, origin: Dock, slot: number): Job[] 
 
 /** Same as generateJobBoard but finds the dock from its id. Null if the dock does not exist. */
 export function getJobBoard(seed: Seed, dockId: string, slot: number): Job[] | null {
-  const dock = getDock(seed, dockId);
+  const dock = findDockById(seed, dockId);
   return dock ? generateJobBoard(seed, dock, slot) : null;
 }

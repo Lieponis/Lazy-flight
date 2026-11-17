@@ -10,13 +10,18 @@ import {
   expectedTotal,
   lineIntegralDensity,
   nearestSystems,
-  pureNameCount,
   spacingAt,
-  systemName,
   systemsOfCell,
   systemsWithin,
   type Vec3,
-} from "../src/galaxy2";
+} from "../src/universe/galaxy";
+import { getSystem, pureNameCount } from "../src/universe";
+
+/** Names of a system by number (the names live in src/universe since G3). */
+function systemName(seed: number, id: number): { name: string; isPure: boolean } {
+  const system = getSystem(seed, id);
+  return { name: system ? system.name : "?", isPure: system ? system.isPure : false };
+}
 
 const SEED = 12345;
 const places: [string, Vec3][] = [

@@ -1,6 +1,6 @@
 // Fast repeatable "random" numbers from whole numbers (no text, no allocation). Same inputs, same output, everywhere.
 
-import { hashString, type Seed } from "../universe/random";
+import { hashString, type Seed } from "../random";
 
 /** The seed as one 32-bit number. */
 export function seedToInt(seed: Seed): number {

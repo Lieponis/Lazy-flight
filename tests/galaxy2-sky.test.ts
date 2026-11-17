@@ -1,6 +1,6 @@
 // Agent 2, stage G1: lineIntegralDensity (the density added up along a line of sight; the sky is built from it).
 import { describe, expect, it } from "vitest";
-import { START_POINT, densityAt, lineIntegralDensity, thicknessAt, spacingAt, DISC_RADIUS, systemsWithin } from "../src/galaxy2";
+import { START_POINT, densityAt, lineIntegralDensity, thicknessAt, spacingAt, DISC_RADIUS, systemsWithin } from "../src/universe/galaxy";
 
 describe("lineIntegralDensity", () => {
   it("straight through the middle of the thick centre equals density x 0.75 x thickness", () => {

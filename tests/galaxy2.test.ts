@@ -27,7 +27,7 @@ import {
   TooManyCellsError,
   armFactor,
   type Slab,
-} from "../src/galaxy2";
+} from "../src/universe/galaxy";
 
 const SEED = 12345;
 

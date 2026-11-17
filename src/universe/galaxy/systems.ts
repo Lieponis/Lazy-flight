@@ -5,7 +5,7 @@ import { densityPolar, densityAt, type Vec3 } from "./density";
 import { sincosDet, SC } from "./detmath";
 import { hashNumber, partOf, seedToInt } from "./hash";
 import { DISC_RADIUS, ODD_TWIN, ODD_WANDER } from "./params";
-import type { Seed } from "../universe/random";
+import type { Seed } from "../random";
 
 export interface GalaxySystem {
   /** The system number: unique, whole, and it turns back into the cell and slot (see cells.ts). */
@@ -214,7 +214,7 @@ export function nearestSystems(seed: Seed, center: Vec3, count: number, options:
   for (;;) {
     const found = systemsWithin(seed, center, radius, options);
     if (found.length >= count || radius > reach) {
-      found.sort((a, b) => a.distance - b.distance);
+      found.sort((a, b) => a.distance - b.distance || a.id - b.id);
       return found.length > count ? found.slice(0, count) : found;
     }
     const grow = found.length === 0 ? 2 : Math.min(2, Math.max(1.15, Math.cbrt(count / found.length) * 1.1));

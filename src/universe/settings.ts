@@ -9,15 +9,16 @@
  */
 export const WORLD_SEED = 12345;
 
-/** Size of one cube of space in light years. The galaxy is an endless grid of these cubes. */
-export const SECTOR_SIZE = 10;
-
 /**
- * THE distance limit for jobs, in light years. A job's destination (and every stop of a tour)
- * is never farther than this from the dock that offers the job.
- * Agent 4 will turn this distance into travel time (max trip: 4 hours).
+ * Job destinations are picked BY COUNT: a dock's job board picks its destinations from the JOB_DESTINATION_COUNT nearest
+ * OTHER docks (docks in the same system count too). There is no distance limit any more: in the crowded middle of the
+ * galaxy the 12 nearest docks are a few light years away, near the rim they can be 100 to 250 light years away.
+ * The universe only provides the docks and their distances; the game (Agent 4) decides about reach, fuel and travel time.
  */
-export const MAX_JOB_DISTANCE = 25;
+export const JOB_DESTINATION_COUNT = 12;
+
+/** A job's time limit grows with the distance: this many extra hours per 10 light years of the whole trip (rounded up). */
+export const JOB_LIMIT_HOURS_PER_10_LY = 1;
 
 /** How many offers a job board shows. */
 export const JOBS_PER_BOARD = 6;
@@ -31,9 +32,11 @@ export const JOB_BOARD_REFRESH_SLOTS = 6;
 /**
  * Version of the universe rules. It was 1 when every planet had a dock and systems had 1 to 8 planets.
  * Version 2: systems have 1 to 10 planets and only some planets have a dock (1 to 3 per system).
+ * Version 3: the spiral galaxy (about 18 billion systems). System ids are plain numbers, planet and dock ids are
+ * "<system number>/<planet number>", names carry a 9-symbol code, jobs pick the nearest docks by count.
  * Anything that stores progress should store this number, so older progress can be recognised.
  */
-export const UNIVERSE_VERSION = 2;
+export const UNIVERSE_VERSION = 3;
 
 /** Planets per system: 1 to 10. */
 export const MIN_PLANETS = 1;
@@ -55,14 +58,7 @@ export const MAX_PRICE_MULTIPLIER = 2.5;
 export const TOUR_MIN_STOPS = 2;
 export const TOUR_MAX_STOPS = 3;
 
-/**
- * Names that are just words, like "Lazy Harbour" (no code), exist only in a cube of sectors around the origin:
- * sector numbers from -PURE_NAME_REGION to PURE_NAME_REGION - 1 on every axis (19 means about 190 light years each way).
- * About 7 of every 100 systems inside that cube get one. Farther away every system has a name with a code, like "Kopipex 4F-92".
- */
-export const PURE_NAME_REGION = 19;
-
 /** Longest names the generator can make (checked by a test). */
-export const MAX_SYSTEM_NAME_LENGTH = 42;
-export const MAX_PLANET_NAME_LENGTH = 47;
-export const MAX_DOCK_FULL_NAME_LENGTH = 75;
+export const MAX_SYSTEM_NAME_LENGTH = 29;
+export const MAX_PLANET_NAME_LENGTH = 34;
+export const MAX_DOCK_FULL_NAME_LENGTH = 62;

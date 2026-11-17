@@ -1,5 +1,5 @@
 // The galaxy prototype page (galaxy-debug.html). Shows the G1 galaxy generator as pictures and tables.
-// It only READS from src/galaxy2. It does not touch the game.
+// It only READS from src/universe (the galaxy and the names). It does not touch the game.
 
 import {
   DISC_RADIUS,
@@ -12,15 +12,21 @@ import {
   galaxyChecksum,
   lineIntegralDensity,
   nearestSystems,
-  pureNameCount,
   spacingAt,
-  systemName,
   systemsWithin,
   thicknessAt,
   encodeSystemNumber,
   VERTICAL_AREA,
   type Vec3,
-} from "./galaxy2";
+} from "./universe/galaxy";
+import { getSystem, pureNameCount } from "./universe";
+
+/** The names of a system by its number (word, code, whether it is a pure name). */
+function systemName(seed: number | string, id: number): { name: string; word: string; code: string; isPure: boolean } {
+  const system = getSystem(seed, id);
+  if (!system) return { name: "?", word: "?", code: encodeSystemNumber(id), isPure: false };
+  return { name: system.name, word: system.baseName, code: system.code, isPure: system.isPure };
+}
 
 const SEED = 12345;
 

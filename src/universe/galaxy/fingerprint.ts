@@ -3,7 +3,7 @@
 
 import { nearestSystems } from "./systems";
 import type { Vec3 } from "./density";
-import type { Seed } from "../universe/random";
+import type { Seed } from "../random";
 
 export function galaxyChecksum(seed: Seed, center: Vec3, count: number): string {
   let h = 0x811c9dc5;

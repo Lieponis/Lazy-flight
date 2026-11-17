@@ -1,11 +1,11 @@
 // LAYER 2: a star system. Uses the galaxy layer (its address) and adds name, star and planet count.
 
-import type { SystemSite, Vec3 } from "./galaxy";
+import { encodeSystemNumber } from "./galaxy";
 import { generateSystemName } from "./names";
 import { pureNameOf } from "./purenames";
 import { rngFor, type Seed } from "./random";
 import { MAX_PLANETS, MIN_PLANETS } from "./settings";
-import { systemCodeOfId } from "./syscode";
+import type { SystemSite, Vec3 } from "./sites";
 
 export type StarType = "RED_DWARF" | "ORANGE" | "YELLOW" | "WHITE" | "BLUE" | "RED_GIANT";
 
@@ -34,13 +34,13 @@ export interface Star {
 }
 
 export interface StarSystem {
-  /** Same id as its galaxy address, e.g. "3:-2:5:0". */
-  id: string;
-  /** The full name, unique in the whole universe: "Kopipex 4F-92" (word + code) or a pure name like "Lazy Harbour". */
+  /** The system number (same as its galaxy address): a plain whole number, safe in JSON and saves. */
+  id: number;
+  /** The full name, unique in the whole universe: "Kopipex N2R4-5HJ7" (word + code) or a pure name like "Lazy Harbour". */
   name: string;
   /** The word part alone: "Kopipex", or the whole pure name. Not unique by itself. */
   baseName: string;
-  /** The short unique code of this system, e.g. "4F-92". Every system has one (also pure-named ones). */
+  /** The short unique code of this system, e.g. "N2R4-5HJ7". Every system has one (also pure-named ones). */
   code: string;
   /** True if the system has a pure name (no code in its name). */
   isPure: boolean;
@@ -52,12 +52,12 @@ export interface StarSystem {
 
 export function generateSystem(seed: Seed, site: SystemSite): StarSystem {
   const rng = rngFor(seed, "system", site.id);
-  // The old name draw stays, so the star and planet count below come out exactly as before.
-  const legacyWord = generateSystemName(rng);
-  const code = systemCodeOfId(site.id) ?? "00-00";
+  // The word draw comes first, then the star and the planet count (the same order as in universe versions 1 and 2).
+  const word = generateSystemName(rng);
+  const code = encodeSystemNumber(site.id);
   const pure = pureNameOf(seed, site.id);
-  const baseName = pure ?? legacyWord;
-  const name = pure ?? `${legacyWord} ${code}`;
+  const baseName = pure ?? word;
+  const name = pure ?? `${word} ${code}`;
   const kind = rng.weighted(STAR_KINDS, (k) => k.weight);
   const planetCount = rng.int(MIN_PLANETS, MAX_PLANETS);
   return {

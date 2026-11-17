@@ -1,9 +1,10 @@
 // Counts how names look around a point: how many systems have a pure name, how long names get, and whether any
 // two things (systems, planets, docks) share a full name. Used by the debug page and by tests. It only READS.
 
-import { distance, type Vec3 } from "./galaxy";
-import { getDock, getPlanetsOfSystem, listSystemsNear } from "./lookup";
+import { START_POINT } from "./galaxy";
+import { findDockById, getPlanets, nearestSystems } from "./lookup";
 import type { Seed } from "./random";
+import type { Vec3 } from "./sites";
 
 export interface NameStats {
   seed: Seed;
@@ -21,7 +22,11 @@ export interface NameStats {
   badLengths: number;
 }
 
-export function nameStats(seed: Seed, center: Vec3 = { x: 0, y: 0, z: 0 }, radius = 35, maxDockRadius = radius): NameStats {
+/**
+ * Looks at the nearest `systemCount` systems around `center` (default: the start point). Planets and docks are looked at
+ * for the nearest `dockSystems` of them only (they cost more).
+ */
+export function nameStats(seed: Seed, center: Vec3 = START_POINT, systemCount = 2000, dockSystems = systemCount): NameStats {
   const seen = new Set<string>();
   const stats: NameStats = {
     seed,
@@ -40,18 +45,19 @@ export function nameStats(seed: Seed, center: Vec3 = { x: 0, y: 0, z: 0 }, radiu
     if (seen.has(key)) stats.collisions++;
     seen.add(key);
   };
-  for (const system of listSystemsNear(seed, center, radius)) {
+  let rank = 0;
+  for (const { system } of nearestSystems(seed, center, systemCount)) {
     stats.systems++;
     if (system.isPure) stats.pureSystems++;
     take(system.name);
     if (system.name.length > stats.longestSystem.length) stats.longestSystem = system.name;
     if (system.name.trim() === "") stats.badLengths++;
-    if (distance(system.position, center) > maxDockRadius) continue;
-    for (const planet of getPlanetsOfSystem(seed, system.id)) {
+    if (rank++ >= dockSystems) continue;
+    for (const planet of getPlanets(seed, system.id)) {
       stats.planets++;
       take(planet.name);
       if (planet.name.length > stats.longestPlanet.length) stats.longestPlanet = planet.name;
-      const dock = getDock(seed, planet.id);
+      const dock = findDockById(seed, planet.id);
       if (!dock) continue;
       stats.docks++;
       take(dock.fullName);
