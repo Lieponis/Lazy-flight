@@ -304,6 +304,7 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Next: go/no-go after Andy's phone numbers; then G3 briefs (Agent 2 universe v3 using report-agent-2d section 9).
 
 ## GO GALAXY (Andy 2026-11-17): universe v3 stages start
-- G2 phone check closed (iPhone 17 Air, 60 fps); tap fix confirmed. Agent 3 finishes shaped near stars (thin disc at rim kept, rim zoom limit 829 ly) in parallel.
+- G2 phone check closed (iPhone 17 Air, 60 fps); tap fix confirmed. Agent 3 finishes shaped near stars (thin disc at rim kept, rim zoom limit 823 ly) in parallel.
 - G3 Agent 2: brief docs/briefs/agent-2e-brief.md. Work on NEW branch `universe-v3` from main + galaxy-proto merged. NOTHING merges to main until the whole branch is green and Andy has played it. Main stays playable. Expected: tests outside src/universe fail on the branch until G4/G5.
 - Next after G3 report: G4 Agent 4 (game/save: migration, reach/fuel, explored cap, job rules), G5 Agents 3 and 5 (real map from agent-3j report, names, UI), G6 Agent 6 (balance, QA, offline tests, phones, brief agent-6g). Rim policy still open.
+- Correction (Agent 3, 2026-11-17): rim zoom limit on the live preview is 823 ly (not 829). G2 closed. G5 brief waits for the G3 API (report-agent-2e) and G4.
