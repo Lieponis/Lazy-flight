@@ -7,7 +7,7 @@
 //   api.state.subscribe((s) => ...)    // be told when something changes
 
 import type * as THREE from "three";
-import { getDocksOfSystem, getPlanetsOfSystem, getSystem, nearestSystems, parseDockId, type StarSystem } from "../universe";
+import { getDocksOfSystem, getPlanetsOfSystem, getSystem, nearestSystems, parseDockId, type Seed, type StarSystem } from "../universe";
 import type { FlightInfo } from "./flightplan";
 import { Hud } from "./hud";
 import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
@@ -29,7 +29,8 @@ import { mountSystemPreview } from "./systempreview";
 import { mountWarpPreview } from "./warppreview";
 import { parseFloatPreview, parseFloatStyle } from "./floatmath";
 import { floatCandidates } from "./floatpick";
-import { parseReachParam, reachBeyondMap, starmapRadius } from "./starmapradius";
+import { parseReachParam } from "./starmapradius";
+import type { MapSource } from "./galaxy/mapdata";
 import { mountFloatPreview } from "./floatpreview";
 import { splitCodedName } from "./namefit";
 import { WORST_DOCK_FULL, WORST_PLANET, parseNamePreview, pickSamples } from "./namesamples";
@@ -40,6 +41,7 @@ import { parseWarpPreview, parseWarpStyle } from "./warpmath";
 export { StateStore } from "./state";
 export type { RenderState, ScreenName } from "./state";
 export type { FlightInfo, FlightProgress } from "./flightplan";
+export type { MapPoint, MapSource, MapStarList, StarInfo } from "./galaxy/mapdata";
 
 export interface RenderApi {
   state: StateStore;
@@ -50,9 +52,9 @@ export interface RenderApi {
   /** Move the "you are here" system (the starmap ring and label follow). Used by the game on arrival. */
   setCurrentSystem(systemId: number): void;
   /**
-   * How far (light years) the current ship can fly with the fuel it carries (the app works it out: fuel divided by the fuel one light
-   * year burns). The galaxy map grows to show every reachable star, up to a cap (see STARMAP_MAX_RADIUS_LY). Call it whenever fuel,
-   * ship or engines change; the map is only rebuilt when its radius really changes. null = the normal 35 ly map.
+   * How far (light years) the current ship can fly (the app works it out). The galaxy map gives a diamond to every star inside this
+   * reach (the nearest 5,000 at most); every star is drawn as a pixel anyway. Cheap to call often: only the diamonds are redrawn, and
+   * only when the number of stars in reach changes. null = the map's 35 ly fallback.
    */
   setReachLy(reachLy: number | null): void;
   /** Show the flight screen (launch, warp, approach) for a trip the game has started. */
@@ -81,6 +83,11 @@ export interface RenderApi {
 /** Options for startRender. seed: the universe seed chosen by the game (saving); without it, ?seed= or 12345. */
 export interface RenderOptions {
   seed?: number;
+  /**
+   * Makes the star data for the galaxy map from the seed the render layer uses. The app (src/mapsource.ts) owns it because the render
+   * layer asks the universe nothing for the map: it gets plain lists of numbers. Without it the map has no stars to show.
+   */
+  mapSource?: (seed: Seed) => MapSource;
 }
 
 export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, options: RenderOptions = {}): RenderApi {
@@ -103,33 +110,17 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     screen.enter();
   }
 
-  const forcedReach = parseReachParam(window.location.search); // testing aid ?reach=NUMBER (map size only)
-  let reachLy: number | null = forcedReach; // set by the app (api.setReachLy)
-  function makeStarmap(here: StarSystem): StarMapScreen {
-    return new StarMapScreen({
-      seed,
-      host: canvas,
-      hud,
-      state,
-      current: here,
-      onOpenSystem: (id) => api.showSystem(id),
-      radiusLy: starmapRadius(reachLy),
-      farNote: reachBeyondMap(reachLy),
-    });
-  }
-  /** Builds the map again (the map is centred on the current system and sized by the reach), keeping the screen the player is on. */
-  function rebuildStarmap(here: StarSystem): void {
-    const wasShowing = active === starmap;
-    if (wasShowing) {
-      starmap.exit();
-      active = null;
-    }
-    starmap = makeStarmap(here);
-    resize(); // give the new map the right camera shape
-    state.set({ selectedSystemId: null });
-    if (wasShowing) show(starmap);
-  }
-  let starmap = makeStarmap(current);
+  const forcedReach = parseReachParam(window.location.search); // testing aid ?reach=NUMBER (diamonds only)
+  const mapHere = (here: StarSystem) => ({ id: here.id, name: here.name, starLabel: here.star.label, position: here.position });
+  const starmap = new StarMapScreen({
+    source: options.mapSource ? options.mapSource(seed) : null,
+    host: canvas,
+    hud,
+    state,
+    current: mapHere(current),
+    onOpenSystem: (id) => api.showSystem(id),
+    reachLy: forcedReach,
+  });
   // The dock the ship is parked at (the first one shown). Navigation buttons live in src/ui (Agent 5).
   let lastDockId = getDocksOfSystem(seed, current.id)[0]?.id ?? "";
   const docked = new DockedScreen({
@@ -171,15 +162,10 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
       const here = getSystem(seed, systemId);
       if (!here || here.id === state.get().currentSystemId) return;
       state.set({ currentSystemId: here.id });
-      rebuildStarmap(here); // the map is centered on the current system, so build a new one
+      starmap.setCurrent(mapHere(here)); // the map is centered on the current system: it asks for the stars around it when it is next shown
     },
     setReachLy(value: number | null): void {
-      const before = starmapRadius(reachLy);
-      const noteBefore = reachBeyondMap(reachLy);
-      reachLy = forcedReach ?? value;
-      if (starmapRadius(reachLy) === before && reachBeyondMap(reachLy) === noteBefore) return; // nothing the map shows has changed
-      const here = getSystem(seed, state.get().currentSystemId);
-      if (here) rebuildStarmap(here);
+      starmap.setReachLy(forcedReach ?? value);
     },
     setShip(id: string, livery?: string): void {
       shipId = resolveShipId(id, forcedShip);

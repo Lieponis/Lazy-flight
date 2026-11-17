@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import './style.css';
 import { BACKGROUND_COLOR } from './settings';
 import { startRender } from './render';
+import { makeMapSource } from './mapsource';
 import { chooseStart, startUi } from './ui';
 import { startOfflineApp } from './ui/updatenote';
 
@@ -36,7 +37,7 @@ renderer.setClearColor(BACKGROUND_COLOR);
 app.appendChild(renderer.domElement);
 
 const start = chooseStart(); // continue the save or start a new game: this picks the ONE seed for everything
-const api = startRender(renderer, app, { seed: start.plan.seed });
+const api = startRender(renderer, app, { seed: start.plan.seed, mapSource: makeMapSource });
 const game = startUi(api, app, start); // the menus: status strip, JOBS, MAP, Jobs menu, arrival card (src/ui)
 // Offline app (stage P1): registers the offline helper and offers "new version ready" only when no trip is running.
 startOfflineApp(app, () => game.state.currentJob === null && game.state.freeTrip === null && api.state.get().screen !== 'flight');

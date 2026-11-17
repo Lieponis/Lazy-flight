@@ -79,7 +79,23 @@ export class NearLayers {
 
   /** Fills both layers: stars 0..k-1 (inside the reach, at most `diamondCap`) become diamonds; all stars get a pixel. */
   setStars(stars: NearStars, withinReach: number, diamondCap: number): NearCounts {
-    const k = Math.min(withinReach, diamondCap, MAX_DIAMONDS);
+    const counts = this.setDiamonds(stars, withinReach, diamondCap);
+    const g = this.pixels.geometry;
+    g.setAttribute("position", new THREE.BufferAttribute(stars.positions, 3));
+    g.setAttribute("aColor", new THREE.BufferAttribute(stars.colors, 3));
+    g.setAttribute("aDist", new THREE.BufferAttribute(stars.distances, 1));
+    g.setDrawRange(0, stars.count);
+    this.pixelMaterial.uniforms.uFar.value = stars.radius;
+    this.pixelMaterial.uniforms.uBig.value = stars.radius * 0.22;
+    return counts;
+  }
+
+  /**
+   * Only the diamonds again (the stars are the same, the ship's reach or the cap changed): cheap, the pixels are left alone.
+   * Call `setStars` first.
+   */
+  setDiamonds(stars: NearStars, withinReach: number, diamondCap: number): NearCounts {
+    const k = Math.min(withinReach, diamondCap, MAX_DIAMONDS, stars.count);
     for (let i = 0; i < k; i++) {
       const s = diamondSize(stars.radii[i] ?? 1);
       this.matrix.makeScale(s, s, s);
@@ -94,14 +110,6 @@ export class NearLayers {
     this.reachDiamonds = k;
     this.diamonds.instanceMatrix.needsUpdate = true;
     if (this.diamonds.instanceColor) this.diamonds.instanceColor.needsUpdate = true;
-
-    const g = this.pixels.geometry;
-    g.setAttribute("position", new THREE.BufferAttribute(stars.positions, 3));
-    g.setAttribute("aColor", new THREE.BufferAttribute(stars.colors, 3));
-    g.setAttribute("aDist", new THREE.BufferAttribute(stars.distances, 1));
-    g.setDrawRange(0, stars.count);
-    this.pixelMaterial.uniforms.uFar.value = stars.radius;
-    this.pixelMaterial.uniforms.uBig.value = stars.radius * 0.22;
     return { diamonds: k, pixels: stars.count, triangles: k * 8 };
   }
 

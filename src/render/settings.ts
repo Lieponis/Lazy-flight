@@ -13,17 +13,23 @@ export const START_SEED: Seed = 12345;
  */
 export const START_SYSTEM_ID: number | null = null;
 
-/** The starmap shows every system closer than this to the current one, in light years, as a minimum. */
-export const STARMAP_RADIUS_LY = 35;
+// ---- The galaxy map (stage G5a). The map shows the nearest stars by COUNT, never by distance (80 ly at the dense centre holds
+// 363,000 systems, 1,000 ly at the rim holds 718). Numbers from the G2 phone test (iPhone 17 Air held 60 fps with all of these).
 
-/**
- * With more fuel on board the map grows to show every star the ship can reach (plus the padding), but never past the cap.
- * Measured with the real universe (seed 12345, from the start system): 35 ly = 184 stars, 60 ly = 998, 75 ly = 1,970 (about 15,800
- * triangles, listed in about 16 ms on a computer), 90 ly = 3,366, 110 ly = 6,102. 75 ly covers every ship with a full tank
- * (Hauler 30 ly, Liner 50, Scout 55) and several upgrades. Free travel itself has NO distance cap: only fuel.
- */
-export const STARMAP_MAX_RADIUS_LY = 75;
-export const STARMAP_RADIUS_PAD_LY = 3;
+/** Stars the map draws as one coloured pixel each: the nearest ones around the player (fallback if a phone is slow: 30,000). */
+export const MAP_NEAR_STARS = 60_000;
+
+/** Diamonds drawn for stars inside the ship's reach, at most this many (the nearest ones). The hard maximum is 10,000. */
+export const MAP_DIAMOND_CAP = 5_000;
+
+/** The nearest stars a tap can pick. */
+export const MAP_TAPPABLE_STARS = 10_000;
+
+/** How close (in CSS pixels) a tap must be to a star on the galaxy map to pick it. */
+export const MAP_TAP_RADIUS_PX = 20;
+
+/** The reach (light years) the map uses until the app has told it the ship's real reach. */
+export const MAP_REACH_FALLBACK_LY = 35;
 
 /** How close (in screen pixels) a tap must be to a star or planet to select it. */
 export const TAP_RADIUS_PX = 18;
