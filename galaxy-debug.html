@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Galaxy prototype (G1)</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 16px; max-width: 1100px; line-height: 1.4; color: #111; background: #fafafa; }
+      h1 { font-size: 1.4rem; margin-bottom: 4px; }
+      h2 { font-size: 1.1rem; margin-top: 28px; border-bottom: 2px solid #ccc; padding-bottom: 4px; }
+      .box { background: #fff; border: 1px solid #ccc; border-radius: 6px; padding: 10px 12px; margin: 8px 0; }
+      label { display: inline-block; margin: 4px 12px 4px 0; }
+      input, select { padding: 4px; font-size: 1rem; }
+      table { border-collapse: collapse; width: 100%; background: #fff; margin: 8px 0; font-size: 0.92rem; }
+      th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; }
+      th { background: #eee; }
+      canvas { display: block; max-width: 100%; height: auto; background: #000; image-rendering: pixelated; border: 1px solid #555; margin: 6px 0; }
+      .note { color: #555; font-size: 0.9rem; }
+      .good { color: #0a7a2f; font-weight: bold; }
+      .bad { color: #b3261e; font-weight: bold; }
+      .ckbanner { font-size: 1.15rem; font-weight: bold; padding: 12px 14px; margin: 10px 0; border-radius: 6px; border: 3px solid #888; background: #eee; word-break: break-word; }
+      .ckbanner.ok { background: #d9f5e1; border-color: #0a7a2f; color: #0a5c24; }
+      .ckbanner.fail { background: #fde0de; border-color: #b3261e; color: #8c1a13; }
+      button { padding: 4px 10px; font-size: 0.95rem; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <h1>Galaxy prototype (stage G1)</h1>
+    <div id="checksumBanner" class="ckbanner">Checksum of the 2,000 nearest systems at the start: (calculating...)</div>
+    <p class="note">
+      A test page for the big galaxy idea: a flat spiral disc, 100,000 light years across, about 18 billion systems, and
+      nothing is stored: every system is worked out from the seed when it is asked for. Nothing here is part of the game.
+      <a href="./">Back to the game</a>.
+    </p>
+
+    <h2>1. The numbers</h2>
+    <div id="facts"></div>
+
+    <h2>2. The whole galaxy from above</h2>
+    <p class="note">
+      Brighter = more systems (all heights added up, log scale). The four spiral arms and the round bulge in the middle
+      should be easy to see. The ring marks where the player starts (one third of the way out), the dot is the centre.
+    </p>
+    <canvas id="top" width="720" height="720"></canvas>
+
+    <h2>3. The galaxy from the side</h2>
+    <p class="note">Same colours. The disc is 100,000 ly wide but only 500 to 2,000 ly thick, so the height is stretched 12 times here.</p>
+    <canvas id="side" width="320" height="64" style="width: 100%; max-width: 960px"></canvas>
+
+    <h2>4. How far apart are the systems?</h2>
+    <div id="spacing"></div>
+
+    <h2>5. Systems near the start</h2>
+    <div class="box">
+      <label>Radius (ly, 10 to 120) <input id="nearRadius" type="number" value="60" min="10" max="120" step="10" /></label>
+      <button id="nearGo" type="button">Show</button>
+    </div>
+    <div id="nearText"></div>
+    <canvas id="near" width="560" height="560"></canvas>
+
+    <h2>6. The sky seen from a place (built from lineIntegralDensity)</h2>
+    <div class="box">
+      <label>
+        Stand at
+        <select id="skyPlace">
+          <option value="start">the start (16,667 ly out)</option>
+          <option value="mid">half way out (30,000 ly)</option>
+          <option value="inner">near the centre (1,500 ly)</option>
+          <option value="rim">near the rim (49,000 ly)</option>
+          <option value="above">above the start, 4,000 ly over the disc</option>
+        </select>
+      </label>
+      <button id="skyGo" type="button">Draw the sky</button>
+    </div>
+    <p class="note">
+      All round view (left edge and right edge are the same direction, the middle row is looking along the disc). Bright
+      = a lot of galaxy in that direction. It changes a lot from place to place. It never lists a single star.
+    </p>
+    <canvas id="sky" width="360" height="90" style="width: 100%; max-width: 1080px"></canvas>
+    <div id="skyText" class="note"></div>
+
+    <h2>7. Find a system by its code</h2>
+    <div class="box">
+      <label>Code (for example from the table above) <input id="codeBox" type="text" placeholder="e.g. T5TND-7JR4" /></label>
+      <button id="codeGo" type="button">Find</button>
+    </div>
+    <div id="codeOut"></div>
+
+    <h2>8. Speed (runs on THIS device)</h2>
+    <div class="box">
+      <button id="timeGo" type="button">Run the timings (takes a few seconds)</button>
+      <span class="note">The first number is the first run; the second is the best of five. A phone is usually 3 to 6 times slower than a computer.</span>
+    </div>
+    <div id="timings"></div>
+
+    <script type="module" src="/src/galaxy-debug.ts"></script>
+  </body>
+</html>
