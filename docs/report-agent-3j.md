@@ -1,13 +1,13 @@
 # Report: Agent 3, stage G2 (galaxy map prototype: many stars, the sky seen from where you stand, phone speed)
 
-**Not run here:** `npm run check`, the real Three.js page, a phone. Proof = green Actions runs (every G2 push was green, 37 to 53 s) + Andy's click-tests on the live page. Offline I ran: a stand-in type check, the 57 checks of `tests/galaxysky.test.ts` in a stand-in runner (real Vitest ran on Actions), the sky shader in headless WebGL2 (it matches the CPU version to 1/255 on every test view), and the timing scripts below in plain Node (cloud V8). **No number below comes from a phone.**
+**Not run in my workspace:** `npm run check`, the real Three.js page, a phone (Andy ran the page on his iPhone 17 Air). Proof = green Actions runs (every G2 push was green, 37 to 53 s) + Andy's click-tests on the live page. Offline I ran: a stand-in type check, the 57 checks of `tests/galaxysky.test.ts` in a stand-in runner (real Vitest ran on Actions), the sky shader in headless WebGL2 (it matches the CPU version to 1/255 on every test view), and the timing scripts below in plain Node (cloud V8). **Only the section "Phone check" comes from a phone (Andy's iPhone 17 Air, the real page); every other number is from the cloud machine.**
 
 Live page (online only): https://lieponis.github.io/Lazy-flight/galaxy-map-preview.html
 
-## Verdict: GO, with one phone check still open
+## Verdict: GO (tested on one phone, an iPhone 17 Air; slower phones are untested)
 - Everything the CPU has to do is small: nearest 60,000 stars 30 to 41 ms, tap grid 1 to 12 ms (first build), one tap 0.03 to 1.6 ms, "5 nearest" 0.1 to 0.3 ms, instance fill under 1 ms; the sky (glow + 60,000 dots) is about 0.4 to 0.65 s of work at the default size (up to 1.8 s at the largest), done in 6 ms slices per frame and swapped in when finished.
-- The drawing is 4 draw calls (sky box, sky dots, near pixels, diamonds), 120,000 points and 8 triangles per diamond. In software rendering here it costs 41 ms with no diamonds and about 0.025 ms per diamond. **That says nothing reliable about a phone GPU**, so the go depends on Andy's FRAME line (checklist below). Until then use the caps in "Caps for phones".
-- Nothing found that needs a different technique. The two things to watch on a phone: how long a sky rebuild takes (CPU; probably 3 to 6 times slower than here) and the draw time of 120,000 points.
+- The drawing is 4 draw calls (sky box, sky dots, near pixels, diamonds), 120,000 points and 8 triangles per diamond. In software rendering here it costs 41 ms with no diamonds and about 0.025 ms per diamond, which says nothing about a phone GPU. **On Andy's iPhone 17 Air the real page ran at 60 fps with JS 0.2 ms per frame, and "never dropped below 60 fps in every setting" including 20,000 diamonds (160,012 triangles) and 120,000 points** (see "Phone check").
+- Nothing found that needs a different technique. The sky rebuild took 850 ms on that phone (306 ms of work, worst frame 7.0 ms), faster than my cloud machine. What is still unknown: slower and older phones.
 
 ## Built (all on the preview page; the game and its map are not changed)
 - **Sky seen from where you stand:** an equal-area ring sphere (no cube), rebuilt only when you leave a sky cell. Two parts: a soft glow (ray-march of a stand-in galaxy density with dust, shaded on the GPU from two small textures) and single-pixel dots (60,000 or 150,000, placed by importance sampling from the same density, brightness squeezed so faint ones show). Dots that share a patch of sky with a real near star are removed.
@@ -19,9 +19,9 @@ Live page (online only): https://lieponis.github.io/Lazy-flight/galaxy-map-previ
 - **Counters:** place, near stars, camera, tap grid and last tap, "5 NEAREST", sky building / built, sky cell, frame (ms, fps, JS ms, draw calls, triangles, heap if the browser tells).
 
 ## Andy's decisions this stage
-Sphere not cube; dots not squares; look C; dust option 2; no dust near the centre; haze at the rim; "rim matches, centre matches"; diamonds same size in space; diamonds at the rim for later ships; zoom out limited AND outer stars faded; tap to fly to a star; rim zoom limit much smaller ("Rim zoom matches"). **Still open:** whether AUTO reach is what he meant, whether centre and start zoom feel right, yes/no on my suggestion to shape the near stars like the galaxy (see Suggestions), and his phone numbers.
+Sphere not cube; dots not squares; look C; dust option 2; no dust near the centre; haze at the rim; "rim matches, centre matches"; diamonds same size in space; diamonds at the rim for later ships; zoom out limited AND outer stars faded; tap to fly to a star; rim zoom limit much smaller ("Rim zoom matches"). **Still open:** whether AUTO reach is what he meant, whether centre and start zoom feel right, yes/no on my suggestion to shape the near stars like the galaxy (see Suggestions), (his phone numbers have arrived: see "Phone check").
 
-## Numbers (cloud machine, plain Node/V8; a phone CPU is slower, expect 3 to 6 times)
+## Numbers (cloud machine, plain Node/V8; the iPhone 17 Air was faster than this machine on every CPU number it measured, see "Phone check"; slower phones may not be)
 Stand-in galaxy: radius 50,000 ly, start at 16,667 ly from the centre. Star spacing 2 ly (centre), 8.6 ly (start), 30 ly (outer); the real rim is about 134 ly.
 
 **1. Counts per density and reach.** All rows: **4 draw calls**, **120,000 points** (60,000 sky dots + 60,000 near pixels), 60,000 near stars made in 41 / 35 / 30 ms (2 / 8.6 / 30 ly), instance fill 0.0 to 0.7 ms (plain-array stand-in for the same arithmetic; the real Three calls are somewhat slower, still well under 5 ms).
@@ -56,9 +56,9 @@ A tap makes about 700 to 3,800 star tests (a star can be tested twice because th
 | middle | 63 / 247 / 1,037 | about 285 | about 700 to 840 |
 | rim | 27 / 105 / 509 | about 285 | about 700 to 840 |
 
-Colour conversion 0.3 to 11 ms; removing dots near real stars 9 to 14 ms (60,000 dots; about 380 to 640 removed). Default (24.6K squares + 60,000 dots) at the start = about 665 ms of work. The page shows the real wall time as SKY BUILT; on a phone it will be several seconds, which is fine because the old sky stays. If it is too slow, the 6.2K size (about 90 ms) is the first thing to try.
+Colour conversion 0.3 to 11 ms; removing dots near real stars 9 to 14 ms (60,000 dots; about 380 to 640 removed). Default (24.6K squares + 60,000 dots) at the start = about 665 ms of work. The page shows the real wall time as SKY BUILT: on the iPhone 17 Air it was 850 ms over 52 frames (glow 139 ms + dots 167 ms of work, worst frame 7.0 ms). On a slower phone it may take seconds, which is fine because the old sky stays; if it is too slow, the 6.2K size (about 90 ms here) is the first thing to try.
 
-**4. Frame cost in software rendering** (headless Chromium, SwiftShader on 2 CPU cores, 320 x 180 picture, a raw WebGL2 harness drawing the same buffers and shaders, **not the real Three.js page**). Software drawing is much slower than a phone GPU, so read these as "the most this could cost" for the GPU part. They say nothing about phone JavaScript.
+**4. Frame cost in software rendering** (headless Chromium, SwiftShader on 2 CPU cores, 320 x 180 picture, a raw WebGL2 harness drawing the same buffers and shaders, **not the real Three.js page**). Software drawing is much slower than a phone GPU, so read these as "the most this could cost" for the GPU part. They say nothing about a phone (see "Phone check" for the real page on a phone).
 
 | what is drawn (centre, reach 80) | frame ms |
 |---|---|
@@ -85,6 +85,23 @@ Full scene at the cases of table 1: 2 ly 2,000 / 10,000 / 20,000 diamonds = 85 /
 
 Reading it with "5 % of the sky changes visibly" as the line: the **glow** changes after about 500 ly at the centre, about 200 ly at the start, about 300 ly in the middle, and **not within 10,000 ly at the rim** (the rim looks out of the disc, so it is nearly the same everywhere). The **dots** move sooner: about 20 ly at the centre, 50 ly at the start, 150 ly in the middle and 150 to 200 ly at the rim. The sky is rebuilt when you leave a cell of 60 / 960 / 960 / 1,920 ly (about 4.5 % of the distance to the centre). So inside a cell the sky does not change at all; when you cross into the next cell it is rebuilt and swapped in, and the dots jump (a step of one start cell, 960 ly, moves 97 % of them). The player never sees the exact sky, so the only visible effect is that jump.
 
+## Phone check (Andy, iPhone 17 Air, the real page, 2026-11-17)
+Source: Andy's screenshot of the page's counter text (START, reach AUTO = 55 ly, 1,075 diamonds, tap grid of 10,000 stars) and his words for the stress test.
+
+| | iPhone 17 Air | cloud machine |
+|---|---|---|
+| 60,000 near stars made | 27 ms | 35 ms |
+| tap grid of 10,000 stars | 1.0 ms | 3.6 ms (first build) |
+| one tap, last / worst | 1.00 ms / 4.00 ms (Safari rounds timers to whole ms) | 0.05 to 0.10 ms average, up to 1.0 ms |
+| "5 nearest" | 1.00 ms (same rounding) | 0.05 ms |
+| sky build, CPU work (glow 24,592 squares + 59,400 dots) | 306 ms (139 + 167), colours 4.0 ms, 600 dots removed in 9.0 ms | about 650 ms |
+| sky build, wall time | 850 ms over 52 frames, worst frame 7.0 ms (budget 6 ms) | not measured |
+| frame | 16.7 ms = 60 fps, JS 0.2 ms | software drawing 41 ms |
+| draw calls / triangles | 4 / 8,620 (1,075 diamonds + the tapped one) | 4 / 8,692 |
+
+- **Stress test (Andy):** START, ship reach 1,000 ly (so the diamond cap alone decides), diamond cap 2,000 / 5,000 / 10,000 / 20,000 (up to 160,012 triangles and 120,000 points). His words: "It never drops below 60 fps in every setting." I do not have the per-cap FRAME lines.
+- **How far to trust it:** one phone with a new, fast chip. 60 fps may be the screen's refresh limit, so this shows no dropped frames, not how much room is left; the page's largest settings (20,000 diamonds) are the most it can ask. Older and low-end phones are untested. Safari rounds timers, so single tap times are only good to about 1 ms.
+
 ## Formulas (shader and code are the same; `src/render/galaxy/previewmath.ts`)
 - **Pixel brightness:** `x = clamp(d / R, 0, 1)`; `b = (1 - 0.82 * x^0.6) * edgeFade(d, R)`; `d` = distance from the player in ly, `R` = radius of the near-star ball. Pixel size: 2 px if `d < 0.22 R`, else 1 px.
 - **Edge fade:** `t = clamp((x - 0.7) / 0.3, 0, 1)`; `edgeFade = 1 - t^2 (3 - 2t)` (1 inside 70 % of the ball, 0 at the edge). Diamond colours use the same fade.
@@ -101,12 +118,13 @@ Reading it with "5 % of the sky changes visibly" as the line: the **glow** chang
 - **Not physics at all:** squeezing dot brightness (light^0.5) so faint dots show; the glow curve; the edge fade of the near ball.
 - **So:** the large pattern ("which way is the centre, where is the band, is the sky dark here") is real to the model; every single dot is noise. The model itself is my invention (not Agent 2's), so it is only as true as `densityAt` will be.
 
-## Caps for phones (proposal; numbers above are not phone numbers)
-- **Diamonds:** default cap **5,000** (40,000 triangles), phone maximum **10,000**, desktop up to **20,000**. With AUTO reach the preview never needs more than 3,102 diamonds (start about 1,080 at 55 ly; middle 3,102 at 250 ly; rim 1,780 at 1,000 ly); only the dense centre (cap decides) and a long reach at the start (250 ly = 60,000 stars) fill the cap.
+## Caps for phones (proposal; one phone tested)
+- **Diamonds:** default cap **5,000** (40,000 triangles); maximum **20,000** (held 60 fps on the iPhone 17 Air; untested on slower phones). With AUTO reach the preview never needs more than 3,102 diamonds (start about 1,080 at 55 ly; middle 3,102 at 250 ly; rim 1,780 at 1,000 ly); only the dense centre (cap decides) and a long reach at the start (250 ly = 60,000 stars) fill the cap.
 - **Tappable:** **10,000** (grid build about 4 ms, tap well under 2 ms). 20,000 and 60,000 also cost almost nothing, but only the nearest are useful to tap.
-- **Near pixels:** 60,000 now; if Andy's FRAME line is slow, 30,000 is the next lever (the points cost the most in software).
-- **Sky:** 60,000 dots and the 64 size (24.6K squares); 32 (6.2K squares) if rebuilds feel too slow.
-- Change the numbers only after Andy's phone lines; the page buttons already let him try 2,000 / 5,000 / 10,000 / 20,000.
+- **Near pixels:** 60,000 (the iPhone held 60 fps with 120,000 points). Only if a slower phone struggles, 30,000 is the first lever.
+- **Sky:** 60,000 dots and the 64 size (24.6K squares) (850 ms on the iPhone); 32 (6.2K squares) if rebuilds feel too slow on a slower phone.
+- Suggestion (not built): a frame-time guard that lowers the diamond cap one step when frames take longer than about 25 ms for 2 seconds, so a slow phone protects itself.
+- The page buttons let anyone try 2,000 / 5,000 / 10,000 / 20,000; ask the next tester of an older phone for the FRAME line at 20,000.
 
 ## What must change in the real map code (when the real generator arrives)
 1. **`src/render/starmap.ts` (`StarMapScreen`).**
@@ -138,11 +156,11 @@ Open https://lieponis.github.io/Lazy-flight/galaxy-map-preview.html. Press START
 4. Read out: your phone model; the SKY BUILT, SKY CELL, FRAME and TAP lines; and "smooth / sometimes choppy / choppy".
 
 ## Known issues / not verified
-- The real Three.js page, the real shaders in Three and phone speed were **not run here**. The sky shader was checked in headless WebGL2 against the CPU version (max difference 1/255); the frame numbers come from a raw WebGL2 harness, not from the page.
-- JS time per frame of the page is unknown (the page measures it).
+- The real Three.js page and its shaders were **not run in my workspace** (Andy ran them on his iPhone). The sky shader was checked in headless WebGL2 against the CPU version (max difference 1/255); the cloud frame numbers come from a raw WebGL2 harness, not from the page. Only one phone has been measured.
+- JS time per frame: 0.2 ms on the iPhone 17 Air; not measured elsewhere.
 - The stand-in galaxy, its dust and the looks are tuned by eye, not by astronomy.
 - A rebuild shows a small jump when it swaps in (suggestion below).
-- Tap rule v2 is tested (57 checks in `tests/galaxysky.test.ts` incl. near beats far on one ray, near slightly off the ray beats far on it, nothing in the circle = nothing, faded loses to visible, grid = check-every-star on 900 rays) and **Andy re-tested it on his phone on 2026-11-17: "Correct"** (the nearer star is picked). The rest of the page (frame feel, sky rebuild time) still has no phone numbers.
+- Tap rule v2 is tested (57 checks in `tests/galaxysky.test.ts` incl. near beats far on one ray, near slightly off the ray beats far on it, nothing in the circle = nothing, faded loses to visible, grid = check-every-star on 900 rays) and **Andy re-tested it on his phone on 2026-11-17: "Correct"** (the nearer star is picked). The phone numbers for the rest of the page are in "Phone check".
 - The preview picks the tapped star only from the nearest `tap` stars (1,000 / 10,000 / 20,000).
 - AUTO reach by place: centre 55 ly (all 60,000 stars inside, so the diamond cap decides), start 55 ly (about 1,080 diamonds), middle 250 ly (3,102), rim 1,000 ly (1,780). Andy has not yet confirmed that this is the diamonds-at-the-rim he meant.
 
