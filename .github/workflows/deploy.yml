@@ -42,7 +42,7 @@ jobs:
         with:
           ref: universe-v3
           path: preview-src
-      - name: Build the preview (no type check on purpose: the branch is unfinished)
+      - name: "Build the preview (no type check on purpose, the branch is unfinished)"
         id: preview_build
         if: steps.preview_fetch.outcome == 'success'
         continue-on-error: true
