@@ -3,7 +3,26 @@
 // Plain words: with up to 20,000 tappable stars we do not want to test every star on every tap. The stars are sorted into a
 // 3D grid of small boxes once (when the stars change). A tap becomes a ray from the camera; we walk along the ray from box to
 // box and only test the stars in the boxes the ray passes (plus the boxes next to them, because a fingertip is not a needle).
-// The star closest to the ray, as seen from the camera, wins.
+//
+// WHICH STAR WINS (rule v2, after Andy found that a tap could select a far star behind the one he touched):
+//  1. Candidates = every star inside the tap circle (angle to the ray at most `maxAngle`).
+//  2. Stars too faint to see (visibility below `minVisible`) only count when no visible star is inside the circle.
+//  3. The NEAREST candidate to the camera wins; but stars up to `sameDepth` (1.25) times that nearest distance count as "at the
+//     same depth" and compete on closeness to the finger, so stars standing side by side are told apart by where you touched.
+// (Rule v1 scored angle + 0.15 x tolerance x distance share, so a far star exactly on the ray beat a near star 4 px off.)
+
+/** Stars up to this many times as far as the nearest candidate count as "at the same depth": the one closest to the finger wins. */
+export const SAME_DEPTH_RATIO = 1.25;
+
+/** Optional parts of the picking rule (see the top of this file). */
+export interface PickRule {
+  /** For every star 0..1: how visible it is on the screen (0 = invisible). Missing = every star counts as fully visible. */
+  visibility?: ArrayLike<number>;
+  /** Stars with a visibility below this only win when no visible star is inside the tap circle. Default 0. */
+  minVisible?: number;
+  /** See {@link SAME_DEPTH_RATIO}; 1 = plain "the nearest star wins". */
+  sameDepth?: number;
+}
 
 export interface PickHit {
   /** Index of the star (0 = nearest to the player). */
@@ -12,6 +31,64 @@ export interface PickHit {
   along: number;
   /** Angle between the ray and the star (radians). */
   angle: number;
+}
+
+/** The stars inside the tap circle, collected by the grid (or by the brute-force version), and the rule that chooses among them. */
+class Candidates {
+  index: number[] = [];
+  along: number[] = [];
+  angle: number[] = [];
+
+  clear(): void {
+    this.index.length = 0;
+    this.along.length = 0;
+    this.angle.length = 0;
+  }
+
+  add(index: number, along: number, angle: number): void {
+    this.index.push(index);
+    this.along.push(along);
+    this.angle.push(angle);
+  }
+
+  get size(): number {
+    return this.index.length;
+  }
+
+  /** The winner by the rule at the top of this file. Does not depend on the order the stars were added in. */
+  choose(rule?: PickRule): PickHit | null {
+    const n = this.index.length;
+    if (n === 0) return null;
+    const vis = rule?.visibility;
+    const minVisible = rule?.minVisible ?? 0;
+    // Stars that can be seen win over stars that are too faint; if none can be seen, the faint ones still count.
+    let useVisibleOnly = false;
+    if (vis && minVisible > 0) {
+      for (let k = 0; k < n; k++) {
+        if ((vis[this.index[k] as number] ?? 1) >= minVisible) {
+          useVisibleOnly = true;
+          break;
+        }
+      }
+    }
+    const eligible = (k: number): boolean => !useVisibleOnly || (vis?.[this.index[k] as number] ?? 1) >= minVisible;
+    let nearest = Infinity;
+    for (let k = 0; k < n; k++) {
+      if (eligible(k) && (this.along[k] as number) < nearest) nearest = this.along[k] as number;
+    }
+    const limit = nearest * Math.max(1, rule?.sameDepth ?? SAME_DEPTH_RATIO);
+    let best = -1;
+    for (let k = 0; k < n; k++) {
+      if (!eligible(k) || (this.along[k] as number) > limit) continue;
+      if (best < 0) {
+        best = k;
+        continue;
+      }
+      const da = (this.angle[k] as number) - (this.angle[best] as number);
+      if (da < 0 || (da === 0 && (this.index[k] as number) < (this.index[best] as number))) best = k;
+    }
+    return best < 0 ? null : { index: this.index[best] as number, along: this.along[best] as number, angle: this.angle[best] as number };
+  }
 }
 
 export class StarGrid {
@@ -27,10 +104,17 @@ export class StarGrid {
   private readonly items: Int32Array;
   /** How many stars the last `pick` looked at (for the report). */
   tested = 0;
+  /** How many different stars were inside the tap circle in the last `pick` (the rule chose among them). */
+  candidates = 0;
+  private readonly found = new Candidates();
+  /** Marks the stars already collected by the current pick (a star can be reached from two steps along the ray). */
+  private readonly seen: Int32Array;
+  private seenStamp = 0;
 
   /** Sorts the first `count` stars of `positions` (x, y, z each) into the grid, about 4 stars to a box. */
   constructor(private readonly positions: Float32Array, count: number) {
     this.count = Math.min(count, Math.floor(positions.length / 3));
+    this.seen = new Int32Array(this.count);
     let minX = Infinity;
     let minY = Infinity;
     let minZ = Infinity;
@@ -90,11 +174,15 @@ export class StarGrid {
   }
 
   /**
-   * The star nearest to the ray (origin o, unit direction d), as seen from the origin, among the stars whose angle to the ray is
-   * at most `maxAngle` radians and whose distance along the ray is between `minAlong` and `maxAlong`. Null if there is none.
+   * The star the tap means, from the ray (origin o, unit direction d): chosen by the rule at the top of this file among the stars
+   * whose angle to the ray is at most `maxAngle` radians and whose distance along the ray is between `minAlong` and `maxAlong`.
+   * Null if there is none.
    */
-  pick(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxAngle: number, maxAlong: number, minAlong = 0): PickHit | null {
+  pick(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxAngle: number, maxAlong: number, minAlong = 0, rule?: PickRule): PickHit | null {
     this.tested = 0;
+    this.candidates = 0;
+    this.found.clear();
+    this.seenStamp++;
     if (this.count === 0) return null;
     const tan = Math.tan(maxAngle);
     const c = this.cell;
@@ -120,9 +208,7 @@ export class StarGrid {
         if (t0 > t1) return null;
       }
     }
-    // March along the ray in steps of about one box; test the stars of the boxes around each step point.
-    let best: PickHit | null = null;
-    let bestScore = Infinity;
+    // March along the ray in steps of about one box; collect the stars of the boxes around each step point that are in the circle.
     const step = c * 0.9;
     let lastBox = -1;
     for (let t = t0; ; t += step) {
@@ -154,13 +240,9 @@ export class StarGrid {
                 const py2 = vy - dy * along;
                 const pz2 = vz - dz * along;
                 const angle = Math.atan2(Math.sqrt(px2 * px2 + py2 * py2 + pz2 * pz2), along);
-                if (angle > maxAngle) continue;
-                // Closest to the ray wins; a star only a hair farther from the ray but much nearer to the camera wins.
-                const score = angle + 0.15 * maxAngle * (along / maxAlong);
-                if (score < bestScore) {
-                  bestScore = score;
-                  best = { index: i, along, angle };
-                }
+                if (angle > maxAngle || this.seen[i] === this.seenStamp) continue;
+                this.seen[i] = this.seenStamp;
+                this.found.add(i, along, angle);
               }
             }
           }
@@ -168,14 +250,14 @@ export class StarGrid {
       }
       if (tt >= t1) break;
     }
-    return best;
+    this.candidates = this.found.size;
+    return this.found.choose(rule);
   }
 }
 
 /** Brute-force version (tests compare against it): tests every star. */
-export function pickBrute(positions: Float32Array, count: number, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxAngle: number, maxAlong: number, minAlong = 0): PickHit | null {
-  let best: PickHit | null = null;
-  let bestScore = Infinity;
+export function pickBrute(positions: Float32Array, count: number, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxAngle: number, maxAlong: number, minAlong = 0, rule?: PickRule): PickHit | null {
+  const found = new Candidates();
   for (let i = 0; i < count; i++) {
     const vx = (positions[i * 3] ?? 0) - ox;
     const vy = (positions[i * 3 + 1] ?? 0) - oy;
@@ -187,13 +269,9 @@ export function pickBrute(positions: Float32Array, count: number, ox: number, oy
     const pz = vz - dz * along;
     const angle = Math.atan2(Math.sqrt(px * px + py * py + pz * pz), along);
     if (angle > maxAngle) continue;
-    const score = angle + 0.15 * maxAngle * (along / maxAlong);
-    if (score < bestScore) {
-      bestScore = score;
-      best = { index: i, along, angle };
-    }
+    found.add(i, along, angle);
   }
-  return best;
+  return found.choose(rule);
 }
 
 /** One entry of {@link nearestTo}: the star's index in the list and its distance in light years. */

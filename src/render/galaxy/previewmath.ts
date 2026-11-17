@@ -132,6 +132,17 @@ export function pixelBrightness(d: number, far: number): number {
   return (1 - 0.82 * Math.pow(x, 0.6)) * edgeFade(d, far);
 }
 
+/** A star dimmer than this on the screen does not win a tap over a clearly visible star inside the same tap circle. */
+export const MIN_TAP_VISIBILITY = 0.15;
+
+/**
+ * How visible star at distance `d` is on the screen (0..1): the same brightness the picture draws it with. A diamond only fades
+ * at the edge of the bubble; a pixel also gets dimmer with distance. Used so the tap never prefers a faded star over a visible one.
+ */
+export function tapVisibility(d: number, radius: number, isDiamond: boolean): number {
+  return isDiamond ? edgeFade(d, radius) : pixelBrightness(d, radius);
+}
+
 /** The camera may never leave the near-star bubble: it stays within this share of the bubble radius from the player. */
 export const MAX_ZOOM_SHARE = 0.9;
 

@@ -23,6 +23,7 @@ import {
   DIAMOND_CAPS,
   FACE_SIZES,
   FLY_TO_DIST_LY,
+  MIN_TAP_VISIBILITY,
   MIN_ZOOM_LY,
   NEAR_TOTAL,
   REACHES,
@@ -35,6 +36,7 @@ import {
   maxOrbitDistance,
   orbitAnglesFor,
   parsePreviewParams,
+  tapVisibility,
   zoomOutLimit,
   type PreviewParams,
 } from "./previewmath";
@@ -152,10 +154,12 @@ export function mountGalaxyPreview(root: HTMLElement): void {
   /** The reach in light years actually used now ("auto" resolved). */
   let reachNow = 55;
   let grid: StarGrid | null = null;
+  /** How visible each tappable star is on the screen (0..1): a faded star never wins a tap over a visible one. */
+  let tapVis = new Float32Array(0);
   let gridMs = 0;
   /** The star the player tapped last (null = none). */
   let selected: number | null = null;
-  const tapStats = { taps: 0, lastMs: 0, worstMs: 0, lastTested: 0, message: "no tap yet", nearest: "" };
+  const tapStats = { taps: 0, lastMs: 0, worstMs: 0, lastTested: 0, lastCircle: 0, message: "no tap yet", nearest: "" };
   let pending: PendingSky | null = null;
   let builtGlowSignature: string | null = null;
   let builtDotsSignature: string | null = null;
@@ -187,6 +191,8 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     const t1 = performance.now();
     grid = new StarGrid(near.positions, state.tapCount);
     gridMs = performance.now() - t1;
+    tapVis = new Float32Array(grid.count);
+    for (let i = 0; i < grid.count; i++) tapVis[i] = tapVisibility(near.distances[i] ?? 0, near.radius, i < nearCounts.diamonds);
     if (!keepView) {
       selected = null;
       orbit.resetFocus();
@@ -211,12 +217,16 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     const halfFov = (camera.fov * Math.PI) / 360;
     const maxAngle = Math.atan((TAP_RADIUS_PX / (Math.max(1, rect.height) / 2)) * Math.tan(halfFov));
     const t0 = performance.now();
-    const hit = grid.pick(camera.position.x, camera.position.y, camera.position.z, tapRay.x, tapRay.y, tapRay.z, maxAngle, camera.far, camera.near);
+    const hit = grid.pick(camera.position.x, camera.position.y, camera.position.z, tapRay.x, tapRay.y, tapRay.z, maxAngle, camera.far, camera.near, {
+      visibility: tapVis,
+      minVisible: MIN_TAP_VISIBILITY,
+    });
     const ms = performance.now() - t0;
     tapStats.taps++;
     tapStats.lastMs = ms;
     tapStats.worstMs = Math.max(tapStats.worstMs, ms);
     tapStats.lastTested = grid.tested;
+    tapStats.lastCircle = grid.candidates;
     if (!hit) {
       tapStats.message = "tap found no star within " + TAP_RADIUS_PX + " px";
       return;
@@ -590,7 +600,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
       `PLACE ${sameSpot(state.place) ? state.place.label : "MOVED"}  ${lyText(r)} from centre  spacing ${currentSpacing().toFixed(1)} ly`,
       `NEAR STARS ${near.count.toLocaleString("en-US")} (made in ${nearMs.toFixed(0)} ms, bubble radius ${lyText(near.radius)})  REACH ${state.reach === "auto" ? "auto = " : ""}${reachNow} ly  diamonds ${nearCounts.diamonds.toLocaleString("en-US")}  pixels ${nearCounts.pixels.toLocaleString("en-US")}`,
       `CAMERA ${lyText(orbit.dist)} from its target (closest ${MIN_ZOOM_LY} ly, farthest now ${lyText(orbit.maxDist)}; zoom-out limit ${state.zoomOut} = ${lyText(zoomLimit())} from you)  target ${lyText(Math.hypot(orbit.target.x, orbit.target.y, orbit.target.z))} from you`,
-      `TAP grid of ${state.tapCount.toLocaleString("en-US")} stars built in ${gridMs.toFixed(1)} ms  taps ${tapStats.taps}  last ${tapStats.lastMs.toFixed(2)} ms (looked at ${tapStats.lastTested} stars)  worst ${tapStats.worstMs.toFixed(2)} ms  -> ${tapStats.message}`,
+      `TAP grid of ${state.tapCount.toLocaleString("en-US")} stars built in ${gridMs.toFixed(1)} ms  taps ${tapStats.taps}  last ${tapStats.lastMs.toFixed(2)} ms (looked at ${tapStats.lastTested} stars, ${tapStats.lastCircle} inside the tap circle, the nearest to you wins)  worst ${tapStats.worstMs.toFixed(2)} ms  -> ${tapStats.message}`,
     ];
     if (tapStats.nearest) lines.push(`5 NEAREST to the tapped star: ${tapStats.nearest}`);
     if (pending) {

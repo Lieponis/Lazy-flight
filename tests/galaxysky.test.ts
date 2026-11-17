@@ -33,6 +33,7 @@ import {
   DEFAULT_PARAMS,
   EDGE_FADE_START,
   MAX_ZOOM_SHARE,
+  MIN_TAP_VISIBILITY,
   MIN_ZOOM_LY,
   REACHES,
   autoReach,
@@ -44,8 +45,9 @@ import {
   orbitAnglesFor,
   parsePreviewParams,
   pixelBrightness,
+  tapVisibility,
 } from "../src/render/galaxy/previewmath";
-import { StarGrid, nearestTo, pickBrute } from "../src/render/galaxy/starpick";
+import { SAME_DEPTH_RATIO, StarGrid, nearestTo, pickBrute, type PickRule } from "../src/render/galaxy/starpick";
 import { orbitCameraPosition } from "../src/render/helpers";
 
 const SMALL: SkyParams = { faceSize: 16, steps: 24, nearRadius: 100 };
@@ -661,5 +663,100 @@ describe("galaxy prototype: tapping a star", () => {
     expect(nearestTo(three, 3, 0, 5).map((g) => g.index)).toEqual([1, 2]);
     expect(nearestTo(three, 3, 7, 5)).toEqual([]);
     expect(nearestTo(three, 3, 0, 0)).toEqual([]);
+  });
+  // ---- the rule that chooses among the stars inside the tap circle (Andy's bug: a far star behind the touched one won)
+  // Camera at the origin looking down -z. A star at (x, 0, -z) has the angle atan(x / z) to the ray. Tolerance 0.05 rad (about 20 px).
+  const TOL = 0.05;
+  const look = (positions: number[], rule?: PickRule) => {
+    const p = Float32Array.from(positions);
+    const g = new StarGrid(p, positions.length / 3);
+    const hit = g.pick(0, 0, 0, 0, 0, -1, TOL, 600, 0.2, rule);
+    const brute = pickBrute(p, positions.length / 3, 0, 0, 0, 0, 0, -1, TOL, 600, 0.2, rule);
+    expect(brute?.index ?? -1).toBe(hit?.index ?? -1); // the grid and the check-every-star version always agree
+    return { hit, grid: g };
+  };
+  it("two stars on the same ray: the nearer one wins, whichever comes first in the list", () => {
+    expect(look([0, 0, -10, 0, 0, -50]).hit?.index).toBe(0);
+    expect(look([0, 0, -50, 0, 0, -10]).hit?.index).toBe(1);
+  });
+  it("a near star slightly off the ray beats a far star exactly on it (the old rule picked the far one)", () => {
+    // near: 10 ly away, 0.3 ly to the side = 0.03 rad (inside 0.05); far: 50 ly away exactly on the ray.
+    const { hit, grid } = look([0.3, 0, -10, 0, 0, -50]);
+    expect(hit?.index).toBe(0);
+    expect(grid.candidates).toBe(2);
+    // The old score was angle + 0.15 * tolerance * (distance / farthest): near 0.0308, far 0.0038, so the far star won.
+    const oldScore = (angle: number, along: number) => angle + 0.15 * TOL * (along / 600);
+    expect(oldScore(Math.atan(0.03), 10)).toBeGreaterThan(oldScore(0, 50));
+  });
+  it("nothing inside the tap circle gives nothing: a star beside it, behind the camera or beyond the far limit is not picked", () => {
+    expect(look([3, 0, -10]).hit).toBeNull(); // 0.29 rad off
+    expect(look([0, 0, 10]).hit).toBeNull(); // behind the camera
+    expect(look([0, 0, -700]).hit).toBeNull(); // farther than 600
+    expect(look([0, 0, -0.1]).hit).toBeNull(); // closer than the camera's near plane (0.2)
+    const { hit, grid } = look([3, 0, -10, -2, 1, -8]);
+    expect(hit).toBeNull();
+    expect(grid.candidates).toBe(0);
+  });
+  it("a star too faint to see never wins over a visible star in the circle, but is still picked when it is the only one", () => {
+    const vis = [0.02, 0.9]; // star 0 is near but faded out at the edge of the bubble, star 1 is farther and visible
+    const rule = { visibility: vis, minVisible: MIN_TAP_VISIBILITY };
+    expect(look([0, 0, -10, 0.2, 0, -40], rule).hit?.index).toBe(1);
+    expect(look([0, 0, -10, 0.2, 0, -40]).hit?.index).toBe(0); // without the visibility the nearest wins
+    expect(look([0, 0, -10, 3, 0, -40], rule).hit?.index).toBe(0); // the visible one is outside the circle: the faded one still counts
+  });
+  it("stars at about the same distance compete on closeness to the finger; clearly nearer stars still win", () => {
+    // A: 10 ly away, 0.4 ly to the side (0.04 rad). B: exactly on the ray at 11 ly (within 1.25 x 10) or at 14 ly (beyond it).
+    expect(SAME_DEPTH_RATIO).toBe(1.25);
+    expect(look([0.4, 0, -10, 0, 0, -11]).hit?.index).toBe(1);
+    expect(look([0.4, 0, -10, 0, 0, -14]).hit?.index).toBe(0);
+    // With sameDepth 1 the plain "nearest star wins" rule applies.
+    expect(look([0.4, 0, -10, 0, 0, -11], { sameDepth: 1 }).hit?.index).toBe(0);
+  });
+  it("tap visibility: full inside the bubble, fading out at its edge; a pixel is dimmer than a diamond at the same distance", () => {
+    expect(tapVisibility(10, 100, true)).toBe(1);
+    expect(tapVisibility(10, 100, false)).toBeGreaterThan(0.75);
+    expect(tapVisibility(100, 100, true)).toBe(0);
+    expect(tapVisibility(95, 100, false)).toBeLessThan(MIN_TAP_VISIBILITY);
+    expect(tapVisibility(50, 100, false)).toBeLessThan(tapVisibility(50, 100, true));
+    // every one of the nearest 20,000 of 60,000 stars is clearly visible (the biggest tap count the page offers)
+    expect(tapVisibility(0.693 * 100, 100, false)).toBeGreaterThan(MIN_TAP_VISIBILITY);
+  });
+  it("the grid and the check-every-star version choose the same star with the new rule, with and without visibility, for 300 rays", () => {
+    const rnd = mulberryLocal(99);
+    const vis = new Float32Array(20000);
+    for (let i = 0; i < vis.length; i++) vis[i] = rnd();
+    let hits = 0;
+    let crowded = 0;
+    for (let i = 0; i < 300; i++) {
+      const { o, d } = ray(i + 500);
+      for (const rule of [undefined, { visibility: vis, minVisible: 0.3 }, { sameDepth: 1 }]) {
+        const a = grid.pick(o[0]!, o[1]!, o[2]!, d[0]!, d[1]!, d[2]!, 0.05, 600, 0.2, rule);
+        const b = pickBrute(stars.positions, 20000, o[0]!, o[1]!, o[2]!, d[0]!, d[1]!, d[2]!, 0.05, 600, 0.2, rule);
+        expect(a?.index ?? -1).toBe(b?.index ?? -1);
+        if (a) hits++;
+        if (rule === undefined && grid.candidates > 1) crowded++;
+      }
+    }
+    expect(hits).toBeGreaterThan(300);
+    expect(crowded).toBeGreaterThan(30); // many rays had several stars to choose from
+  });
+  it("whatever the grid picks, no star in the circle is clearly nearer to the camera than the winner", () => {
+    for (let i = 0; i < 200; i++) {
+      const { o, d } = ray(i + 900);
+      const hit = grid.pick(o[0]!, o[1]!, o[2]!, d[0]!, d[1]!, d[2]!, 0.05, 600, 0.2);
+      if (!hit) continue;
+      // The nearest star in the circle, found by looking at every star.
+      let nearest = Infinity;
+      for (let k = 0; k < 20000; k++) {
+        const vx = stars.positions[k * 3]! - o[0]!;
+        const vy = stars.positions[k * 3 + 1]! - o[1]!;
+        const vz = stars.positions[k * 3 + 2]! - o[2]!;
+        const along = vx * d[0]! + vy * d[1]! + vz * d[2]!;
+        if (along < 0.2 || along > 600) continue;
+        const side = Math.hypot(vx - d[0]! * along, vy - d[1]! * along, vz - d[2]! * along);
+        if (Math.atan2(side, along) <= 0.05 && along < nearest) nearest = along;
+      }
+      expect(hit.along).toBeLessThanOrEqual(nearest * SAME_DEPTH_RATIO + 1e-6);
+    }
   });
 });

@@ -1,6 +1,6 @@
 # Report: Agent 3, stage G2 (galaxy map prototype: many stars, the sky seen from where you stand, phone speed)
 
-**Not run here:** `npm run check`, the real Three.js page, a phone. Proof = green Actions runs (every G2 push was green, 37 to 53 s) + Andy's click-tests on the live page. Offline I ran: a stand-in type check, the 49 checks of `tests/galaxysky.test.ts` in a stand-in runner (real Vitest ran on Actions), the sky shader in headless WebGL2 (it matches the CPU version to 1/255 on every test view), and the timing scripts below in plain Node (cloud V8). **No number below comes from a phone.**
+**Not run here:** `npm run check`, the real Three.js page, a phone. Proof = green Actions runs (every G2 push was green, 37 to 53 s) + Andy's click-tests on the live page. Offline I ran: a stand-in type check, the 57 checks of `tests/galaxysky.test.ts` in a stand-in runner (real Vitest ran on Actions), the sky shader in headless WebGL2 (it matches the CPU version to 1/255 on every test view), and the timing scripts below in plain Node (cloud V8). **No number below comes from a phone.**
 
 Live page (online only): https://lieponis.github.io/Lazy-flight/galaxy-map-preview.html
 
@@ -92,7 +92,8 @@ Reading it with "5 % of the sky changes visibly" as the line: the **glow** chang
 - **Diamond size (ly across):** `0.6 * (0.55 + 0.3 * clamp(starSizeClass, 0.5, 3))`, the same in space everywhere.
 - **Auto reach:** the first of 55, 80, 250, 1,000 ly whose ball holds at least 200 stars (else 1,000).
 - **Zoom-out limit (distance from the player):** NEAR = min(0.9 R, distance of the 1,000th nearest star); MEDIUM = min(0.9 R, 2 x that); WIDE = 0.9 R. The camera distance is also limited so the camera itself never leaves that sphere (`maxOrbitDistance`), but can always go 12 ly around the target.
-- **Tap:** a ray from the finger through the grid, steps of 0.9 grid cell, score = angle + 0.15 x tolerance x (distance along the ray / farthest distance); tolerance 20 css px.
+- **Tap (rule v2, 2026-11-17):** a ray from the finger through the grid, steps of 0.9 grid cell; the stars inside the tap circle (20 css px) are the candidates. Stars too faint to see (visibility below 0.15: `tapVisibility` = the brightness the picture draws them with) only count when no visible star is in the circle. The nearest candidate to the camera wins; candidates up to 1.25 times that distance compete on closeness to the finger (`SAME_DEPTH_RATIO`; 1 = plain nearest).
+  - Old rule (v1, replaced): the closest star to the ray won, with a depth bonus worth at most 15 % of the tap radius: `angle + 0.15 x tolerance x (distance / farthest distance)`. A far star exactly on the ray beat a near star only 3 px off it (Andy's bug).
 
 ## How much is physics and how much is noise
 - **Physics-like (one density function, the same for every viewer):** the band, the bulge, the arms and the dust lane as seen from your position (glow = a real ray-march: dimming by dust per colour channel, near stars cut out); where dots are likely (placement is importance-sampled from the same density: denser toward the band and centre); and the way all of it changes slowly with distance (table 5).
@@ -119,7 +120,7 @@ Reading it with "5 % of the sky changes visibly" as the line: the **glow** chang
 4. **HUD label.** `refreshHud` (`starLabelText`, `starmapHint`) keeps one label for the selected star and adds a short "5 nearest" line (as the preview does); never a label per star.
 5. **`src/render/settings.ts`.** `STARMAP_RADIUS_LY` (35), `STARMAP_MAX_RADIUS_LY` (75), `STARMAP_RADIUS_PAD_LY` (3), `STARFIELD_COUNT` (260), `TAP_RADIUS_PX` (18): replaced or joined by diamond cap, tappable count, near total, zoom limits (names as in `previewmath.ts`).
 6. **From Agent 2:** a `GalaxyField` (`sample` + `spacingAt`, in `src/render/galaxy/galaxyfield.ts`, to swap for `densityAt`) and the nearest-N call above. Render stays free of `src/game`, `src/ui` and `src/universe` imports (the layer test checks this), so the glue passes plain arrays in.
-7. **Tests:** the existing starmap tests that use `starmapRadius` / `starmapCameraLimits` change with items 1 and 2; the preview's `tests/galaxysky.test.ts` (49 checks) moves along with the shared code.
+7. **Tests:** the existing starmap tests that use `starmapRadius` / `starmapCameraLimits` change with items 1 and 2; the preview's `tests/galaxysky.test.ts` (57 checks) moves along with the shared code.
 
 ## The game's own starfield and the sky function (not changed)
 `starfieldPositions(count, radius)` in `src/render/helpers.ts` (not a `src/render/starfield` folder) draws 260 random points from a fixed seed (123456789), so **every** system, flight, dock and the map show the same pattern. It is used in `docked.ts`, `flight.ts`, `systemview.ts`, `starmap.ts` and `src/models.ts` (400 points).
@@ -141,6 +142,7 @@ Open https://lieponis.github.io/Lazy-flight/galaxy-map-preview.html. Press START
 - JS time per frame of the page is unknown (the page measures it).
 - The stand-in galaxy, its dust and the looks are tuned by eye, not by astronomy.
 - A rebuild shows a small jump when it swaps in (suggestion below).
+- Tap rule v2 is tested (57 checks in `tests/galaxysky.test.ts` incl. near beats far on one ray, near slightly off the ray beats far on it, nothing in the circle = nothing, faded loses to visible, grid = check-every-star on 900 rays) but, like all the page, has not run on a phone yet.
 - The preview picks the tapped star only from the nearest `tap` stars (1,000 / 10,000 / 20,000).
 - AUTO reach by place: centre 55 ly (all 60,000 stars inside, so the diamond cap decides), start 55 ly (about 1,080 diamonds), middle 250 ly (3,102), rim 1,000 ly (1,780). Andy has not yet confirmed that this is the diamonds-at-the-rim he meant.
 
