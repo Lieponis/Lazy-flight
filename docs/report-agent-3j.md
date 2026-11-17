@@ -142,7 +142,7 @@ Open https://lieponis.github.io/Lazy-flight/galaxy-map-preview.html. Press START
 - JS time per frame of the page is unknown (the page measures it).
 - The stand-in galaxy, its dust and the looks are tuned by eye, not by astronomy.
 - A rebuild shows a small jump when it swaps in (suggestion below).
-- Tap rule v2 is tested (57 checks in `tests/galaxysky.test.ts` incl. near beats far on one ray, near slightly off the ray beats far on it, nothing in the circle = nothing, faded loses to visible, grid = check-every-star on 900 rays) but, like all the page, has not run on a phone yet.
+- Tap rule v2 is tested (57 checks in `tests/galaxysky.test.ts` incl. near beats far on one ray, near slightly off the ray beats far on it, nothing in the circle = nothing, faded loses to visible, grid = check-every-star on 900 rays) and **Andy re-tested it on his phone on 2026-11-17: "Correct"** (the nearer star is picked). The rest of the page (frame feel, sky rebuild time) still has no phone numbers.
 - The preview picks the tapped star only from the nearest `tap` stars (1,000 / 10,000 / 20,000).
 - AUTO reach by place: centre 55 ly (all 60,000 stars inside, so the diamond cap decides), start 55 ly (about 1,080 diamonds), middle 250 ly (3,102), rim 1,000 ly (1,780). Andy has not yet confirmed that this is the diamonds-at-the-rim he meant.
 
