@@ -8,10 +8,10 @@ import { OUTPOST_DELIVERY_BONUS_PERCENT, OUTPOST_FUEL_DISCOUNT_PERCENT, OUTPOST_
 import { notDockedReason } from "./location";
 import type { GameState } from "./state";
 
-/** "3:-2:5:0/2" -> "3:-2:5:0" (dock ids are "<system id>/<planet number>"). */
-export function systemOfDock(dockId: string): string {
+/** "44776692551/2" -> 44776692551 (dock ids are "<system number>/<planet number>"). NaN for an id of another shape. */
+export function systemOfDock(dockId: string): number {
   const cut = dockId.lastIndexOf("/");
-  return cut < 0 ? dockId : dockId.slice(0, cut);
+  return Number(cut < 0 ? dockId : dockId.slice(0, cut));
 }
 
 export function ownsOutpost(state: GameState, dockId: string): boolean {

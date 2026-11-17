@@ -21,15 +21,15 @@ import {
   tripSeconds,
   type GameState,
 } from "../src/game";
-import { generateJobBoard, listSystemsNear, type Job, docksOf, startDockOf } from "../src/universe";
+import { generateJobBoard, type Job, docksOf, startDockOf } from "../src/universe";
+import { nearStart } from "./helpers/near";
 
 const SEED = 12345;
-const ORIGIN = { x: 0, y: 0, z: 0 };
 const HOUR = 3_600_000;
 
 function sampleJobs(): Job[] {
   const jobs: Job[] = [];
-  for (const system of listSystemsNear(SEED, ORIGIN, 40).slice(0, 14)) {
+  for (const system of nearStart(SEED, 60).slice(0, 14)) {
     for (const dock of docksOf(SEED, system)) {
       for (const slot of [0, 6, 13, 500]) jobs.push(...generateJobBoard(SEED, dock, slot));
     }
@@ -154,7 +154,7 @@ describe("switching ships", () => {
   it("only works when docked, for owned ships, and not for the active one", () => {
     const s = owned();
     const job = cargoJob();
-    const flying = acceptJob({ ...s, fuel: 60, currentDockId: job.originDockId }, job, 0);
+    const flying = acceptJob({ ...s, completedJobs: TOP_RANKS, fuel: 60, currentDockId: job.originDockId }, job, 0);
     if (!flying.ok) throw new Error("accept failed");
     expect(switchShip(flying.state, "passenger-liner").ok).toBe(false);
     expect(switchShip(s, "scout").ok).toBe(false); // not owned
@@ -199,7 +199,7 @@ describe("passenger jobs and capacity", () => {
   });
 
   it("respects the cargo bay: the Liner holds only 6 units", () => {
-    const job = JOBS.find((j) => j.requiredHold === "CARGO_BAY" && j.amount > 6 && fuelCost(j.totalDistance) <= 70);
+    const job = JOBS.find((j) => j.requiredHold === "CARGO_BAY" && j.amount > 6 && j.amount <= 30 && fuelCost(j.totalDistance) <= 70);
     if (!job) throw new Error("no sample job");
     expect(checkJob({ ...at(job), shipId: "passenger-liner", fuel: 70 }, job)?.code).toBe("cargo-too-large");
     expect(checkJob({ ...at(job), shipId: "cargo-hauler" }, job)).toBeNull();

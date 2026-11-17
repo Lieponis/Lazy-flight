@@ -68,7 +68,7 @@ export {
 } from "./lookup";
 export type { NearDock, NearSystem } from "./lookup";
 export { NearCache } from "./near";
-export { boardPeriodOf, generateJobBoard, getJobBoard } from "./jobs";
+export { boardPeriodOf, generateJobBoard, getJobBoard, paidDistance } from "./jobs";
 export type { HoldType, Job, JobKind, LoadType, SpecialJobData } from "./jobs";
 export { summarizeSurveys, surveySeed } from "./survey";
 export type { SeedSurvey, SurveyOptions, SurveySummary } from "./survey";

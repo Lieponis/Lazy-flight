@@ -30,14 +30,14 @@ import {
   type GameState,
   type UpgradeTrack,
 } from "../src/game";
-import { generateDock, generateJobBoard, getPlanetsOfSystem, listSystemsNear, type Dock, type Job } from "../src/universe";
+import { generateDock, generateJobBoard, getPlanetsOfSystem, type Dock, type Job } from "../src/universe";
+import { nearStart } from "./helpers/near";
 
 const SEED = 12345;
-const ORIGIN = { x: 0, y: 0, z: 0 };
 const TOP = { TRADE: 99, PASSENGER: 99, TOUR: 99 };
 
 const docks: Dock[] = [];
-for (const system of listSystemsNear(SEED, ORIGIN, 40).slice(0, 14)) {
+for (const system of nearStart(SEED, 60).slice(0, 14)) {
   for (const planet of getPlanetsOfSystem(SEED, system.id)) docks.push(generateDock(SEED, planet));
 }
 const JOBS: Job[] = docks.flatMap((d) => [0, 6, 13].flatMap((slot) => generateJobBoard(SEED, d, slot)));
@@ -237,11 +237,13 @@ describe("upgrades: used by the whole job path", () => {
   });
 
   it("a bigger tank lets you take a trip that was too far", () => {
-    // Only tours are long enough to beat a tank, so look for one the Passenger Liner can seat but not fuel.
+    // A passenger job the Liner can seat, stretched to a trip it cannot fuel (the start region has no such trip: boards there are short).
     const ship = getShip("passenger-liner");
-    const job = JOBS.find((j) => j.requiredHold === "PASSENGER_CABIN" && j.amount <= ship.cabinCapacity && fuelCost(j.totalDistance) > ship.fuelTankSize && fuelCost(j.totalDistance) <= ship.fuelTankSize * 1.5);
-    expect(job).toBeDefined();
-    if (!job) return;
+    const seat = JOBS.find((j) => j.requiredHold === "PASSENGER_CABIN" && j.amount <= ship.cabinCapacity);
+    expect(seat).toBeDefined();
+    if (!seat) return;
+    const job = { ...seat, totalDistance: 55 }; // 110 fuel against a 100 tank
+    expect(fuelCost(job.totalDistance)).toBeGreaterThan(ship.fuelTankSize);
     const need = fuelCost(job.totalDistance);
     const level = Math.ceil(((need / ship.fuelTankSize) * 100 - 100) / UPGRADE_TANK_PERCENT_PER_LEVEL);
     const base = { ...at(job), shipId: "passenger-liner", fuel: need };

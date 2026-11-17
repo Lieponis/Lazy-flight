@@ -24,14 +24,14 @@ import {
   getDock,
   getPlanetsOfSystem,
   getSystem,
-  listSystemsNear,
   startDockOf,
   type Planet,
   type StarSystem,
+  nearestSystems,
 } from "../src/universe";
+import { nearStart } from "./helpers/near";
 
 const SEED = 12345;
-const ORIGIN = { x: 0, y: 0, z: 0 };
 
 /** A game on a clock we move by hand. */
 function makeGame(startDockId: string = startDockOf(SEED).id, seed = SEED) {
@@ -53,7 +53,7 @@ function sceneryOf(system: StarSystem, seed = SEED): Planet[] {
 
 /** The first near system that has at least one planet without a dock, with that planet and one of its docks. */
 function systemWithScenery(minDocks = 1, maxDocks = 3): { system: StarSystem; planet: Planet; dockId: string } {
-  for (const system of listSystemsNear(SEED, ORIGIN, 40)) {
+  for (const system of nearStart(SEED, 60)) {
     const docks = docksOf(SEED, system);
     const scenery = sceneryOf(system);
     if (scenery.length > 0 && docks.length >= minDocks && docks.length <= maxDocks) {
@@ -64,10 +64,10 @@ function systemWithScenery(minDocks = 1, maxDocks = 3): { system: StarSystem; pl
 }
 
 /** A dock in ANOTHER star system, near the start, that the starter ship can reach with fuel to spare. */
-function dockInAnotherSystem(fromSystemId: string, maxLy = 12): { dockId: string; systemId: string; ly: number } {
+function dockInAnotherSystem(fromSystemId: number, maxLy = 12): { dockId: string; systemId: number; ly: number } {
   const here = getSystem(SEED, fromSystemId) as StarSystem;
-  for (const system of listSystemsNear(SEED, here.position, maxLy)) {
-    if (system.id === fromSystemId) continue;
+  for (const { system, distance } of nearestSystems(SEED, here.position, 40)) {
+    if (system.id === fromSystemId || distance > maxLy) continue;
     const dock = docksOf(SEED, system)[0];
     if (dock) return { dockId: dock.id, systemId: system.id, ly: distanceBetweenSystems(SEED, fromSystemId, system.id) as number };
   }
@@ -256,7 +256,7 @@ describe("strand protection and the emergency refuel", () => {
     expect(low.ok).toBe(false);
     if (!low.ok) expect(low.reason).toContain(`needs ${need}, you have ${need - 1}`);
     // a place so far (over 30 ly) that the 60-unit tank cannot do it
-    const far = listSystemsNear(SEED, ORIGIN, 60).find((s) => (distanceBetweenSystems(SEED, game.currentSystemId(), s.id) as number) > 32);
+    const far = nearStart(SEED, 100).find((s) => (distanceBetweenSystems(SEED, game.currentSystemId(), s.id) as number) > 32);
     const farDock = far ? docksOf(SEED, far)[0] : undefined;
     if (farDock) {
       const tooFar = game.canFreeTravel(farDock.id);
@@ -294,15 +294,15 @@ describe("strand protection and the emergency refuel", () => {
 
 describe("discovery credits", () => {
   it("are 50 to 100 for every star system near the start, and the same every time", () => {
-    for (const system of listSystemsNear(SEED, ORIGIN, 40)) {
+    for (const system of nearStart(SEED, 60)) {
       const c = discoveryBase(SEED, system.id);
       expect(c).toBeGreaterThanOrEqual(50);
       expect(c).toBeLessThanOrEqual(100);
       expect(discoveryBase(SEED, system.id)).toBe(c);
     }
-    const all = new Set(listSystemsNear(SEED, ORIGIN, 40).map((s) => discoveryBase(SEED, s.id)));
+    const all = new Set(nearStart(SEED, 60).map((s) => discoveryBase(SEED, s.id)));
     expect(all.size).toBeGreaterThan(10); // not all the same number
-    expect(new Set(listSystemsNear(SEED, ORIGIN, 40).map((s) => discoveryBase(777, s.id) - discoveryBase(SEED, s.id))).size).toBeGreaterThan(1);
+    expect(new Set(nearStart(SEED, 60).map((s) => discoveryBase(777, s.id) - discoveryBase(SEED, s.id))).size).toBeGreaterThan(1);
   });
 
   it("are paid on the first arrival in a system, once, and the planet count still rises", () => {
@@ -399,16 +399,16 @@ describe("Explorer rank", () => {
   });
 
   it("the rank-up is reported on the arrival that earns it; the bonus counts from the NEXT system", () => {
-    const base = (id: string) => discoveryBase(SEED, id);
-    const first = recordArrival(exploredWith(48), "9:9:9:0/0", base); // +2 discoveries: system and planet = 50
+    const base = (id: number) => discoveryBase(SEED, id);
+    const first = recordArrival(exploredWith(48), "9001/0", base); // +2 discoveries: system and planet = 50
     expect(first.discovery.explorerRankUp).toEqual({ rankNumber: 2, rankName: "Cartographer" });
-    expect(first.discovery.credits).toBe(base("9:9:9:0")); // paid at the old rank (+0%)
-    const second = recordArrival(first.explored, "9:9:9:1/0", base);
-    expect(second.discovery.credits).toBe(Math.round(base("9:9:9:1") * 1.1)); // rank 2: +10%
+    expect(first.discovery.credits).toBe(base(9001)); // paid at the old rank (+0%)
+    const second = recordArrival(first.explored, "9002/0", base);
+    expect(second.discovery.credits).toBe(Math.round(base(9002) * 1.1)); // rank 2: +10%
     expect(second.discovery.explorerRankUp).toBeNull();
-    const third = recordArrival(exploredWith(198), "8:8:8:0/0", base);
+    const third = recordArrival(exploredWith(198), "9003/0", base);
     expect(third.discovery.explorerRankUp).toEqual({ rankNumber: 3, rankName: "Mr Galaxy-wide" });
-    expect(recordArrival(third.explored, "8:8:8:1/0", base).discovery.credits).toBe(Math.round(base("8:8:8:1") * 1.2));
+    expect(recordArrival(third.explored, "9004/0", base).discovery.credits).toBe(Math.round(base(9004) * 1.2));
   });
 
   it("game.getExplorer follows real arrivals", () => {
@@ -549,7 +549,7 @@ describe("the save", () => {
     expect(c.game.state.spacePlanetId).toBeNull();
   });
 
-  it("a v1 save with a free trip or a float is moved to the start dock; explored is cleared; v2 saves are untouched", () => {
+  it("a v1 save with a free trip or a float is moved to the start dock; explored is cleared; a v3 save is untouched", () => {
     const start = startDockOf(SEED).id;
     const { planet } = systemWithScenery();
     const v1 = (state: Partial<GameState>): SaveData => ({
@@ -559,7 +559,7 @@ describe("the save", () => {
       gameNowMs: 1,
       state: { ...newGameState(start), credits: 777, ...state } as GameState,
     });
-    const floating = migrateSave(v1({ spacePlanetId: planet.id, explored: { "1:1:1:1": 3 } }));
+    const floating = migrateSave(v1({ spacePlanetId: planet.id, explored: { "1": 3 } }));
     expect(floating.message).toBe(MESSAGE_REBUILT);
     expect(floating.data.state?.spacePlanetId).toBeNull();
     expect(floating.data.state?.explored).toEqual({});
@@ -577,9 +577,9 @@ describe("the save", () => {
     expect(trip.data.state?.travelEndMs).toBeNull();
     expect(trip.fuelBack).toBe(12); // 6 ly x 2 fuel, given back
     expect(trip.data.state?.fuel).toBe(42);
-    const v2: SaveData = { ...v1({ spacePlanetId: planet.id, explored: { "1:1:1:1": 3 } }), universeVersion: 2 };
-    const same = migrateSave(v2);
-    expect(same.data).toBe(v2);
+    const v3: SaveData = { ...v1({ spacePlanetId: planet.id, explored: { [String(planet.systemId)]: 3 } }), universeVersion: 3 };
+    const same = migrateSave(v3);
+    expect(same.data).toBe(v3);
     expect(same.message).toBeNull();
   });
 });

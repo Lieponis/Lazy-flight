@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { Game, createClock, newGameState, type GameState } from "../src/game";
 import { RANK_MAX_REWARD } from "../src/game/settings";
-import { getJobBoard, getPlanetsOfSystem, listSystemsNear, startDockOf, type Job } from "../src/universe";
+import { getJobBoard, getPlanetsOfSystem, startDockOf, type Job } from "../src/universe";
+import { nearStart } from "./helpers/near";
 import { STRATEGIES, simulate } from "./sim/balance-sim";
 
 const SEED = 12345;
@@ -67,7 +68,7 @@ describe("emergency fuel through normal rules", () => {
 // compared with the bigger reward. A job just under a rank limit is pushed over it by your own bonus.
 function jobJustUnderLimit(): Job | null {
   const limit = RANK_MAX_REWARD.TRADE[1]; // rank 2 may take cargo jobs up to this reward
-  for (const system of listSystemsNear(SEED, { x: 0, y: 0, z: 0 }, 35)) {
+  for (const system of nearStart(SEED, 50)) {
     for (const planet of getPlanetsOfSystem(SEED, system.id)) {
       for (let slot = 0; slot < 60; slot += 6) {
         for (const job of getJobBoard(SEED, planet.id, slot) ?? []) {

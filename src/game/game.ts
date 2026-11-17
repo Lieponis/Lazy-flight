@@ -3,15 +3,18 @@
 
 import { getShip } from "./ships";
 import {
+  NearCache,
   distanceBetweenSystems,
   getDock,
   getDocksOfSystem,
   getJobBoard,
   getPlanet,
+  getSite,
   getSystem,
   hashString,
-  listSystemsNear,
   type Job,
+  type NearDock,
+  type NearSystem,
   type Seed,
 } from "../universe";
 import { buyShip, shipCatalog, switchShip, type ShipCatalogEntry } from "./fleet";
@@ -48,6 +51,8 @@ import {
   acceptJob,
   checkJob,
   emergencyRefuel,
+  rangeForFuel,
+  reachOf,
   tripFuelCost,
   isStuck,
   refuel,
@@ -58,6 +63,7 @@ import {
   withoutDelivered,
   type Arrival,
   type Block,
+  type Reach,
   type TravelProgress,
 } from "./rules";
 import { newGameState, normalizeState, type GameState } from "./state";
@@ -74,6 +80,38 @@ export interface BoardEntry {
   tripSeconds: number;
   /** Null = you can take it. Otherwise the plain reason it is blocked. */
   block: Block | null;
+  /** Fuel only: "now" (enough fuel), "refuel" (fits the tank, buy fuel first), "never" (more than a full tank of this ship). */
+  reach: Reach;
+  /** A plain sentence about the fuel for the card ("Too far for this ship: needs 80 fuel, the tank holds 60."). */
+  reachText: string;
+}
+
+/** How many cards on the board you can take now, after refuelling, or never with this ship (stage G4). */
+export interface BoardSummary {
+  total: number;
+  doNow: number;
+  afterRefuel: number;
+  never: number;
+  /** Plain text for the board screen when no card can be taken now or after refuelling; null when something can. */
+  message: string | null;
+}
+
+/** Where you are and what your ship can reach from here (stage G4). */
+export interface PlaceInfo {
+  systemId: number;
+  systemName: string;
+  /** The dock id, or the planet id where you float. */
+  placeId: string;
+  isDocked: boolean;
+  /** The longest trip (light years) a FULL tank allows. */
+  rangeLy: number;
+  /** The longest trip with the fuel you have now. */
+  fuelRangeLy: number;
+  /** The nearest dock outside your own star system, or null if the galaxy has none near. */
+  nearestOtherDock: { dockId: string; name: string; systemId: number; distanceLy: number } | null;
+  /** True when the nearest other dock is farther than a full tank can fly. */
+  isRemote: boolean;
+  remoteMessage: string | null;
 }
 
 export type GameListener = () => void;
@@ -98,7 +136,7 @@ export interface OutpostOffer {
 export interface OwnedOutpost {
   dockId: string;
   dockName: string;
-  systemId: string;
+  systemId: number;
   systemName: string;
 }
 
@@ -129,6 +167,8 @@ export class Game {
   /** The last free trip that ended (a funny line, discovery credits). Cleared when a trip or job starts. */
   lastFreeArrival: FreeArrival | null = null;
   private listeners: GameListener[] = [];
+  /** Remembers the nearest-systems lists of the last few positions (the same position again costs almost nothing). */
+  private readonly near: NearCache;
 
   constructor(
     readonly seed: Seed,
@@ -136,6 +176,7 @@ export class Game {
     readonly clock: GameClock,
   ) {
     this.state = newGameState(startDockId);
+    this.near = new NearCache(seed);
   }
 
   subscribe(fn: GameListener): () => void {
@@ -166,15 +207,74 @@ export class Game {
     return jobs.map((plain) => {
       // Bonuses are added here, so the card shows exactly what the arrival will pay.
       const { job, baseReward, bonusPercent } = withBonuses(this.state, plain);
+      const fuel = reachOf(this.state, job.totalDistance);
       return {
         job,
         baseReward,
         bonusPercent,
-        fuelNeeded: tripFuelCost(this.state, job.totalDistance),
+        fuelNeeded: fuel.fuelNeeded,
         tripSeconds: tripSeconds(job.totalDistance),
         block: checkJob(this.state, plain),
+        reach: fuel.reach,
+        reachText: fuel.text,
       };
     });
+  }
+
+  /** Counts of what you can take (now, after refuelling, never) and the text to show when nothing can be taken. */
+  getBoardSummary(): BoardSummary {
+    const board = this.getBoard();
+    const doNow = board.filter((e) => e.block === null).length;
+    const afterRefuel = board.filter((e) => e.block !== null && e.reach === "refuel" && e.block.code === "not-enough-fuel").length;
+    const never = board.filter((e) => e.reach === "never").length;
+    let message: string | null = null;
+    if (doNow + afterRefuel === 0 && !isFlying(this.state) && this.state.spacePlanetId === null) {
+      const info = this.getPlaceInfo();
+      if (board.length === 0) message = "There are no jobs on this board right now.";
+      else if (never === board.length) message = info.remoteMessage ?? "Every job here is too far for this ship.";
+      else message = "No job here fits your ship right now (cargo, cabin, rank or tank).";
+    }
+    return { total: board.length, doNow, afterRefuel, never, message };
+  }
+
+  /** The star system, range and nearest other dock of the place you are at. */
+  getPlaceInfo(): PlaceInfo {
+    const systemId = this.currentSystemId();
+    const placeId = currentPlaceId(this.state);
+    const rangeLy = rangeForFuel(this.state, shipStats(this.state).fuelTankSize);
+    const fuelRangeLy = rangeForFuel(this.state, this.state.fuel);
+    const position = getSite(this.seed, systemId)?.position;
+    let nearestOtherDock: PlaceInfo["nearestOtherDock"] = null;
+    if (position) {
+      const other = this.near.docks(position, 6).find((d) => d.systemId !== systemId);
+      if (other) nearestOtherDock = { dockId: other.dockId, name: this.placeName(other.dockId), systemId: other.systemId, distanceLy: Math.round(other.distance * 10) / 10 };
+    }
+    const isRemote = nearestOtherDock !== null && nearestOtherDock.distanceLy > rangeLy;
+    return {
+      systemId,
+      systemName: this.currentSystemName(),
+      placeId,
+      isDocked: !isFlying(this.state) && this.state.spacePlanetId === null,
+      rangeLy,
+      fuelRangeLy,
+      nearestOtherDock,
+      isRemote,
+      remoteMessage: isRemote && nearestOtherDock
+        ? `Nothing here is within reach of this ship. The next dock is ${nearestOtherDock.distanceLy} ly away; a full tank takes you ${rangeLy} ly.`
+        : null,
+    };
+  }
+
+  /** The nearest `count` star systems around the place you are at, nearest first (your own system first, distance 0). A count, never a radius. */
+  nearbySystems(count = 40): NearSystem[] {
+    const position = getSite(this.seed, this.currentSystemId())?.position;
+    return position ? this.near.systems(position, count) : [];
+  }
+
+  /** The nearest `count` docks around the place you are at, nearest first. */
+  nearbyDocks(count = 12): NearDock[] {
+    const position = getSite(this.seed, this.currentSystemId())?.position;
+    return position ? [...this.near.docks(position, count)] : [];
   }
 
   /** Accept a job from the current board by its id. */
@@ -401,18 +501,16 @@ export class Game {
   }
 
   /** Light years from a star system to the nearest dock (0: every star system has at least one dock). */
-  private nearestDockLy(systemId: string): number {
+  private nearestDockLy(systemId: number): number {
     if (getDocksOfSystem(this.seed, systemId).length > 0) return 0;
-    const here = getSystem(this.seed, systemId);
+    const here = getSite(this.seed, systemId);
     if (!here) return 0;
-    for (const near of listSystemsNear(this.seed, here.position, 60)) {
-      if (near.id !== systemId && getDocksOfSystem(this.seed, near.id).length > 0) return distanceBetweenSystems(this.seed, systemId, near.id) ?? 60;
-    }
-    return 60;
+    const nearest = this.near.docks(here.position, 1)[0];
+    return nearest ? nearest.distance : 0;
   }
 
   /** Everything the trip needs (where from and to, how far, how far to the nearest dock), or the reason it cannot be made. */
-  private tripFactsTo(targetId: string): { ok: true; trip: TripFacts; targetName: string; isDock: boolean; targetSystemId: string } | { ok: false; reason: string } {
+  private tripFactsTo(targetId: string): { ok: true; trip: TripFacts; targetName: string; isDock: boolean; targetSystemId: number } | { ok: false; reason: string } {
     const planet = getPlanet(this.seed, targetId);
     if (!planet) return { ok: false, reason: "There is no such place." };
     const fromId = currentPlaceId(this.state);
@@ -528,9 +626,9 @@ export class Game {
   }
 
   /** The system id of the place you are at: your dock, or the planet you float at. */
-  currentSystemId(): string {
+  currentSystemId(): number {
     const placeId = currentPlaceId(this.state);
-    return getDock(this.seed, placeId)?.systemId ?? parsePlanetId(placeId)?.systemId ?? placeId.split("/")[0] ?? "";
+    return getDock(this.seed, placeId)?.systemId ?? parsePlanetId(placeId)?.systemId ?? systemOfDock(placeId);
   }
 
   currentSystemName(): string {

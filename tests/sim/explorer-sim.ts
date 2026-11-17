@@ -4,7 +4,7 @@
 // Used to choose and check the Explorer rank thresholds. Report: npm run balance.
 
 import { Game, createClock, discoveriesOf, EXPLORER_DISCOVERIES_NEEDED } from "../../src/game";
-import { docksOf, getPlanetsOfSystem, getSystem, listSystemsNear, startDockOf, type StarSystem } from "../../src/universe";
+import { docksOf, getPlanetsOfSystem, getSystem, nearestSystems, startDockOf, type StarSystem } from "../../src/universe";
 
 const HOUR = 3_600_000;
 
@@ -103,7 +103,7 @@ export function simulateExplorer(seed: number, style: ExplorerStyle, hours: numb
     if (next && fly(next)) continue;
     // 2. nearest star system not explored, one we can reach
     let went = false;
-    for (const system of listSystemsNear(seed, here.position, 40)) {
+    for (const { system } of nearestSystems(seed, here.position, 60)) {
       if (system.id === here.id || (game.state.explored[system.id] ?? 0) !== 0) continue;
       const dock = docksOf(seed, system)[0];
       if (!dock) continue;

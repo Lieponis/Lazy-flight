@@ -30,7 +30,8 @@ import {
   type SaveData,
   type StorageLike,
 } from "../src/save";
-import { UNIVERSE_VERSION, WORLD_SEED, docksOf, getJobBoard, getPlanetsOfSystem, listSystemsNear, startDockOf } from "../src/universe";
+import { UNIVERSE_VERSION, WORLD_SEED, docksOf, getJobBoard, getPlanetsOfSystem, startDockOf } from "../src/universe";
+import { nearStart } from "./helpers/near";
 
 class MemoryStorage implements StorageLike {
   data = new Map<string, string>();
@@ -51,7 +52,7 @@ const OTHER = 777;
 
 /** A believable seed-777 player: money, two ships, upgrades, paint, ranks, explored places, outposts (one with a stored price, one without), a trip in flight. */
 function otherSeedState(): GameState {
-  const near = listSystemsNear(OTHER, { x: 0, y: 0, z: 0 }, 40);
+  const near = nearStart(OTHER, 60);
   const outposts: string[] = [];
   for (const system of near) for (const dock of docksOf(OTHER, system)) if (dock.kind === "OUTPOST" && outposts.length < 2) outposts.push(dock.id);
   const explored: Record<string, number> = {};
@@ -249,7 +250,7 @@ describe("a save on another seed is carried over", () => {
 describe("a save on the world seed", () => {
   it("is untouched: same object, nothing written, no message, trip and outposts kept", () => {
     const start = startDockOf(WORLD_SEED).id;
-    const state = { ...newGameState(start), credits: 4_321, explored: { [listSystemsNear(WORLD_SEED, { x: 0, y: 0, z: 0 }, 10)[0]!.id]: 1 } };
+    const state = { ...newGameState(start), credits: 4_321, explored: { [nearStart(WORLD_SEED, 6)[0]!.id]: 1 } };
     const storage = storageWith(WORLD_SEED, state);
     const before = storage.getItem(SAVE_KEY);
     const { plan, game } = pageLoad("?speed=60", storage);

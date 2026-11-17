@@ -12,6 +12,8 @@ import {
   JOB_BOARD_REFRESH_SLOTS,
   JOB_DESTINATION_COUNT,
   JOB_LIMIT_HOURS_PER_10_LY,
+  REWARD_FULL_PAY_LY,
+  REWARD_SLOWDOWN_LY,
   TOUR_MAX_STOPS,
   TOUR_MIN_STOPS,
 } from "./settings";
@@ -100,6 +102,13 @@ function fill(n: number): number {
   return Math.max(0, Math.round(n));
 }
 
+/** The distance a trip is PAID for (G4): the real distance up to 50 ly, then growing slowly (square root, see settings.ts). */
+export function paidDistance(distanceLy: number): number {
+  const d = Math.max(distanceLy, 1);
+  if (d <= REWARD_FULL_PAY_LY) return d;
+  return REWARD_FULL_PAY_LY * Math.sqrt(1 + (d - REWARD_FULL_PAY_LY) / REWARD_SLOWDOWN_LY);
+}
+
 /** Time slot -> which board period it belongs to. */
 export function boardPeriodOf(slot: number): number {
   return Math.floor(Math.floor(slot) / JOB_BOARD_REFRESH_SLOTS);
@@ -167,7 +176,7 @@ export function generateJobBoard(seed: Seed, origin: Dock, slot: number): Job[] 
       from = position;
     }
     totalDistance = Math.round(totalDistance * 10) / 10;
-    const effectiveDistance = Math.max(totalDistance, 1);
+    const effectiveDistance = paidDistance(totalDistance);
 
     const limitRoll = rng.chance(0.4);
     // The time limit (hours) is a random 12 to 48 plus a little more for long trips.

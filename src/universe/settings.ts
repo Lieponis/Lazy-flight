@@ -62,3 +62,12 @@ export const TOUR_MAX_STOPS = 3;
 export const MAX_SYSTEM_NAME_LENGTH = 29;
 export const MAX_PLANET_NAME_LENGTH = 34;
 export const MAX_DOCK_FULL_NAME_LENGTH = 62;
+
+/**
+ * REWARD DISTANCE (stage G4, Andy's decision: long trips pay less per light year).
+ * Up to REWARD_FULL_PAY_LY a trip is paid per light year exactly as before. Beyond it the paid distance grows only like a
+ * square root: paid = FULL * sqrt(1 + (d - FULL) / SLOWDOWN). It joins the straight line smoothly at FULL (same slope 1),
+ * and a 650 ly trip is paid like about 250 ly. Used for trade, passenger and tour rewards (the time limit and the fuel use the real distance).
+ */
+export const REWARD_FULL_PAY_LY = 50;
+export const REWARD_SLOWDOWN_LY = 25;

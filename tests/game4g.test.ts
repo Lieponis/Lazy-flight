@@ -15,7 +15,8 @@ import {
 } from "../src/game";
 import { fitToUniverse, loadIntoGame, makeSaveData, migrateSave, readSave, type SaveData } from "../src/save";
 import { DEFAULT_LIVERY, LIVERIES, liveriesFor } from "../src/render/assets/liveries";
-import { docksOf, getPlanetsOfSystem, getSystem, listSystemsNear, startDockOf } from "../src/universe";
+import { docksOf, getPlanetsOfSystem, getSystem, startDockOf } from "../src/universe";
+import { nearStart } from "./helpers/near";
 
 const SEED = 12345;
 
@@ -147,7 +148,7 @@ describe("where you can buy", () => {
     const { game, advance } = g;
     game.buyLivery("cargo-hauler", "teal-line");
     let scenery: { id: string; name: string } | undefined;
-    for (const system of listSystemsNear(SEED, { x: 0, y: 0, z: 0 }, 40)) {
+    for (const system of nearStart(SEED, 60)) {
       const docks = new Set(docksOf(SEED, system).map((d) => d.id));
       const planet = getPlanetsOfSystem(SEED, system.id).find((p) => !docks.has(p.id));
       if (planet) {
@@ -185,7 +186,7 @@ describe("where you can buy", () => {
 
   it("at any dock, not only the start dock", () => {
     const { game } = richGame();
-    const other = listSystemsNear(SEED, { x: 0, y: 0, z: 0 }, 20).map((s) => docksOf(SEED, s)[0]).find((d) => d && d.id !== game.state.currentDockId);
+    const other = nearStart(SEED, 20).map((s) => docksOf(SEED, s)[0]).find((d) => d && d.id !== game.state.currentDockId);
     if (!other) throw new Error("no other dock");
     game.state = { ...game.state, currentDockId: other.id };
     expect(game.buyLivery("cargo-hauler", "hazard-yellow").ok).toBe(true);

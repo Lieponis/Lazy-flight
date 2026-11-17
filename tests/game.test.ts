@@ -21,16 +21,16 @@ import {
   tripSeconds,
   type GameState,
 } from "../src/game";
-import { generateJobBoard, listSystemsNear, type Job, docksOf, startDockOf } from "../src/universe";
+import { generateJobBoard, type Job, docksOf, startDockOf } from "../src/universe";
+import { nearStart } from "./helpers/near";
 
 const SEED = 12345;
-const ORIGIN = { x: 0, y: 0, z: 0 };
 const HOUR = 3_600_000;
 
 /** A sample of docks and the boards they show in a few time slots. */
 function sampleJobs(): Job[] {
   const jobs: Job[] = [];
-  for (const system of listSystemsNear(SEED, ORIGIN, 40).slice(0, 14)) {
+  for (const system of nearStart(SEED, 60).slice(0, 14)) {
     for (const dock of docksOf(SEED, system)) {
       for (const slot of [0, 6, 13, 500]) jobs.push(...generateJobBoard(SEED, dock, slot));
     }
@@ -290,7 +290,7 @@ describe("Game object", () => {
     // The job pays its reward; the first arrival in a new star system also pays discovery credits (stage F1).
     expect(game.state.credits).toBe(credits + entry.job.reward + (arrival?.discovery ?? 0));
     expect(game.state.currentDockId).toBe(entry.job.destinationDockId);
-    expect(game.currentSystemId()).toBe(entry.job.destinationDockId.split("/")[0]);
+    expect(game.currentSystemId()).toBe(Number(entry.job.destinationDockId.split("/")[0]));
     expect(game.update()).toBeNull(); // not paid twice
     expect(game.state.credits).toBe(credits + entry.job.reward + (arrival?.discovery ?? 0));
   });

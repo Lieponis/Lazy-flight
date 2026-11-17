@@ -6,12 +6,13 @@
 //   CANCELLED a job in flight: the cargo goes back and the fuel it burned is given back (no penalty)
 //   REFUNDED each owned outpost: the price paid if the save stored it, otherwise OUTPOST_REFUND_ESTIMATE
 //   CLEARED  the list of delivered jobs, the explored list (old ids mean other places now), a float in space or a free trip
+// (Universe 3, stage G4: the same rule moves every version 1 and version 2 save into the spiral galaxy.)
 // The same move is used when a save belongs to ANOTHER SEED than the shared world (stage N2, plan docs/plan-unique-names-world-seed.md):
 // every player lives in the one world universe, so a save made on seed 777 (a test link, "New random universe") is carried over.
 // Pure logic: the storage is not touched here.
 
 import { OUTPOST_REFUND_ESTIMATE, normalizeState, shipStats, tripFuelCost, type GameState } from "../game";
-import { UNIVERSE_VERSION, startDockOf } from "../universe";
+import { UNIVERSE_VERSION, isLegacyId, startDockOf } from "../universe";
 import type { SaveData } from "./save";
 
 /** What the player is told, once, after a move. */
@@ -20,6 +21,18 @@ export const MESSAGE_REBUILT = "The universe was rebuilt. Your credits and ships
 /** The universe version a save was made in (a save without the number is version 1). */
 export function universeVersionOf(save: SaveData): number {
   return save.universeVersion ?? 1;
+}
+
+/**
+ * True when the state holds a place id of the old kind ("3:-2:5:0/2", universe 1 and 2). Normally the saved universe
+ * number says so already; this is the second net for a save whose number is wrong or missing.
+ */
+export function hasLegacyIds(state: GameState | null): boolean {
+  if (!state) return false;
+  const ids: unknown[] = [state.currentDockId, state.spacePlanetId, ...(Array.isArray(state.ownedOutposts) ? state.ownedOutposts : [])];
+  if (state.currentJob) ids.push(state.currentJob.originDockId, state.currentJob.destinationDockId);
+  if (state.freeTrip) ids.push(state.freeTrip.fromId, state.freeTrip.toId);
+  return ids.some((id) => typeof id === "string" && isLegacyId(id));
 }
 
 export interface Migration {
@@ -33,14 +46,15 @@ export interface Migration {
 }
 
 /**
- * Brings a save up to the current universe. A save that is already current comes back untouched.
+ * Brings a save up to the current universe (version 3, the spiral galaxy). A save that is already current comes back untouched.
+ * A version 1 or 2 save (or one holding an old-shape id) is moved as described at the top of this file.
  * `toSeed` (stage N2): when given and the save belongs to another seed, the save is moved to that seed too
  * (same rule as an old universe: credits, ranks, ships, upgrades, paint jobs kept; the rest reset or refunded).
  * Without `toSeed` the save keeps its own seed (developer pages, the "continue as it is" path of ?dev=1).
  */
 export function migrateSave(save: SaveData, toSeed?: number): Migration {
   const otherSeed = toSeed !== undefined && save.seed !== toSeed;
-  if (universeVersionOf(save) >= UNIVERSE_VERSION && !otherSeed) return { data: save, message: null, refund: 0, fuelBack: 0 };
+  if (universeVersionOf(save) >= UNIVERSE_VERSION && !otherSeed && !hasLegacyIds(save.state)) return { data: save, message: null, refund: 0, fuelBack: 0 };
   const seed: number = otherSeed ? (toSeed as number) : save.seed;
 
   if (save.state === null) {

@@ -21,7 +21,8 @@ import {
   type PageEvents,
   type StorageLike,
 } from "../src/save";
-import { getJobBoard, getPlanetsOfSystem, listSystemsNear, type Job, startDockOf } from "../src/universe";
+import { getJobBoard, getPlanetsOfSystem, type Job, startDockOf } from "../src/universe";
+import { nearStart } from "./helpers/near";
 
 const SEED = 12345;
 const HOUR = 3_600_000;
@@ -60,7 +61,7 @@ const startDock = (): string => startDockOf(SEED).id;
 
 /** Some real job from this universe, starting at `dockId`. */
 function someJob(): Job {
-  for (const system of listSystemsNear(SEED, { x: 0, y: 0, z: 0 }, 40).slice(0, 10)) {
+  for (const system of nearStart(SEED, 60).slice(0, 10)) {
     for (const planet of getPlanetsOfSystem(SEED, system.id)) {
       const job = getJobBoard(SEED, planet.id, 0)?.[0];
       if (job) return job;

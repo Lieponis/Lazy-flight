@@ -31,13 +31,12 @@ import {
   getDock,
   getJobBoard,
   getPlanetsOfSystem,
-  listSystemsNear,
   startDockOf,
   type Job,
 } from "../src/universe";
+import { nearStart } from "./helpers/near";
 
 const SEED = 12345;
-const ORIGIN = { x: 0, y: 0, z: 0 };
 
 class MemoryStorage implements StorageLike {
   data = new Map<string, string>();
@@ -54,7 +53,7 @@ class MemoryStorage implements StorageLike {
 
 /** A real job from this universe that the starter ship can fly (so a v1 save can hold it in flight). */
 function someJob(): Job {
-  for (const system of listSystemsNear(SEED, ORIGIN, 40).slice(0, 12)) {
+  for (const system of nearStart(SEED, 60).slice(0, 12)) {
     for (const dock of docksOf(SEED, system)) {
       const job = getJobBoard(SEED, dock.id, 0)?.find((j) => j.kind === "TRADE" && j.amount <= 30);
       if (job) return job;
@@ -66,7 +65,7 @@ function someJob(): Job {
 /** Two real outposts (any two docks of kind OUTPOST). */
 function twoOutposts(): string[] {
   const ids: string[] = [];
-  for (const system of listSystemsNear(SEED, ORIGIN, 40)) {
+  for (const system of nearStart(SEED, 60)) {
     for (const dock of docksOf(SEED, system)) {
       if (dock.kind === "OUTPOST" && ids.length < 2) ids.push(dock.id);
     }
@@ -106,7 +105,7 @@ describe("startDockOf", () => {
       const a = startDockOf(seed);
       expect(getDock(seed, a.id)).not.toBeNull();
       expect(startDockOf(seed).id).toBe(a.id);
-      const system = listSystemsNear(seed, ORIGIN, 40)[0]!; // 40 ly holds the nearest system; a huge radius built thousands and was slow
+      const system = nearStart(seed, 60)[0]!; // 40 ly holds the nearest system; a huge radius built thousands and was slow
       expect(a.systemId).toBe(system.id);
       expect(a.id).toBe(docksOf(seed, system)[0]!.id);
     }
@@ -135,7 +134,7 @@ describe("docks only", () => {
   it("jobs start and end at real docks, for many seeds", () => {
     let checked = 0;
     for (const seed of [SEED, 7, 99, 2024]) {
-      for (const system of listSystemsNear(seed, ORIGIN, 25).slice(0, 12)) {
+      for (const system of nearStart(seed, 30).slice(0, 12)) {
         for (const dock of docksOf(seed, system)) {
           for (const job of generateJobBoard(seed, dock, 0)) {
             expect(getDock(seed, job.originDockId)).not.toBeNull();
@@ -150,7 +149,7 @@ describe("docks only", () => {
   });
 
   it("a system with one dock works: board, accept, arrive, paid", () => {
-    const single = listSystemsNear(SEED, ORIGIN, 40).find((s) => docksOf(SEED, s).length === 1 && s.planetCount > 1);
+    const single = nearStart(SEED, 60).find((s) => docksOf(SEED, s).length === 1 && s.planetCount > 1);
     expect(single).toBeDefined();
     if (!single) return;
     const dock = docksOf(SEED, single)[0]!;
@@ -170,7 +169,7 @@ describe("docks only", () => {
   });
 
   it("planets without a dock have no board and no distance", () => {
-    for (const system of listSystemsNear(SEED, ORIGIN, 30).slice(0, 10)) {
+    for (const system of nearStart(SEED, 40).slice(0, 10)) {
       const dockIds = new Set(docksOf(SEED, system).map((d) => d.id));
       for (const planet of getPlanetsOfSystem(SEED, system.id)) {
         if (dockIds.has(planet.id)) continue;
@@ -182,7 +181,7 @@ describe("docks only", () => {
   });
 
   it("a save sitting on a planet without a dock is moved to the start dock", () => {
-    const system = listSystemsNear(SEED, ORIGIN, 40).find((s) => s.planetCount > docksOf(SEED, s).length)!;
+    const system = nearStart(SEED, 60).find((s) => s.planetCount > docksOf(SEED, s).length)!;
     const dockIds = new Set(docksOf(SEED, system).map((d) => d.id));
     const noDock = getPlanetsOfSystem(SEED, system.id).find((p) => !dockIds.has(p.id))!;
     const fitted = fitToUniverse(newGameState(noDock.id), SEED, startDockOf(SEED).id);
