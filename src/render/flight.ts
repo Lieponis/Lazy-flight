@@ -386,7 +386,7 @@ export class FlightScreen implements Screen {
   }
 
   /** The system the flight is going to. */
-  destinationSystemId(): string | null {
+  destinationSystemId(): number | null {
     return this.info ? (parseDockId(this.info.destinationDockId)?.systemId ?? null) : null;
   }
 

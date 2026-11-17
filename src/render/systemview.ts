@@ -220,7 +220,7 @@ export class SystemViewScreen implements Screen {
   private starLabel = "";
   private temp = new THREE.Vector3();
   private clockT = 0;
-  private systemId: string | null = null;
+  private systemId: number | null = null;
   private markStyle: MarkStyle = SYSTEM_MARK_STYLE;
   private summary = "";
   private triangles = 0;
@@ -247,7 +247,7 @@ export class SystemViewScreen implements Screen {
   /** Marks docks with bright orbit lines ("A", the default) or the old look ("off"). Rebuilds the picture but keeps the camera. */
   setMarkStyle(style: MarkStyle): void {
     this.markStyle = style;
-    if (!this.systemId) return;
+    if (this.systemId === null) return;
     const { yaw, pitch, dist } = this.view;
     this.open(this.systemId);
     this.view.yaw = yaw;
@@ -261,7 +261,7 @@ export class SystemViewScreen implements Screen {
   }
 
   /** Builds the picture of one system. Call before enter(). */
-  open(systemId: string): boolean {
+  open(systemId: number): boolean {
     const { seed } = this.opts;
     const system = getSystem(seed, systemId);
     if (!system) return false;

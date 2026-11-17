@@ -1,7 +1,7 @@
 // SCREEN 1: the starmap. Nearby star systems as small chunky diamonds, colored by star type.
 
 import * as THREE from "three";
-import { distance, listSystemsNear, type Seed, type StarSystem } from "../universe";
+import { distance, nearestSystems, type Seed, type StarSystem } from "../universe";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import {
   hexToNumber,
@@ -23,12 +23,18 @@ export interface StarMapOptions {
   hud: Hud;
   state: StateStore;
   current: StarSystem;
-  onOpenSystem: (systemId: string) => void;
+  onOpenSystem: (systemId: number) => void;
   /** The map shows every system closer than this (light years). Default 35. */
   radiusLy?: number;
   /** True when the ship can fly farther than the map shows: the hint then says so. */
   farNote?: boolean;
 }
+
+/**
+ * Stage G5a step 1 (temporary, until the real galaxy map replaces this screen): the universe is asked for the nearest systems by COUNT
+ * (never by radius: 80 ly at the dense centre holds 363,000 systems), and the map keeps those inside its radius.
+ */
+const INTERIM_MAX_SYSTEMS = 1500;
 
 function makeMarker(color: number): THREE.LineSegments {
   const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
@@ -53,7 +59,9 @@ export class StarMapScreen implements Screen {
     const limits = starmapCameraLimits(radius);
     this.camera.far = limits.far;
     this.camera.updateProjectionMatrix();
-    this.systems = listSystemsNear(opts.seed, origin, radius);
+    this.systems = nearestSystems(opts.seed, origin, INTERIM_MAX_SYSTEMS)
+      .filter((n) => n.distance <= radius)
+      .map((n) => n.system);
     // The map is centered on the current system, so the current system sits at (0,0,0).
     this.positions = this.systems.map(
       (s) => new THREE.Vector3(s.position.x - origin.x, s.position.y - origin.y, s.position.z - origin.z),

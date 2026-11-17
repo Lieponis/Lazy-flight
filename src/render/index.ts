@@ -7,7 +7,7 @@
 //   api.state.subscribe((s) => ...)    // be told when something changes
 
 import type * as THREE from "three";
-import { getDocksOfSystem, getPlanetsOfSystem, getSystem, listSystemsNear, parseDockId, type StarSystem } from "../universe";
+import { getDocksOfSystem, getPlanetsOfSystem, getSystem, nearestSystems, parseDockId, type StarSystem } from "../universe";
 import type { FlightInfo } from "./flightplan";
 import { Hud } from "./hud";
 import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
@@ -43,12 +43,12 @@ export type { FlightInfo, FlightProgress } from "./flightplan";
 
 export interface RenderApi {
   state: StateStore;
-  /** The home screen: the camera above the ship, parked at this dock (a planet id like "3:-2:5:0/2"). */
+  /** The home screen: the camera above the ship, parked at this dock (a planet id like "44776692551/2": system number / planet number). */
   showDocked(dockId: string): void;
   showStarmap(): void;
-  showSystem(systemId: string): void;
+  showSystem(systemId: number): void;
   /** Move the "you are here" system (the starmap ring and label follow). Used by the game on arrival. */
-  setCurrentSystem(systemId: string): void;
+  setCurrentSystem(systemId: number): void;
   /**
    * How far (light years) the current ship can fly with the fuel it carries (the app works it out: fuel divided by the fuel one light
    * year burns). The galaxy map grows to show every reachable star, up to a cap (see STARMAP_MAX_RADIUS_LY). Call it whenever fuel,
@@ -60,7 +60,7 @@ export interface RenderApi {
   /** The game says the trip is over: finish the animation, then show the docked view at the destination dock. */
   endFlight(): void;
   /**
-   * Free travel: show the calm "in space at this planet" scene for a planet WITHOUT a dock (id like "3:-2:5:0/4").
+   * Free travel: show the calm "in space at this planet" scene for a planet WITHOUT a dock (id like "44776692551/4").
    * Use it when the page opens while the ship floats there. A free trip that ends at such a planet goes into this scene by itself.
    * Returns false for an unknown planet. The screen is "flight" and state.floatingPlanetId holds the planet id while it shows.
    */
@@ -161,13 +161,13 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
       const systemId = parseDockId(dockId)?.systemId ?? null;
       state.set({ screen: "docked", dockedDockId: dockId, viewedSystemId: null, selectedPlanetId: null, floatingPlanetId: null });
       show(docked);
-      if (systemId && systemId !== state.get().currentSystemId) api.setCurrentSystem(systemId);
+      if (systemId !== null && systemId !== state.get().currentSystemId) api.setCurrentSystem(systemId);
     },
     showStarmap(): void {
       state.set({ screen: "starmap", viewedSystemId: null, selectedPlanetId: null, floatingPlanetId: null });
       show(starmap);
     },
-    setCurrentSystem(systemId: string): void {
+    setCurrentSystem(systemId: number): void {
       const here = getSystem(seed, systemId);
       if (!here || here.id === state.get().currentSystemId) return;
       state.set({ currentSystemId: here.id });
@@ -214,13 +214,13 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     leaveFloating(): void {
       const id = flight.isFloating() ? flight.floatingPlanetId() : null;
       const systemId = id ? parseDockId(id)?.systemId : null;
-      if (systemId) api.showSystem(systemId);
+      if (typeof systemId === "number") api.showSystem(systemId);
       else api.showStarmap();
     },
     isFlying(): boolean {
       return active === flight;
     },
-    showSystem(systemId: string): void {
+    showSystem(systemId: number): void {
       if (!getSystem(seed, systemId) || !systemView.open(systemId)) return;
       state.set({ screen: "system", viewedSystemId: systemId, selectedPlanetId: null, floatingPlanetId: null });
       show(systemView);
@@ -258,7 +258,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
 
   // Testing aid for the system view (stage U3): ?systempreview=1 gives buttons to compare dock marks and step through systems.
   if (parseSystemPreview(window.location.search)) {
-    const region = listSystemsNear(seed, current.position, 40);
+    const region = nearestSystems(seed, current.position, 400).map((n) => n.system); // the 400 nearest systems
     // Stage 3i: the longest system name and a pure-name system (no code) come first, to check long names in the title and the summary.
     const longest = [...region].sort((a, b) => b.name.length - a.name.length)[0];
     const pure = region.find((s) => splitCodedName(s.name) === null && getDocksOfSystem(seed, s.id).length > 0);
@@ -278,7 +278,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
 
   // Testing aid for free travel (stage 3g): ?floatpreview=1 floats at planets without a dock; A / B / C layouts, free trips, triangle count.
   if (parseFloatPreview(window.location.search)) {
-    const near = listSystemsNear(seed, current.position, 40);
+    const near = nearestSystems(seed, current.position, 400).map((n) => n.system);
     const picks = floatCandidates(seed, near, 3);
     const docks = getDocksOfSystem(seed, current.id).map((d) => d.id);
     let shown = 0;
@@ -336,7 +336,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
 
   // Testing aid for long unique names (stage 3i): ?namepreview=1 shows a sheet of cockpit information screens with real and worst-case names.
   if (parseNamePreview(window.location.search)) {
-    const region = listSystemsNear(seed, current.position, 100);
+    const region = nearestSystems(seed, current.position, 1500).map((n) => n.system); // the 1,500 nearest systems
     const sources = region.map((s) => ({
       system: s.name,
       planets: getPlanetsOfSystem(seed, s.id).map((p) => p.name),

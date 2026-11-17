@@ -4,7 +4,7 @@
 // Reads the universe only; changes nothing.
 
 import * as THREE from "three";
-import { getPlanetsOfSystem, listSystemsNear, type Planet, type Seed } from "./universe";
+import { getPlanetsOfSystem, nearestSystems, START_POINT, type Planet, type Seed } from "./universe";
 import { makePlanetMesh, disposeAll } from "./render/systemview";
 import { chooseLook, type EarthStyle } from "./render/planetlook";
 import { parseSeedParam } from "./render/helpers";
@@ -26,7 +26,7 @@ const state = {
 
 function allPlanets(seed: Seed): Planet[] {
   const out: Planet[] = [];
-  for (const s of listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 40)) out.push(...getPlanetsOfSystem(seed, s.id));
+  for (const { system } of nearestSystems(seed, START_POINT, 40)) out.push(...getPlanetsOfSystem(seed, system.id));
   return out;
 }
 

@@ -8,13 +8,10 @@ export const START_SEED: Seed = 12345;
 
 /**
  * Which system you start in.
- *   null          = the system nearest to the middle of the galaxy (START_POINT)
- *   "3:-2:5:0"    = a specific system id (copy one from /debug.html)
+ *   null          = the universe's own start system (`startSystem(seed)`: the nearest system with a dock to the universe's START_POINT)
+ *   44776692551   = a specific system number (copy one from /debug.html)
  */
-export const START_SYSTEM_ID: string | null = null;
-
-/** The middle of the galaxy, in light years. Used when START_SYSTEM_ID is null. */
-export const START_POINT = { x: 0, y: 0, z: 0 };
+export const START_SYSTEM_ID: number | null = null;
 
 /** The starmap shows every system closer than this to the current one, in light years, as a minimum. */
 export const STARMAP_RADIUS_LY = 35;
