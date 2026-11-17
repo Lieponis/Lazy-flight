@@ -1,6 +1,6 @@
 // SMALL PURE HELPERS for the galaxy map preview page (prototype G2). No Three.js, no page code, so they can be tested.
 
-import { DENSITY_SPACINGS } from "./neardata";
+import { DENSITY_SPACINGS, ZOOM_REFERENCE_STARS } from "./neardata";
 import { TELEPORTS, type LookId, type Teleport } from "./galaxyfield";
 import { SKY_LOOKS, type SkyLookId } from "./skylook";
 import type { Vec3 } from "./skyglow";
@@ -31,6 +31,10 @@ export const DIAMOND_CAPS = [2000, 5000, 10000, 20000] as const;
 /** How many nearby stars the preview makes in total (the nearest ones are tappable, all are drawn as pixels). */
 export const NEAR_TOTAL = 60000;
 
+/** The shape of the near stars: "galaxy" = thinned out like the galaxy disc (flat at the rim, ends at the edge), "ball" = the plain ball. */
+export type NearShapeId = "galaxy" | "ball";
+export const NEAR_SHAPES: readonly NearShapeId[] = ["galaxy", "ball"];
+
 export interface PreviewParams {
   place: Teleport["id"];
   look: LookId;
@@ -42,6 +46,7 @@ export interface PreviewParams {
   tap: (typeof TAP_COUNTS)[number];
   zoom: ZoomOutMode;
   diamonds: (typeof DIAMOND_CAPS)[number];
+  shape: NearShapeId;
   glow: boolean;
   dots: boolean;
   pixels: boolean;
@@ -58,6 +63,7 @@ export const DEFAULT_PARAMS: PreviewParams = {
   tap: 10000,
   zoom: "near",
   diamonds: 5000,
+  shape: "galaxy",
   glow: true,
   dots: true,
   pixels: true,
@@ -97,6 +103,7 @@ export function parsePreviewParams(search: string): PreviewParams {
     tap: pick(q.get("tap"), TAP_COUNTS, d.tap),
     zoom: pick(q.get("zoom"), ZOOM_OUT_MODES, d.zoom),
     diamonds: pick(q.get("diamonds"), DIAMOND_CAPS, d.diamonds),
+    shape: pick(q.get("shape"), NEAR_SHAPES, d.shape),
     glow: flag(q.get("glow"), d.glow),
     dots: flag(q.get("dots"), d.dots),
     pixels: flag(q.get("pixels"), d.pixels),
@@ -152,16 +159,21 @@ export const MAX_ZOOM_SHARE = 0.9;
  */
 export type ZoomOutMode = "near" | "medium" | "wide";
 export const ZOOM_OUT_MODES: readonly ZoomOutMode[] = ["near", "medium", "wide"];
-/** How many of the nearest stars the "near" zoom-out limit reaches out to. */
-export const ZOOM_OUT_STARS = 1000;
+/** How many stars of a full ball the "near" zoom-out limit reaches out to. */
+export const ZOOM_OUT_STARS = ZOOM_REFERENCE_STARS;
 /** Near a target the camera can always back off at least this far (light years), even at the bubble's limit. */
 export const ROOM_AROUND_TARGET_LY = 12;
 
-/** The zoom-out limit as a distance from the player (light years). `starDistances` = distances of the stars, nearest first. */
-export function zoomOutLimit(mode: ZoomOutMode, starDistances: ArrayLike<number>, starCount: number, bubbleRadius: number): number {
+/**
+ * The zoom-out limit as a distance from the player (light years). `starDistances` = distances of the stars, nearest first.
+ * `ballLy` (optional) = the distance at which a full ball of stars would hold ZOOM_OUT_STARS stars (`NearStars.zoomNearLy`). When the
+ * stars are shaped like the galaxy a disc holds the 1,000th star much farther out, so the limit uses the ball distance instead:
+ * the limit then does not change with the shape. Without `ballLy` the 1,000th nearest star's distance is used.
+ */
+export function zoomOutLimit(mode: ZoomOutMode, starDistances: ArrayLike<number>, starCount: number, bubbleRadius: number, ballLy?: number): number {
   const wide = MAX_ZOOM_SHARE * bubbleRadius;
   if (mode === "wide") return wide;
-  const nearest = starDistances[Math.max(0, Math.min(ZOOM_OUT_STARS, starCount) - 1)] ?? bubbleRadius;
+  const nearest = ballLy ?? starDistances[Math.max(0, Math.min(ZOOM_OUT_STARS, starCount) - 1)] ?? bubbleRadius;
   return Math.min(wide, (mode === "near" ? 1 : 2) * nearest);
 }
 /** Closest zoom (light years from what the camera looks at): a diamond is about 0.7 ly wide, so it fills a good part of the screen. */

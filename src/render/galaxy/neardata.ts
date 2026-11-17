@@ -32,8 +32,31 @@ export interface NearStars {
   radii: Float32Array;
   /** A made-up id per star: the rank by distance (0 = nearest). */
   ids: Uint32Array;
-  /** Distance of the farthest star. */
+  /**
+   * Radius of the near-star bubble (light years): no star lies farther, and the fade-out at the edge, the camera's far plane and
+   * the sky's start all follow it. It is the same with or without a shape (the shape only thins stars out inside the ball).
+   */
   radius: number;
+  /** How many stars a full, un-thinned ball of this size holds (the `count` asked for). `count` is smaller when a shape thinned it. */
+  ballCount: number;
+  /**
+   * The distance (light years) at which a full, un-thinned ball of stars holds ZOOM_REFERENCE_STARS stars. The "near" zoom-out limit
+   * follows it, so the limit is the same with or without a shape (Andy approved it at the rim: about 829 ly).
+   */
+  zoomNearLy: number;
+}
+
+/** How many stars of a full ball the "near" zoom-out limit reaches out to (see `NearStars.zoomNearLy`). */
+export const ZOOM_REFERENCE_STARS = 1000;
+
+/**
+ * A shape that thins the stars out like the galaxy does. `origin` is where the player stands in the galaxy (light years);
+ * `keep(x, y, z)` gives, for a point in galaxy coordinates, the share (0..1) of the full star density that is left there.
+ * The mid-plane density (and so the spacing) is not changed: a shape only removes stars, never adds or moves them.
+ */
+export interface NearShape {
+  origin: { x: number; y: number; z: number };
+  keep(x: number, y: number, z: number): number;
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -46,15 +69,23 @@ const TYPE_TOTAL = STAR_TYPES.reduce((sum, t) => sum + t.weight, 0);
 /**
  * `count` stars spread evenly through a ball around the player, `spacing` light years apart on average
  * (the ball's size follows from that). Sorted nearest first. Same `seed` = same stars.
+ *
+ * With a `shape`, the ball is first made exactly as without one, then every star is kept or dropped by chance in proportion to
+ * `shape.keep` at its place: so the result is always a subset of the plain ball (same stars, same colours), flat where the galaxy
+ * disc is thin and ending where the galaxy ends. The dropping uses its own random stream, so it never changes the ball itself.
  */
-export function makeNearStars(count: number, spacing: number, seed: number): NearStars {
+export function makeNearStars(count: number, spacing: number, seed: number, shape?: NearShape): NearStars {
   const radius = nearRadiusFor(spacing, count);
   const rand = mulberry(seed);
+  const dropRand = mulberry((seed ^ 0x5bd1e995) + 0x1b873593);
   const px = new Float32Array(count);
   const py = new Float32Array(count);
   const pz = new Float32Array(count);
   const d = new Float32Array(count);
   const type = new Uint8Array(count);
+  const kept = new Uint8Array(count);
+  let keptCount = 0;
+  let farthest = 0;
   for (let i = 0; i < count; i++) {
     const r = radius * Math.cbrt(rand());
     const cosT = rand() * 2 - 1;
@@ -64,6 +95,7 @@ export function makeNearStars(count: number, spacing: number, seed: number): Nea
     py[i] = r * cosT;
     pz[i] = r * sinT * Math.sin(a);
     d[i] = r;
+    if ((d[i] ?? 0) > farthest) farthest = d[i] ?? 0;
     let pick = rand() * TYPE_TOTAL;
     let t = 0;
     while (t < STAR_TYPES.length - 1 && pick >= (STAR_TYPES[t]?.weight ?? 0)) {
@@ -71,14 +103,25 @@ export function makeNearStars(count: number, spacing: number, seed: number): Nea
       t++;
     }
     type[i] = t;
+    // One number from the dropping stream per star, used or not, so the stream never depends on the shape.
+    const roll = dropRand();
+    if (!shape || roll < shape.keep(shape.origin.x + (px[i] ?? 0), shape.origin.y + (py[i] ?? 0), shape.origin.z + (pz[i] ?? 0))) {
+      kept[i] = 1;
+      keptCount++;
+    }
   }
-  // Rank by distance.
-  const order = Array.from({ length: count }, (_, i) => i).sort((a, b) => (d[a] ?? 0) - (d[b] ?? 0));
-  const positions = new Float32Array(count * 3);
-  const distances = new Float32Array(count);
-  const colors = new Float32Array(count * 3);
-  const radii = new Float32Array(count);
-  const ids = new Uint32Array(count);
+  // The zoom reference: how far out a full ball holds ZOOM_REFERENCE_STARS stars (taken before any star is dropped).
+  const zoomIndex = Math.min(ZOOM_REFERENCE_STARS, count) - 1;
+  const zoomNearLy = zoomIndex < 0 ? 0 : (Float32Array.from(d).sort()[zoomIndex] ?? 0);
+  // Rank the stars that are left by distance.
+  const order: number[] = [];
+  for (let i = 0; i < count; i++) if (kept[i]) order.push(i);
+  order.sort((a, b) => (d[a] ?? 0) - (d[b] ?? 0));
+  const positions = new Float32Array(keptCount * 3);
+  const distances = new Float32Array(keptCount);
+  const colors = new Float32Array(keptCount * 3);
+  const radii = new Float32Array(keptCount);
+  const ids = new Uint32Array(keptCount);
   const palette = STAR_TYPES.map((t) => hexToRgb(t.color));
   order.forEach((src, rank) => {
     positions[rank * 3] = px[src] ?? 0;
@@ -93,7 +136,7 @@ export function makeNearStars(count: number, spacing: number, seed: number): Nea
     radii[rank] = STAR_TYPES[tp]?.radius ?? 1;
     ids[rank] = rank;
   });
-  return { count, positions, distances, colors, radii, ids, radius: distances[count - 1] ?? 0 };
+  return { count: keptCount, positions, distances, colors, radii, ids, radius: farthest, ballCount: count, zoomNearLy };
 }
 
 /** How many of the (nearest first) stars lie within `reachLy`. Binary search on the sorted distances. */
