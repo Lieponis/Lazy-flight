@@ -7,7 +7,7 @@
 //   api.state.subscribe((s) => ...)    // be told when something changes
 
 import type * as THREE from "three";
-import { getDocksOfSystem, getPlanetsOfSystem, getSystem, nearestSystems, parseDockId, type Seed, type StarSystem } from "../universe";
+import { START_POINT, getDocksOfSystem, getPlanetsOfSystem, getSystem, nearestSystems, parseDockId, type Seed, type StarSystem } from "../universe";
 import type { FlightInfo } from "./flightplan";
 import { Hud } from "./hud";
 import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
@@ -29,7 +29,7 @@ import { mountSystemPreview } from "./systempreview";
 import { mountWarpPreview } from "./warppreview";
 import { parseFloatPreview, parseFloatStyle } from "./floatmath";
 import { floatCandidates } from "./floatpick";
-import { parseReachParam } from "./starmapradius";
+import { parseMapAt, parseReachParam } from "./starmapradius";
 import type { MapSource } from "./galaxy/mapdata";
 import { mountFloatPreview } from "./floatpreview";
 import { splitCodedName } from "./namefit";
@@ -112,7 +112,8 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
   }
 
   const forcedReach = parseReachParam(window.location.search); // testing aid ?reach=NUMBER (diamonds only)
-  const mapHere = (here: StarSystem) => ({ id: here.id, name: here.name, starLabel: here.star.label, position: here.position });
+  const mapAt = parseMapAt(window.location.search, START_POINT); // testing aid ?mapat=centre|start|middle|rim: look from there, ship unmoved
+  const mapHere = (here: StarSystem) => ({ id: here.id, name: here.name, starLabel: here.star.label, position: mapAt ? mapAt.position : here.position });
   const starmap = new StarMapScreen({
     source: options.mapSource ? options.mapSource(seed) : null,
     host: canvas,
@@ -121,6 +122,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     current: mapHere(current),
     onOpenSystem: (id) => api.showSystem(id),
     reachLy: forcedReach,
+    testView: mapAt ? mapAt.name : null,
   });
   // The dock the ship is parked at (the first one shown). Navigation buttons live in src/ui (Agent 5).
   let lastDockId = getDocksOfSystem(seed, current.id)[0]?.id ?? "";

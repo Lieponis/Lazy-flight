@@ -73,6 +73,8 @@ export interface StarMapOptions {
   onOpenSystem: (systemId: number) => void;
   /** The ship's reach in light years (decides which stars get a diamond). Null = not known yet. */
   reachLy?: number | null;
+  /** Testing aid ?mapat=: the name of the place the map is looking from instead of the ship's real one (shown in the title). */
+  testView?: string | null;
 }
 
 /** A sky being built, a few milliseconds per frame: the glow first, then the dots. */
@@ -487,7 +489,10 @@ export class StarMapScreen implements Screen {
   // ------------------------------------------------------------------ the words on screen
 
   private refreshTitle(): void {
-    this.opts.hud.setTitle(`STARMAP - you are in ${this.current.name} (${this.current.starLabel})`);
+    const test = this.opts.testView;
+    this.opts.hud.setTitle(
+      test ? `STARMAP TEST VIEW: ${test} (not where your ship is)` : `STARMAP - you are in ${this.current.name} (${this.current.starLabel})`,
+    );
   }
 
   private refreshHud(): void {
