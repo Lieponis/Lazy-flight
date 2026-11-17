@@ -18,7 +18,7 @@ import {
 } from "../src/ui/titlelogic";
 import { pickTitlePlanets } from "../src/ui/titlescene";
 import { SPEAKER_STYLE, speakerLabel } from "../src/ui/statusstrip";
-import { getPlanetsOfSystem, listSystemsNear } from "../src/universe";
+import { START_POINT, getPlanetsOfSystem, nearestSystems } from "../src/universe";
 
 describe("title: Andy's words", () => {
   it("name and tagline as chosen", () => {
@@ -94,7 +94,7 @@ describe("title: picture and layout", () => {
   });
 
   it("picks the planet you are at first, then a different one", () => {
-    const system = listSystemsNear(12345, { x: 0, y: 0, z: 0 }, 30).find((s) => getPlanetsOfSystem(12345, s.id).length > 2)!;
+    const system = nearestSystems(12345, START_POINT, 100).map((n) => n.system).find((s) => getPlanetsOfSystem(12345, s.id).length > 2)!;
     const planets = getPlanetsOfSystem(12345, system.id);
     const [a, b] = pickTitlePlanets(planets, planets[1]!.id)!;
     expect(a.id).toBe(planets[1]!.id);

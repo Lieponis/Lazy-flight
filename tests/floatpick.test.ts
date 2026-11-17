@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { listSystemsNear } from "../src/universe";
+import { START_POINT, nearestSystems } from "../src/universe";
 import { floatCandidates } from "../src/render/floatpick";
 import { buildShipModel } from "../src/render/models3d";
 import { liveriesFor } from "../src/render/assets";
 
 describe("float preview picks", () => {
   const seed = 12345;
-  const systems = listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 40);
+  const systems = nearestSystems(seed, START_POINT, 400).map((n) => n.system); // universe v3: the 400 nearest systems to the start
   it("finds planets without a dock, the same every time", () => {
     const a = floatCandidates(seed, systems, 3);
     const b = floatCandidates(seed, systems, 3);
