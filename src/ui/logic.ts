@@ -29,6 +29,11 @@ import type { JobKind } from "../universe";
 // ------------------------------------------------------------ numbers
 
 /** 1250 -> "1,250 CR". Negative and odd numbers are handled. */
+/** A whole count with thousands separators: 100000 -> "100,000" (G5b, Explorer counts). */
+export function formatCount(n: number): string {
+  return formatCredits(n).replace(/ CR$/, "");
+}
+
 export function formatCredits(credits: number): string {
   const n = Number.isFinite(credits) ? Math.round(credits) : 0;
   const sign = n < 0 ? "-" : "";
@@ -607,15 +612,21 @@ export function planetPanelText(p: PlanetPanelInput): PlanetPanelText {
 /** The hint on the system map before a planet is tapped. */
 export const PLANET_PANEL_HINT = "Tap a planet to see it. Drag to turn, pinch to zoom.";
 
+/** G5b: what a move into the new galaxy keeps and what it leaves behind (one wording for the start note and the import confirm). */
+export const MOVE_KEPT = "Kept: credits, ships, upgrades, paint jobs, ranks, job counts, time.";
+export const MOVE_GONE = "Left behind: your job, any free trip, the explored list.";
+
 /**
  * The start-up note. The "universe was rebuilt" message from src/save becomes friendlier and stays longer
- * (Andy chose the fading note, tap to close). Other notes stay as they are.
+ * (Andy chose the fading note, tap to close). G5b: it now says what was kept, what is gone and where the ship is.
+ * Other notes stay as they are.
  */
-export function startNotice(notice: string, rebuiltMessage: string): { text: string; ms: number } {
+export function startNotice(notice: string, rebuiltMessage: string, startDockName = ""): { text: string; ms: number } {
   if (!notice.startsWith(rebuiltMessage)) return { text: notice, ms: 7000 };
   const sold = /sold back for (\d+) credits/.exec(notice);
-  const refund = sold ? ` Your outposts were sold back for ${formatCredits(Number(sold[1]))}.` : "";
-  return { text: `Universe rebuilt! Your credits and ships came along.${refund}`, ms: 12000 };
+  const refund = sold ? ` Outposts sold back for ${formatCredits(Number(sold[1]))}.` : "";
+  const where = startDockName ? ` Your ship waits at the start dock, ${startDockName}.` : " Your ship waits at the start dock.";
+  return { text: `Universe rebuilt: welcome to the new spiral galaxy! ${MOVE_KEPT} ${MOVE_GONE}${refund}${where}`, ms: 20000 };
 }
 
 /** The empty Jobs board: calm, and true in a system with one dock too. */
@@ -675,8 +686,9 @@ export function explorerRowText(e: ExplorerInfo): RankRowText {
     progress,
     next: e.nextRankName === null ? "TOP RANK" : `${n} more ${n === 1 ? "discovery" : "discoveries"} to ${e.nextRankName}`,
     bonus: e.discoveryBonusPercent > 0 ? `+${e.discoveryBonusPercent}% DISCOVERY PAY` : "NO BONUS YET",
-    limit: `${e.systems} ${e.systems === 1 ? "SYSTEM" : "SYSTEMS"} · ${e.planets} ${e.planets === 1 ? "PLANET" : "PLANETS"}`,
-    done: `${e.discoveries} discovered`,
+    // G5b: counts can reach 100,000 systems now, so they get thousands separators (and the card wraps, see theme.css).
+    limit: `${formatCount(e.systems)} ${e.systems === 1 ? "SYSTEM" : "SYSTEMS"} · ${formatCount(e.planets)} ${e.planets === 1 ? "PLANET" : "PLANETS"}`,
+    done: `${formatCount(e.discoveries)} discovered`,
   };
 }
 

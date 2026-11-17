@@ -218,7 +218,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   // It appears when PLAY is pressed, so the title screen never hides it. Tap closes it.
   const showStartNotice = (): void => {
     if (!plan.notice) return;
-    const note = startNotice(plan.notice, MESSAGE_REBUILT);
+    const note = startNotice(plan.notice, MESSAGE_REBUILT, game.state.currentDockId === firstDock.id ? firstDock.name : ""); // G5b: says where the ship is
     showToast(layer, note.text, note.ms);
   };
   // 5e: DOCK / SCENERY card on the system map; 5f: FLY HERE on it.

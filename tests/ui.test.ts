@@ -537,11 +537,16 @@ describe("ui 5e: planet panel and wording for fewer docks", () => {
     expect(planetPanelText({ ...base, dock: null }).line).not.toContain(" - ");
   });
 
-  it("the universe-rebuilt note is friendlier, shows the refund nicely and stays longer", () => {
+  it("the universe-rebuilt note (G5b): what is kept, what is gone, the refund and where the ship is; stays 20 s", () => {
     const msg = "The universe was rebuilt. Your credits and ships came with you.";
-    expect(startNotice(msg, msg)).toEqual({ text: "Universe rebuilt! Your credits and ships came along.", ms: 12000 });
+    expect(startNotice(msg, msg, "Breezy Hill Outpost")).toEqual({
+      text:
+        "Universe rebuilt: welcome to the new spiral galaxy! Kept: credits, ships, upgrades, paint jobs, ranks, job counts, time. " +
+        "Left behind: your job, any free trip, the explored list. Your ship waits at the start dock, Breezy Hill Outpost.",
+      ms: 20000,
+    });
     const withRefund = startNotice(`${msg} Your outposts were sold back for 40000 credits.`, msg);
-    expect(withRefund.text).toBe("Universe rebuilt! Your credits and ships came along. Your outposts were sold back for 40,000 CR.");
+    expect(withRefund.text).toContain("explored list. Outposts sold back for 40,000 CR. Your ship waits at the start dock.");
     expect(startNotice("Saving is off in this browser.", msg)).toEqual({ text: "Saving is off in this browser.", ms: 7000 });
   });
 

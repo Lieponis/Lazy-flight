@@ -1,7 +1,7 @@
 // STATUS STRIP: always on top. Credits, fuel (number and bar), location, a SPEAKER button (sound on/off, always there,
 // Agent 7b) and a small MENU button (docked only; in flight the speaker sits alone at the right end).
 
-import { button, el, fitText, publishRoom } from "./dom";
+import { button, el, fitText, onFontsLoaded, publishRoom } from "./dom";
 import { fitLocation, formatCredits, formatFuel, fuelFraction, fuelIsLow, locationText } from "./logic";
 
 /** Where you are or are going. systemName "" = a planet whose own name already holds the system (N3a). */
@@ -52,6 +52,7 @@ export class StatusStrip {
     publishRoom(this.root, "--ui-top-reserve", "top");
     // Turning the phone changes the room: fit the location again (N3a).
     window.addEventListener("resize", () => this.fitLocation());
+    onFontsLoaded(() => this.fitLocation()); // G5b: fit again once the game font has arrived
   }
 
   private lastLocation: StripLocation | null = null;
@@ -75,7 +76,9 @@ export class StatusStrip {
 
   /** Show or hide the MENU button (shown with the docked buttons). */
   showMenuButton(show: boolean): void {
-    if (this.menuBtn) this.menuBtn.hidden = !show;
+    if (!this.menuBtn || this.menuBtn.hidden === !show) return;
+    this.menuBtn.hidden = !show;
+    this.fitLocation(); // the room for the place changed (G5b)
   }
 
   set(info: StatusInfo): void {

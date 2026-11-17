@@ -462,6 +462,13 @@
   display: inline-flex;
   gap: 6px;
   white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* G5b: a long value (Explorer counts up to 100,000 systems) wraps inside the card instead of running out of it. */
+.ui-fact-val {
+  white-space: normal;
 }
 
 .ui-fact-key {
@@ -785,9 +792,12 @@
   position: fixed;
   z-index: 60;
   top: calc(var(--ui-top-reserve) + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100% - 32px);
+  /* G5b: centred without translateX, so a long note uses the whole width instead of half of it */
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: fit-content;
+  max-width: min(calc(100% - 32px), 560px);
   padding: 6px 12px;
   box-sizing: border-box;
   font-family: var(--ui-font);

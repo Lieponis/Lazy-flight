@@ -2,8 +2,9 @@
 import { describe, expect, it } from "vitest";
 import { startSpeed } from "../src/game/clock";
 import { MAX_SPEED } from "../src/game";
-import type { SaveSummary } from "../src/save";
+import { WARN_OLD_UNIVERSE, WARN_OTHER_SEED, WARN_TRAVELLING, type SaveSummary } from "../src/save";
 import {
+  IMPORT_MOVE_TEXT,
   HINTS_KEY,
   HINT_TEXT,
   REPLACE_WARNING,
@@ -80,6 +81,16 @@ describe("P3: what a save holds, in plain words", () => {
       "! This save is from a different universe.",
       "! A trip was under way.",
     ]);
+  });
+
+  it("G5b: a save that moves gets the relaxed words (kept, left behind, start dock); its trip is called off", () => {
+    expect(warningLines([WARN_OLD_UNIVERSE, WARN_TRAVELLING])).toEqual([
+      "! This save is from an older universe, so it moves into the new galaxy. Kept: credits, ships, upgrades, paint jobs, ranks, job counts, time. " +
+        "Left behind: your job, any free trip, the explored list. Outposts are sold back for what they cost. The ship starts at the start dock.",
+      "! The trip it was on is called off, and its fuel comes back.",
+    ]);
+    expect(warningLines([WARN_OTHER_SEED])).toEqual([`! ${IMPORT_MOVE_TEXT}`]);
+    expect(warningLines([WARN_TRAVELLING])).toEqual([`! ${WARN_TRAVELLING}`]); // a current save's trip still lands
   });
 
   it("the big confirm says it replaces the game and can be undone once", () => {
