@@ -63,6 +63,19 @@ function startRadius(): number {
   return Math.hypot(START_POINT.x, START_POINT.z);
 }
 
+// The value the computer gives (pinned in tests/galaxy2.test.ts). Every device must show the same.
+const PINNED_CHECKSUM = "d0019075";
+
+function renderChecksumBanner(): void {
+  const banner = el("checksumBanner");
+  const sum = galaxyChecksum(SEED, START_POINT, 2000);
+  const ok = sum === PINNED_CHECKSUM;
+  banner.className = "ckbanner " + (ok ? "ok" : "fail");
+  banner.textContent =
+    `Checksum of the 2,000 nearest systems at the start: ${sum} ` +
+    (ok ? `(matches the expected ${PINNED_CHECKSUM}: OK)` : `(DOES NOT MATCH the expected ${PINNED_CHECKSUM})`);
+}
+
 // 1. Facts
 function renderFacts(): void {
   const table = cellTable();
@@ -319,6 +332,7 @@ function runTimings(): void {
     <p class="note">first run / best of five. Near the centre "within 80 ly" holds about 360,000 systems, which the game would never ask for (it asks for the nearest N).</p>`;
 }
 
+renderChecksumBanner();
 renderFacts();
 drawTop();
 renderSpacing();

@@ -18,11 +18,15 @@
       .note { color: #555; font-size: 0.9rem; }
       .good { color: #0a7a2f; font-weight: bold; }
       .bad { color: #b3261e; font-weight: bold; }
+      .ckbanner { font-size: 1.15rem; font-weight: bold; padding: 12px 14px; margin: 10px 0; border-radius: 6px; border: 3px solid #888; background: #eee; word-break: break-word; }
+      .ckbanner.ok { background: #d9f5e1; border-color: #0a7a2f; color: #0a5c24; }
+      .ckbanner.fail { background: #fde0de; border-color: #b3261e; color: #8c1a13; }
       button { padding: 4px 10px; font-size: 0.95rem; cursor: pointer; }
     </style>
   </head>
   <body>
     <h1>Galaxy prototype (stage G1)</h1>
+    <div id="checksumBanner" class="ckbanner">Checksum of the 2,000 nearest systems at the start: (calculating...)</div>
     <p class="note">
       A test page for the big galaxy idea: a flat spiral disc, 100,000 light years across, about 18 billion systems, and
       nothing is stored: every system is worked out from the seed when it is asked for. Nothing here is part of the game.
