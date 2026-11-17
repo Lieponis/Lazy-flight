@@ -19,7 +19,7 @@ Live page (online only): https://lieponis.github.io/Lazy-flight/galaxy-map-previ
 - **Counters:** place, near stars, camera, tap grid and last tap, "5 NEAREST", sky building / built, sky cell, frame (ms, fps, JS ms, draw calls, triangles, heap if the browser tells).
 
 ## Andy's decisions this stage
-Sphere not cube; dots not squares; look C; dust option 2; no dust near the centre; haze at the rim; "rim matches, centre matches"; diamonds same size in space; diamonds at the rim for later ships; zoom out limited AND outer stars faded; tap to fly to a star; rim zoom limit much smaller ("Rim zoom matches"). **Still open:** whether AUTO reach is what he meant, whether centre and start zoom feel right, yes/no on my suggestion to shape the near stars like the galaxy (see Suggestions), (his phone numbers have arrived: see "Phone check").
+Sphere not cube; dots not squares; look C; dust option 2; no dust near the centre; haze at the rim; "rim matches, centre matches"; diamonds same size in space; diamonds at the rim for later ships; zoom out limited AND outer stars faded; tap to fly to a star; rim zoom limit much smaller ("Rim zoom matches"). **Still open:** whether AUTO reach is what he meant, whether centre and start zoom feel right, yes/no on my suggestion to shape the near stars like the galaxy (see Suggestions). His phone numbers have arrived: see "Phone check".
 
 ## Numbers (cloud machine, plain Node/V8; the iPhone 17 Air was faster than this machine on every CPU number it measured, see "Phone check"; slower phones may not be)
 Stand-in galaxy: radius 50,000 ly, start at 16,667 ly from the centre. Star spacing 2 ly (centre), 8.6 ly (start), 30 ly (outer); the real rim is about 134 ly.
@@ -68,7 +68,7 @@ Colour conversion 0.3 to 11 ms; removing dots near real stars 9 to 14 ms (60,000
 | diamonds only: 250 / 500 / 1,000 / 2,000 / 4,000 | 6.7 / 12.5 / 24.9 / 48.3 / 94.4 |
 | everything, 0 / 250 / 1,000 / 2,000 / 4,000 diamonds | 41 / 44 / 63 / 87 / 136 |
 
-Full scene at the cases of table 1: 2 ly 2,000 / 10,000 / 20,000 diamonds = 85 / 255 / 418 ms; 8.6 ly 1,085 / 2,000 / 3,404 = 57 / 79 / 101 ms; 30 ly 34 to 93 diamonds = 37 to 42 ms. So on this machine 60 fps is not reachable even with no diamonds (41 ms = 24 fps), and the largest diamond count that fits 16.7 ms with everything else switched off is about 650. Both are software numbers. JS time per frame of the real page was not measured (the page's FRAME line shows it).
+Full scene at the cases of table 1: 2 ly 2,000 / 10,000 / 20,000 diamonds = 85 / 255 / 418 ms; 8.6 ly 1,085 / 2,000 / 3,404 = 57 / 79 / 101 ms; 30 ly 34 to 93 diamonds = 37 to 42 ms. So on this machine 60 fps is not reachable even with no diamonds (41 ms = 24 fps), and the largest diamond count that fits 16.7 ms with everything else switched off is about 650. Both are software numbers; the real page on a phone is in "Phone check" (JS 0.2 ms per frame).
 
 **5. When does the sky visibly change?** Compared the sky built at a point with the sky built 10 to 10,000 ly away (average of 4 directions: sideways, along the disc, toward the centre, up). "Glow" = average brightness change / share of the sky that changes by more than a tenth of the glow range. "Dots" = share of dots that move more than one screen pixel (0.28 degrees).
 
