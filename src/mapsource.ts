@@ -5,8 +5,8 @@
 // every star) and hands those to the map. The map asks once each time the player arrives somewhere new; the last two answers are
 // remembered, so going back to the map costs nothing.
 
-import { generateSystem, getSystem, nearestSites, spacingAt, type Seed } from "./universe";
-import type { MapPoint, MapSource, MapStarList } from "./render";
+import { armFactor, densityAt, generateSystem, getSystem, nearestSites, spacingAt, thicknessAt, type Seed } from "./universe";
+import type { MapPoint, MapSource, MapStarList, SkyFunctions } from "./render";
 
 /** How many answers are remembered (one list of 60,000 stars is about 2.5 MB). */
 const KEEP_ANSWERS = 2;
@@ -51,10 +51,30 @@ function buildList(seed: Seed, centre: MapPoint, count: number): MapStarList {
   return list;
 }
 
+/**
+ * The universe's galaxy shape as plain functions for the map's sky (the render layer imports no universe code).
+ * `density` reuses one point object, because the sky builder asks it millions of times.
+ */
+function makeSkyFunctions(): SkyFunctions {
+  const point = { x: 0, y: 0, z: 0 };
+  return {
+    density(x: number, y: number, z: number): number {
+      point.x = x;
+      point.y = y;
+      point.z = z;
+      return densityAt(point);
+    },
+    spacing: spacingAt,
+    thickness: thicknessAt,
+    armFactor,
+  };
+}
+
 /** The map's star source for one universe seed. */
 export function makeMapSource(seed: Seed): MapSource {
   const answers: { key: string; count: number; list: MapStarList }[] = [];
   return {
+    sky: makeSkyFunctions(),
     nearest(centre: MapPoint, count: number): MapStarList {
       const key = `${centre.x},${centre.y},${centre.z}`;
       const found = answers.findIndex((a) => a.key === key && a.count === count);

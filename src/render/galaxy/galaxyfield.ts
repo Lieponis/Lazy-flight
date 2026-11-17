@@ -92,6 +92,35 @@ const DUST_CORE_CLEAR_LY = 3000;
 const DUST_CORE_FULL_LY = 9000;
 export const DUST_REACH_LY = 5 * 90 + DUST_WARP_LY + 10;
 
+/**
+ * Where a point is relative to the wavy dust layer, in units of 90 ly (the layer's thickness): 0 = its middle, beyond +-5 there is no dust.
+ * The layer is not perfectly flat: it waves up and down by up to about 150 light years over thousands of light years, like the lane of
+ * a real edge-on galaxy. Without this, seen from the rim the lane is one perfectly straight line.
+ */
+export function dustHeight(x: number, y: number, z: number): number {
+  const warp = Math.abs(y) > DUST_REACH_LY ? 0 : DUST_WARP_LY * (2 * valueNoise(x / 4200, 0.5, z / 4200, 41) - 1);
+  return (y - warp) / 90;
+}
+
+/**
+ * The dust at a point inside the layer (`yd` = `dustHeight`, between -5 and 5). `laneArm` (0..1) says how close the point is to the
+ * middle of a dust lane (the arm pattern turned a little before the bright arms): 1 on a lane, small between lanes. `taper` is
+ * the galaxy's edge fade. Shared by the stand-in galaxy and the real one (`universefield.ts`): only the arms differ.
+ */
+export function dustInLayer(x: number, y: number, z: number, r: number, yd: number, laneArm: number, taper: number): number {
+  const lane = ARM_FLOOR + (1 - ARM_FLOOR) * laneArm;
+  const nz = valueNoise(x / 800, y / 190, z / 800, 3);
+  // Big patches (a few thousand light years across) on top of the small lumps: where a patch is thin, the dark lane breaks up
+  // and the stars behind it shine through. Seen from far away this is what stops the lane being one perfect straight line.
+  const nBig = valueNoise(x / 3200, y / 700, z / 3200, 29);
+  const patch = 0.1 + 1.9 * smoothstep(0.3, 0.7, nBig);
+  const lump = (0.03 + 4.5 * nz * nz * nz) * patch; // cubed: more empty gaps, fewer but denser clouds
+  const radial = Math.min(2, Math.exp(-(r - START_RADIUS_LY) / 9000)); // more dust toward the centre, but not too much (the centre should still glow)
+  // No dust clouds near the centre: the dust fades out between 3,000 and 9,000 ly from the centre (Andy's request).
+  const core = smoothstep(DUST_CORE_CLEAR_LY, DUST_CORE_FULL_LY, r);
+  return Math.min(DUST_MAX, DUST_AT_START * radial * core * Math.exp(-0.5 * yd * yd) * lane * lump * taper);
+}
+
 export const standInField: GalaxyField = {
   spacingAt(x, _y, z) {
     return spacingAtRadius(Math.hypot(x, z));
@@ -125,26 +154,9 @@ export const standInField: GalaxyField = {
     const yThin = y / (0.4 * sigma);
     out.young = yThin > 6 || yThin < -6 ? 0 : 4 * nMid * strength * Math.pow(arm, 1.3) * Math.exp(-0.5 * yThin * yThin) * taper * clump;
 
-    // Dust: a thin lumpy layer, most in the dust lanes just before the arms, fewer far from the centre.
-    // The dust layer is not perfectly flat: it waves up and down by up to about 150 light years over thousands of light years, like
-    // the lane of a real edge-on galaxy. Without this, seen from the rim the lane is one perfectly straight line.
-    const warp = Math.abs(y) > DUST_REACH_LY ? 0 : DUST_WARP_LY * (2 * valueNoise(x / 4200, 0.5, z / 4200, 41) - 1);
-    const yd = (y - warp) / 90;
-    if (yd > 5 || yd < -5) {
-      out.dust = 0;
-    } else {
-      const lane = ARM_FLOOR + (1 - ARM_FLOOR) * (strength > 0 ? armWeight(r, phi, DUST_ANGLE_SHIFT) : 0.5);
-      const nz = valueNoise(x / 800, y / 190, z / 800, 3);
-      // Big patches (a few thousand light years across) on top of the small lumps: where a patch is thin, the dark lane breaks up
-      // and the stars behind it shine through. Seen from far away this is what stops the lane being one perfect straight line.
-      const nBig = valueNoise(x / 3200, y / 700, z / 3200, 29);
-      const patch = 0.1 + 1.9 * smoothstep(0.3, 0.7, nBig);
-      const lump = (0.03 + 4.5 * nz * nz * nz) * patch; // cubed: more empty gaps, fewer but denser clouds
-      const radial = Math.min(2, Math.exp(-(r - START_RADIUS_LY) / 9000)); // more dust toward the centre, but not too much (the centre should still glow)
-      // No dust clouds near the centre: the dust fades out between 3,000 and 9,000 ly from the centre (Andy's request).
-      const core = smoothstep(DUST_CORE_CLEAR_LY, DUST_CORE_FULL_LY, r);
-      out.dust = Math.min(DUST_MAX, DUST_AT_START * radial * core * Math.exp(-0.5 * yd * yd) * lane * lump * taper);
-    }
+    // Dust: a thin lumpy layer, most in the dust lanes just before the arms, fewer far from the centre (see `dustHeight`, `dustInLayer`).
+    const yd = dustHeight(x, y, z);
+    out.dust = yd > 5 || yd < -5 ? 0 : dustInLayer(x, y, z, r, yd, strength > 0 ? armWeight(r, phi, DUST_ANGLE_SHIFT) : 0.5, taper);
   },
 };
 

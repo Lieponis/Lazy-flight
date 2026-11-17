@@ -2,7 +2,19 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SPACING_LY, ZOOM_BALL_FACTOR, nearStarsFromList, nearestLineText, starsWithin, type MapStarList } from "../src/render/galaxy/mapdata";
 import { MAX_ZOOM_SHARE, zoomOutLimit } from "../src/render/galaxy/previewmath";
 import { makeMapSource } from "../src/mapsource";
-import { WORLD_SEED, START_POINT, getSystem, spacingAt, startSystem } from "../src/universe";
+import { WORLD_SEED, START_POINT, getSystem, spacingAt, startSystem, DISC_RADIUS, armFactor, densityAt } from "../src/universe";
+import { ARM_FADE_FROM, ARM_FADE_TO, ARM_STRENGTH } from "../src/universe/galaxy/params";
+import { GALAXY_RADIUS_LY, type FieldSample } from "../src/render/galaxy/galaxyfield";
+import { skyCellOf } from "../src/render/galaxy/skycell";
+import { thicknessAt } from "../src/universe";
+import {
+  UNIVERSE_ARM_FADE_FROM,
+  UNIVERSE_ARM_FADE_TO,
+  UNIVERSE_ARM_STRENGTH,
+  armAmplitudeAt,
+  armBrightness,
+  universeField,
+} from "../src/render/galaxy/universefield";
 
 // Stage G5a: the real galaxy map's star data. The pure helpers (no Three.js), then the real universe through the app's glue file
 // (src/mapsource.ts) at the four places Andy checks: the dense centre, the start, the middle and the rim.
@@ -238,5 +250,185 @@ describe("the real map data (universe v3, world seed)", () => {
     const inReach = starsWithin(near.distances, near.count, 55);
     expect(inReach).toBeGreaterThan(1000);
     expect(inReach).toBeLessThan(2000);
+  });
+});
+
+// Stage G5a step 3: the sky is built from the real universe's galaxy shape, handed over as plain functions (src/mapsource.ts).
+// The render layer keeps three numbers of the arm shape as its own copies (it may not import the universe), so these checks fail
+// loudly if the universe ever changes them.
+describe("the sky's galaxy field (real universe through plain functions)", () => {
+  const sky = makeMapSource(WORLD_SEED).sky;
+  const sample = (x: number, y: number, z: number): FieldSample => {
+    const out: FieldSample = { old: 0, young: 0, dust: 0 };
+    if (!sky) throw new Error("the map source gave no sky functions");
+    universeField(sky).sample(x, y, z, out);
+    return out;
+  };
+
+  it("keeps its copies of the universe's arm numbers and disc radius in step with the universe", () => {
+    expect(UNIVERSE_ARM_STRENGTH).toBe(ARM_STRENGTH);
+    expect(UNIVERSE_ARM_FADE_FROM).toBe(ARM_FADE_FROM);
+    expect(UNIVERSE_ARM_FADE_TO).toBe(ARM_FADE_TO);
+    expect(GALAXY_RADIUS_LY).toBe(DISC_RADIUS);
+  });
+
+  it("the arm strength it assumes at each distance is what the real arm factor reaches (peak 1 + amplitude, average 1)", () => {
+    for (const r of [0, 1000, 1500, 2500, 3250, 4500, 5000, 12000, 30000, 49000]) {
+      let peak = -Infinity;
+      let sum = 0;
+      const steps = 1440;
+      for (let i = 0; i < steps; i++) {
+        const a = (i / steps) * Math.PI * 2;
+        const f = armFactor(r, Math.cos(a), Math.sin(a));
+        sum += f;
+        if (f > peak) peak = f;
+      }
+      const amp = armAmplitudeAt(r);
+      expect(Math.abs(peak - 1 - amp)).toBeLessThan(2e-4 + amp * 2e-3);
+      expect(Math.abs(sum / steps - 1)).toBeLessThan(1e-3);
+    }
+  });
+
+  it("the arm brightness runs from 1 on the crest of an arm to nearly 0 between arms, and is flat in the round bulge", () => {
+    const fns = sky;
+    if (!fns) throw new Error("no sky functions");
+    let hi = 0;
+    let lo = 1;
+    for (let i = 0; i < 720; i++) {
+      const a = (i / 720) * Math.PI * 2;
+      const b = armBrightness(fns, 20000, Math.cos(a), Math.sin(a), 0);
+      if (b > hi) hi = b;
+      if (b < lo) lo = b;
+    }
+    expect(hi).toBeGreaterThan(0.99);
+    expect(hi).toBeLessThan(1.0001);
+    expect(lo).toBeLessThan(0.02);
+    expect(armBrightness(fns, 500, 1, 0, 0)).toBe(0.5); // inside the bulge there are no arms
+  });
+
+  it("is the universe's density where the universe has systems, and the plain function can be called over and over", () => {
+    if (!sky) throw new Error("no sky functions");
+    const points = [
+      { x: -16559, y: 0, z: 1892 },
+      { x: 3000, y: 120, z: -4000 },
+      { x: 0, y: 0, z: 0 },
+      { x: 30000, y: -50, z: 20000 },
+    ];
+    for (let round = 0; round < 2; round++) {
+      for (const p of points) {
+        expect(sky.density(p.x, p.y, p.z)).toBe(densityAt({ x: p.x, y: p.y, z: p.z }));
+      }
+    }
+    expect(sky.density(60000, 0, 0)).toBe(0); // outside the disc
+    expect(sky.spacing(16000)).toBe(spacingAt(16000));
+  });
+
+  it("gives finite, non-negative light that is the same every time, over the whole disc and beyond", () => {
+    for (const [x, y, z] of [
+      [-16559, 0, 1892],
+      [0, 0, 0],
+      [0, 0, 40],
+      [49000, 10, 0],
+      [52000, 0, 0],
+      [-60000, 5, 5000],
+      [0, 3000, 0],
+      [8000, -400, -30000],
+    ] as const) {
+      const a = sample(x, y, z);
+      const b = sample(x, y, z);
+      expect(a).toEqual(b);
+      for (const v of [a.old, a.young, a.dust]) {
+        expect(Number.isFinite(v)).toBe(true);
+        expect(v >= 0).toBe(true);
+      }
+    }
+  });
+
+  it("the glow is thickest in the plane of the disc and gone far above it", () => {
+    const here = sample(-16559, 0, 1892);
+    expect(here.old).toBeGreaterThan(0);
+    const high = sample(-16559, 4000, 1892);
+    expect(high.old).toBe(0);
+    expect(high.young).toBe(0);
+  });
+
+  it("past the rim the light fades out smoothly instead of stopping at once, and is gone far beyond", () => {
+    const inside = sample(0, 0, 49000).old;
+    const justOutside = sample(0, 0, 51500).old;
+    const farOutside = sample(0, 0, 90000).old;
+    expect(inside).toBeGreaterThan(0);
+    expect(justOutside).toBeGreaterThan(0); // the soft edge: Andy asked for a glow that spills past the rim
+    expect(farOutside < 1e-9 * inside + 1e-30).toBe(true);
+  });
+
+  it("puts the young blue light in the arms and none in the round bulge", () => {
+    expect(sample(300, 0, 200).young).toBe(0); // inside 1,500 ly: no arms
+    let best = 0;
+    for (let i = 0; i < 360; i++) {
+      const a = (i / 360) * Math.PI * 2;
+      const v = sample(20000 * Math.cos(a), 0, 20000 * Math.sin(a)).young;
+      if (v > best) best = v;
+    }
+    expect(best).toBeGreaterThan(0);
+  });
+});
+
+// The real universe is a thin disc (500 to 2,000 ly thick). A sky cell is a cube on a grid, which would build the sky from up to half
+// a cell above or below the plane (480 ly at the start, 1,920 ly at the rim): a different sky. So the map asks for cells as tall as a
+// third of the disc, centred on the plane.
+describe("sky cells in a thin disc", () => {
+  const third = (r: number): number => thicknessAt(r) / 3;
+  const places: [string, number, number][] = [
+    ["centre", 400, 0.3],
+    ["start", 16700, 3.0],
+    ["middle", 30000, 4.0],
+    ["rim", 48000, 5.2],
+  ];
+  const at = (r: number, a: number, y: number) => ({ x: r * Math.cos(a), y, z: r * Math.sin(a) });
+
+  it("a player in the middle of the disc gets a sky built from the plane itself (centre height 0), at all four places", () => {
+    for (const [, r, a] of places) {
+      expect(skyCellOf(at(r, a, 0), third).centre.y).toBe(0);
+      expect(skyCellOf(at(r, a, 3), third).centre.y).toBe(0);
+      expect(skyCellOf(at(r, a, -3), third).centre.y).toBe(0);
+    }
+  });
+
+  it("the cell is a third of the disc tall (or as wide as it is, if that is smaller), and at the centre it is the full 60 ly cube", () => {
+    for (const [, r, a] of places) {
+      const c = skyCellOf(at(r, a, 0), third);
+      const height = Math.min(c.size, third(r));
+      const next = skyCellOf(at(r, a, height * 0.6), third); // just past the edge of the middle cell: the next one up
+      expect(Math.abs(next.centre.y - height) < 1e-6).toBe(true);
+      expect(next.key === c.key).toBe(false);
+    }
+    expect(skyCellOf(at(400, 0.3, 0), third).size).toBe(60);
+    expect(skyCellOf(at(400, 0.3, 59), third).key === skyCellOf(at(400, 0.3, 0), third).key).toBe(false); // 60 ly cells at the centre: 59 up is the next cell
+  });
+
+  it("one cell gives one key, one centre and one dot seed, wherever you stand in it (including either side of the plane)", () => {
+    for (const [, r, a] of places) {
+      const h = third(r);
+      const base = skyCellOf(at(r, a, 0), third);
+      for (const y of [-0.45 * h, -1, 1, 0.45 * h]) {
+        if (y === 0) continue;
+        const c = skyCellOf(at(r, a, Math.max(-0.45 * Math.min(h, base.size), Math.min(0.45 * Math.min(h, base.size), y))), third);
+        expect(c.key).toBe(base.key);
+        expect(c.starSeed).toBe(base.starSeed);
+        expect(c.centre).toEqual(base.centre);
+      }
+    }
+  });
+
+  it("a place well above the plane is another cell (so a ship far off the disc would get its own sky)", () => {
+    const here = skyCellOf(at(16700, 3.0, 0), third);
+    const high = skyCellOf(at(16700, 3.0, 2000), third);
+    expect(high.key === here.key).toBe(false);
+  });
+
+  it("without a vertical size nothing changed: the cube cells of the first prototype", () => {
+    const p = at(16700, 3.0, 100);
+    const c = skyCellOf(p);
+    expect(c.centre.y).toBe((Math.floor(100 / c.size) + 0.5) * c.size);
   });
 });

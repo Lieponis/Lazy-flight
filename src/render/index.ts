@@ -42,6 +42,7 @@ export { StateStore } from "./state";
 export type { RenderState, ScreenName } from "./state";
 export type { FlightInfo, FlightProgress } from "./flightplan";
 export type { MapPoint, MapSource, MapStarList, StarInfo } from "./galaxy/mapdata";
+export type { SkyFunctions } from "./galaxy/universefield";
 
 export interface RenderApi {
   state: StateStore;

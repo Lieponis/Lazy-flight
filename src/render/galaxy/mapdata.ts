@@ -5,6 +5,7 @@
 // such a list into the `NearStars` the map draws, and counts how many stars the ship can reach.
 
 import { ZOOM_REFERENCE_STARS, type NearStars } from "./neardata";
+import type { SkyFunctions } from "./universefield";
 
 export interface MapPoint {
   x: number;
@@ -42,6 +43,8 @@ export interface MapSource {
   nearest(centre: MapPoint, count: number): MapStarList;
   /** The name and star type of one system, by its number (null if there is no such system). Asked only for tapped stars. */
   describe(id: number): StarInfo | null;
+  /** The universe's density, spacing, thickness and arms as plain functions: the sky behind the map is built from them. Without it the map keeps a plain star backdrop. */
+  sky?: SkyFunctions;
 }
 
 /** A ball of this many stars at the local spacing has the radius `spacing x ZOOM_BALL_FACTOR`: cbrt(3 x 1000 / (4 pi)) = 6.2035. */

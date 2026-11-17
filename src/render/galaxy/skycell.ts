@@ -38,18 +38,31 @@ export function skyCellLevel(radius: number): number {
   return Math.max(0, Math.min(LEVELS - 1, level));
 }
 
-export function skyCellOf(p: Vec3): SkyCell {
-  const level = skyCellLevel(Math.hypot(p.x, p.z));
+/**
+ * The sky cell that holds position p.
+ *
+ * `verticalSize` (optional) is for a thin disc like the real universe's: it gives the cell's height (light years) at distance r from the
+ * galaxy centre. The cell is then at most that tall, and the vertical cells are centred on the disc's own plane (y = 0), so a player in
+ * the middle of the disc gets a sky built from the plane itself. Without it (the default, the stand-in galaxy) the cells are cubes
+ * aligned to a grid, which would build the sky from up to half a cell above or below the plane, and in a disc only a few hundred light
+ * years thick that is a different sky.
+ */
+export function skyCellOf(p: Vec3, verticalSize?: (radius: number) => number): SkyCell {
+  const radius = Math.hypot(p.x, p.z);
+  const level = skyCellLevel(radius);
   const size = SKY_CELL_MIN_LY * 2 ** level;
   const ix = Math.floor(p.x / size);
-  const iy = Math.floor(p.y / size);
   const iz = Math.floor(p.z / size);
+  const height = verticalSize ? Math.min(size, Math.max(1, verticalSize(radius))) : size;
+  const iy = verticalSize ? Math.floor(p.y / height + 0.5) : Math.floor(p.y / size);
   const bigSize = size * 4;
-  const starSeed = hash32(Math.floor(p.x / bigSize) + level * 7919, Math.floor(p.y / bigSize), Math.floor(p.z / bigSize));
+  // With a vertical size the seed follows the cell's own height (a cell can straddle y = 0, and one cell must always give one seed).
+  const seedY = verticalSize ? Math.floor((iy * height) / bigSize + 0.5) : Math.floor(p.y / bigSize);
+  const starSeed = hash32(Math.floor(p.x / bigSize) + level * 7919, seedY, Math.floor(p.z / bigSize));
   return {
     key: hash32(ix + level * 100003, iy, iz),
     size,
-    centre: { x: (ix + 0.5) * size, y: (iy + 0.5) * size, z: (iz + 0.5) * size },
+    centre: { x: (ix + 0.5) * size, y: verticalSize ? iy * height : (iy + 0.5) * size, z: (iz + 0.5) * size },
     starSeed,
   };
 }

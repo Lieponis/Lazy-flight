@@ -28,6 +28,23 @@ export const MAP_TAPPABLE_STARS = 10_000;
 /** How close (in CSS pixels) a tap must be to a star on the galaxy map to pick it. */
 export const MAP_TAP_RADIUS_PX = 20;
 
+/**
+ * The sky behind the map: what you would see from where you stand (a soft glow plus single-pixel dots), rebuilt only when you move
+ * into another "sky cell" (60 ly near the galaxy centre up to 3,840 ly at the rim), a few milliseconds per frame, the old sky staying
+ * until the new one is ready. Fallbacks for a slow phone: MAP_SKY_SIZE 32 (a quarter of the squares), then fewer dots.
+ */
+export const MAP_SKY_DOTS = 60_000;
+/** Squares per cube face the glow is built from (64 = 24,600 squares in the sphere; 32 = 6,200). */
+export const MAP_SKY_SIZE: 32 | 64 | 128 = 64;
+/** How strong the glow under the dots is (0..1): the "medium" level Andy picked in G2. */
+export const MAP_SKY_GLOW = 0.24;
+/** Steps along each ray of the glow, and the milliseconds per frame the sky build may use. */
+export const MAP_SKY_STEPS = 56;
+export const MAP_SKY_BUDGET_MS = 6;
+/** Sky dots that share a patch of sky with one of this many nearest real stars are left out. */
+export const MAP_SKY_OVERLAP_STARS = 3000;
+export const MAP_SKY_OVERLAP_CELL_DEG = 0.35;
+
 /** The reach (light years) the map uses until the app has told it the ship's real reach. */
 export const MAP_REACH_FALLBACK_LY = 35;
 

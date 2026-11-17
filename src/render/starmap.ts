@@ -3,12 +3,15 @@
 // Plain words: the map shows the 60,000 stars nearest to where you are. Every star is one coloured pixel (closer = brighter, fading
 // to nothing at the edge so the cloud has no visible edge). Stars inside your ship's reach also get a small diamond. Tap a star and the
 // camera glides to it; the label shows its name, its type, how far it is and the distances to its 5 nearest neighbours.
+// Behind the stars is the sky as seen from where you stand: a soft glow plus 60,000 single dots, built from the universe's own density
+// and rebuilt only when you move into another "sky cell", a few milliseconds per frame (the old sky stays until the new one is ready).
 // The stars come from the app as plain lists (a MapSource), asked ONCE each time you arrive somewhere new, never per frame.
 
 import * as THREE from "three";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
+import { standInProposal, type GalaxyField } from "./galaxy/galaxyfield";
 import { nearStarsFromList, nearestLineText, starsWithin, type MapPoint, type MapSource } from "./galaxy/mapdata";
-import type { NearStars } from "./galaxy/neardata";
+import { directionsOf, type NearStars } from "./galaxy/neardata";
 import { NearLayers, type NearCounts } from "./galaxy/nearlayers";
 import {
   FLY_TO_DIST_LY,
@@ -19,12 +22,34 @@ import {
   tapVisibility,
   zoomOutLimit,
 } from "./galaxy/previewmath";
+import { skyCellOf, type SkyCell } from "./galaxy/skycell";
+import { DotsBuilder } from "./galaxy/skydots";
+import { SkyBuilder } from "./galaxy/skyglow";
+import { skyToTexels } from "./galaxy/skylook";
+import { removeNearOverlaps } from "./galaxy/skystars";
+import { SkyView } from "./galaxy/skyview";
 import { StarGrid, nearestTo } from "./galaxy/starpick";
+import { universeField } from "./galaxy/universefield";
 import { orbitCameraPosition, starfieldPositions } from "./helpers";
 import type { Hud } from "./hud";
 import { OrbitView } from "./input";
+import { mapStatsText, mountMapStats, parseMapStats } from "./mapstats";
 import type { Screen } from "./screen";
-import { MAP_DIAMOND_CAP, MAP_NEAR_STARS, MAP_REACH_FALLBACK_LY, MAP_TAPPABLE_STARS, MAP_TAP_RADIUS_PX, STARFIELD_COUNT } from "./settings";
+import {
+  MAP_DIAMOND_CAP,
+  MAP_NEAR_STARS,
+  MAP_REACH_FALLBACK_LY,
+  MAP_SKY_BUDGET_MS,
+  MAP_SKY_DOTS,
+  MAP_SKY_GLOW,
+  MAP_SKY_OVERLAP_CELL_DEG,
+  MAP_SKY_OVERLAP_STARS,
+  MAP_SKY_SIZE,
+  MAP_SKY_STEPS,
+  MAP_TAPPABLE_STARS,
+  MAP_TAP_RADIUS_PX,
+  STARFIELD_COUNT,
+} from "./settings";
 import { starLabelText, starmapHint } from "./starmapradius";
 import type { StateStore } from "./state";
 
@@ -50,6 +75,30 @@ export interface StarMapOptions {
   reachLy?: number | null;
 }
 
+/** A sky being built, a few milliseconds per frame: the glow first, then the dots. */
+interface PendingSky {
+  glow: SkyBuilder | null;
+  dots: DotsBuilder | null;
+  cell: SkyCell;
+  glowKey: string;
+  dotsKey: string;
+  startMs: number;
+  frames: number;
+  worstSliceMs: number;
+}
+
+/** What the last finished sky cost (for the developer counters and the report). */
+interface SkyStats {
+  wallMs: number;
+  glowMs: number;
+  dotsMs: number;
+  frames: number;
+  worstSliceMs: number;
+  squares: number;
+  dots: number;
+  cellLy: number;
+}
+
 function makeMarker(color: number): THREE.LineSegments {
   const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
   return new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color }));
@@ -65,6 +114,22 @@ export class StarMapScreen implements Screen {
   private readonly currentMarker = makeMarker(0x5dff7a);
   private readonly backdrop: THREE.Points;
   private readonly tapRay = new THREE.Vector3();
+
+  /** The sky seen from where you stand (glow + dots). `skyField` null = the app gave no sky functions: the plain backdrop stays. */
+  private readonly sky = new SkyView();
+  private readonly skyField: GalaxyField | null;
+  private pendingSky: PendingSky | null = null;
+  private builtGlowKey: string | null = null;
+  private builtDotsKey: string | null = null;
+  private skyBuilt = false;
+  private skyStats: SkyStats | null = null;
+
+  /** Developer counters (?mapstats=1): the text block and the averaged frame numbers. */
+  private readonly statsEl: HTMLPreElement | null;
+  private statsClock = 0;
+  private frameMs = 16.7;
+  private jsMs = 0;
+  private drawInfo = { calls: 0, triangles: 0 };
 
   private current: StarMapHere;
   private reachLy: number | null;
@@ -89,7 +154,7 @@ export class StarMapScreen implements Screen {
 
     this.scene.add(this.layers.group);
 
-    // Background stars: single dots far away (replaced by the sky seen from where you stand in the next step).
+    // Plain background stars: single dots far away. They only show until the first sky is built (or when the app gave no sky functions).
     const bg = new THREE.BufferGeometry();
     bg.setAttribute("position", new THREE.BufferAttribute(starfieldPositions(STARFIELD_COUNT, 450), 3));
     this.backdrop = new THREE.Points(bg, new THREE.PointsMaterial({ color: 0x8890c8, size: 1, sizeAttenuation: false }));
@@ -97,6 +162,10 @@ export class StarMapScreen implements Screen {
 
     this.selectionMarker.visible = false;
     this.scene.add(this.selectionMarker, this.currentMarker);
+
+    this.skyField = opts.source?.sky ? universeField(opts.source.sky) : null;
+    this.sky.setGlowStrength(MAP_SKY_GLOW);
+    this.statsEl = parseMapStats(window.location.search) ? mountMapStats(opts.host.parentElement ?? document.body) : null;
 
     this.view = new OrbitView(this.camera, opts.host, MIN_ZOOM_LY, 150, 60);
     this.view.onTap = (x, y) => this.handleTap(x, y);
@@ -106,11 +175,13 @@ export class StarMapScreen implements Screen {
 
   /** The player is in another system: the map is centred on it, the stars are asked for again (when the map is next shown). */
   setCurrent(here: StarMapHere): void {
-    if (here.id === this.current.id && here.position.x === this.current.position.x && here.position.y === this.current.position.y && here.position.z === this.current.position.z) {
-      this.current = here; // same place (maybe a new name text): nothing to rebuild
-      return;
-    }
+    const same =
+      here.id === this.current.id &&
+      here.position.x === this.current.position.x &&
+      here.position.y === this.current.position.y &&
+      here.position.z === this.current.position.z;
     this.current = here;
+    if (same) return; // same place (maybe a new name text): nothing to rebuild
     this.near = null; // the stars are asked for again the next time the map is shown
     this.builtFor = null;
     this.selected = null;
@@ -147,12 +218,13 @@ export class StarMapScreen implements Screen {
     this.counts = this.layers.setStars(near, this.reachCount(near), MAP_DIAMOND_CAP);
     this.grid = new StarGrid(near.positions, MAP_TAPPABLE_STARS);
     this.refreshTapVisibility(near);
-    // The camera can see out to twice the bubble; the backdrop sits beyond the farthest it ever gets.
+    // The camera can see out to twice the bubble.
     this.camera.far = Math.max(800, near.radius * 2.2 + 50);
     this.camera.updateProjectionMatrix();
     this.view.resetFocus();
     this.view.dist = this.defaultDist(near);
     this.lastBuildMs = performance.now() - t0;
+    this.ensureSky();
   }
 
   private reachCount(near: NearStars): number {
@@ -185,6 +257,86 @@ export class StarMapScreen implements Screen {
     return Math.min(Math.max(60, reach * 1.2), this.zoomLimit(near));
   }
 
+  // ------------------------------------------------------------------ the sky behind the stars
+
+  /**
+   * Starts a new sky build when the player is in another sky cell, or the near-star bubble changed size. The glow and the dots are
+   * separate builds, and one that is already finished for this cell is left alone. The old sky stays on screen until the new one is done.
+   */
+  private ensureSky(): void {
+    const near = this.near;
+    const field = this.skyField;
+    if (!near || !field) return;
+    const fns = this.opts.source?.sky;
+    // The real universe is a thin disc: the sky cell is as tall as a third of the disc there, centred on the plane (see skyCellOf).
+    const cell = skyCellOf(this.current.position, fns ? (r) => fns.thickness(r) / 3 : undefined);
+    // The bubble radius is grouped in steps of about 19 % so a small change does not start a new build.
+    const radiusStep = Math.round(Math.log2(Math.max(1, near.radius)) * 4);
+    const glowKey = `${cell.key}|${MAP_SKY_SIZE}|${radiusStep}`;
+    const dotsKey = `${cell.key}|${radiusStep}|${MAP_SKY_DOTS}`;
+    const pending = this.pendingSky;
+    if (pending && pending.glowKey === glowKey && pending.dotsKey === dotsKey) return;
+    const needGlow = glowKey !== this.builtGlowKey;
+    const needDots = dotsKey !== this.builtDotsKey;
+    if (!needGlow && !needDots) {
+      this.pendingSky = null;
+      return;
+    }
+    this.pendingSky = {
+      glow: needGlow ? new SkyBuilder(field, cell.centre, { faceSize: MAP_SKY_SIZE, steps: MAP_SKY_STEPS, nearRadius: near.radius }) : null,
+      dots: needDots
+        ? new DotsBuilder(field, standInProposal, cell.centre, { count: MAP_SKY_DOTS, nearRadius: near.radius, seed: cell.starSeed, squeeze: 0.5 })
+        : null,
+      cell,
+      glowKey,
+      dotsKey,
+      startMs: performance.now(),
+      frames: 0,
+      worstSliceMs: 0,
+    };
+  }
+
+  /** Spends about MAP_SKY_BUDGET_MS of this frame on the sky build (glow first, then dots); puts the finished sky on screen. */
+  private stepSky(): void {
+    const p = this.pendingSky;
+    const near = this.near;
+    if (!p || !near) return;
+    const t0 = performance.now();
+    if (p.glow && !p.glow.done) p.glow.run(MAP_SKY_BUDGET_MS);
+    else if (p.dots && !p.dots.done) p.dots.run(MAP_SKY_BUDGET_MS);
+    p.frames++;
+    p.worstSliceMs = Math.max(p.worstSliceMs, performance.now() - t0);
+    if (!((!p.glow || p.glow.done) && (!p.dots || p.dots.done))) return;
+    this.pendingSky = null;
+    const stats: SkyStats = {
+      wallMs: performance.now() - p.startMs,
+      glowMs: p.glow?.workMs ?? 0,
+      dotsMs: p.dots?.workMs ?? 0,
+      frames: p.frames,
+      worstSliceMs: p.worstSliceMs,
+      squares: this.skyStats?.squares ?? 0,
+      dots: this.skyStats?.dots ?? 0,
+      cellLy: p.cell.size,
+    };
+    if (p.glow) {
+      this.sky.setTexels(skyToTexels(p.glow.raw), p.glow.layout);
+      stats.squares = p.glow.layout.total;
+      this.builtGlowKey = p.glowKey;
+    }
+    if (p.dots) {
+      // Sky dots that share a patch of sky with one of the nearest real stars are left out (the real star is drawn one by one).
+      const kept = removeNearOverlaps(p.dots.result(), directionsOf(near, MAP_SKY_OVERLAP_STARS), MAP_SKY_OVERLAP_CELL_DEG);
+      this.sky.setStars(kept);
+      stats.dots = kept.count;
+      this.builtDotsKey = p.dotsKey;
+    }
+    this.skyStats = stats;
+    this.sky.setGlowStrength(MAP_SKY_GLOW);
+    this.sky.setVisible(true, true);
+    this.skyBuilt = true;
+    this.backdrop.visible = false; // the real sky replaces the plain backdrop dots
+  }
+
   // ------------------------------------------------------------------ the Screen interface
 
   enter(): void {
@@ -198,9 +350,11 @@ export class StarMapScreen implements Screen {
   exit(): void {
     this.active = false;
     this.view.detach();
+    if (this.statsEl) this.statsEl.style.display = "none";
   }
 
   update(seconds: number): void {
+    const t0 = performance.now();
     const near = this.near;
     if (near) {
       this.view.glide(Math.min(0.1, seconds));
@@ -214,11 +368,31 @@ export class StarMapScreen implements Screen {
     this.currentMarker.scale.setScalar(s * 1.3);
     this.selectionMarker.scale.setScalar(s);
     this.selectionMarker.rotation.y += 0.02;
-    this.backdrop.position.copy(this.camera.position); // the backdrop dots stay around the camera
+    this.backdrop.position.copy(this.camera.position); // the plain backdrop dots stay around the camera
+    this.stepSky();
+    this.sky.follow(this.camera);
+    this.jsMs += (performance.now() - t0 - this.jsMs) * 0.1;
+    this.frameMs += (seconds * 1000 - this.frameMs) * 0.1;
+    this.updateStats(seconds);
+  }
+
+  /** Draws the sky first (it never moves, only turns with the camera), then the stars over it. */
+  render(renderer: THREE.WebGLRenderer): void {
+    const autoClear = renderer.autoClear;
+    const autoReset = renderer.info.autoReset;
+    renderer.autoClear = false;
+    renderer.info.autoReset = false;
+    renderer.info.reset();
+    renderer.clear();
+    if (this.skyBuilt) renderer.render(this.sky.scene, this.sky.camera);
+    renderer.render(this.scene, this.camera);
+    this.drawInfo = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles };
+    renderer.info.autoReset = autoReset;
+    renderer.autoClear = autoClear;
   }
 
   /** What the map holds now, for the developer counters and the report. */
-  stats(): { stars: number; diamonds: number; tappable: number; buildMs: number; zoomLimitLy: number; radiusLy: number } {
+  stats(): { stars: number; diamonds: number; tappable: number; buildMs: number; zoomLimitLy: number; radiusLy: number; sky: SkyStats | null } {
     const near = this.near;
     return {
       stars: near?.count ?? 0,
@@ -227,7 +401,39 @@ export class StarMapScreen implements Screen {
       buildMs: this.lastBuildMs,
       zoomLimitLy: near ? this.zoomLimit(near) : 0,
       radiusLy: near?.radius ?? 0,
+      sky: this.skyStats,
     };
+  }
+
+  private updateStats(seconds: number): void {
+    const el = this.statsEl;
+    if (!el) return;
+    this.statsClock += seconds;
+    if (this.statsClock < 0.5) return;
+    this.statsClock = 0;
+    el.style.display = "block";
+    const st = this.stats();
+    const p = this.pendingSky;
+    let progress: number | null = null;
+    if (p) {
+      const glowShare = p.glow ? (p.glow.done ? 1 : p.glow.progress) : 1;
+      const dotsShare = p.dots ? (p.dots.done ? 1 : p.dots.progress) : 1;
+      progress = (glowShare + dotsShare) / 2;
+    }
+    el.textContent = mapStatsText({
+      stars: st.stars,
+      diamonds: st.diamonds,
+      tappable: st.tappable,
+      radiusLy: st.radiusLy,
+      zoomLimitLy: st.zoomLimitLy,
+      lookupMs: st.buildMs,
+      sky: st.sky,
+      skyProgress: this.skyField ? progress : null,
+      frameMs: this.frameMs,
+      jsMs: this.jsMs,
+      drawCalls: this.drawInfo.calls,
+      triangles: this.drawInfo.triangles,
+    });
   }
 
   // ------------------------------------------------------------------ taps
