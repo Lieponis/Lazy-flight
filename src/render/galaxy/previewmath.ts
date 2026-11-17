@@ -40,6 +40,7 @@ export interface PreviewParams {
   density: "auto" | (typeof DENSITY_SPACINGS)[number];
   reach: "auto" | (typeof REACHES)[number];
   tap: (typeof TAP_COUNTS)[number];
+  zoom: ZoomOutMode;
   diamonds: (typeof DIAMOND_CAPS)[number];
   glow: boolean;
   dots: boolean;
@@ -55,6 +56,7 @@ export const DEFAULT_PARAMS: PreviewParams = {
   density: "auto",
   reach: "auto",
   tap: 10000,
+  zoom: "near",
   diamonds: 5000,
   glow: true,
   dots: true,
@@ -93,6 +95,7 @@ export function parsePreviewParams(search: string): PreviewParams {
     density,
     reach: pick<string | number>(q.get("reach"), ["auto", ...REACHES], d.reach) as PreviewParams["reach"],
     tap: pick(q.get("tap"), TAP_COUNTS, d.tap),
+    zoom: pick(q.get("zoom"), ZOOM_OUT_MODES, d.zoom),
     diamonds: pick(q.get("diamonds"), DIAMOND_CAPS, d.diamonds),
     glow: flag(q.get("glow"), d.glow),
     dots: flag(q.get("dots"), d.dots),
@@ -131,6 +134,25 @@ export function pixelBrightness(d: number, far: number): number {
 
 /** The camera may never leave the near-star bubble: it stays within this share of the bubble radius from the player. */
 export const MAX_ZOOM_SHARE = 0.9;
+
+/**
+ * How far the camera may zoom out (Andy: at the rim the zoomed-out ball of stars made no sense, so the limit follows the local
+ * star spacing instead of the bubble): "near" = out to the nearest 1,000 stars, "medium" = twice that, "wide" = almost the whole bubble.
+ */
+export type ZoomOutMode = "near" | "medium" | "wide";
+export const ZOOM_OUT_MODES: readonly ZoomOutMode[] = ["near", "medium", "wide"];
+/** How many of the nearest stars the "near" zoom-out limit reaches out to. */
+export const ZOOM_OUT_STARS = 1000;
+/** Near a target the camera can always back off at least this far (light years), even at the bubble's limit. */
+export const ROOM_AROUND_TARGET_LY = 12;
+
+/** The zoom-out limit as a distance from the player (light years). `starDistances` = distances of the stars, nearest first. */
+export function zoomOutLimit(mode: ZoomOutMode, starDistances: ArrayLike<number>, starCount: number, bubbleRadius: number): number {
+  const wide = MAX_ZOOM_SHARE * bubbleRadius;
+  if (mode === "wide") return wide;
+  const nearest = starDistances[Math.max(0, Math.min(ZOOM_OUT_STARS, starCount) - 1)] ?? bubbleRadius;
+  return Math.min(wide, (mode === "near" ? 1 : 2) * nearest);
+}
 /** Closest zoom (light years from what the camera looks at): a diamond is about 0.7 ly wide, so it fills a good part of the screen. */
 export const MIN_ZOOM_LY = 2.5;
 /** After tapping a star, the camera glides to this distance from it. */

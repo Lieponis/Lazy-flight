@@ -23,16 +23,19 @@ import {
   DIAMOND_CAPS,
   FACE_SIZES,
   FLY_TO_DIST_LY,
-  MAX_ZOOM_SHARE,
   MIN_ZOOM_LY,
   NEAR_TOTAL,
   REACHES,
+  ROOM_AROUND_TARGET_LY,
   TAP_COUNTS,
+  ZOOM_OUT_MODES,
+  type ZoomOutMode,
   autoReach,
   lyText,
   maxOrbitDistance,
   orbitAnglesFor,
   parsePreviewParams,
+  zoomOutLimit,
   type PreviewParams,
 } from "./previewmath";
 import { skyCellOf, type SkyCell } from "./skycell";
@@ -134,6 +137,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     /** Ship reach in light years, or "auto" (see autoReach). */
     reach: params.reach as "auto" | number,
     tapCount: params.tap as number,
+    zoomOut: params.zoom as ZoomOutMode,
     diamondCap: params.diamonds as number,
     glow: params.glow,
     dots: params.dots,
@@ -164,7 +168,12 @@ export function mountGalaxyPreview(root: HTMLElement): void {
 
   /** How far the camera starts from the player at a place: far enough to see the stars within reach. */
   function defaultDist(): number {
-    return Math.max(60, reachNow * 1.2);
+    return Math.min(Math.max(60, reachNow * 1.2), zoomLimit());
+  }
+
+  /** The farthest the camera may be from the player now (see zoomOutLimit). */
+  function zoomLimit(): number {
+    return zoomOutLimit(state.zoomOut, near.distances, near.count, near.radius);
   }
 
   /** `keepView`: the stars are the same (only reach, caps or tap count changed), so the camera stays where it is. */
@@ -184,7 +193,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
       tapStats.message = "no tap yet";
     }
     layers.setSelected(near, selected);
-    // The camera stays inside the near-star bubble (see maxOrbitDistance), and every star is seen at most 1.9 bubble radii away.
+    // The camera stays within the zoom-out limit of the player (see maxOrbitDistance), so it is also inside the bubble.
     camera.far = Math.max(800, near.radius * 2.2 + 50);
     camera.updateProjectionMatrix();
     layers.setVisible(state.pixels, state.diamondsOn);
@@ -471,6 +480,16 @@ export function mountGalaxyPreview(root: HTMLElement): void {
           }),
         })),
       ),
+      group(
+        "ZOOM OUT LIMIT",
+        ZOOM_OUT_MODES.map((m) => ({
+          label: `${m.toUpperCase()} ${lyText(zoomOutLimit(m, near.distances, near.count, near.radius))}`,
+          on: state.zoomOut === m,
+          pick: act(() => {
+            state.zoomOut = m;
+          }),
+        })),
+      ),
       group("CAMERA", [{ label: "BACK TO PLAYER", on: false, pick: act(() => backToPlayer()) }]),
       group("LAYERS", [
         {
@@ -537,9 +556,9 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     const t0 = performance.now();
     stepSky();
     orbit.glide(Math.min(0.1, dt / 1000));
-    // The camera may never leave the near-star bubble (Andy: the bubble must not look like a separate ball).
+    // The camera may not zoom out farther than the zoom-out limit: no separate ball of stars (Andy).
     const u = orbitCameraPosition(orbit.yaw, orbit.pitch, 1);
-    orbit.maxDist = maxOrbitDistance(orbit.target, u, MAX_ZOOM_SHARE * near.radius, orbit.minDist);
+    orbit.maxDist = maxOrbitDistance(orbit.target, u, zoomLimit(), Math.max(orbit.minDist, ROOM_AROUND_TARGET_LY));
     if (orbit.dist > orbit.maxDist) orbit.dist = orbit.maxDist;
     orbit.apply();
     sky.follow(camera);
@@ -564,7 +583,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     const lines = [
       `PLACE ${sameSpot(state.place) ? state.place.label : "MOVED"}  ${lyText(r)} from centre  spacing ${currentSpacing().toFixed(1)} ly`,
       `NEAR STARS ${near.count.toLocaleString("en-US")} (made in ${nearMs.toFixed(0)} ms, bubble radius ${lyText(near.radius)})  REACH ${state.reach === "auto" ? "auto = " : ""}${reachNow} ly  diamonds ${nearCounts.diamonds.toLocaleString("en-US")}  pixels ${nearCounts.pixels.toLocaleString("en-US")}`,
-      `CAMERA ${lyText(orbit.dist)} from its target (closest ${MIN_ZOOM_LY} ly, farthest now ${lyText(orbit.maxDist)})  target ${lyText(Math.hypot(orbit.target.x, orbit.target.y, orbit.target.z))} from you`,
+      `CAMERA ${lyText(orbit.dist)} from its target (closest ${MIN_ZOOM_LY} ly, farthest now ${lyText(orbit.maxDist)}; zoom-out limit ${state.zoomOut} = ${lyText(zoomLimit())} from you)  target ${lyText(Math.hypot(orbit.target.x, orbit.target.y, orbit.target.z))} from you`,
       `TAP grid of ${state.tapCount.toLocaleString("en-US")} stars built in ${gridMs.toFixed(1)} ms  taps ${tapStats.taps}  last ${tapStats.lastMs.toFixed(2)} ms (looked at ${tapStats.lastTested} stars)  worst ${tapStats.worstMs.toFixed(2)} ms  -> ${tapStats.message}`,
     ];
     if (pending) {
@@ -588,6 +607,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
   // Everything for the first picture.
   renderPanel();
   refreshNear();
+  renderPanel(); // again: the zoom-out limit buttons show distances that depend on the stars
   orbit.dist = defaultDist();
   orbit.onTap = tapAt;
   lookAt(state.look);

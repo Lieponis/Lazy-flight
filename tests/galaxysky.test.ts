@@ -36,6 +36,7 @@ import {
   MIN_ZOOM_LY,
   REACHES,
   autoReach,
+  zoomOutLimit,
   diamondSize,
   edgeFade,
   lyText,
@@ -533,6 +534,34 @@ describe("galaxy prototype: preview page helpers", () => {
     expect(maxOrbitDistance({ x: 0, y: 0, z: 0 }, { x: 0, y: 0.6, z: 0.8 }, limit, MIN_ZOOM_LY)).toBeCloseTo(limit, 9);
     // A target outside the limit still leaves the closest zoom.
     expect(maxOrbitDistance({ x: 5000, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, limit, MIN_ZOOM_LY)).toBe(MIN_ZOOM_LY);
+  });
+  it("zoom-out limit follows the local star spacing: at the rim it is a few hundred light years, not thousands (Andy)", () => {
+    const limits = TELEPORTS.map((t) => {
+      const n = makeNearStars(60000, describePlace(t.position).spacing, 5);
+      return {
+        near: zoomOutLimit("near", n.distances, n.count, n.radius),
+        medium: zoomOutLimit("medium", n.distances, n.count, n.radius),
+        wide: zoomOutLimit("wide", n.distances, n.count, n.radius),
+        radius: n.radius,
+      };
+    });
+    for (const l of limits) {
+      expect(l.near).toBeLessThan(l.medium);
+      expect(l.medium).toBeLessThanOrEqual(l.wide);
+      expect(l.wide).toBeCloseTo(0.9 * l.radius, 6);
+    }
+    // Rim: the near limit is about the distance of the 1,000th nearest star (a few hundred ly), far below the 2,900 ly bubble limit.
+    expect(limits[3]!.near).toBeGreaterThan(500);
+    expect(limits[3]!.near).toBeLessThan(1000);
+    expect(limits[3]!.wide).toBeGreaterThan(2500);
+    // Dense places zoom out much less in light years.
+    expect(limits[0]!.near).toBeLessThan(limits[1]!.near);
+    expect(limits[1]!.near).toBeLessThan(limits[3]!.near);
+    expect(DEFAULT_PARAMS.zoom).toBe("near");
+    expect(parsePreviewParams("?zoom=wide").zoom).toBe("wide");
+    expect(parsePreviewParams("?zoom=far").zoom).toBe("near");
+    // With fewer than 1,000 stars the farthest star counts.
+    expect(zoomOutLimit("near", [1, 2, 3], 3, 100)).toBe(3);
   });
   it("auto reach: the rim gets a reach with diamonds (a long-range ship), the centre and start keep today's 55 ly", () => {
     expect(REACHES).toContain(55);
