@@ -1,6 +1,7 @@
 // Small pure helpers for the render layer. No drawing here, no Three.js, so they are easy to test.
 
 import type { Seed } from "../universe";
+import { hash32 } from "./galaxy/hash";
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -118,10 +119,22 @@ export function planetColorMix(type: string, nx: number, ny: number, nz: number)
   return v > 0.6 ? 1 : 0;
 }
 
-/** Same dots every time: points spread over a sphere, as x,y,z numbers in one list. */
-export function starfieldPositions(count: number, radius: number): Float32Array {
+/** The number the plain dots have always used. A call without a seed gives exactly the dots of before. */
+export const DEFAULT_STARFIELD_SEED = 123456789;
+
+/**
+ * A star-pattern number made from a system number (system numbers are whole numbers up to about 47 billion, so both halves are used).
+ * Plain words: every system gets its own pattern of background dots, the same every time. Decoration only.
+ */
+export function systemSkySeed(systemId: number): number {
+  const id = Number.isFinite(systemId) && systemId > 0 ? Math.floor(systemId) : 0;
+  return hash32(id % 4294967296, Math.floor(id / 4294967296), 0x5e3d5);
+}
+
+/** Same dots every time for the same seed: points spread over a sphere, as x,y,z numbers in one list. */
+export function starfieldPositions(count: number, radius: number, seed: number = DEFAULT_STARFIELD_SEED): Float32Array {
   const out = new Float32Array(count * 3);
-  let s = 123456789;
+  let s = seed >>> 0;
   const next = (): number => {
     s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
     return s / 4294967296;

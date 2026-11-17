@@ -19,7 +19,8 @@ import {
   type CamLimits,
   type OrbitCam,
 } from "./dockedcam";
-import { clamp, dockKindLabel, hexToNumber, planetTypeLabel, starfieldPositions } from "./helpers";
+import { clamp, dockKindLabel, hexToNumber, planetTypeLabel } from "./helpers";
+import { makeBackdrop, reseedBackdrop } from "./backdrop";
 import type { Hud } from "./hud";
 import {
   FALLBACK_SHIP_ID,
@@ -178,11 +179,11 @@ export class DockedScreen implements Screen {
   private titleText = "";
   private labelText = "";
   private tmp = new THREE.Vector3();
+  /** The plain background dots; each system has its own pattern (set in open()). */
+  private readonly backdrop = makeBackdrop(STARFIELD_COUNT, 450);
 
   constructor(private opts: DockedOptions) {
-    const bg = new THREE.BufferGeometry();
-    bg.setAttribute("position", new THREE.BufferAttribute(starfieldPositions(STARFIELD_COUNT, 450), 3));
-    this.scene.add(new THREE.Points(bg, new THREE.PointsMaterial({ color: 0x8890c8, size: 1, sizeAttenuation: false })));
+    this.scene.add(this.backdrop);
     this.scene.add(this.content);
     this.controls = new DockedControls(opts.host);
   }
@@ -203,6 +204,7 @@ export class DockedScreen implements Screen {
     const planet = dock ? getPlanet(seed, dockId) : null;
     if (!planet || !dock) return false;
     const system = getSystem(seed, planet.systemId);
+    reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, planet.systemId);
 
     // Throw away the previous dock completely (no memory growth).
     disposeAll(this.content);

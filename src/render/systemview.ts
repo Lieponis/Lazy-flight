@@ -15,10 +15,10 @@ import {
   planetOrbitPosition,
   planetTypeLabel,
   starDisplayRadius,
-  starfieldPositions,
   type ScreenPoint,
 } from "./helpers";
 import type { AssetModel } from "./assets";
+import { makeBackdrop, reseedBackdrop } from "./backdrop";
 import type { Hud } from "./hud";
 import { OrbitView } from "./input";
 import { buildDockModel } from "./models3d";
@@ -221,6 +221,8 @@ export class SystemViewScreen implements Screen {
   private temp = new THREE.Vector3();
   private clockT = 0;
   private systemId: number | null = null;
+  /** The plain background dots; each system has its own pattern (set in open()). */
+  private readonly backdrop = makeBackdrop(STARFIELD_COUNT, 450);
   private markStyle: MarkStyle = SYSTEM_MARK_STYLE;
   private summary = "";
   private triangles = 0;
@@ -228,9 +230,7 @@ export class SystemViewScreen implements Screen {
   private footprints: number[] = [];
 
   constructor(private opts: SystemViewOptions) {
-    const bg = new THREE.BufferGeometry();
-    bg.setAttribute("position", new THREE.BufferAttribute(starfieldPositions(STARFIELD_COUNT, 450), 3));
-    this.scene.add(new THREE.Points(bg, new THREE.PointsMaterial({ color: 0x8890c8, size: 1, sizeAttenuation: false })));
+    this.scene.add(this.backdrop);
     this.scene.add(this.content);
 
     this.selectionMarker = new THREE.LineSegments(
@@ -346,6 +346,7 @@ export class SystemViewScreen implements Screen {
     });
 
     this.systemId = system.id;
+    reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, system.id);
     this.summary = systemSummary(
       planets.length,
       docks.filter((d): d is Dock => d !== null).map((d) => ({ name: d.name, kind: dockKindLabel(d.kind) })),

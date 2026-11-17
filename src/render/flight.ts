@@ -27,7 +27,8 @@ import { fuelScreenData, infoScreenData, mapScreenData } from "./screendata";
 import { COCKPIT_FOV, COCKPIT_LENS, CockpitLens } from "./assets/lens";
 import { cockpitRoomVisible, dragLook, glide, isDoubleTap, isTap, ownShipVisible, pilotEye, renderPathFor, fovForMagnification, shakeShare, startFov, zoomMagnification, type Look, type ViewMode } from "./cockpitview";
 import { pinchFactor, wheelFactor } from "./dockedcam";
-import { hexToNumber, starfieldPositions } from "./helpers";
+import { hexToNumber } from "./helpers";
+import { makeBackdrop, reseedBackdrop } from "./backdrop";
 import { SCENERY_TIME_FACTOR, arriveEase, arrivePose, departPose, floatDrift, shipRoll, floatLayout, lengthOf, parseFloatStyle, ringNormalWorld, STAR_DIRECTION, STAR_DISTANCE, starDrawRadius, tiltForClearance, type FloatStyle } from "./floatmath";
 import { chooseLook } from "./planetlook";
 import type { Hud } from "./hud";
@@ -206,6 +207,8 @@ export class FlightScreen implements Screen {
   private phases: PhaseSettings = BASE_PHASES; // the approach to a station takes longer than to an outpost
   private floating: { planetId: string; name: string } | null = null; // set while the ship floats at a planet without a dock
   private floatStyle: FloatStyle = parseFloatStyle(window.location.search) ?? FLOAT_DEFAULT_STYLE;
+  /** The plain background dots; each system has its own pattern (set when a flight or a float begins). */
+  private readonly backdrop = makeBackdrop(STARFIELD_COUNT, 450);
 
   private flash = document.createElement("div");
   private hudRoot = document.createElement("div");
@@ -215,9 +218,7 @@ export class FlightScreen implements Screen {
   private modeButton = document.createElement("button");
 
   constructor(private opts: FlightScreenOptions) {
-    const bg = new THREE.BufferGeometry();
-    bg.setAttribute("position", new THREE.BufferAttribute(starfieldPositions(STARFIELD_COUNT, 450), 3));
-    this.scene.add(new THREE.Points(bg, new THREE.PointsMaterial({ color: 0x8890c8, size: 1, sizeAttenuation: false })));
+    this.scene.add(this.backdrop);
     this.screens.onFontLoaded = () => (this.hudTimer = 0); // redraw with the pixel font as soon as it is there
     this.cockpitRig.add(this.cockpitModel.group);
     this.cockpitRig.visible = false;
@@ -271,6 +272,8 @@ export class FlightScreen implements Screen {
     this.floating = null;
     this.free = false;
     this.info = info;
+    // One sky for the whole flight: the system the ship is heading for (it is also the sky it floats under after arriving).
+    reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, parseDockId(info.destinationDockId)?.systemId ?? null);
     this.finishing = null;
     this.lastPlan = null;
     this.clockT = 0;
@@ -292,6 +295,7 @@ export class FlightScreen implements Screen {
     const planet = getPlanet(this.opts.seed, planetId);
     if (!planet) return false;
     this.flightCounter++;
+    reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, planet.systemId);
     this.clearBodies();
     this.resetLook();
     this.finishing = null;
