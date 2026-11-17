@@ -1,7 +1,7 @@
 // LONG, UNIQUE NAMES ON THE 3D SCREENS (stage 3i, pure logic: words and widths only, no drawing, so it can be tested).
 // Names are now like "Kopipex 2N-83" (a word and a code), "Kopipex 2N-83 II" (a planet) and "Lonely Basin Outpost, Kopipex 2N-83 II"
 // (a dock with its place). The CODE is what makes a name unique, so every helper here keeps the code whole and shortens only the word.
-// Limits (src/universe): system 42 letters, planet 47, dock full name 75.
+// Limits (src/universe, universe v3): system 29 letters, planet 34, dock full name 62 (the first prototype had 42, 47 and 75).
 //
 // src/ui/logic.ts has the same rules for the menus (Agent 5, stage N3a). The render layer may not import the ui layer, so the small
 // pieces are repeated here (suggestion: move them to a shared file one day).
