@@ -1,3 +1,4 @@
+import "./previewboot"; // KEEP THIS FIRST: it must run before any other code reads the save box (src/previewboot.ts)
 // The /game-debug.html test page: plain text and buttons. It makes its OWN Game (never the live one).
 // No Three.js, no menus. Buttons marked TEST break the normal rules so Andy can try everything quickly.
 

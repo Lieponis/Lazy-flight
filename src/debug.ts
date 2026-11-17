@@ -1,3 +1,4 @@
+import "./previewboot"; // KEEP THIS FIRST: it must run before any other code reads the save box (src/previewboot.ts)
 // The debug page (debug.html). Shows the universe generator as plain text and tables.
 // It only READS from the universe module. It does not touch the cube page.
 

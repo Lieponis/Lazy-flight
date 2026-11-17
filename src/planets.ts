@@ -1,3 +1,4 @@
+import "./previewboot"; // KEEP THIS FIRST: it must run before any other code reads the save box (src/previewboot.ts)
 // PLANET LOOKS PREVIEW (/planets.html, Agent 7c): a wall of real planets from a seed, drawn with the game's own
 // makePlanetMesh, so Andy can check the new looks (colours, caps, craters, clouds, stripes, rings) in one place.
 // Address: ?seed=NUMBER&page=N&filter=all|rings|exotic|earthlike (&earth=A|B|C to compare Earth looks, 7f).

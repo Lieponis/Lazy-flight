@@ -1,3 +1,4 @@
+import { IS_PREVIEW } from './previewboot'; // KEEP THIS FIRST: it must run before any other code reads the save box (src/previewboot.ts)
 import * as THREE from 'three';
 import './style.css';
 import { BACKGROUND_COLOR } from './settings';
@@ -40,4 +41,5 @@ const start = chooseStart(); // continue the save or start a new game: this pick
 const api = startRender(renderer, app, { seed: start.plan.seed, mapSource: makeMapSource });
 const game = startUi(api, app, start); // the menus: status strip, JOBS, MAP, Jobs menu, arrival card (src/ui)
 // Offline app (stage P1): registers the offline helper and offers "new version ready" only when no trip is running.
-startOfflineApp(app, () => game.state.currentJob === null && game.state.freeTrip === null && api.state.get().screen !== 'flight');
+// The branch preview never registers one: its helper would share the live game's stored copies and could delete them.
+if (!IS_PREVIEW) startOfflineApp(app, () => game.state.currentJob === null && game.state.freeTrip === null && api.state.get().screen !== 'flight');

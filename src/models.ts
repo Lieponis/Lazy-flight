@@ -1,3 +1,4 @@
+import "./previewboot"; // KEEP THIS FIRST: it must run before any other code reads the save box (src/previewboot.ts)
 // THE MODEL VIEWER (/models.html): look at every ship, outpost and station, and find what is wrong with them.
 // Every control is written into the web address, so any exact view can be shared and opened again.
 // This page only READS the game's old shapes (for "Compare"); it never changes them.

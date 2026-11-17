@@ -1,3 +1,4 @@
+import "./previewboot"; // KEEP THIS FIRST: it must run before any other code reads the save box (src/previewboot.ts)
 // The galaxy prototype page (galaxy-debug.html). Shows the G1 galaxy generator as pictures and tables.
 // It only READS from src/universe (the galaxy and the names). It does not touch the game.
 
