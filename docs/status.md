@@ -296,3 +296,9 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Numbers: nearest 10,000 at start in 26 ms (cloud; phone est. 80-160 ms); start on inner arm edge, 8.0 ly spacing, 126 systems within 25 ly, 3,349 within 75 ly, nearest 10,000 reach 107.7 ly. Rim: nearest system 80-250 ly away.
 - Recommendation GO with conditions: phone timing + iPhone checksum (with G2); game queries by count only; Andy's choice start at arm edge (8.0 ly) vs arm middle (6.7 ly); rim policy.
 - Lead verdict: accepted as prototype. Waiting for G2 (Agent 3 map preview) before go/no-go. Section 9 of the report = v3 change list by layer (use it for G3-G6 briefs).
+
+## G1 phone check CLOSED, G2 delivered (Lead 2026-11-17)
+- G1: Andy's iPhone: timings 5 ms (nearest 10,000 at start), 28 ms (60,000); checksum d0019075 OK (matches computer). G1 = GO, no open phone condition.
+- G2: Agent 3 report docs/report-agent-3j.md: verdict GO, phone FRAME line still open. Live page /galaxy-map-preview.html. Caps proposed: diamonds 5,000 (phone max 10,000), tappable 10,000, near pixels 60,000 (30,000 if slow), sky 60,000 dots at 64 size (32 if slow). Sky changes visibly after: dots 20-200 ly, glow 200-500 ly (not at rim). Section "What must change in the real map code" = G5 brief base.
+- Open for Andy: phone numbers on the preview (FRAME, SKY BUILT, TAP lines, smooth/choppy), AUTO reach = the diamonds-at-rim he meant?, shape near stars like the galaxy at rim (suggestion yes/no), start spot (arm edge vs arm middle), rim policy.
+- Next: go/no-go after Andy's phone numbers; then G3 briefs (Agent 2 universe v3 using report-agent-2d section 9).
