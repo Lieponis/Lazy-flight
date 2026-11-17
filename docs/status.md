@@ -323,3 +323,8 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Accepted. check-game.yml green (539 tests; balance-sim 3.5 s). Reward curve: full pay to 50 ly, then 50*sqrt(1+(d-50)/25) (650 ly trade 3,080 instead of 7,880); fingerprints unchanged. Explored cap 100,000. Jobs show reach now/refuel/never; far dock = messages, no crash.
 - Finding: not every dock within 100 ly has 2 doable jobs: 93% of boards 1+, 74% 2+, 1.5% dead ends; start dock always 2+. Lead decision: ACCEPT for now; suggestion "one short guaranteed job per board" goes to G6 (balance) if QA finds it annoying.
 - G5 briefs written: docs/briefs/agent-3k-brief.md (render, real map, sky, per-system sky, planets.html) and docs/briefs/agent-5i-brief.md (reach states, messages, rebuilt text, names). Order: Agent 3 Step 1 compile fix first, then Agent 5 starts; same branch, different files.
+
+## Branch preview published at /Lazy-flight/preview/ (Lead 2026-11-17)
+- Andy cannot set up hosting: `.github/workflows/deploy.yml` now also builds branch `universe-v3` (VITE_PREVIEW=1, no type check) into dist/preview. Preview steps are continue-on-error; a broken preview is removed and never blocks the live game. Rebuilds on every push to main, twice an hour (cron 7,37), and by hand.
+- Safety: the preview uses its own save box (prefix "preview-v3:", src/previewboot.ts, Agent 3, test tests/previewstorage.test.ts), shows a PREVIEW tag and runs no offline helper. The live site's helper handles /preview/ as network-only (not touched).
+- Remove the preview step (and the cron) when universe-v3 is merged into main.

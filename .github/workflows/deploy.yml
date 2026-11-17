@@ -6,6 +6,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch: # lets you also start it by hand from the Actions tab
+  schedule:
+    - cron: "7,37 * * * *" # twice an hour: rebuilds the branch preview (below) with the newest work
 
 permissions:
   contents: read
@@ -30,6 +32,29 @@ jobs:
         run: npm test
       - name: Build the game
         run: npm run build
+      # BRANCH PREVIEW (Lead, 2026-11-17): the unfinished universe-v3 branch is built and put at /preview/ next to the live game.
+      # It uses its own save box (VITE_PREVIEW=1, see src/previewboot.ts) so it never touches the live game's saves.
+      # It must NEVER stop the live game from publishing: every preview step may fail, and then the preview folder is removed.
+      - name: Fetch the preview branch
+        id: preview_fetch
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: universe-v3
+          path: preview-src
+      - name: Build the preview (no type check on purpose: the branch is unfinished)
+        id: preview_build
+        if: steps.preview_fetch.outcome == 'success'
+        continue-on-error: true
+        working-directory: preview-src
+        env:
+          VITE_PREVIEW: "1"
+        run: |
+          npm install
+          npx vite build --outDir ../dist/preview --emptyOutDir
+      - name: Remove a broken preview
+        if: steps.preview_fetch.outcome != 'success' || steps.preview_build.outcome != 'success'
+        run: rm -rf dist/preview
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
