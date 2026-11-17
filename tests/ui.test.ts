@@ -16,7 +16,7 @@ import {
   type GameState,
   type OutpostOffer,
 } from "../src/game";
-import { getJobBoard, getPlanetsOfSystem, type Job } from "../src/universe";
+import { WORLD_SEED, getJobBoard, getPlanetsOfSystem, nearestDocks, type Job } from "../src/universe";
 import { nearStart } from "./helpers/near";
 import {
   blockedReason,
@@ -50,7 +50,9 @@ import {
   explorerRankUpLine,
   explorerRowText,
   whatNowChoices,
-  noJobsHint,
+  boardMessage,
+  cardReach,
+  REACH_BADGES,
   paintRowText,
   paintSummary,
   planetPanelText,
@@ -142,7 +144,7 @@ describe("ui: words", () => {
 
 describe("ui: job cards", () => {
   it("builds the text of a takeable card", () => {
-    const entry: BoardEntry = { job: fakeJob(), baseReward: 1350, bonusPercent: 0, fuelNeeded: 9, tripSeconds: 200, block: null };
+    const entry: BoardEntry = { job: fakeJob(), baseReward: 1350, bonusPercent: 0, fuelNeeded: 9, tripSeconds: 200, block: null, reach: "now", reachText: "" };
     const c = jobCardText(entry, names, 1);
     expect(c).toMatchObject({
       kind: "CARGO",
@@ -165,6 +167,8 @@ describe("ui: job cards", () => {
       bonusPercent: 0,
       fuelNeeded: 9,
       tripSeconds: 200,
+      reach: "now",
+      reachText: "",
       block: { code: "no-cabin", text: "Needs a passenger cabin (your ship has none)." },
     };
     const c = jobCardText(entry, names, 1);
@@ -320,6 +324,8 @@ describe("ui 5c: ranks", () => {
       bonusPercent: 10,
       fuelNeeded: 9,
       tripSeconds: 200,
+      reach: "now",
+      reachText: "",
       block: { code: "rank-too-low", text: "Needs rank Crate Wrangler in cargo (you are Box Pusher)." },
     };
     const c = jobCardText(entry, names, 1);
@@ -409,7 +415,7 @@ describe("ui 5c: outposts and perks", () => {
   });
 
   it("job cards ending at your outpost's system get a +10% marker", () => {
-    const entry: BoardEntry = { job: fakeJob(), baseReward: 1350, bonusPercent: 10, fuelNeeded: 9, tripSeconds: 200, block: null };
+    const entry: BoardEntry = { job: fakeJob(), baseReward: 1350, bonusPercent: 10, fuelNeeded: 9, tripSeconds: 200, block: null, reach: "now", reachText: "" };
     expect(jobCardText(entry, names, 1, 10).outpostBonus).toBe("+10%");
     expect(jobCardText(entry, names, 1).outpostBonus).toBe("");
   });
@@ -608,11 +614,6 @@ describe("ui 5f: free travel, floating, Explorer, paint jobs", () => {
     expect(locationText({ flying: false, floating: true, dockName: "Cosy Rock", systemName: "Kopipex" })).toBe("IN SPACE AT Cosy Rock · Kopipex");
   });
 
-  it("a hint on the Jobs menu when nothing can be taken", () => {
-    expect(noJobsHint([{ takeable: false }, { takeable: false }])).toMatch(/FLY HERE/);
-    expect(noJobsHint([{ takeable: true }])).toBe("");
-  });
-
   it("paint rows: worn, wear, buy, refused", () => {
     const row = { id: "rescue-red", owned: false, worn: false, price: 500, canBuy: true, reason: "", canWear: false };
     const names = { name: "Rescue Red", description: "Loud and proud." };
@@ -639,5 +640,95 @@ describe("layer rule: src/render never imports src/game or src/ui", () => {
   it("has no such imports", () => {
     const bad = /from\s+['"](\.\.\/)+(game|ui)(\/[^'"]*)?['"]/;
     expect(listTsFiles("src/render").filter((f) => bad.test(readFileSync(f, "utf8")))).toEqual([]);
+  });
+});
+
+describe("G5b: job cards say if this ship can fly them (Andy chose A)", () => {
+  const base = { job: fakeJob(), baseReward: 500, bonusPercent: 0, fuelNeeded: 22, tripSeconds: 200 };
+  const now: BoardEntry = { ...base, block: null, reach: "now", reachText: "You can fly this now (22 fuel)." };
+  const refuel: BoardEntry = {
+    ...base,
+    block: { code: "not-enough-fuel", text: "Not enough fuel: needs 22, you have 8. Refuel first." },
+    reach: "refuel",
+    reachText: "Needs 22 fuel, you have 8. Refuel first.",
+  };
+  const far: BoardEntry = {
+    ...base,
+    fuelNeeded: 80,
+    block: { code: "tank-too-small", text: "Too far for this ship's tank: needs 80 fuel, the tank holds 60." },
+    reach: "never",
+    reachText: "Too far for this ship: needs 80 fuel, the tank holds 60.",
+  };
+  const cargo: BoardEntry = { ...base, block: { code: "cargo-too-large", text: "Cargo too large: 31 units, your bay holds 30." }, reach: "now", reachText: "" };
+  const farCargo: BoardEntry = { ...far, block: { code: "cargo-too-large", text: "Cargo too large: 31 units, your bay holds 30." } };
+
+  it("four states from the game's reach and block", () => {
+    expect([now, refuel, far, cargo, farCargo].map(cardReach)).toEqual(["now", "refuel", "far", "other", "far"]);
+  });
+
+  it("badges and texts", () => {
+    const n = jobCardText(now, names, 1);
+    expect(n).toMatchObject({ takeable: true, badge: "READY TO FLY", reason: "", reasonDetail: "" });
+    const r = jobCardText(refuel, names, 1);
+    expect(r).toMatchObject({ takeable: false, badge: "REFUEL FIRST", reason: "", reasonDetail: "Needs 22 fuel, you have 8. Refuel first. Tap REFUEL at the top." });
+    const f = jobCardText(far, names, 1);
+    expect(f).toMatchObject({
+      takeable: false,
+      badge: "TOO FAR FOR THIS SHIP",
+      reason: "",
+      reasonDetail: "Too far for this ship: needs 80 fuel, the tank holds 60. Bigger tanks in the SHIPYARD reach farther.",
+    });
+    expect(jobCardText(cargo, names, 1)).toMatchObject({ badge: "", reason: "Cargo too large", reasonDetail: "Cargo too large: 31 units, your bay holds 30." });
+    expect(jobCardText(farCargo, names, 1)).toMatchObject({ badge: REACH_BADGES.far, reason: "Cargo too large" });
+  });
+
+  it("the reward on a card is always the job's own reward", () => {
+    expect(jobCardText(far, names, 1).reward).toBe(`+${far.job.reward.toLocaleString("en-US")} CR`);
+  });
+
+  it("sorts: ready, refuel first, other blocks, too far; the board's order inside a group", () => {
+    const cards = [far, cargo, refuel, now, farCargo, now].map((e, i) => ({ ...jobCardText(e, names, 1), id: String(i) }));
+    expect(sortForDisplay(cards).map((c) => c.id)).toEqual(["3", "5", "2", "1", "0", "4"]);
+  });
+
+  it("board message: nothing when a job can be flown now", () => {
+    expect(boardMessage({ total: 6, doNow: 1, afterRefuel: 0, never: 5, message: null }, { isRemote: true, remoteMessage: "x" })).toBeNull();
+    expect(boardMessage({ total: 6, doNow: 2, afterRefuel: 1, never: 0, message: null }, { isRemote: false, remoteMessage: null })).toBeNull();
+  });
+
+  it("board message: fuel first, far dock, too far, nothing fits, empty", () => {
+    expect(boardMessage({ total: 6, doNow: 0, afterRefuel: 2, never: 0, message: null }, { isRemote: false, remoteMessage: null })).toEqual({
+      title: "FUEL UP FIRST",
+      text: "Every job you could fly needs more fuel than you have.",
+      hint: "Tap REFUEL at the top.",
+    });
+    const remote = "Nothing here is within reach of this ship. The next dock is 94.7 ly away; a full tank takes you 30 ly.";
+    const far = boardMessage({ total: 6, doNow: 0, afterRefuel: 0, never: 6, message: remote }, { isRemote: true, remoteMessage: remote })!;
+    expect(far.title).toBe("WAY OUT IN THE DARK");
+    expect(far.text).toBe(remote); // shown once, not twice
+    expect(far.hint).toMatch(/SHIPYARD/);
+    expect(boardMessage({ total: 6, doNow: 0, afterRefuel: 0, never: 6, message: "Every job here is too far for this ship." }, { isRemote: false, remoteMessage: null })!.title).toBe("TOO FAR FOR THIS SHIP");
+    expect(boardMessage({ total: 6, doNow: 0, afterRefuel: 0, never: 2, message: "No job here fits your ship right now (cargo, cabin, rank or tank)." }, { isRemote: false, remoteMessage: null })!.title).toBe("NOTHING FITS YOUR SHIP");
+    expect(boardMessage({ total: 0, doNow: 0, afterRefuel: 0, never: 0, message: "There are no jobs on this board right now." }, { isRemote: false, remoteMessage: null })!.title).toBe("EMPTY BOARD");
+  });
+
+  it("a real far dock at the rim: every card is too far, the message box shows the game's sentence", () => {
+    const rim = nearestDocks(WORLD_SEED, { x: 49000, y: 0, z: 0 }, 60).map((d) => d.dockId);
+    let checked = 0;
+    for (const dockId of rim) {
+      const game = new Game(WORLD_SEED, dockId, createClock(1));
+      const place = game.getPlaceInfo();
+      const summary = game.getBoardSummary();
+      if (!place.isRemote || summary.doNow + summary.afterRefuel > 0) continue;
+      const msg = boardMessage(summary, place)!;
+      expect(msg.title).toBe("WAY OUT IN THE DARK");
+      expect(msg.text).toContain("ly away");
+      const cards = game.getBoard().map((e) => jobCardText(e, names, 1));
+      expect(cards.length).toBeGreaterThan(0);
+      for (const c of cards) expect(c.badge).toBe("TOO FAR FOR THIS SHIP");
+      checked++;
+      if (checked >= 2) break;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });
