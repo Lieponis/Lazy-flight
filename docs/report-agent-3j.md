@@ -101,7 +101,7 @@ Reading it with "5 % of the sky changes visibly" as the line: the **glow** chang
 **What Andy should know (honest):**
 - **The galaxy's edge is soft.** The sky's own edge fade is a bell curve 3,000 ly wide, so at the farthest point of the rim cluster (1,261 ly past the edge) the stars are only thinned to 84 %. About 12 % of the rim stars lie past the edge line and the flat disc does not visibly stop there. It matches the sky's soft edge, which is what Andy asked ("same edge fade as the galaxy sky"). A visibly sharper end needs a smaller number in `edgeTaper` for the sky AND the stars (one place), but it would change the glow he approved, so I did not do it (suggestion below).
 - **Rim diamonds drop from 1,780 to 480.** That is what a thin disc holds in a 1,000 ly reach. Andy chose to keep it.
-- The page seed gives a rim NEAR limit of **823 ly**; the 829 in the status file comes from a different test seed (5) and the earlier 822 was rounded. The shape leaves it exactly as it was.
+- The page seed gives a rim NEAR limit of **823 ly**; the 829 in the status file is what the tests' own seed (5) gives, and an earlier line of this report said 822 (an older measurement); 823 is what the current code gives on the page's seed, with and without the shape.
 - Rim spacing still varies with the distance from the centre across a 3,000 ly cluster (103 to 134 ly) but the cluster uses one spacing (134); same as before the change.
 **Tests (12 new, 69 in the file):** the shape is the sky's shape (same sigma, same edge, nothing above 6 sigma, the sky field agrees there); no shape = the old ball exactly; keep 1 = identical ball, keep 0 = none and the bubble stays; a half-space keeps half and only that side; shaped stars are a subset of the ball with the same colours and sizes, nearest first; same seed = same stars; the four places (share kept, how flat); the disc is the galaxy's disc, not a slab around you (standing 500 ly above it, the stars all lie about 500 ly below you); zoom limits equal the old ones at all four places; `zoomOutLimit` with a ball distance; the diamond counts above; `?shape=` in the address.
 **Not run in my workspace:** the real page with the shape (Actions green; offline only the stand-in runner and the side-view picture).
@@ -191,7 +191,7 @@ Open https://lieponis.github.io/Lazy-flight/galaxy-map-preview.html. Press START
 
 ## Suggestions (not built, not asked for)
 - Suggestion: a visibly sharper galaxy edge: make the edge fade narrower than 3,000 ly in `edgeTaper` (one number, used by the sky glow AND the near stars). It changes the rim glow Andy approved, so it needs his yes/no and a look at the sky first.
-- Suggestion: let the star spacing change across the rim cluster (103 ly on the inner side, 134 ly at the player, about 170 ly on the outer side) instead of one spacing. Small, costs nothing, makes the disc slightly sparser toward the edge.
+- Suggestion: let the star spacing change across the rim cluster (103 ly on the inner side, 134 ly at the player, about 180 ly on the outer side) instead of one spacing. Small, costs nothing, makes the disc slightly sparser toward the edge.
 - Suggestion: cross-fade the old and new sky when a rebuild finishes.
 - Suggestion: build the glow on the GPU (one pass per sky texel in a shader) so a rebuild is a few ms instead of 0.1 to 1.5 s.
 - Suggestion: give `starfieldPositions` a per-system seed now (step 1 above); it is cheap and every system gets its own sky.
