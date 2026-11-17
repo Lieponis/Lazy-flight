@@ -19,7 +19,13 @@ export function orbitAnglesFor(dir: Vec3): { yaw: number; pitch: number } {
 
 export type FaceSize = 32 | 64 | 128;
 export const FACE_SIZES: FaceSize[] = [32, 64, 128];
-export const REACHES = [55, 80] as const;
+/**
+ * Ship reach choices in light years: 55 and 80 are the ships of today, 250 and 1,000 stand in for ships Andy will add later
+ * (at the rim the stars are about 134 ly apart, so only a long reach has any diamonds there).
+ */
+export const REACHES = [55, 80, 250, 1000] as const;
+/** "auto" picks, for the place you stand at, the shortest reach that holds at least AUTO_REACH_STARS stars. */
+export const AUTO_REACH_STARS = 200;
 export const TAP_COUNTS = [1000, 10000, 20000] as const;
 export const DIAMOND_CAPS = [2000, 5000, 10000, 20000] as const;
 /** How many nearby stars the preview makes in total (the nearest ones are tappable, all are drawn as pixels). */
@@ -32,7 +38,7 @@ export interface PreviewParams {
   face: FaceSize;
   /** "auto" = the spacing of the place; or one of 2, 8.6, 30. */
   density: "auto" | (typeof DENSITY_SPACINGS)[number];
-  reach: (typeof REACHES)[number];
+  reach: "auto" | (typeof REACHES)[number];
   tap: (typeof TAP_COUNTS)[number];
   diamonds: (typeof DIAMOND_CAPS)[number];
   glow: boolean;
@@ -47,7 +53,7 @@ export const DEFAULT_PARAMS: PreviewParams = {
   sky: "C",
   face: 64,
   density: "auto",
-  reach: 55,
+  reach: "auto",
   tap: 10000,
   diamonds: 5000,
   glow: true,
@@ -85,7 +91,7 @@ export function parsePreviewParams(search: string): PreviewParams {
     sky: pick(q.get("sky"), Object.keys(SKY_LOOKS) as SkyLookId[], d.sky),
     face: pick(q.get("face"), FACE_SIZES, d.face),
     density,
-    reach: pick(q.get("reach"), REACHES, d.reach),
+    reach: pick<string | number>(q.get("reach"), ["auto", ...REACHES], d.reach) as PreviewParams["reach"],
     tap: pick(q.get("tap"), TAP_COUNTS, d.tap),
     diamonds: pick(q.get("diamonds"), DIAMOND_CAPS, d.diamonds),
     glow: flag(q.get("glow"), d.glow),
@@ -105,11 +111,45 @@ export function diamondSize(starRadius: number): number {
   return 0.6 * (0.55 + 0.3 * Math.max(0.5, Math.min(3, starRadius)));
 }
 
+/** The fade starts at this share of the bubble radius. */
+export const EDGE_FADE_START = 0.7;
+
+/** How much of a star's light is left at distance `d` when the near-star bubble has radius `radius`: 1 inside, falling smoothly to 0 at the edge. */
+export function edgeFade(d: number, radius: number): number {
+  const x = Math.max(0, Math.min(1, d / Math.max(radius, 1e-6)));
+  const t = Math.max(0, Math.min(1, (x - EDGE_FADE_START) / (1 - EDGE_FADE_START)));
+  return 1 - t * t * (3 - 2 * t);
+}
 /**
- * Brightness (0..1) of a pixel star: the closer the brighter. `d` = distance from the player, `far` = distance of the farthest
- * drawn star. The shader has the same formula.
+ * Brightness (0..1) of a pixel star: the closer the brighter, and it fades to nothing at the edge of the bubble so the bubble
+ * has no visible edge. `d` = distance from the player, `far` = radius of the bubble. The shader has the same formula.
  */
 export function pixelBrightness(d: number, far: number): number {
   const x = Math.max(0, Math.min(1, d / Math.max(far, 1e-6)));
-  return 1 - 0.82 * Math.pow(x, 0.6);
+  return (1 - 0.82 * Math.pow(x, 0.6)) * edgeFade(d, far);
+}
+
+/** The camera may never leave the near-star bubble: it stays within this share of the bubble radius from the player. */
+export const MAX_ZOOM_SHARE = 0.9;
+/** Closest zoom (light years from what the camera looks at): a diamond is about 0.7 ly wide, so it fills a good part of the screen. */
+export const MIN_ZOOM_LY = 2.5;
+/** After tapping a star, the camera glides to this distance from it. */
+export const FLY_TO_DIST_LY = 6;
+
+/**
+ * The farthest the camera may be from its target so that it stays within `limit` of the player (the player is at 0,0,0):
+ * the camera sits at target + dist * u, u being the unit vector from the target to the camera. Never less than `minDist`.
+ */
+export function maxOrbitDistance(target: Vec3, u: Vec3, limit: number, minDist: number): number {
+  const tu = target.x * u.x + target.y * u.y + target.z * u.z;
+  const tt = target.x * target.x + target.y * target.y + target.z * target.z;
+  const room = tu * tu + limit * limit - tt;
+  if (room <= 0) return minDist;
+  return Math.max(minDist, -tu + Math.sqrt(room));
+}
+
+/** The reach "auto" uses: the shortest of REACHES holding at least AUTO_REACH_STARS stars (the longest if none does). */
+export function autoReach(starsWithin: (reach: number) => number): number {
+  for (const r of REACHES) if (starsWithin(r) >= AUTO_REACH_STARS) return r;
+  return REACHES[REACHES.length - 1] as number;
 }

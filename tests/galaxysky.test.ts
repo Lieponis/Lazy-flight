@@ -29,13 +29,22 @@ import { removeNearOverlaps } from "../src/render/galaxy/skystars";
 import { SKY_CELL_MAX_LY, SKY_CELL_MIN_LY, needsNewSky, skyCellLevel, skyCellOf } from "../src/render/galaxy/skycell";
 import { DENSITY_SPACINGS, countWithin, directionsOf, makeNearStars } from "../src/render/galaxy/neardata";
 import {
+  AUTO_REACH_STARS,
   DEFAULT_PARAMS,
+  EDGE_FADE_START,
+  MAX_ZOOM_SHARE,
+  MIN_ZOOM_LY,
+  REACHES,
+  autoReach,
   diamondSize,
+  edgeFade,
   lyText,
+  maxOrbitDistance,
   orbitAnglesFor,
   parsePreviewParams,
   pixelBrightness,
 } from "../src/render/galaxy/previewmath";
+import { StarGrid, pickBrute } from "../src/render/galaxy/starpick";
 import { orbitCameraPosition } from "../src/render/helpers";
 
 const SMALL: SkyParams = { faceSize: 16, steps: 24, nearRadius: 100 };
@@ -482,7 +491,118 @@ describe("galaxy prototype: preview page helpers", () => {
   it("pixel stars: the closer the brighter, never black, full brightness at the player", () => {
     expect(pixelBrightness(0, 100)).toBe(1);
     expect(pixelBrightness(50, 100)).toBeLessThan(pixelBrightness(10, 100));
-    expect(pixelBrightness(100, 100)).toBeGreaterThan(0.1);
     expect(pixelBrightness(500, 100)).toBeCloseTo(pixelBrightness(100, 100), 9);
+  });
+  it("the near-star bubble has no edge: stars fade smoothly to nothing at its radius", () => {
+    expect(edgeFade(0, 100)).toBe(1);
+    expect(edgeFade(100 * EDGE_FADE_START, 100)).toBe(1);
+    expect(edgeFade(100, 100)).toBe(0);
+    expect(edgeFade(500, 100)).toBe(0);
+    let last = 1;
+    for (let d = 70; d <= 100; d += 1) {
+      const f = edgeFade(d, 100);
+      expect(f).toBeLessThanOrEqual(last + 1e-12);
+      last = f;
+    }
+    expect(pixelBrightness(100, 100)).toBe(0);
+    expect(pixelBrightness(99, 100)).toBeLessThan(0.05);
+  });
+  it("diamonds are the same size in space everywhere (the size depends only on the star's own size class)", () => {
+    // No place, distance or density enters the size.
+    expect(diamondSize.length).toBe(1);
+    expect(diamondSize(1)).toBe(diamondSize(1));
+    expect(diamondSize(1)).toBeGreaterThan(0.4);
+    expect(diamondSize(3)).toBeLessThan(1.1);
+  });
+  it("the zoom-in limit lets a diamond fill a good part of the screen; the zoom-out limit keeps the camera inside the bubble", () => {
+    // 50 degree view: a 0.7 ly diamond at the closest zoom spans at least 15 degrees.
+    const widthDeg = (2 * Math.atan(0.35 / MIN_ZOOM_LY) * 180) / Math.PI;
+    expect(widthDeg).toBeGreaterThan(15);
+    const limit = MAX_ZOOM_SHARE * 3000;
+    for (const target of [{ x: 0, y: 0, z: 0 }, { x: 500, y: -200, z: 900 }, { x: -1500, y: 0, z: 100 }]) {
+      for (const u of [{ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: -0.6, y: 0.48, z: 0.64 }]) {
+        const d = maxOrbitDistance(target, u, limit, MIN_ZOOM_LY);
+        const cam = Math.hypot(target.x + u.x * d, target.y + u.y * d, target.z + u.z * d);
+        expect(cam).toBeLessThanOrEqual(limit + 1e-6);
+        // ... and it is the farthest allowed: a little farther would leave the bubble.
+        const farther = Math.hypot(target.x + u.x * (d + 1), target.y + u.y * (d + 1), target.z + u.z * (d + 1));
+        expect(farther).toBeGreaterThan(limit);
+      }
+    }
+    // Looking at the player, the farthest zoom is exactly the limit.
+    expect(maxOrbitDistance({ x: 0, y: 0, z: 0 }, { x: 0, y: 0.6, z: 0.8 }, limit, MIN_ZOOM_LY)).toBeCloseTo(limit, 9);
+    // A target outside the limit still leaves the closest zoom.
+    expect(maxOrbitDistance({ x: 5000, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, limit, MIN_ZOOM_LY)).toBe(MIN_ZOOM_LY);
+  });
+  it("auto reach: the rim gets a reach with diamonds (a long-range ship), the centre and start keep today's 55 ly", () => {
+    expect(REACHES).toContain(55);
+    expect(REACHES.some((r) => r >= 800)).toBe(true);
+    const reachAt = (place: number): number => {
+      const spacing = describePlace(TELEPORTS[place]!.position).spacing;
+      const n = makeNearStars(60000, spacing, 5);
+      return autoReach((r) => countWithin(n, r));
+    };
+    expect(reachAt(0)).toBe(55);
+    expect(reachAt(1)).toBe(55);
+    expect(reachAt(3)).toBeGreaterThanOrEqual(800);
+    const rim = makeNearStars(60000, describePlace(TELEPORTS[3]!.position).spacing, 5);
+    expect(countWithin(rim, 55)).toBe(0);
+    expect(countWithin(rim, reachAt(3))).toBeGreaterThanOrEqual(AUTO_REACH_STARS);
+    expect(DEFAULT_PARAMS.reach).toBe("auto");
+    expect(parsePreviewParams("?reach=250").reach).toBe(250);
+    expect(parsePreviewParams("?reach=auto").reach).toBe("auto");
+  });
+});
+
+describe("galaxy prototype: tapping a star", () => {
+  const stars = makeNearStars(20000, 8.6, 3);
+  const grid = new StarGrid(stars.positions, 20000);
+  function ray(seed: number): { o: number[]; d: number[] } {
+    const r = mulberryLocal(seed);
+    const o = [(r() - 0.5) * 300, (r() - 0.5) * 300, (r() - 0.5) * 300];
+    const t = [(r() - 0.5) * 200, (r() - 0.5) * 200, (r() - 0.5) * 200];
+    const v = [t[0]! - o[0]!, t[1]! - o[1]!, t[2]! - o[2]!];
+    const l = Math.hypot(v[0]!, v[1]!, v[2]!);
+    return { o, d: [v[0]! / l, v[1]! / l, v[2]! / l] };
+  }
+  function mulberryLocal(a: number): () => number {
+    return () => {
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  it("finds exactly the same star as testing every star, for 300 random rays", () => {
+    let hits = 0;
+    for (let i = 0; i < 300; i++) {
+      const { o, d } = ray(i + 1);
+      const a = grid.pick(o[0]!, o[1]!, o[2]!, d[0]!, d[1]!, d[2]!, 0.05, 600, 0.2);
+      const b = pickBrute(stars.positions, 20000, o[0]!, o[1]!, o[2]!, d[0]!, d[1]!, d[2]!, 0.05, 600, 0.2);
+      expect(a?.index ?? -1).toBe(b?.index ?? -1);
+      if (a) hits++;
+    }
+    expect(hits).toBeGreaterThan(100);
+  });
+  it("a ray aimed straight at a star hits that star, and looks at only a small share of all stars", () => {
+    const i = 777;
+    const px = stars.positions[i * 3]!;
+    const py = stars.positions[i * 3 + 1]!;
+    const pz = stars.positions[i * 3 + 2]!;
+    const o = [px + 60, py + 20, pz - 40];
+    const v = [px - o[0]!, py - o[1]!, pz - o[2]!];
+    const l = Math.hypot(v[0]!, v[1]!, v[2]!);
+    const hit = grid.pick(o[0]!, o[1]!, o[2]!, v[0]! / l, v[1]! / l, v[2]! / l, 0.01, 600, 0.2);
+    expect(hit?.index).toBe(i);
+    expect(hit!.angle).toBeLessThan(1e-3);
+    expect(grid.tested).toBeLessThan(20000 / 4);
+  });
+  it("a ray pointing away from every star, or a star outside the tolerance, gives nothing; an empty grid is fine", () => {
+    expect(grid.pick(0, 0, 0, 0, 1, 0, 1e-6, 5, 0.2)).toBeNull();
+    expect(new StarGrid(new Float32Array(0), 0).pick(0, 0, 0, 1, 0, 0, 0.1, 100)).toBeNull();
+    const one = new StarGrid(Float32Array.from([10, 0, 0]), 1);
+    expect(one.pick(0, 0, 0, 1, 0, 0, 0.01, 100)?.index).toBe(0);
+    expect(one.pick(0, 0, 0, -1, 0, 0, 0.01, 100)).toBeNull();
+    expect(one.pick(0, 0, 0, 0, 1, 0, 0.01, 100)).toBeNull();
   });
 });

@@ -6,7 +6,7 @@
 
 import * as THREE from "three";
 import { BACKGROUND_COLOR, RENDER_HEIGHT, RENDER_WIDTH } from "../../settings";
-import { cameraFov, renderSizeFor } from "../helpers";
+import { cameraFov, orbitCameraPosition, renderSizeFor } from "../helpers";
 import { OrbitView } from "../input";
 import {
   TELEPORTS,
@@ -22,9 +22,15 @@ import { NearLayers, type NearCounts } from "./nearlayers";
 import {
   DIAMOND_CAPS,
   FACE_SIZES,
+  FLY_TO_DIST_LY,
+  MAX_ZOOM_SHARE,
+  MIN_ZOOM_LY,
   NEAR_TOTAL,
   REACHES,
+  TAP_COUNTS,
+  autoReach,
   lyText,
+  maxOrbitDistance,
   orbitAnglesFor,
   parsePreviewParams,
   type PreviewParams,
@@ -35,6 +41,7 @@ import { layoutFor, SkyBuilder, type Vec3 } from "./skyglow";
 import { GLOW_LEVELS, SKY_LOOKS, skyToTexels, type SkyLookId } from "./skylook";
 import { removeNearOverlaps } from "./skystars";
 import { SkyView } from "./skyview";
+import { StarGrid } from "./starpick";
 
 /** Milliseconds per frame the sky build may use (the rest of the frame stays for drawing). */
 const SKY_BUDGET_MS = 6;
@@ -43,6 +50,8 @@ const SKY_STEPS = 56;
 /** Real stars closest to the player whose directions keep fake sky dots away. */
 const OVERLAP_STARS = 3000;
 const OVERLAP_CELL_DEG = 0.35;
+/** How far from a star (CSS pixels) a tap still counts as hitting it. */
+const TAP_RADIUS_PX = 20;
 
 interface SkyStats {
   /** Wall-clock milliseconds from the start of the build to the finished sky (frames included). */
@@ -104,12 +113,13 @@ export function mountGalaxyPreview(root: HTMLElement): void {
   renderer.setClearColor(BACKGROUND_COLOR);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(50, RENDER_WIDTH / RENDER_HEIGHT, 0.5, 800);
+  const camera = new THREE.PerspectiveCamera(50, RENDER_WIDTH / RENDER_HEIGHT, 0.2, 800);
   const sky = new SkyView();
   const layers = new NearLayers();
   scene.add(layers.group);
-  const orbit = new OrbitView(camera, canvas, 8, 150, 66);
+  const orbit = new OrbitView(camera, canvas, MIN_ZOOM_LY, 150, 66);
   orbit.attach();
+  const tapRay = new THREE.Vector3();
 
   // ------------------------------------------------------------------ state
   const state = {
@@ -121,7 +131,9 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     glowLevel: null as number | null,
     face: params.face as number,
     density: params.density as "auto" | number,
-    reach: params.reach as number,
+    /** Ship reach in light years, or "auto" (see autoReach). */
+    reach: params.reach as "auto" | number,
+    tapCount: params.tap as number,
     diamondCap: params.diamonds as number,
     glow: params.glow,
     dots: params.dots,
@@ -133,6 +145,13 @@ export function mountGalaxyPreview(root: HTMLElement): void {
   let near: NearStars = makeNearStars(1, 8.6, 1);
   let nearCounts: NearCounts = { diamonds: 0, pixels: 0, triangles: 0 };
   let nearMs = 0;
+  /** The reach in light years actually used now ("auto" resolved). */
+  let reachNow = 55;
+  let grid: StarGrid | null = null;
+  let gridMs = 0;
+  /** The star the player tapped last (null = none). */
+  let selected: number | null = null;
+  const tapStats = { taps: 0, lastMs: 0, worstMs: 0, lastTested: 0, message: "no tap yet" };
   let pending: PendingSky | null = null;
   let builtGlowSignature: string | null = null;
   let builtDotsSignature: string | null = null;
@@ -143,17 +162,70 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     return state.density === "auto" ? spacingAtRadius(Math.hypot(state.position.x, state.position.z)) : state.density;
   }
 
-  function refreshNear(): void {
+  /** How far the camera starts from the player at a place: far enough to see the stars within reach. */
+  function defaultDist(): number {
+    return Math.max(60, reachNow * 1.2);
+  }
+
+  /** `keepView`: the stars are the same (only reach, caps or tap count changed), so the camera stays where it is. */
+  function refreshNear(keepView = false): void {
     const t0 = performance.now();
     const spacing = currentSpacing();
     near = makeNearStars(NEAR_TOTAL, spacing, Math.round(spacing * 100) + 7);
     nearMs = performance.now() - t0;
-    nearCounts = layers.setStars(near, countWithin(near, state.reach), state.diamondCap);
-    camera.far = Math.max(800, near.radius * 3);
+    reachNow = state.reach === "auto" ? autoReach((r) => countWithin(near, r)) : state.reach;
+    nearCounts = layers.setStars(near, countWithin(near, reachNow), state.diamondCap);
+    const t1 = performance.now();
+    grid = new StarGrid(near.positions, state.tapCount);
+    gridMs = performance.now() - t1;
+    if (!keepView) {
+      selected = null;
+      orbit.resetFocus();
+      tapStats.message = "no tap yet";
+    }
+    layers.setSelected(near, selected);
+    // The camera stays inside the near-star bubble (see maxOrbitDistance), and every star is seen at most 1.9 bubble radii away.
+    camera.far = Math.max(800, near.radius * 2.2 + 50);
     camera.updateProjectionMatrix();
-    orbit.maxDist = Math.max(150, near.radius * 1.3);
     layers.setVisible(state.pixels, state.diamondsOn);
     ensureSky();
+  }
+
+  /** A tap on the picture: the star under the finger becomes the camera's new centre, and the camera glides to it. */
+  function tapAt(clientX: number, clientY: number): void {
+    if (!grid) return;
+    const rect = canvas.getBoundingClientRect();
+    const nx = ((clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
+    const ny = -(((clientY - rect.top) / Math.max(1, rect.height)) * 2 - 1);
+    tapRay.set(nx, ny, 0.5).unproject(camera).sub(camera.position).normalize();
+    const halfFov = (camera.fov * Math.PI) / 360;
+    const maxAngle = Math.atan((TAP_RADIUS_PX / (Math.max(1, rect.height) / 2)) * Math.tan(halfFov));
+    const t0 = performance.now();
+    const hit = grid.pick(camera.position.x, camera.position.y, camera.position.z, tapRay.x, tapRay.y, tapRay.z, maxAngle, camera.far, camera.near);
+    const ms = performance.now() - t0;
+    tapStats.taps++;
+    tapStats.lastMs = ms;
+    tapStats.worstMs = Math.max(tapStats.worstMs, ms);
+    tapStats.lastTested = grid.tested;
+    if (!hit) {
+      tapStats.message = "tap found no star within " + TAP_RADIUS_PX + " px";
+      return;
+    }
+    selected = hit.index;
+    layers.setSelected(near, selected);
+    const x = near.positions[hit.index * 3] ?? 0;
+    const y = near.positions[hit.index * 3 + 1] ?? 0;
+    const z = near.positions[hit.index * 3 + 2] ?? 0;
+    orbit.focusOn(x, y, z, FLY_TO_DIST_LY);
+    tapStats.message = `star #${near.ids[hit.index] ?? hit.index} (the ${(hit.index + 1).toLocaleString("en-US")}th nearest), ${(near.distances[hit.index] ?? 0).toFixed(0)} ly from you`;
+  }
+
+  /** Back to looking at the player, at the starting zoom. */
+  function backToPlayer(): void {
+    selected = null;
+    layers.setSelected(near, null);
+    orbit.focusOn(0, 0, 0, defaultDist());
+    tapStats.message = "back on the player";
   }
 
   // ------------------------------------------------------------------ the sky
@@ -258,8 +330,8 @@ export function mountGalaxyPreview(root: HTMLElement): void {
   function teleport(place: Teleport): void {
     state.place = place;
     state.position = { ...place.position };
-    orbit.dist = Math.max(60, state.reach * 1.2);
     refreshNear();
+    orbit.dist = defaultDist();
     lookAt(state.look);
   }
 
@@ -267,6 +339,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     const d = lookDirection(towards, state.position);
     state.position = { x: state.position.x + d.x * ly, y: state.position.y + d.y * ly, z: state.position.z + d.z * ly };
     refreshNear();
+    orbit.dist = defaultDist();
     lookAt(state.look);
   }
 
@@ -358,17 +431,24 @@ export function mountGalaxyPreview(root: HTMLElement): void {
           }),
         })),
       ]),
-      group(
-        "REACH",
-        REACHES.map((r) => ({
+      group("SHIP REACH", [
+        {
+          label: "AUTO",
+          on: state.reach === "auto",
+          pick: act(() => {
+            state.reach = "auto";
+            refreshNear(true);
+          }),
+        },
+        ...REACHES.map((r) => ({
           label: `${r} LY`,
           on: state.reach === r,
           pick: act(() => {
             state.reach = r;
-            refreshNear();
+            refreshNear(true);
           }),
         })),
-      ),
+      ]),
       group(
         "DIAMOND CAP",
         DIAMOND_CAPS.map((c) => ({
@@ -376,10 +456,22 @@ export function mountGalaxyPreview(root: HTMLElement): void {
           on: state.diamondCap === c,
           pick: act(() => {
             state.diamondCap = c;
-            refreshNear();
+            refreshNear(true);
           }),
         })),
       ),
+      group(
+        "TAPPABLE STARS",
+        TAP_COUNTS.map((c) => ({
+          label: c.toLocaleString("en-US"),
+          on: state.tapCount === c,
+          pick: act(() => {
+            state.tapCount = c;
+            refreshNear(true);
+          }),
+        })),
+      ),
+      group("CAMERA", [{ label: "BACK TO PLAYER", on: false, pick: act(() => backToPlayer()) }]),
       group("LAYERS", [
         {
           label: "GLOW",
@@ -444,6 +536,11 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     frameMs += (dt - frameMs) * 0.1;
     const t0 = performance.now();
     stepSky();
+    orbit.glide(Math.min(0.1, dt / 1000));
+    // The camera may never leave the near-star bubble (Andy: the bubble must not look like a separate ball).
+    const u = orbitCameraPosition(orbit.yaw, orbit.pitch, 1);
+    orbit.maxDist = maxOrbitDistance(orbit.target, u, MAX_ZOOM_SHARE * near.radius, orbit.minDist);
+    if (orbit.dist > orbit.maxDist) orbit.dist = orbit.maxDist;
     orbit.apply();
     sky.follow(camera);
     renderer.info.reset();
@@ -466,7 +563,9 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
     const lines = [
       `PLACE ${sameSpot(state.place) ? state.place.label : "MOVED"}  ${lyText(r)} from centre  spacing ${currentSpacing().toFixed(1)} ly`,
-      `NEAR STARS ${near.count.toLocaleString("en-US")} (made in ${nearMs.toFixed(0)} ms)  diamonds ${nearCounts.diamonds.toLocaleString("en-US")}  pixels ${nearCounts.pixels.toLocaleString("en-US")}`,
+      `NEAR STARS ${near.count.toLocaleString("en-US")} (made in ${nearMs.toFixed(0)} ms, bubble radius ${lyText(near.radius)})  REACH ${state.reach === "auto" ? "auto = " : ""}${reachNow} ly  diamonds ${nearCounts.diamonds.toLocaleString("en-US")}  pixels ${nearCounts.pixels.toLocaleString("en-US")}`,
+      `CAMERA ${lyText(orbit.dist)} from its target (closest ${MIN_ZOOM_LY} ly, farthest now ${lyText(orbit.maxDist)})  target ${lyText(Math.hypot(orbit.target.x, orbit.target.y, orbit.target.z))} from you`,
+      `TAP grid of ${state.tapCount.toLocaleString("en-US")} stars built in ${gridMs.toFixed(1)} ms  taps ${tapStats.taps}  last ${tapStats.lastMs.toFixed(2)} ms (looked at ${tapStats.lastTested} stars)  worst ${tapStats.worstMs.toFixed(2)} ms  -> ${tapStats.message}`,
     ];
     if (pending) {
       const glowShare = pending.glow ? pending.glow.progress : 1;
@@ -488,8 +587,9 @@ export function mountGalaxyPreview(root: HTMLElement): void {
 
   // Everything for the first picture.
   renderPanel();
-  orbit.dist = Math.max(60, state.reach * 1.2);
   refreshNear();
+  orbit.dist = defaultDist();
+  orbit.onTap = tapAt;
   lookAt(state.look);
   requestAnimationFrame(frame);
 }
