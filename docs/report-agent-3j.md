@@ -104,7 +104,7 @@ Reading it with "5 % of the sky changes visibly" as the line: the **glow** chang
 - The page seed gives a rim NEAR limit of **823 ly**; the 829 in the status file is what the tests' own seed (5) gives, and an earlier line of this report said 822 (an older measurement); 823 is what the current code gives on the page's seed, with and without the shape.
 - Rim spacing still varies with the distance from the centre across a 3,000 ly cluster (103 to 134 ly) but the cluster uses one spacing (134); same as before the change.
 **Tests (12 new, 69 in the file):** the shape is the sky's shape (same sigma, same edge, nothing above 6 sigma, the sky field agrees there); no shape = the old ball exactly; keep 1 = identical ball, keep 0 = none and the bubble stays; a half-space keeps half and only that side; shaped stars are a subset of the ball with the same colours and sizes, nearest first; same seed = same stars; the four places (share kept, how flat); the disc is the galaxy's disc, not a slab around you (standing 500 ly above it, the stars all lie about 500 ly below you); zoom limits equal the old ones at all four places; `zoomOutLimit` with a ball distance; the diamond counts above; `?shape=` in the address.
-**Phone check of the shaped stars (Andy, iPhone 17 Air, the real page, 2026-11-17):** at RIM the NEAR STARS line read "4,889 of 60,000 in a full ball" (my offline count was 4,889, so the stand-in runner and the real page agree), diamonds 480 (offline 480), the rim stars form a flat band when zoomed out and looked at along the disc ("Yes"), the zoom stops at the limit ("Yes"), BALL shows 60,000 stars, and his verdict on the picture: **"Looks right"**. He did not send a FRAME line for this check; the shaped sets have fewer points (rim 4,889 instead of 60,000), so the load only went down.
+**Phone check of the shaped stars (Andy, iPhone 17 Air, the real page, 2026-11-17):** at RIM the NEAR STARS line read "4,889 of 60,000 in a full ball" (my offline count was 4,889, so the stand-in runner and the real page agree), diamonds 480 (offline 480), the rim stars form a flat band when zoomed out and looked at along the disc ("Yes"), the zoom stops at the limit ("Yes"), BALL shows 60,000 stars, and his verdict on the picture: **"Looks right"**. FRAME: his first reading was **33.4 ms (30 fps)**; that was **iPhone Low Power Mode** (33.4 ms is exactly two screen refreshes). With Low Power Mode switched off he reports **60 fps** (he gave no full FRAME line, so there is no JS ms, draw-call or triangle count for the shaped page and no per-place reading). The shaped sets also have fewer points (rim 4,889 instead of 60,000).
 **Not run in my workspace:** the real page with the shape (Actions green; offline only the stand-in runner and the side-view picture); Andy's phone check above is the real-page proof.
 
 ## Phone check (Andy, iPhone 17 Air, the real page, 2026-11-17)
@@ -177,7 +177,7 @@ Open https://lieponis.github.io/Lazy-flight/galaxy-map-preview.html. Press START
 1. Drag one finger around for 10 seconds, then pinch in and out: does the picture feel smooth, and does the zoom stop before the ball of stars shows an edge?
 2. Tap 5 different stars: the camera flies to each one; the TAP line and the "5 NEAREST" line show up.
 3. Press RIM, then CENTRE: watch SKY BUILDING / SKY BUILT; the old sky stays until the new one swaps in.
-4. Read out: your phone model; the SKY BUILT, SKY CELL, FRAME and TAP lines; and "smooth / sometimes choppy / choppy".
+4. Read out: your phone model; the SKY BUILT, SKY CELL, FRAME and TAP lines; and "smooth / sometimes choppy / choppy". Switch Low Power Mode off first (it showed 30 fps on Andy's phone).
 
 ## Known issues / not verified
 - The real Three.js page and its shaders were **not run in my workspace** (Andy ran them on his iPhone). The sky shader was checked in headless WebGL2 against the CPU version (max difference 1/255); the cloud frame numbers come from a raw WebGL2 harness, not from the page. Only one phone has been measured.
@@ -188,7 +188,8 @@ Open https://lieponis.github.io/Lazy-flight/galaxy-map-preview.html. Press START
 - The preview picks the tapped star only from the nearest `tap` stars (1,000 / 10,000 / 20,000).
 - AUTO reach by place (Andy confirmed): centre 55 ly (the diamond cap decides: 5,000), start 55 ly (1,075 diamonds), middle 250 ly (2,864 with the galaxy shape; 3,102 as a ball), rim 1,000 ly (480 with the shape; 1,780 as a ball). The rim has fewer diamonds because the disc is thin: see "Shaped near stars".
 - The galaxy's edge is soft in the sky and therefore also in the near stars (see "Shaped near stars"); the shaped cluster does not visibly stop at the edge.
-- The shaped stars were checked on one phone only (Andy's iPhone 17 Air); no FRAME line was sent for the shaped page (the rim draws 12 times fewer points than the ball).
+- The shaped stars were checked on one phone only (Andy's iPhone 17 Air): 60 fps with Low Power Mode off (33.4 ms / 30 fps with it on); the full FRAME line for the shaped page was not sent.
+- **Low Power Mode makes the FRAME line read 30 fps.** Anyone timing the page on an iPhone must switch it off first (Settings, Battery), or the number says nothing about the page.
 
 ## Suggestions (not built, not asked for)
 - Suggestion: a visibly sharper galaxy edge: make the edge fade narrower than 3,000 ly in `edgeTaper` (one number, used by the sky glow AND the near stars). It changes the rim glow Andy approved, so it needs his yes/no and a look at the sky first.
