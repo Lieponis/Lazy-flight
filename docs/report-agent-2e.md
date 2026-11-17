@@ -98,6 +98,8 @@ Status of tests run with the stand-in runner here (Vitest and Three.js are not i
 
 I did not touch any of these (not on my allowed list). `tests/layer-rule.test.ts` is green (`src/universe` imports nothing from other layers). `/planets.html` **breaks** (it calls `listSystemsNear`); the fix is one line on the render side (Agent 3, G5) and the look hash needs nothing else: planet ids are `"<number>/<index>"`, still plain strings, every look changes.
 
+**Actions on the branch (run 44068807130, "Check a branch"): red as expected.** `npm run check` stops at the type check with 26 errors, ALL outside the universe layer (`src/game-debug.ts` 3, `src/game/game.ts` 5, `src/models.ts` 1, `src/planets.ts` 1, `src/render/flight.ts` 1, `src/render/index.ts` 11, `src/render/starmap.ts` 3, `src/render/start.ts` 1, `src/render/systemview.ts` 1; reasons in the table above). There is no error in `src/universe`, `src/debug.ts`, `src/galaxy-debug.ts` or my tests. Because the build stops first, the real Vitest run of my tests did not happen on Actions; I ran all six test files with the stand-in runner (142 tests, green) and they are written for Vitest the same way as the old ones. The first green Actions run will come when Agent 4 and Agent 3 have fixed the files above.
+
 ## 10. Migration facts for Agent 4 (UNIVERSE_VERSION 3)
 An old save (version 1 or 2) holds ids that no longer exist. `isLegacyId` is true for each of these shapes:
 - `currentDockId` (`"3:-2:5:0/2"`) and `spacePlanetId`: invalid. Move the player to `startDockOf(WORLD_SEED).id`.
