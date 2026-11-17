@@ -195,3 +195,39 @@ export function pickBrute(positions: Float32Array, count: number, ox: number, oy
   }
   return best;
 }
+
+/** One entry of {@link nearestTo}: the star's index in the list and its distance in light years. */
+export interface NearbyStar {
+  index: number;
+  distance: number;
+}
+
+/**
+ * The `k` stars closest to star number `from` (the star itself is left out), nearest first.
+ * Looks at the first `count` stars once, with no grid: it runs once per tap (never per frame),
+ * and about 0.1 ms for 20,000 stars is cheap enough for that.
+ */
+export function nearestTo(positions: Float32Array, count: number, from: number, k: number): NearbyStar[] {
+  const out: NearbyStar[] = [];
+  if (from < 0 || from >= count || k <= 0) return out;
+  const fx = positions[from * 3] ?? 0;
+  const fy = positions[from * 3 + 1] ?? 0;
+  const fz = positions[from * 3 + 2] ?? 0;
+  let worst = Infinity; // squared distance of the farthest of the k kept so far (Infinity until k are kept)
+  for (let i = 0; i < count; i++) {
+    if (i === from) continue;
+    const dx = (positions[i * 3] ?? 0) - fx;
+    const dy = (positions[i * 3 + 1] ?? 0) - fy;
+    const dz = (positions[i * 3 + 2] ?? 0) - fz;
+    const d2 = dx * dx + dy * dy + dz * dz;
+    if (out.length === k && d2 >= worst) continue;
+    // Insert in order (k is tiny, so a simple shift is fine).
+    let at = out.length;
+    while (at > 0 && (out[at - 1]?.distance ?? 0) > d2) at--;
+    out.splice(at, 0, { index: i, distance: d2 });
+    if (out.length > k) out.pop();
+    if (out.length === k) worst = out[k - 1]?.distance ?? Infinity;
+  }
+  for (const s of out) s.distance = Math.sqrt(s.distance);
+  return out;
+}

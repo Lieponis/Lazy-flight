@@ -45,7 +45,7 @@ import {
   parsePreviewParams,
   pixelBrightness,
 } from "../src/render/galaxy/previewmath";
-import { StarGrid, pickBrute } from "../src/render/galaxy/starpick";
+import { StarGrid, nearestTo, pickBrute } from "../src/render/galaxy/starpick";
 import { orbitCameraPosition } from "../src/render/helpers";
 
 const SMALL: SkyParams = { faceSize: 16, steps: 24, nearRadius: 100 };
@@ -633,5 +633,33 @@ describe("galaxy prototype: tapping a star", () => {
     expect(one.pick(0, 0, 0, 1, 0, 0, 0.01, 100)?.index).toBe(0);
     expect(one.pick(0, 0, 0, -1, 0, 0, 0.01, 100)).toBeNull();
     expect(one.pick(0, 0, 0, 0, 1, 0, 0.01, 100)).toBeNull();
+  });
+  it("the 5 nearest stars of a star match a full sort, nearest first, and leave out the star itself", () => {
+    for (const from of [0, 5, 777, 19999]) {
+      const got = nearestTo(stars.positions, 20000, from, 5);
+      const all: { index: number; distance: number }[] = [];
+      for (let i = 0; i < 20000; i++) {
+        if (i === from) continue;
+        all.push({
+          index: i,
+          distance: Math.hypot(
+            stars.positions[i * 3]! - stars.positions[from * 3]!,
+            stars.positions[i * 3 + 1]! - stars.positions[from * 3 + 1]!,
+            stars.positions[i * 3 + 2]! - stars.positions[from * 3 + 2]!,
+          ),
+        });
+      }
+      all.sort((a, b) => a.distance - b.distance);
+      expect(got.length).toBe(5);
+      expect(got.map((g) => g.index)).toEqual(all.slice(0, 5).map((g) => g.index));
+      expect(got.some((g) => g.index === from)).toBe(false);
+      for (let j = 1; j < got.length; j++) expect(got[j]!.distance).toBeGreaterThanOrEqual(got[j - 1]!.distance);
+    }
+  });
+  it("asking for more neighbours than there are stars, or for a star that does not exist, is safe", () => {
+    const three = Float32Array.from([0, 0, 0, 1, 0, 0, 5, 0, 0]);
+    expect(nearestTo(three, 3, 0, 5).map((g) => g.index)).toEqual([1, 2]);
+    expect(nearestTo(three, 3, 7, 5)).toEqual([]);
+    expect(nearestTo(three, 3, 0, 0)).toEqual([]);
   });
 });

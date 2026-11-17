@@ -44,7 +44,7 @@ import { layoutFor, SkyBuilder, type Vec3 } from "./skyglow";
 import { GLOW_LEVELS, SKY_LOOKS, skyToTexels, type SkyLookId } from "./skylook";
 import { removeNearOverlaps } from "./skystars";
 import { SkyView } from "./skyview";
-import { StarGrid } from "./starpick";
+import { StarGrid, nearestTo } from "./starpick";
 
 /** Milliseconds per frame the sky build may use (the rest of the frame stays for drawing). */
 const SKY_BUDGET_MS = 6;
@@ -155,7 +155,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
   let gridMs = 0;
   /** The star the player tapped last (null = none). */
   let selected: number | null = null;
-  const tapStats = { taps: 0, lastMs: 0, worstMs: 0, lastTested: 0, message: "no tap yet" };
+  const tapStats = { taps: 0, lastMs: 0, worstMs: 0, lastTested: 0, message: "no tap yet", nearest: "" };
   let pending: PendingSky | null = null;
   let builtGlowSignature: string | null = null;
   let builtDotsSignature: string | null = null;
@@ -191,6 +191,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
       selected = null;
       orbit.resetFocus();
       tapStats.message = "no tap yet";
+      tapStats.nearest = "";
     }
     layers.setSelected(near, selected);
     // The camera stays within the zoom-out limit of the player (see maxOrbitDistance), so it is also inside the bubble.
@@ -227,6 +228,10 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     const z = near.positions[hit.index * 3 + 2] ?? 0;
     orbit.focusOn(x, y, z, FLY_TO_DIST_LY);
     tapStats.message = `star #${near.ids[hit.index] ?? hit.index} (the ${(hit.index + 1).toLocaleString("en-US")}th nearest), ${(near.distances[hit.index] ?? 0).toFixed(0)} ly from you`;
+    // The only star labels on the page: the tapped star (above) and its 5 nearest neighbours (no per-star labels in the picture).
+    const t1 = performance.now();
+    const around = nearestTo(near.positions, state.tapCount, hit.index, 5);
+    tapStats.nearest = around.map((n) => `#${near.ids[n.index] ?? n.index} ${n.distance.toFixed(1)} ly`).join(", ") + ` (${(performance.now() - t1).toFixed(2)} ms)`;
   }
 
   /** Back to looking at the player, at the starting zoom. */
@@ -235,6 +240,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
     layers.setSelected(near, null);
     orbit.focusOn(0, 0, 0, defaultDist());
     tapStats.message = "back on the player";
+    tapStats.nearest = "";
   }
 
   // ------------------------------------------------------------------ the sky
@@ -586,6 +592,7 @@ export function mountGalaxyPreview(root: HTMLElement): void {
       `CAMERA ${lyText(orbit.dist)} from its target (closest ${MIN_ZOOM_LY} ly, farthest now ${lyText(orbit.maxDist)}; zoom-out limit ${state.zoomOut} = ${lyText(zoomLimit())} from you)  target ${lyText(Math.hypot(orbit.target.x, orbit.target.y, orbit.target.z))} from you`,
       `TAP grid of ${state.tapCount.toLocaleString("en-US")} stars built in ${gridMs.toFixed(1)} ms  taps ${tapStats.taps}  last ${tapStats.lastMs.toFixed(2)} ms (looked at ${tapStats.lastTested} stars)  worst ${tapStats.worstMs.toFixed(2)} ms  -> ${tapStats.message}`,
     ];
+    if (tapStats.nearest) lines.push(`5 NEAREST to the tapped star: ${tapStats.nearest}`);
     if (pending) {
       const glowShare = pending.glow ? pending.glow.progress : 1;
       const dotsShare = pending.dots ? pending.dots.progress : 1;
