@@ -7,7 +7,7 @@ Live page (online only): https://lieponis.github.io/Lazy-flight/galaxy-map-previ
 ## Verdict: GO, with one phone check still open
 - Everything the CPU has to do is small: nearest 60,000 stars 30 to 41 ms, tap grid 1 to 12 ms (first build), one tap 0.03 to 1.6 ms, "5 nearest" 0.1 to 0.3 ms, instance fill under 1 ms; the sky (glow + 60,000 dots) is about 0.4 to 0.65 s of work at the default size (up to 1.8 s at the largest), done in 6 ms slices per frame and swapped in when finished.
 - The drawing is 4 draw calls (sky box, sky dots, near pixels, diamonds), 120,000 points and 8 triangles per diamond. In software rendering here it costs 41 ms with no diamonds and about 0.025 ms per diamond. **That says nothing reliable about a phone GPU**, so the go depends on Andy's FRAME line (checklist below). Until then use the caps in "Caps for phones".
-- Nothing found that needs a different technique. The two things to watch on a phone: how long a sky rebuild takes (CPU, grows 3 to 5 times on a slow phone) and the draw time of 120,000 points.
+- Nothing found that needs a different technique. The two things to watch on a phone: how long a sky rebuild takes (CPU; probably 3 to 6 times slower than here) and the draw time of 120,000 points.
 
 ## Built (all on the preview page; the game and its map are not changed)
 - **Sky seen from where you stand:** an equal-area ring sphere (no cube), rebuilt only when you leave a sky cell. Two parts: a soft glow (ray-march of a stand-in galaxy density with dust, shaded on the GPU from two small textures) and single-pixel dots (60,000 or 150,000, placed by importance sampling from the same density, brightness squeezed so faint ones show). Dots that share a patch of sky with a real near star are removed.
@@ -83,7 +83,7 @@ Full scene at the cases of table 1: 2 ly 2,000 / 10,000 / 20,000 diamonds = 85 /
 | rim glow | 0 | 0 | 0 | 0.1 / 0 % | 0.2 / 0 % | 0.4 / 1 % | 1.0 / 3 % |
 | rim dots | 0 % | 0 % | 0 % | 43 % | 77 % | 90 % | 99 % |
 
-Reading it with "5 % of the sky changes visibly" as the line: the **glow** changes after about 500 ly at the centre, about 200 ly at the start, about 300 ly in the middle, and **not within 10,000 ly at the rim** (the rim looks out of the disc, so it is nearly the same everywhere). The **dots** move sooner: about 20 ly at the centre, 50 ly at the start, 150 ly in the middle and 150 to 200 ly at the rim. The sky is rebuilt when you leave a cell of 60 / 960 / 960 / 1,920 ly (about 4.5 % of the distance to the centre). So inside a cell the sky is the cell centre's sky: a small error that is invisible unless you compare two pictures.
+Reading it with "5 % of the sky changes visibly" as the line: the **glow** changes after about 500 ly at the centre, about 200 ly at the start, about 300 ly in the middle, and **not within 10,000 ly at the rim** (the rim looks out of the disc, so it is nearly the same everywhere). The **dots** move sooner: about 20 ly at the centre, 50 ly at the start, 150 ly in the middle and 150 to 200 ly at the rim. The sky is rebuilt when you leave a cell of 60 / 960 / 960 / 1,920 ly (about 4.5 % of the distance to the centre). So inside a cell the sky does not change at all; when you cross into the next cell it is rebuilt and swapped in, and the dots jump (a step of one start cell, 960 ly, moves 97 % of them). The player never sees the exact sky, so the only visible effect is that jump.
 
 ## Formulas (shader and code are the same; `src/render/galaxy/previewmath.ts`)
 - **Pixel brightness:** `x = clamp(d / R, 0, 1)`; `b = (1 - 0.82 * x^0.6) * edgeFade(d, R)`; `d` = distance from the player in ly, `R` = radius of the near-star ball. Pixel size: 2 px if `d < 0.22 R`, else 1 px.
@@ -101,7 +101,7 @@ Reading it with "5 % of the sky changes visibly" as the line: the **glow** chang
 - **So:** the large pattern ("which way is the centre, where is the band, is the sky dark here") is real to the model; every single dot is noise. The model itself is my invention (not Agent 2's), so it is only as true as `densityAt` will be.
 
 ## Caps for phones (proposal; numbers above are not phone numbers)
-- **Diamonds:** default cap **5,000** (40,000 triangles), phone maximum **10,000**, desktop up to **20,000**. With AUTO reach the preview never needs more than 3,102 diamonds (start 1,075 at 55 ly; middle 3,102 at 250 ly; rim 1,780 at 1,000 ly); only the dense centre (cap decides) and a long reach at the start (250 ly = 60,000 stars) fill the cap.
+- **Diamonds:** default cap **5,000** (40,000 triangles), phone maximum **10,000**, desktop up to **20,000**. With AUTO reach the preview never needs more than 3,102 diamonds (start about 1,080 at 55 ly; middle 3,102 at 250 ly; rim 1,780 at 1,000 ly); only the dense centre (cap decides) and a long reach at the start (250 ly = 60,000 stars) fill the cap.
 - **Tappable:** **10,000** (grid build about 4 ms, tap well under 2 ms). 20,000 and 60,000 also cost almost nothing, but only the nearest are useful to tap.
 - **Near pixels:** 60,000 now; if Andy's FRAME line is slow, 30,000 is the next lever (the points cost the most in software).
 - **Sky:** 60,000 dots and the 64 size (24.6K squares); 32 (6.2K squares) if rebuilds feel too slow.
@@ -142,7 +142,7 @@ Open https://lieponis.github.io/Lazy-flight/galaxy-map-preview.html. Press START
 - The stand-in galaxy, its dust and the looks are tuned by eye, not by astronomy.
 - A rebuild shows a small jump when it swaps in (suggestion below).
 - The preview picks the tapped star only from the nearest `tap` stars (1,000 / 10,000 / 20,000).
-- AUTO reach by place: centre 55 ly (all 60,000 stars inside, so the diamond cap decides), start 55 ly (1,075 diamonds), middle 250 ly (3,102), rim 1,000 ly (1,780). Andy has not yet confirmed that this is the diamonds-at-the-rim he meant.
+- AUTO reach by place: centre 55 ly (all 60,000 stars inside, so the diamond cap decides), start 55 ly (about 1,080 diamonds), middle 250 ly (3,102), rim 1,000 ly (1,780). Andy has not yet confirmed that this is the diamonds-at-the-rim he meant.
 
 ## Suggestions (not built, not asked for)
 - Suggestion: shape the near stars like the galaxy at the rim (a flat disc ending at the edge instead of a ball) so the zoomed-out cluster matches the sky. Needs Andy's yes/no.
