@@ -302,3 +302,8 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - G2: Agent 3 report docs/report-agent-3j.md: verdict GO, phone FRAME line still open. Live page /galaxy-map-preview.html. Caps proposed: diamonds 5,000 (phone max 10,000), tappable 10,000, near pixels 60,000 (30,000 if slow), sky 60,000 dots at 64 size (32 if slow). Sky changes visibly after: dots 20-200 ly, glow 200-500 ly (not at rim). Section "What must change in the real map code" = G5 brief base.
 - Open for Andy: phone numbers on the preview (FRAME, SKY BUILT, TAP lines, smooth/choppy), AUTO reach = the diamonds-at-rim he meant?, shape near stars like the galaxy at rim (suggestion yes/no), start spot (arm edge vs arm middle), rim policy.
 - Next: go/no-go after Andy's phone numbers; then G3 briefs (Agent 2 universe v3 using report-agent-2d section 9).
+
+## GO GALAXY (Andy 2026-11-17): universe v3 stages start
+- G2 phone check closed (iPhone 17 Air, 60 fps); tap fix confirmed. Agent 3 finishes shaped near stars (thin disc at rim kept, rim zoom limit 829 ly) in parallel.
+- G3 Agent 2: brief docs/briefs/agent-2e-brief.md. Work on NEW branch `universe-v3` from main + galaxy-proto merged. NOTHING merges to main until the whole branch is green and Andy has played it. Main stays playable. Expected: tests outside src/universe fail on the branch until G4/G5.
+- Next after G3 report: G4 Agent 4 (game/save: migration, reach/fuel, explored cap, job rules), G5 Agents 3 and 5 (real map from agent-3j report, names, UI), G6 Agent 6 (balance, QA, offline tests, phones, brief agent-6g). Rim policy still open.
