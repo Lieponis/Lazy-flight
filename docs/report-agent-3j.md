@@ -36,14 +36,14 @@ Stand-in galaxy: radius 50,000 ly, start at 16,667 ly from the centre. Star spac
 
 At 2 ly the cap, not the reach, decides how many diamonds you get (5,000 diamonds = the nearest 5,000 stars, about 21 ly around you).
 
-**2. Tapping** (spatial grid, about 4 stars per box; result equals testing every star on 300 random rays). First build is cold JIT; later builds are 0.3 to 1.6 ms.
+**2. Tapping** (spatial grid, about 4 stars per box; result equals testing every star on 300 random rays). First build is cold JIT; later builds are 0.3 to 1.6 ms. Re-measured after tap rule v2 (below): the same within noise, because the rule only chooses among the few stars already found in the circle.
 
 | tappable stars | grid build (first) | one tap, average / worst | star tests per tap | 5 nearest |
 |---|---|---|---|---|
 | 1,000 | 0.8 ms | 0.03 to 0.07 / up to 1.2 ms | about 700 to 1,100 | 0.01 ms |
-| 10,000 | 3.6 ms | 0.05 to 0.08 / up to 0.7 ms | about 1,500 to 2,500 | 0.05 ms |
+| 10,000 | 3.6 ms | 0.05 to 0.10 / up to 1.0 ms | about 1,500 to 2,500 | 0.05 ms |
 | 20,000 | 8.8 ms | 0.07 to 0.10 / up to 0.9 ms | about 1,800 to 3,000 | 0.09 ms |
-| 60,000 | 12.1 ms | 0.09 to 0.13 / up to 1.6 ms | about 2,500 to 3,800 | 0.3 ms |
+| 60,000 | 12.1 ms | 0.09 to 0.18 / up to 1.6 ms | about 2,500 to 3,800 | 0.3 ms |
 
 A tap makes about 700 to 3,800 star tests (a star can be tested twice because the steps along the ray overlap), and this grows only slowly with the star count. Checking every star (what `starmap.ts` does now) would be 60,000 projections per tap.
 
