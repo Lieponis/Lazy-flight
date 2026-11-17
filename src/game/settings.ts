@@ -145,11 +145,12 @@ export const EXPLORER_DISCOVERIES_NEEDED: [number, number] = [50, 200];
 export const EXPLORER_DISCOVERY_BONUS_PERCENT: [number, number, number] = [0, 10, 20];
 
 /**
- * Safety limit for the explored list in the save: at most this many star systems are remembered
- * (about 20 bytes each, so well under 1 MB). Reaching it takes over 1,000 hours of play; after it, new systems
- * simply are not recorded.
+ * Safety limit for the explored list in the save (stage G4: raised from 20,000 to 100,000 because the galaxy centre is dense:
+ * a short hop there reaches a new system every minute or so). One entry is about 17 bytes of save text (an 11 digit system
+ * number and a small mask), so a full list is about 1.7 MB, well under the browser's 5 MB per site. After the limit new
+ * systems are simply not recorded (no discovery pay for them). A test measures the size and the time.
  */
-export const MAX_EXPLORED_SYSTEMS = 20000;
+export const MAX_EXPLORED_SYSTEMS = 100000;
 
 // ---------------------------------------------------------------- PAINT JOBS (liveries, stage 4g)
 

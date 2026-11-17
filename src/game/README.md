@@ -25,3 +25,11 @@ No drawing code. It may use `universe`; it must never import `render` or `ui`.
   Menus talk to `game.canFreeTravel(id)`, `game.freeTravel(id)`, `game.getExplorer()`, `game.lastFreeArrival` and `game.whyNotDocked()`. While floating there are no jobs,
   no refuel and no shop (funny plain-text reasons); switching ship and the emergency refuel work. Job arrivals explore too (`Arrival.discovery`, `newSystem`, `newPlanet`, `explorerRankUp`).
   Numbers: `settings.ts` (discovery 50 to 100 credits, Explorer thresholds 50 and 200 discoveries, +0/10/20% discovery bonus, `MAX_EXPLORED_SYSTEMS`). Explorer never changes job pay or job ranks.
+
+## Universe 3 (stage G4)
+
+- System ids are numbers; dock, planet and job ids are text (`"<system>/<planet>"`). Old-shape ids match nothing.
+- Every job card has `reach` (`now`, `refuel`, `never`) and `reachText`. `getBoardSummary()`, `getPlaceInfo()`, `nearbySystems(count)` and `nearbyDocks(count)` serve the screens. See `docs/universe-v3-game-api.md`.
+- Nearby places are asked by count (the nearest N), never by radius: the galaxy centre holds hundreds of thousands of systems within 80 ly.
+- Long trips pay less per light year (`paidDistance` in `src/universe/jobs.ts`): full pay up to 50 ly, a slower square-root growth beyond.
+- The explored list holds up to 100,000 systems (about 1.7 MB of save text).

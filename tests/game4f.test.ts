@@ -499,7 +499,7 @@ describe("the save", () => {
     expect(Object.keys(cleanExplored(many)).length).toBe(MAX_EXPLORED_SYSTEMS);
     // a full list is well under 1 MB in the save
     const full = cleanExplored(many);
-    expect(JSON.stringify(full).length).toBeLessThan(700_000);
+    expect(JSON.stringify(full).length).toBeLessThan(2_200_000);
     // 1,000 real-looking systems are about 24 KB
     const thousand: Record<string, number> = {};
     for (let i = 0; i < 1000; i++) thousand[`${i}:-3:7:2`] = 0b1011;
