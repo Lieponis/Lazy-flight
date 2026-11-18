@@ -72,8 +72,8 @@ describe("ships", () => {
   it("has the three ships with the exact ids and default numbers", () => {
     expect(SHIP_ORDER).toEqual(["cargo-hauler", "passenger-liner", "scout"]);
     expect(getShip("cargo-hauler")).toMatchObject({ cargoCapacity: 30, cabinCapacity: 0, fuelTankSize: 60, price: 0 });
-    expect(getShip("passenger-liner")).toMatchObject({ cargoCapacity: 6, cabinCapacity: 12, fuelTankSize: 100, price: 2500 });
-    expect(getShip("scout")).toMatchObject({ cargoCapacity: 10, cabinCapacity: 2, fuelTankSize: 110, price: 1200 });
+    expect(getShip("passenger-liner")).toMatchObject({ cargoCapacity: 6, cabinCapacity: 12, fuelTankSize: 100, price: 7350 });
+    expect(getShip("scout")).toMatchObject({ cargoCapacity: 10, cabinCapacity: 2, fuelTankSize: 110, price: 3528 });
     for (const id of SHIP_ORDER) expect(getShip(id).description.length).toBeGreaterThan(5);
   });
 });
@@ -82,7 +82,7 @@ describe("buying ships", () => {
   const base = newGameState("x/0");
 
   it("deducts the price, gives a full tank and does not switch", () => {
-    const r = buyShip({ ...base, credits: 3000 }, "passenger-liner");
+    const r = buyShip({ ...base, credits: 7850 }, "passenger-liner");
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.state.credits).toBe(500);
@@ -91,7 +91,7 @@ describe("buying ships", () => {
   });
 
   it("cannot be bought twice", () => {
-    const first = buyShip({ ...base, credits: 5000 }, "scout");
+    const first = buyShip({ ...base, credits: 9000 }, "scout");
     if (!first.ok) throw new Error("first buy failed");
     const second = buyShip(first.state, "scout");
     expect(second.ok).toBe(false);
@@ -99,10 +99,10 @@ describe("buying ships", () => {
   });
 
   it("cannot be bought when short of credits, and credits never go negative", () => {
-    const r = buyShip({ ...base, credits: 2499 }, "passenger-liner");
+    const r = buyShip({ ...base, credits: 7349 }, "passenger-liner");
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason.length).toBeGreaterThan(5);
-    const exact = buyShip({ ...base, credits: 2500 }, "passenger-liner");
+    const exact = buyShip({ ...base, credits: 7350 }, "passenger-liner");
     expect(exact.ok && exact.state.credits).toBe(0);
   });
 
@@ -115,21 +115,21 @@ describe("buying ships", () => {
   });
 
   it("catalog shows owned, active, canBuy and the reason", () => {
-    const cat = shipCatalog({ ...base, credits: 1300 });
+    const cat = shipCatalog({ ...base, credits: 3600 }); // Scout 3,528 yes, Liner 7,350 no
     expect(cat.map((c) => c.ship.id)).toEqual(SHIP_ORDER);
     const hauler = cat[0];
     const liner = cat[1];
     const scout = cat[2];
     expect(hauler).toMatchObject({ owned: true, active: true, canBuy: false });
     expect(liner).toMatchObject({ owned: false, canBuy: false });
-    expect(liner?.reason).toMatch(/2500/);
+    expect(liner?.reason).toMatch(/7350/);
     expect(scout).toMatchObject({ owned: false, canBuy: true, reason: "" });
   });
 });
 
 describe("switching ships", () => {
   const owned = (): GameState => {
-    const r = buyShip({ ...newGameState("x/0"), credits: 5000, fuel: 25 }, "passenger-liner");
+    const r = buyShip({ ...newGameState("x/0"), credits: 9000, fuel: 25 }, "passenger-liner");
     if (!r.ok) throw new Error("buy failed");
     return r.state;
   };
@@ -383,7 +383,7 @@ describe("Game object (4b)", () => {
     const { game } = make();
     let heard = 0;
     game.subscribe(() => heard++);
-    game.state = { ...game.state, credits: 5000 };
+    game.state = { ...game.state, credits: 20_000 };
     expect(game.buyShip("passenger-liner").ok).toBe(true);
     expect(game.switchShip("passenger-liner").ok).toBe(true);
     expect(game.state.shipId).toBe("passenger-liner");
@@ -396,7 +396,7 @@ describe("Game object (4b)", () => {
 
   it("does not allow buying or switching in flight", () => {
     const { game } = make();
-    game.state = { ...game.state, credits: 5000 };
+    game.state = { ...game.state, credits: 20_000 };
     game.buyShip("scout");
     const entry = game.getBoard().find((e) => !e.block);
     if (!entry) throw new Error("no takeable job");

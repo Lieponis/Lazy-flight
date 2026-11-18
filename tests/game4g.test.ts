@@ -213,7 +213,7 @@ describe("several ships", () => {
 
   it("a newly bought ship starts with the standard paint", () => {
     const { game } = makeGame();
-    game.state = { ...game.state, credits: 5_000 };
+    game.state = { ...game.state, credits: 10_000 };
     expect(game.buyShip("passenger-liner").ok).toBe(true);
     expect(game.currentLivery("passenger-liner")).toBe("standard");
     const rows = game.getLiveryCatalog("passenger-liner");

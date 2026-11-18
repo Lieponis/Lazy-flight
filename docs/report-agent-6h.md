@@ -81,7 +81,7 @@ The offline test robot from 6f/6g (`tests/offline/`, `npm run offline-check`) is
   - (a) keep it
   - (b) raise the Scout price, for example 1,200 → 3,000
   - (c) lower the pay per light year
-  This is a Lead and Andy decision. I changed no number.
+  **Decided 2026-11-18 (Andy, Lead OK): all ship prices ×2.94.** Scout 1,200 → 3,528 CR, Passenger Liner 2,500 → 7,350 CR, Cargo Hauler stays free. Simulator: first ship after about 2.8 h (sensible player), about 5,285 CR per hour. Tests updated; all 1,195 pass.
 - **Point for Andy 2:** a player who never buys a ship waits a lot: 12.5 of 30 hours, because many jobs need a cabin and the Hauler has none. Options:
   - (a) keep it (buying a ship is the answer)
   - (b) a hint on the empty board, such as "a ship with seats could take these"
@@ -99,4 +99,3 @@ The offline test robot from 6f/6g (`tests/offline/`, `npm run offline-check`) is
 
 ## Suggestions
 - Suggestion: after the merge, add `npm run offline-check` to the "Check a branch" workflow, once the phone-size planet finding is fixed.
-- Suggestion: decide balance point 1 before players get used to the faster start.
