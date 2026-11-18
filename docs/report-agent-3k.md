@@ -2,7 +2,7 @@
 
 Branch: `universe-v3` only (nothing went to main). Last commit when this was written: `9b8051d`. Status of this report: **v1. Everything that can be measured without a phone is in. The iPhone FRAME numbers (section 4) are PENDING: they need Andy's phone on the preview page.**
 
-**What I could NOT do in my workspace:** open the page in a real browser (no WebGL, no network for the shell). The map, the sky and the new dots have never been seen by me on a screen. Proof so far = the real GitHub Actions runs (every push green: `tsc --noEmit`, build, **51 test files, 1,125 tests**; plus the game-layer check) and numbers measured in plain Node on the cloud machine. Andy's checks in section 8 are the real proof.
+**What I could NOT do in my workspace:** open the page in a real browser (no WebGL, no network for the shell). The map, the sky and the new dots have never been seen by me on a screen. Proof so far = the real GitHub Actions runs (every push green: `tsc --noEmit`, build, **51 test files, 1,127 tests**; plus the game-layer check) and numbers measured in plain Node on the cloud machine. Andy's checks in section 8 are the real proof.
 
 Live preview (the Lead's `/Lazy-flight/preview/`, rebuilt from this branch twice an hour): https://lieponis.github.io/Lazy-flight/preview/ . Test pages on it: `planets.html`, `models.html`, `galaxy-map-preview.html`, `?namepreview=1`, `?floatpreview=1`, `?systempreview=1`, `?mapstats=1`, `?mapat=centre|start|middle|rim`.
 
@@ -54,7 +54,7 @@ How: open the preview, go to the Starmap, add `?mapstats=1` to the address toget
 
 | Place | FRAME ms (average) | JS ms | Draw calls | Triangles | Sky built in | Verdict |
 |---|---|---|---|---|---|---|
-| centre | pending | pending | pending | pending | pending | pending |
+| centre | pending (Andy has seen the centre; his numbers screenshot is still to come) | pending | pending | pending | pending | pending |
 | start | **16.6 (60 fps)** | 0.0 (the iPhone's timer is too coarse to show less than 1 ms) | 5 | 1,884 | 2,033 ms wall = glow 370 + dots 375 ms of work spread over 123 frames, worst slice 7.0 ms | fast, no fallback needed |
 | middle | **16.6 (60 fps)** | 0.1 | 5 | 28 | 1,325 ms wall = glow 103 + dots 374 ms of work over 81 frames, worst slice 6.0 ms | fast, no fallback needed |
 | rim | **16.6 (60 fps)** | 0.2 | 6 | 20 | 1,072 ms wall = glow 25 + dots 367 ms of work over 66 frames, worst slice 7.0 ms | fast, no fallback needed |
@@ -112,7 +112,7 @@ Everything fits (`fits: true`, no row wider than the picture, code whole, never 
 
 ## 10. Test status
 
-- Real CI on `universe-v3` (last run at commit `1dcf237`): **Check a branch: green** (`tsc --noEmit`, build, 51 files, 1,125 tests); **Check the game layer: green**.
+- Real CI on `universe-v3` (last run at commit `1dcf237`): **Check a branch: green** (`tsc --noEmit`, build, 51 files, 1,127 tests); **Check the game layer: green**.
 - New or changed test files: `galaxymap` (36 checks: pure helpers, the real universe at the four places, arm numbers guarded, thin-disc sky cells, diamond size in a crowd), `starmapradius` (6), `starfield` (10), `backdrop` (5, real three.js), `previewstorage` (16), `namefit` (v3 names), and the early render fixes (`earthlike`, `floatpick`, `planetlook`, `title`).
 - Run offline by me: a stand-in type check (only known stand-in noise: no `three` types, no `import.meta.env`) and the pure tests in a stand-in runner. CI is the real proof.
 
