@@ -21,13 +21,13 @@ The far-dock message is fixed. Bulge systems and close disc/bulge pairs work. Th
 ## Checks
 | # | check | result |
 |---|---|---|
-| 1 | Automatic checks on GitHub (branch head cf3ce4c) | PASS: [Check a branch](https://github.com/Lieponis/Lazy-flight/actions/runs/44232567715), [Check the game layer](https://github.com/Lieponis/Lazy-flight/actions/runs/44232567773), [preview build](https://github.com/Lieponis/Lazy-flight/actions/runs/44232627640) |
+| 1 | Automatic checks on GitHub | PASS at cf3ce4c ([branch](https://github.com/Lieponis/Lazy-flight/actions/runs/44232567715), [game layer](https://github.com/Lieponis/Lazy-flight/actions/runs/44232567773), [preview](https://github.com/Lieponis/Lazy-flight/actions/runs/44232627640)) and again with my changes on top of G7b step 2, a8af333 ([branch](https://github.com/Lieponis/Lazy-flight/actions/runs/44243933979), [game layer](https://github.com/Lieponis/Lazy-flight/actions/runs/44243933983)) |
 | 2 | Old saves through the real start path and the import path | PASS (5 of 5, table below) |
 | 3 | Offline app update path (main → v3), offline checks on both builds | PASS for everything a robot can check; 1 robot limit (below) |
 | 4 | Far-dock text | FIXED + 2 tests |
 | 5 | Balance sanity (world seed, 3 players, 30 h) | no blocker; 2 points for Andy |
 | 6 | Agent 2's spot checks (bulge `getSystem`, close disc/bulge pairs) | PASS |
-| — | All automatic tests on the branch with my changes | 1,193 + 4 new files pass |
+| — | All automatic tests on the branch with my changes | 1,195 pass |
 
 ## Old saves (`tests/merge-6h-oldsaves.test.ts`, real `planStart` → migrate → `Game` → `loadIntoGame`, then the save-file import path)
 | save | credits | ships | trip | ship lands | "rebuilt" note | import |
