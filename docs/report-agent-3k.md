@@ -1,6 +1,6 @@
 # Report: Agent 3, stage G5a (the real galaxy map, the sky from where you stand, a sky per system)
 
-Branch: `universe-v3` only (nothing went to main). Last code commit when this was written: `12a87f4` (smaller diamonds at the centre, `diamond ... ly wide` in the stats block). Status of this report: **v4. Everything that can be measured without a phone is in, and the iPhone FRAME numbers for all four places (centre, start, middle, rim) are in: 60 fps at all four. Andy checked on the preview: the smaller centre diamonds are "better", and two systems show "different" background dots (two screenshots).**
+Branch: `universe-v3` only (nothing went to main). Last code commit when this was written: `12a87f4` (smaller diamonds at the centre, `diamond ... ly wide` in the stats block). Status of this report: **v4. Everything that can be measured without a phone is in, and the iPhone FRAME numbers for all four places (centre, start, middle, rim) are in: 60 fps at all four. Andy checked all three things on the preview: `planets.html` is "fine", the smaller centre diamonds are "better", and two systems show "different" background dots (two screenshots). All of Andy's checks are done.**
 
 **What I could NOT do in my workspace:** open the page in a real browser (no WebGL, no network for the shell). The map, the sky and the new dots have never been seen by me on a screen. Proof so far = the real GitHub Actions runs (every push green: `tsc --noEmit`, build, **51 test files, 1,128 tests**; plus the game-layer check) and numbers measured in plain Node on the cloud machine. Andy's checks in section 8 are the real proof.
 
@@ -101,7 +101,7 @@ Everything fits (`fits: true`, no row wider than the picture, code whole, never 
 
 ## 8. Andy's checks (what to do, in order)
 
-1. Open `.../preview/planets.html`: the planet looks draw (looks changed because the planet ids changed). **Not confirmed by Andy yet** (he sent no answer for this one).
+1. Open `.../preview/planets.html`: the planet looks draw (looks changed because the planet ids changed). **Done by Andy: "fine"** (the planets wall draws, pages work).
 2. Open `.../preview/`, play to the Starmap. Look for: stars as pixels, diamonds around the start, a tap picks the nearest star and flies to it, the label with the "5 nearest" line, the sky behind the stars after a few seconds. Then `?mapat=centre` and `?mapat=rim` (add `&mapstats=1` for the numbers). **Done by Andy:** screenshots of start, middle, rim and centre (all 60 fps); the dense centre first showed huge diamonds on a stale preview, and after the rebuild he said "better" (decision 7).
 3. Fly or float in two different systems: the background dots differ. **Done by Andy: "different"**, with a System view screenshot of the start system `Bimvik Deep JR62R-MT37` and one of `Plaboo 53J25-4557` (the dots sit in different places).
 
