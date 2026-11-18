@@ -76,8 +76,11 @@ export class SkyLayer {
     };
   }
 
-  /** Works on the build for about `budgetMs` (glow first, then dots); puts a finished sky on screen. */
-  step(budgetMs: number): void {
+  /**
+   * Works on the build for about `budgetMs` (glow first, then dots); puts a finished sky on screen. `watching` = the screen is showing
+   * right now: then the first sky fades in. Built in the background (not watching) it is simply fully there when the screen opens.
+   */
+  step(budgetMs: number, watching: boolean = true): void {
     const p = this.pending;
     if (!p) return;
     if (!p.glow.done) p.glow.run(budgetMs);
@@ -88,9 +91,14 @@ export class SkyLayer {
     this.view.setTexels(skyToTexels(p.glow.raw), p.glow.layout);
     this.view.setStars(dots);
     this.builtDots = dots.count;
-    if (this.builtKey === null) this.fade = 0; // the first sky fades in; a replacement keeps the strength it had
+    if (this.builtKey === null) this.fade = watching ? 0 : 1; // the first sky fades in if someone is looking; a replacement keeps its strength
     this.builtKey = p.key;
     this.apply();
+  }
+
+  /** Builds a little while the screen is NOT showing (the app calls this on other screens), so the sky is ready before it is needed. */
+  warm(budgetMs: number): void {
+    this.step(budgetMs, false);
   }
 
   /** Every frame: builds a little, fades in, and turns the sky the way the camera is turned. */

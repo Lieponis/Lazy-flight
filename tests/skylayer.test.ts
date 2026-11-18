@@ -112,6 +112,27 @@ describe("the faint sky layer (real universe)", () => {
     layer.dispose();
   });
 
+  it("built ahead of time (nobody watching) it is fully there at once when the screen opens, with no fade-in", () => {
+    const layer = new SkyLayer(sky!, OPTS);
+    const camera = new THREE.PerspectiveCamera(50, 16 / 9, 0.05, 700);
+    layer.setPosition(START_POINT);
+    let guard = 0;
+    while (pendingOf(layer) !== null && guard++ < 20_000) layer.warm(4); // other screens showing: no update() calls
+    expect(pendingOf(layer)).toBeNull();
+    expect(layer.visible).toBe(true);
+    layer.update(0, camera); // the screen opens: the very first frame
+    expect(layer.view.dim).toBeCloseTo(OPTS.faint, 9);
+    layer.dispose();
+  });
+
+  it("warming does nothing when nothing is being prepared", () => {
+    const layer = new SkyLayer(sky!, OPTS);
+    layer.warm(4);
+    expect(layer.visible).toBe(false);
+    expect(pendingOf(layer)).toBeNull();
+    layer.dispose();
+  });
+
   it("turns the sky the way the camera is turned (and only turns: it never moves with the camera)", () => {
     const layer = new SkyLayer(sky!, OPTS);
     const camera = new THREE.PerspectiveCamera(50, 16 / 9, 0.05, 700);

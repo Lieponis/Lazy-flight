@@ -53,8 +53,22 @@ export const MAP_SKY_OVERLAP_CELL_DEG = 0.35;
 export const SYSTEM_SKY_FAINT = 0.25;
 /** Stars closer than this many star gaps are left out of that sky (no single stars are drawn on the system view). */
 export const SYSTEM_SKY_NEAR_SPACINGS = 3;
-/** Milliseconds per frame the system view's sky build may use (the map uses MAP_SKY_BUDGET_MS = 6). */
-export const SYSTEM_SKY_BUDGET_MS = 4;
+/**
+ * How much work that sky takes. Because it is only a faint backdrop it is built much coarser than the map's (a third of the dots, a
+ * quarter of the glow squares): about 0.3 seconds of work on a phone instead of about 1, so it appears within a second or two.
+ * (The first version used the map's full detail and took about 10 seconds to appear on Andy's iPhone.)
+ */
+export const SYSTEM_SKY_DOTS = 30_000;
+export const SYSTEM_SKY_SIZE: 32 | 64 | 128 = 32;
+export const SYSTEM_SKY_STEPS = 24;
+/** Milliseconds per frame the system view's sky build may use (same as the map's MAP_SKY_BUDGET_MS = 6). */
+export const SYSTEM_SKY_BUDGET_MS = 6;
+/**
+ * The sky is also built ahead of time, a few milliseconds per frame while another screen is showing: at the start for the system the ship
+ * is in, and for a star the moment it is picked on the map. So it is usually already there when the system view opens (Andy: "can it
+ * appear in 0.1 s?"). This is the time per frame that background work may use.
+ */
+export const SYSTEM_SKY_IDLE_MS = 3;
 
 /** The reach (light years) the map uses until the app has told it the ship's real reach. */
 export const MAP_REACH_FALLBACK_LY = 35;

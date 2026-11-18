@@ -5,7 +5,7 @@
 // onto the screen), and how far around you the sky is left out (the very nearest stars; there are no individual stars drawn there).
 
 /** How long the sky takes to fade in once it is built (seconds). */
-export const SKY_LAYER_FADE_SECONDS = 1.5;
+export const SKY_LAYER_FADE_SECONDS = 0.5;
 
 /** Moves the fade (0 = invisible, 1 = fully there) forward by `seconds`; never leaves 0..1. */
 export function fadeStep(fade: number, seconds: number, duration: number = SKY_LAYER_FADE_SECONDS): number {

@@ -28,10 +28,7 @@ import { fitDistance, focusDistance, orbitRadii, planetDetail, planetFootprint, 
 import { markParts, type MarkStyle } from "./systemmarks";
 import type { Screen } from "./screen";
 import {
-  MAP_SKY_DOTS,
   MAP_SKY_GLOW,
-  MAP_SKY_SIZE,
-  MAP_SKY_STEPS,
   STARFIELD_COUNT,
   SYSTEM_LANE_DOCK,
   SYSTEM_LANE_OLD,
@@ -42,8 +39,12 @@ import {
   SYSTEM_OUTPOST_SCALE_MAX,
   SYSTEM_OUTPOST_SCALE_MIN,
   SYSTEM_SKY_BUDGET_MS,
+  SYSTEM_SKY_DOTS,
   SYSTEM_SKY_FAINT,
+  SYSTEM_SKY_IDLE_MS,
   SYSTEM_SKY_NEAR_SPACINGS,
+  SYSTEM_SKY_SIZE,
+  SYSTEM_SKY_STEPS,
   SYSTEM_STATION_SCALE,
   TAP_RADIUS_PX,
 } from "./settings";
@@ -250,9 +251,9 @@ export class SystemViewScreen implements Screen {
       ? new SkyLayer(opts.sky, {
           faint: SYSTEM_SKY_FAINT,
           glow: MAP_SKY_GLOW,
-          dots: MAP_SKY_DOTS,
-          faceSize: MAP_SKY_SIZE,
-          steps: MAP_SKY_STEPS,
+          dots: SYSTEM_SKY_DOTS,
+          faceSize: SYSTEM_SKY_SIZE,
+          steps: SYSTEM_SKY_STEPS,
           nearSpacings: SYSTEM_SKY_NEAR_SPACINGS,
           budgetMs: SYSTEM_SKY_BUDGET_MS,
         })
@@ -420,6 +421,21 @@ export class SystemViewScreen implements Screen {
       this.selectionMarker.rotation.y += 0.02;
     }
     this.sky?.update(seconds, this.camera); // after view.apply(): the sky turns with the camera
+  }
+
+  /**
+   * Starts building the faint galaxy sky for a system BEFORE its view is opened (the app calls this for the ship's own system at the
+   * start and for a star picked on the map). Only starts a build when the system is in another sky cell than the sky already built.
+   */
+  prepareSky(systemId: number): void {
+    if (!this.sky) return;
+    const system = getSystem(this.opts.seed, systemId);
+    if (system) this.sky.setPosition(system.position);
+  }
+
+  /** Called every frame while ANOTHER screen is showing: spends a few milliseconds on a sky that is being prepared. */
+  warmSky(): void {
+    this.sky?.warm(SYSTEM_SKY_IDLE_MS);
   }
 
   /** Draws the faint galaxy sky first (it only turns with the camera), then the system over it. Without a sky: the plain way. */

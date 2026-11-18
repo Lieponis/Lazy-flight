@@ -142,6 +142,17 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
 
   systemView.setMarkStyle(parseMarks(window.location.search) ?? SYSTEM_MARK_STYLE);
 
+  // The faint galaxy sky behind the system view is built ahead of time, while other screens show: first for the system the ship is in,
+  // then for a star the moment it is picked on the map (or the ship moves), so it is usually already there when the view opens.
+  let skyPreparedFor = current.id;
+  systemView.prepareSky(current.id);
+  state.subscribe((s) => {
+    const want = s.selectedSystemId ?? s.currentSystemId;
+    if (want === skyPreparedFor) return;
+    skyPreparedFor = want;
+    systemView.prepareSky(want);
+  });
+
   const flight = new FlightScreen({ seed, host: canvas, hud, parent });
   docked.setShip(shipId);
   flight.setShip(shipId);
@@ -348,6 +359,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
   function frame(now: number): void {
     const seconds = Math.min((now - last) / 1000, 0.1); // cap so a paused tab does not jump
     last = now;
+    if (active !== systemView) systemView.warmSky(); // the system view's sky is prepared in the background while other screens show
     if (active) {
       active.update(seconds);
       const screen = active;

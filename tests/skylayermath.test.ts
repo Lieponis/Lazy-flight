@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { SKY_LAYER_FADE_SECONDS, SKY_LAYER_MIN_NEAR_LY, fadeStep, layerLevels, layerNearRadius } from "../src/render/galaxy/skylayermath";
-import { MAP_SKY_GLOW, SYSTEM_SKY_BUDGET_MS, SYSTEM_SKY_FAINT, SYSTEM_SKY_NEAR_SPACINGS } from "../src/render/settings";
+import {
+  MAP_SKY_DOTS,
+  MAP_SKY_GLOW,
+  MAP_SKY_SIZE,
+  MAP_SKY_STEPS,
+  SYSTEM_SKY_BUDGET_MS,
+  SYSTEM_SKY_DOTS,
+  SYSTEM_SKY_FAINT,
+  SYSTEM_SKY_NEAR_SPACINGS,
+  SYSTEM_SKY_SIZE,
+  SYSTEM_SKY_STEPS,
+} from "../src/render/settings";
 
 // The faint galaxy backdrop behind the system view (Andy: "very faint backdrop of the galaxy, same as in the galaxy map, for immersion").
 // These are the small sums (how faint, how it fades in, how much around you is left out).
@@ -12,6 +23,12 @@ describe("the faint backdrop's settings", () => {
     expect(SYSTEM_SKY_NEAR_SPACINGS).toBeGreaterThan(0);
     expect(SYSTEM_SKY_BUDGET_MS).toBeGreaterThan(0);
     expect(SYSTEM_SKY_BUDGET_MS).toBeLessThanOrEqual(6); // never more than the map's own slice
+  });
+  it("is built much coarser than the map's sky, so it appears quickly (the full-detail version took about 10 s on the iPhone)", () => {
+    expect(SYSTEM_SKY_DOTS).toBeLessThanOrEqual(MAP_SKY_DOTS / 2);
+    expect(SYSTEM_SKY_DOTS).toBeGreaterThanOrEqual(10_000); // still enough dots to show the band
+    expect(SYSTEM_SKY_SIZE).toBeLessThan(MAP_SKY_SIZE);
+    expect(SYSTEM_SKY_STEPS).toBeLessThan(MAP_SKY_STEPS);
   });
 });
 
@@ -32,7 +49,7 @@ describe("fade-in", () => {
     expect(fadeStep(0, 0.01, 0)).toBe(1);
     expect(fadeStep(0, 0.01, -1)).toBe(1);
   });
-  it("gets there in a handful of frames at 60 fps, smoothly (no jump bigger than 2 % per frame)", () => {
+  it("gets there in a handful of frames at 60 fps, smoothly (no jump bigger than 4 % per frame)", () => {
     let fade = 0;
     let worst = 0;
     let frames = 0;
@@ -44,7 +61,7 @@ describe("fade-in", () => {
     }
     expect(fade).toBe(1);
     expect(frames).toBeLessThan(Math.ceil(SKY_LAYER_FADE_SECONDS * 60) + 2);
-    expect(worst).toBeLessThan(0.02);
+    expect(worst).toBeLessThan(0.04);
   });
 });
 
