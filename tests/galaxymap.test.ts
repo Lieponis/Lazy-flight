@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SPACING_LY, ZOOM_BALL_FACTOR, nearStarsFromList, nearestLineText, starsWithin, type MapStarList } from "../src/render/galaxy/mapdata";
 import { DIAMOND_MAX_SPACING_SHARE, DIAMOND_MIN_SIZE, MAX_ZOOM_SHARE, diamondSize, zoomOutLimit } from "../src/render/galaxy/previewmath";
 import { mapStatsText, type MapStatsInput } from "../src/render/mapstats";
-import { makeMapSource } from "../src/mapsource";
+import { localSpacing, makeMapSource } from "../src/mapsource";
 import { WORLD_SEED, START_POINT, getSystem, spacingAt, startSystem, DISC_RADIUS, armFactor, densityAt } from "../src/universe";
 import { ARM_FADE_FROM, ARM_FADE_TO, ARM_STRENGTH } from "../src/universe/galaxy/params";
 import { GALAXY_RADIUS_LY, type FieldSample } from "../src/render/galaxy/galaxyfield";
@@ -122,6 +122,10 @@ const PLACES = {
   middle: pointAt(30_000, 4.0),
   rim: pointAt(48_000, 5.2),
 };
+
+/** The star gap the map should ask for at a place: the disc's number everywhere, except at the dense centre where the bulge makes it smaller (G7b). */
+const oldGap = (place: keyof typeof PLACES): number => spacingAt(Math.hypot(PLACES[place].x, PLACES[place].z));
+const gapAt = (place: keyof typeof PLACES): number => (place === "centre" ? localSpacing(PLACES.centre) : oldGap(place));
 type PlaceId = keyof typeof PLACES;
 const lists = new Map<PlaceId, MapStarList>();
 function listAt(place: PlaceId): MapStarList {
@@ -160,7 +164,11 @@ describe("the real map data (universe v3, world seed)", () => {
         const len = Math.hypot(list.positions[i * 3] as number, list.positions[i * 3 + 1] as number, list.positions[i * 3 + 2] as number);
         expect(Math.abs(len - (list.distances[i] as number))).toBeLessThan(1e-3 * Math.max(1, list.distances[i] as number));
       }
-      expect(list.spacingLy).toBe(spacingAt(Math.hypot(PLACES[place].x, PLACES[place].z)));
+      expect(list.spacingLy).toBe(gapAt(place));
+      if (place === "centre") {
+        expect(list.spacingLy).toBeLessThan(0.85 * oldGap(place)); // the bulge packs the stars closer than the disc alone (G7b)
+        expect(list.spacingLy).toBeGreaterThan(0.79 * oldGap(place));
+      }
     });
   }
 
@@ -217,8 +225,8 @@ describe("the real map data (universe v3, world seed)", () => {
       const near = nearStarsFromList(listAt(place));
       return zoomOutLimit("near", near.distances, near.count, near.radius, near.zoomNearLy);
     };
-    expect(limit("centre")).toBeGreaterThan(10);
-    expect(limit("centre")).toBeLessThan(13);
+    expect(limit("centre")).toBeGreaterThan(8.5); // 9.2 ly with the bulge (it was 11.2 before G7b)
+    expect(limit("centre")).toBeLessThan(11);
     expect(limit("start")).toBeGreaterThan(45);
     expect(limit("start")).toBeLessThan(55);
     expect(limit("middle")).toBeGreaterThan(150);
@@ -249,7 +257,7 @@ describe("the real map data (universe v3, world seed)", () => {
   it("the diamonds shrink at the dense centre so they do not cover each other, and stay (nearly) as they were at the start, middle and rim", () => {
     const sizeAt = (place: PlaceId, radius = 1): number => {
       const near = nearStarsFromList(listAt(place));
-      expect(near.spacingLy).toBe(spacingAt(Math.hypot(PLACES[place].x, PLACES[place].z)));
+      expect(near.spacingLy).toBe(gapAt(place));
       return diamondSize(radius, near.spacingLy);
     };
     // Without a gap handed over, the size is the plain one (nothing changed for the G2 preview).
@@ -260,7 +268,7 @@ describe("the real map data (universe v3, world seed)", () => {
       expect(diamondSize(r)).toBe(diamondSize(r, -3));
     }
     // The centre: the gap is under 2 ly, so a diamond is a tenth of that (about 0.18 ly), a good three times smaller than before.
-    const centreGap = spacingAt(Math.hypot(PLACES.centre.x, PLACES.centre.z));
+    const centreGap = gapAt("centre");
     expect(centreGap).toBeLessThan(2.5);
     expect(sizeAt("centre")).toBeCloseTo(DIAMOND_MAX_SPACING_SHARE * centreGap, 6);
     expect(sizeAt("centre")).toBeLessThan(diamondSize(1) / 2.5);

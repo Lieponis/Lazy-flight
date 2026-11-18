@@ -6,6 +6,7 @@
 // remembered, so going back to the map costs nothing.
 
 import { armFactor, densityAt, generateSystem, getSystem, nearestSites, spacingAt, thicknessAt, type Seed } from "./universe";
+import { discDensityAt } from "./universe/galaxy";
 import type { MapPoint, MapSource, MapStarList, SkyFunctions } from "./render";
 
 /** How many answers are remembered (one list of 60,000 stars is about 2.5 MB). */
@@ -16,18 +17,32 @@ function hexToRgb(hex: string): [number, number, number] {
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
+/** Where the bulge makes up this share of the local density or more, the map uses the real local gap (see `localSpacing`). */
+const BULGE_FULL_SHARE = 0.3;
+
 /**
- * The typical gap between neighbouring systems at a point, for the map's zoom limit and diamond size. In the disc this is the
- * universe's `spacingAt` of the distance from the centre (unchanged). Systems of the central bulge also lie far above and below the
- * disc plane, where the disc's number is far too small (it would say 1.9 ly where the gap is 4.6 ly): there the gap follows the
- * local density (gap = density^(-1/3), which is how `spacingAt` is defined at the centre), never smaller than the disc's number.
+ * The typical gap between neighbouring systems at a point, for the map's zoom limit and diamond size.
+ *
+ * The map's own number is the universe's `spacingAt` of the distance from the centre. Two things are added for the central bulge:
+ * 1. Systems of the bulge lie far above and below the disc plane, where the disc's number is far too small (it would say 1.9 ly where
+ *    the gap is 4.6 ly): there the gap follows the local density (gap = density^(-1/3)), never smaller than the disc's number. Between
+ *    half the disc's thickness and the full thickness the two numbers are blended, so there is no jump when the point moves up or down.
+ * 2. Where the bulge itself is a big part of the density (the bulge's share of the density is 30 % or more, the middle of the galaxy),
+ *    the disc's number is too big (1.87 ly where the real gap is 1.53 ly), so the real local gap is used when it is smaller. The share
+ *    fades the change in from 0 % to 100 %, so it is exactly zero beyond the bulge's reach: the start place and the rest of the disc keep
+ *    exactly the old numbers.
  */
 export function localSpacing(centre: MapPoint): number {
   const r = Math.hypot(centre.x, centre.z);
   const base = spacingAt(r);
-  if (Math.abs(centre.y) <= thicknessAt(r) / 2) return base; // inside the disc's own thickness: as before
-  const density = densityAt(centre);
-  return density > 0 ? Math.max(base, Math.cbrt(1 / density)) : base;
+  const total = densityAt(centre);
+  if (!(total > 0)) return base;
+  const real = Math.cbrt(1 / total);
+  const half = thicknessAt(r) / 2;
+  const height = Math.abs(centre.y);
+  const old = height <= half ? base : base + (Math.max(base, real) - base) * Math.min(1, (height - half) / half);
+  const share = Math.min(1, (total - discDensityAt(centre)) / total / BULGE_FULL_SHARE);
+  return share > 0 && real < old ? old - (old - real) * share : old;
 }
 
 function buildList(seed: Seed, centre: MapPoint, count: number): MapStarList {

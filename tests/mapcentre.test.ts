@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { localSpacing, makeMapSource } from "../src/mapsource";
-import { nearStarsFromList } from "../src/render/galaxy/mapdata";
+import { ZOOM_BALL_FACTOR, nearStarsFromList } from "../src/render/galaxy/mapdata";
 import { StarGrid } from "../src/render/galaxy/starpick";
 import { systemSkySeed } from "../src/render/helpers";
 import { WORLD_SEED, densityAt, spacingAt, thicknessAt } from "../src/universe";
@@ -71,20 +71,55 @@ describe("the map at the centre (?mapat=centre), where bulge systems are about h
     expect(grid.count).toBe(10_000);
   });
 
-  it("still asks for the disc's star gap here, as before (inside the disc's own thickness)", () => {
-    expect(list.spacingLy).toBe(spacingAt(Math.hypot(MAPAT_CENTRE.x, MAPAT_CENTRE.z)));
+  it("asks for the real star gap here, about 18 % under the disc's number (the bulge packs the stars closer)", () => {
+    const r = Math.hypot(MAPAT_CENTRE.x, MAPAT_CENTRE.z);
+    const real = Math.cbrt(1 / densityAt(MAPAT_CENTRE));
+    expect(list.spacingLy / spacingAt(r)).toBeGreaterThan(0.8);
+    expect(list.spacingLy / spacingAt(r)).toBeLessThan(0.84);
+    expect(Math.abs(list.spacingLy - real) / real).toBeLessThan(0.01);
+    // the map's zoom-out limit (spacing x 6.2035) and diamond size follow it
+    expect(near.zoomNearLy).toBeLessThan(spacingAt(r) * ZOOM_BALL_FACTOR);
+    expect(near.zoomNearLy).toBeCloseTo(list.spacingLy * ZOOM_BALL_FACTOR, 9);
+    expect(near.zoomNearLy).toBeGreaterThan(8);
+    expect(near.zoomNearLy).toBeLessThan(10.5);
   });
 });
 
 describe("the map's star gap away from the disc plane (bulge systems lie up to about 5,000 ly above and below it)", () => {
   const above = { x: 300, y: 2000, z: 100 };
 
-  it("is the disc's number everywhere inside the disc's thickness (nothing changes for the disc)", () => {
-    for (const [r, a] of [[0, 0], [400, 0.3], [3000, 2], [16_700, 2.1], [30_000, 4], [48_000, 5.2]] as const) {
-      const p = polar(r, a);
-      expect(localSpacing(p)).toBe(spacingAt(r));
-      const edge = { ...p, y: thicknessAt(r) / 2 };
-      expect(localSpacing(edge)).toBe(spacingAt(r));
+  it("is exactly the disc's number everywhere the bulge adds nothing (the start place, the middle, the rim, any angle)", () => {
+    let seed = 12345;
+    const rand = (): number => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+    for (const r of [5600, 8000, 10_000, 16_700, 30_000, 48_000]) {
+      for (let k = 0; k < 8; k++) {
+        const p = polar(r, rand() * 2 * Math.PI);
+        const rr = Math.hypot(p.x, p.z);
+        expect(localSpacing(p)).toBe(spacingAt(rr));
+        expect(localSpacing({ ...p, y: thicknessAt(rr) / 2 })).toBe(spacingAt(rr));
+      }
+    }
+    for (let k = 0; k < 300; k++) {
+      const r = 5600 + rand() * 42_000;
+      const p = polar(r, rand() * 2 * Math.PI);
+      expect(localSpacing(p)).toBe(spacingAt(Math.hypot(p.x, p.z)));
+    }
+  });
+
+  it("is about 18 % smaller than the disc's number at the galaxy centre, and never smaller than 80 % or bigger anywhere in the bulge's plane", () => {
+    for (const [r, low, high] of [[0, 0.8, 0.84], [100, 0.8, 0.84], [400, 0.8, 0.84], [800, 0.82, 0.86]] as const) {
+      const p = polar(r, 0.3);
+      const ratio = localSpacing(p) / spacingAt(Math.hypot(p.x, p.z));
+      expect(ratio).toBeGreaterThan(low);
+      expect(ratio).toBeLessThan(high);
+    }
+    let seed = 777;
+    const rand = (): number => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+    for (let k = 0; k < 300; k++) {
+      const p = polar(rand() * 5600, rand() * 2 * Math.PI);
+      const ratio = localSpacing(p) / spacingAt(Math.hypot(p.x, p.z));
+      expect(ratio).toBeLessThanOrEqual(1);
+      expect(ratio).toBeGreaterThan(0.79);
     }
   });
 
@@ -99,6 +134,15 @@ describe("the map's star gap away from the disc plane (bulge systems lie up to a
     expect(s2000).toBeGreaterThan(3.5);
     expect(s2000).toBeLessThan(7);
     expect(s2000).toBeCloseTo(Math.cbrt(1 / densityAt(above)), 6);
+  });
+
+  it("has no jump when the point moves up or down (no step bigger than 5 % per 20 ly of height)", () => {
+    let prev = localSpacing({ x: 300, y: 0, z: 100 });
+    for (let y = 20; y <= 4000; y += 20) {
+      const v = localSpacing({ x: 300, y, z: 100 });
+      expect(Math.abs(v - prev) / prev).toBeLessThan(0.05);
+      prev = v;
+    }
   });
 
   it("is what the map list carries, so the zoom-out limit follows the real gap", () => {
