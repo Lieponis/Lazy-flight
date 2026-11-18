@@ -101,9 +101,10 @@ What came back: two screenshots at 10:39 local (03:39 UTC), no comment.
 | 400 ly (`?mapat=centre`) | 1.866 ly | 1.532 ly | 0.821 |
 | 800 ly | 1.934 ly | 1.624 ly | 0.840 |
 | 1,500 ly | 2.059 ly | 1.824 ly | 0.886 |
-| 3,000 ly and farther (start place, middle, rim) | unchanged | unchanged, **exactly equal** | 1.000 |
+| 3,000 to 5,600 ly | 2.36 to 2.98 ly | fades out to the old number (at some angles already unchanged at 3,000; I did not tabulate every angle) | 0.8 to 1.000 |
+| 5,600 ly and farther (start place, middle, rim) | unchanged | unchanged, **exactly equal** | 1.000 |
 
-So at `?mapat=centre` the zoom-out limit goes from **11.6 ly (shown as 12) to 9.5 ly**, and the diamonds from **0.19 ly to 0.15 ly wide**: about **18 % smaller**, not 25 %. I used the real gap (the number the star count in the 37 ly ball gives) on purpose: 25 % would have made the diamonds smaller than the real gap warrants. If Andy still wants 25 %, it is a single number (`BULGE_FULL_SHARE` is not it; a plain factor on the centre value would be).
+So at `?mapat=centre` the zoom-out limit goes from **11.6 ly (shown as 12) to 9.5 ly**, and the diamonds from **0.19 ly to 0.15 ly wide**: about **18 % smaller**, not 25 %. I used the real gap (the number the star count in the 37 ly ball gives) on purpose: 25 % would have made the diamonds smaller than the real gap warrants. If Andy still wants 25 %, that is a small separate change (a further factor of about 0.91 on the centre value); I have not done it.
 
 **Also changed:** the height rule (stars far above or below the plane) now blends between the disc's number and the real gap over the band from half the disc's thickness to the full thickness. Before, the number jumped by about 45 % at exactly half the thickness (about 990 ly above the plane near the centre). The new tests check the step per 20 ly of height stays under 5 %.
 
