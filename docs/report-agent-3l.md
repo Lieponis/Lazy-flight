@@ -1,8 +1,8 @@
 # Report: Agent 3, stage G7b (does the render layer see Agent 2's central bulge?)
 
-Branch: `universe-v3` only (nothing went to main). Code commit: `c384981` ("G7b: the sky and the map see the central bulge"). Status of this report: **v1. Everything that can be measured without a phone is in. The iPhone numbers at the centre (sky build time and FRAME) are NOT in yet: they need Andy's screenshot of `?mapat=centre&mapstats=1` after the preview is rebuilt (section 6).**
+Branch: `universe-v3` only (nothing went to main). Code commit: `c384981` ("G7b: the sky and the map see the central bulge"). Status of this report: **v2. The iPhone numbers at the centre are in (Andy's screenshot of `?mapat=centre&mapstats=1`, 10:39 local on 2026-11-18, preview rebuilt after my push): sky built in 1,053 ms over 65 frames, FRAME 16.7 ms = 60 fps, STAR LOOKUP 13 ms (section 3). Andy sent the screenshots without a comment, so I do not know his opinion of how the centre looks (section 6).**
 
-**What I could NOT do in my workspace:** open the page in a real browser (no WebGL, no network for the shell). The sky and the map with the bulge have never been seen by me on a screen. Proof so far = the real GitHub Actions runs on `c384981` (both green: "Check a branch" = `tsc --noEmit`, build, **57 test files, 1,183 tests all passed**, and "Check the game layer") plus numbers measured in plain Node on the cloud machine. Andy's check in section 6 is the real proof.
+**What I could NOT do in my workspace:** open the page in a real browser (no WebGL, no network for the shell). Before Andy's screenshots (section 6) the sky and the map with the bulge had never been seen by me on a screen; I have now seen his two phone screenshots and nothing more. Proof so far = the real GitHub Actions runs on `c384981` (both green: "Check a branch" = `tsc --noEmit`, build, **57 test files, 1,183 tests all passed**, and "Check the game layer") plus numbers measured in plain Node on the cloud machine. Andy's check in section 6 is the real proof.
 
 Brief from the Lead (via Andy): read `docs/report-agent-2f.md` sections 1, 2 and 8; (1) does the sky show the bulge from the start, from the middle of the disc and from 10,000 ly out, or does render code miss it? (2) does the map at the centre still work with system numbers above 46.6 billion and cube cells? Fix only what is wrong, in `src/render` and my glue. Then one step for Andy on the preview. Report sky build time and FRAME at the centre.
 
@@ -41,9 +41,21 @@ Sky accuracy against a 1,500-step reference (bulge part = the light the bulge ad
 
 (1.000 = same as the reference. Build times vary by a few percent from run to run.)
 
-**Sky build time at the centre (`?mapat=centre`, map's sky): about 480 ms of work in Node** (the real phone number comes from Andy's screenshot; I do not guess it). The earlier G5a iPhone measurement at the centre, before the bulge existed, was: sky built in 1,376 ms wall time (glow 194 ms + dots 317 ms of work, spread over 84 frames), **FRAME 16.6 ms = 60 fps**, STAR LOOKUP 100 ms.
+**iPhone, at the centre (`?mapat=centre&mapstats=1`, the map's sky), measured by Andy on the rebuilt preview (built 03:34 UTC, after my push at 03:31 UTC):**
 
-**FRAME at the centre:** not measured with the bulge yet (needs the phone). Expected unchanged, because drawing the sky costs the same whatever the glow holds, and the sky is built ahead of time in small slices per frame; only the star lookup for the 60,000 nearest stars changes (about 150 to 270 ms in Node at the centre, because half the stars are bulge systems; the phone ran about 1.6 times faster than Node before).
+| | G5a, before the bulge | G7b, with the bulge and my fix |
+|---|---|---|
+| **Sky build time** (wall time, built a slice per frame in the background) | 1,376 ms over 84 frames | **1,053 ms over 65 frames** |
+| glow work / dots work (adds up the real work) | 194 ms / 317 ms = 511 ms | 274 ms / 239 ms = 513 ms |
+| worst single slice | not recorded | 9.0 ms (fits inside one 16.7 ms frame) |
+| squares / dots | | 24,592 squares, 59,437 dots |
+| **FRAME at the centre** | 16.6 ms (60 fps) | **16.7 ms (60 fps)**, JS 0.1 ms, 5 draw calls, 40,012 triangles |
+| STAR LOOKUP | 100 ms | 13 ms (see known issue 5) |
+| bubble / zoom-out limit / diamond | | 37 ly radius, 12 ly, 0.19 ly wide; 60,000 stars, 5,000 diamonds, 10,000 tappable |
+
+So the total sky work is the same as before the bulge (511 vs 513 ms); the wall time is shorter because the map's sky is now built at 8 ms per frame (it was 6 ms in G5a). The glow part is 80 ms heavier on the phone and the dots part 78 ms lighter. In Node, timing the same full-size glow at the centre: old disc-only density 418 ms, with Agent 2's bulge density 497 ms (+19 %), with my finer steps added 505 ms (+1.6 %). So the extra glow cost is almost all the bulge's own density formula (Agent 2's), not my fix. The phone's +41 % is bigger than Node's +21 %; I have not found out why.
+
+In Node the same build is about 500 ms of work (505 ms above).
 
 ## 4. Tests
 
@@ -53,19 +65,25 @@ Sky accuracy against a 1,500-step reference (bulge part = the light the bulge ad
 
 ## 5. Known issues and suggestions
 
-1. **Not seen on a screen** (section 6 is the real check).
+1. **Seen only in Andy's two screenshots**, one place at one zoom (section 6). I have not looked at the sky from the other places on a phone (start place and 10,000 ly out were checked in numbers only).
 2. The system view's sky is a coarse build on purpose (a quarter of the glow squares, a third of the dots, 25 % brightness). Even after the fix, a few single directions seen from the middle are still off (worst single direction off by 859 %, 90th percentile 29 %) while the average is within 13 %. At 25 % strength that is invisible in practice; the map's own sky (finer) is accurate within about 7 % at the 90th percentile at all four places.
 3. The system sky's "near radius" (the distance under which the sky is not drawn so single stars do not double) still uses the disc spacing for off-plane bulge systems. Cosmetic only, not changed. *Suggestion (unbuilt):* use `localSpacing` there too.
 4. Known issue 7 from G5a still stands: the preview's automatic rebuild timer is unreliable; Andy may need the "Run workflow" button.
-5. *Suggestion (unbuilt, Agent 2's idea):* a warmer colour for bulge stars and the glow near the centre. Not done: it needs an agreed colour rule from the universe layer.
+5. **STAR LOOKUP read 13 ms on the phone**, but plain Node needs about 150 to 270 ms for the same 60,000 stars at the centre and the phone read 100 ms before the bulge. I think the stat caught a cached answer (the glue keeps the last two lookups), not a fresh one, but I have not confirmed that. Nothing is wrong with the map (FRAME 60 fps); it only means the 13 ms is not a trustworthy lookup time.
+6. **The map's zoom-out limit and diamond size at the centre still use the disc's star gap** (1.93 ly, so zoom-out limit 12 ly), because inside the disc's thickness `localSpacing` keeps the old number on purpose. The real gap there, from the screenshot's own numbers (60,000 stars in a 37 ly ball), is about 1.5 ly, which agrees with Agent 2's 1.48 ly. So at the centre the limit and the diamonds are about 25 % larger than the real gap suggests. Cosmetic, not changed. *Suggestion (unbuilt):* take the smaller of the disc number and the real local gap inside the disc as well (one line in `localSpacing`), but that also changes the map in the whole disc by a little, so it needs Andy's say-so.
+7. **The two dark round smudges above and below the system in the system view (screenshot 1, Bimvik Deep)** are the two galactic poles, the darkest points of the sky glow. Node numbers from the start place: the glow falls smoothly from 1.0 at 30 degrees above the plane to 0.50 at the pole (lat 90), with no sharp spot, so what shows is a smooth gradient made into a round patch by the pixel look and the dither. My bulge change does not touch those directions (the bulge ball seen from the start place is only about 19 degrees wide, around the centre direction). I do not know whether Andy has seen the smudges before (the G5a screenshots had the same sky code); I did not change them.
+8. *Suggestion (unbuilt, Agent 2's idea):* a warmer colour for bulge stars and the glow near the centre. Not done: it needs an agreed colour rule from the universe layer.
 
-## 6. Andy's check (one step)
+## 6. Andy's check (one step) and what came back
 
-1. Rebuild the preview: https://github.com/Lieponis/Lazy-flight/actions -> "Build and publish" -> "Run workflow" (green button), wait about 2 minutes.
-2. Open https://lieponis.github.io/Lazy-flight/preview/?mapat=centre&mapstats=1 , play to the Starmap.
-3. Look for: a soft glow behind the stars that is brighter toward one side (toward the centre of the galaxy, where the bulge is) and stars packed close together; then reply with a screenshot that shows the grey stats block (the SKY line has the build time, the FRAME line has the milliseconds per frame).
+The step was: rebuild the preview (Actions -> Build and publish -> Run workflow), open `/preview/?mapat=centre&mapstats=1`, play to the Starmap, look at the glow and the stars, reply with a screenshot showing the stats block.
+
+What came back: two screenshots at 10:39 local (03:39 UTC), no comment.
+- Screenshot 2 (the map at `?mapat=centre`, test view "centre (not where your ship is)"): the stats block in section 3, a tan/beige glow across the whole screen, a lighter blue-grey band across the lower half (the disc plane), thick salt-and-pepper star dots, and large yellow and red diamonds (selected star: "Fulwadar R464-J55, Yellow star, 15.8 ly; 5 nearest: 0.7, 0.7, 1.1, 1.3, 1.5 ly"). That looks like what the numbers predict at the middle of a dense bulge (stars about 1.5 ly apart, glow bright in every direction), but "does it look right to Andy" is his call, and he did not say.
+- Screenshot 1 (system view of Bimvik Deep at the start place): the faint backdrop with the dark dust lane and the two dark smudges at the poles (known issue 7).
+- The preview contained my change: the last "Build and publish" run began 03:34 UTC, after my push at 03:31 UTC. The stats block has no version line, so that is my reasoning from the times, not something the page shows.
 
 ## 7. Hand-off for the Lead
 
 - Nothing outside `src/render`, `src/mapsource.ts` (glue), `tests` and `docs` was touched. Nothing went to main.
-- Open items: the iPhone numbers at the centre (Andy's screenshot); suggestions in section 5.
+- Open items: Andy's opinion of how the centre looks (none given yet); known issues 5 to 7 and the suggestions in section 5 (all unbuilt).
