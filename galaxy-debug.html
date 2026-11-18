@@ -22,6 +22,9 @@
       .ckbanner.ok { background: #d9f5e1; border-color: #0a7a2f; color: #0a5c24; }
       .ckbanner.fail { background: #fde0de; border-color: #b3261e; color: #8c1a13; }
       button { padding: 4px 10px; font-size: 0.95rem; cursor: pointer; }
+      .skygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; max-width: 1100px; }
+      .skygrid figure { margin: 0; }
+      .skygrid figcaption { font-size: 12px; opacity: 0.8; }
     </style>
   </head>
   <body>
@@ -32,6 +35,17 @@
       nothing is stored: every system is worked out from the seed when it is asked for. Nothing here is part of the game.
       <a href="./">Back to the game</a>.
     </p>
+
+    <h2>0. The central bulge: pictures A, B, C (stage G7)</h2>
+    <p class="note">
+      A "bulge" is the thick, round ball of stars in the middle of a spiral galaxy. Each block below is one choice: the galaxy
+      seen from the side (no stretching: height and width have the same scale, 24,000 ly across) and the sky seen from five
+      places (the whole sky flattened into a strip; the bright band is the disc seen edge-on). All pictures use the same colours
+      as the "Today" block, so brighter really means more stars. Look for: a bright round patch above and below the band,
+      pointing at the middle of the galaxy, and a glow all around when you stand near the middle.
+    </p>
+    <div id="bulgeStatus" class="note">Drawing...</div>
+    <div id="bulgeOptions"></div>
 
     <h2>1. The numbers</h2>
     <div id="facts"></div>

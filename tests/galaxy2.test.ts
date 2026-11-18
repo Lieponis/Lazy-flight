@@ -10,10 +10,12 @@ import {
   countInCell,
   decodeSystemNumber,
   densityAt,
+  discDensityAt,
   encodeSystemNumber,
   expDet,
   expectedCountIn,
   expectedTotal,
+  expectedBulgeTotal,
   findSystemById,
   galaxyChecksum,
   lnDet,
@@ -65,7 +67,8 @@ describe("the density", () => {
 
   it("is 0 outside the disc and above or below it", () => {
     expect(densityAt({ x: 50001, y: 0, z: 0 })).toBe(0);
-    expect(densityAt({ x: 0, y: 1001, z: 0 })).toBe(0);
+    expect(discDensityAt({ x: 0, y: 1001, z: 0 })).toBe(0); // the disc alone; the bulge reaches higher (see galaxy2-bulge.test.ts)
+    expect(densityAt({ x: 0, y: 20000, z: 0 })).toBe(0);
     expect(densityAt({ x: 40000, y: 300, z: 0 })).toBe(0);
     expect(densityAt({ x: 0, y: 0, z: 0 })).toBeGreaterThan(0);
   });
@@ -278,7 +281,8 @@ describe("queries", () => {
     ];
     for (const c of spots) {
       const radius = Math.hypot(c.x, c.z) < 100 ? 6 : Math.hypot(c.x, c.z) < 20000 ? 30 : 300;
-      const fast = new Set(systemsWithin(SEED, c, radius).map((s) => s.id));
+      // (G7) the slow search below walks the DISC cells only, so compare with the disc systems of the fast search
+      const fast = new Set(systemsWithin(SEED, c, radius).filter((s) => s.id < table.idSpace).map((s) => s.id));
       // slow: look at every cell of every ring in the radius range; skip only cells whose own box is clearly too far
       const slow = new Set<number>();
       const cr = Math.hypot(c.x, c.z);
@@ -346,7 +350,7 @@ describe("the same galaxy on every device", () => {
   // The page galaxy-debug.html prints the first one: open it on a phone or another browser and compare.
   it("checksums of the nearest systems are fixed", () => {
     expect(galaxyChecksum(SEED, START_POINT, 2000)).toBe("d0019075");
-    expect(galaxyChecksum(SEED, { x: 0, y: 0, z: 0 }, 500)).toBe("c01eb9ac");
+    expect(galaxyChecksum(SEED, { x: 0, y: 0, z: 0 }, 500)).toBe("CENTRE_NEW"); // G7: re-pinned, the bulge adds systems at the centre (was c01eb9ac)
     expect(galaxyChecksum(SEED, { x: 49000, y: 0, z: 0 }, 500)).toBe("c679dfa8");
     expect(galaxyChecksum(7, START_POINT, 500)).toBe("6c8471cf");
   });
@@ -368,7 +372,7 @@ describe("the total", () => {
     const sd = Math.sqrt(sumSq / n - mean * mean);
     const estimate = mean * table.totalCells;
     const error = (3 * sd) / Math.sqrt(n) / mean; // 3 standard errors
-    expect(Math.abs(estimate / expectedTotal() - 1)).toBeLessThan(Math.max(error, 0.01));
+    expect(Math.abs(estimate / (expectedTotal() - expectedBulgeTotal()) - 1)).toBeLessThan(Math.max(error, 0.01)); // disc cells only (G7)
   });
 
   it("each region has about as many systems as the density says", () => {

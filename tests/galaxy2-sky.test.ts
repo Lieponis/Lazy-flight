@@ -4,7 +4,7 @@ import { START_POINT, densityAt, lineIntegralDensity, thicknessAt, spacingAt, DI
 
 describe("lineIntegralDensity", () => {
   it("straight through the middle of the thick centre equals density x 0.75 x thickness", () => {
-    const sum = lineIntegralDensity({ x: 0, y: -1500, z: 0 }, { x: 0, y: 1, z: 0 }, 3000, 3000);
+    const sum = lineIntegralDensity({ x: 0, y: -1500, z: 0 }, { x: 0, y: 1, z: 0 }, 3000, 3000, { radius: 1, flatten: 1, scale: 1, peak: 0 }); // the disc alone (G7)
     const expected = (0.75 * thicknessAt(0)) / spacingAt(0) ** 3;
     expect(Math.abs(sum / expected - 1)).toBeLessThan(0.01);
   });

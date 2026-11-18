@@ -35,3 +35,39 @@ export const ODD_WANDER = 0.015;
 
 /** Pure names (no code) are owned by systems in a box this many ly around the start. */
 export const PURE_REGION = 150;
+
+/**
+ * THE CENTRAL BULGE (stage G7). A thick, roundish ball of extra systems around the centre of the galaxy. It is a second,
+ * separate set of systems ("bulge systems") with their own cells and their own system numbers (numbered after every
+ * disc number), so no disc system anywhere is changed. It fades to exactly nothing at `radius`.
+ *   radius   : the bulge ends here (ly). Must stay well below 8,000 ly (the start region is 16,500 ly out).
+ *   flatten  : height of the bulge divided by its width (1 = a perfect ball, 0.8 = a little flattened).
+ *   scale    : the core radius (ly): density is about half of the peak at about this distance.
+ *   peak     : bulge density at the very centre, in systems per cubic ly (added to the disc density there).
+ */
+export interface BulgeShape {
+  radius: number;
+  flatten: number;
+  scale: number;
+  peak: number;
+}
+
+/** Disc density at the very centre (systems per cubic ly), the yardstick for the bulge peak. */
+const CENTRE_DENSITY = 1 / (CENTRE_SPACING * CENTRE_SPACING * CENTRE_SPACING);
+
+/** The three sizes shown to Andy (picture options A, B, C). */
+export const BULGE_OPTIONS: Record<"A" | "B" | "C", BulgeShape> = {
+  A: { radius: 2000, flatten: 0.8, scale: 700, peak: 0.6 * CENTRE_DENSITY },
+  B: { radius: 3500, flatten: 0.8, scale: 1225, peak: 0.6 * CENTRE_DENSITY },
+  C: { radius: 5500, flatten: 0.8, scale: 1925, peak: 0.5 * CENTRE_DENSITY },
+};
+
+/** The bulge that is built into the galaxy. */
+export const BULGE: BulgeShape = BULGE_OPTIONS.B;
+
+/** Bulge cells: a cell is at most this many systems on average (at the inner edge of its zone). */
+export const BULGE_WANTED = 4;
+/** Bulge cell edges are picked from this list (ly), so they never depend on a cube root. */
+export const BULGE_EDGES = [1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32];
+/** The bulge is cut into zones (3D shells) at these fractions of its radius; each zone has its own cell size. */
+export const BULGE_ZONES = [0, 0.1, 0.2, 0.4, 0.7, 1];

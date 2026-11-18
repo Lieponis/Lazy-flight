@@ -2,6 +2,7 @@
 
 import { slabIndexAt, cellTable, cellAddress, cellNumber, type Slab } from "./cells";
 import { densityPolar, densityAt, type Vec3 } from "./density";
+import { bulgeSystemsOfCell, bulgeTable, eachBulgeCellNear, eachBulgeSystemInCell, findBulgeSystemById } from "./bulge";
 import { sincosDet, SC } from "./detmath";
 import { hashNumber, partOf, seedToInt } from "./hash";
 import { DISC_RADIUS, ODD_TWIN, ODD_WANDER } from "./params";
@@ -85,7 +86,7 @@ const scratch: GalaxySystem = { id: 0, x: 0, y: 0, z: 0 };
 export function findSystemById(seed: Seed, id: number): GalaxySystem | null {
   if (!Number.isSafeInteger(id) || id < 0) return null;
   const table = cellTable();
-  if (id >= table.idSpace) return null;
+  if (id >= table.idSpace) return findBulgeSystemById(seedToInt(seed), id); // bulge numbers come after all disc numbers
   const slot = id % table.slots;
   const cell = (id - slot) / table.slots;
   const a = cellAddress(cell);
@@ -104,6 +105,8 @@ function eachSystemInCell(seed32: number, slab: Slab, sector: number, layer: num
 
 /** All systems of one cell, by cell number (for tests and tools). */
 export function systemsOfCell(seed: Seed, cell: number): GalaxySystem[] {
+  const disc = cellTable();
+  if (cell >= disc.totalCells) return bulgeSystemsOfCell(seedToInt(seed), cell - disc.totalCells); // a bulge cell
   const a = cellAddress(cell);
   const slab = cellTable().slabs[a.slab] as Slab;
   const out: GalaxySystem[] = [];
@@ -113,6 +116,8 @@ export function systemsOfCell(seed: Seed, cell: number): GalaxySystem[] {
 
 /** How many systems are in a cell. */
 export function countInCell(seed: Seed, cell: number): number {
+  const disc = cellTable();
+  if (cell >= disc.totalCells) return bulgeSystemsOfCell(seedToInt(seed), cell - disc.totalCells).length;
   let n = 0;
   const a = cellAddress(cell);
   eachSystemInCell(seedToInt(seed), cellTable().slabs[a.slab] as Slab, a.sector, a.layer, () => n++);
@@ -128,11 +133,11 @@ const DEFAULT_MAX_CELLS = 20_000_000;
  * Visits every cell that may touch the ball (center, radius). It is careful (never misses a cell) rather than exact:
  * cells a little outside the ball are visited too, the caller checks real distances.
  */
-function eachCellNear(center: Vec3, radius: number, maxCells: number, visit: (slab: Slab, sector: number, layer: number) => void): void {
+function eachCellNear(center: Vec3, radius: number, maxCells: number, visit: (slab: Slab, sector: number, layer: number) => void): number {
   const cr = Math.sqrt(center.x * center.x + center.z * center.z);
   const rLo = Math.max(0, cr - radius);
   const rHi = Math.min(DISC_RADIUS, cr + radius);
-  if (rLo >= DISC_RADIUS) return;
+  if (rLo >= DISC_RADIUS) return 0;
   const slabs = cellTable().slabs;
   let phi = Math.atan2(center.z, center.x);
   if (phi < 0) phi += 2 * Math.PI;
@@ -177,6 +182,7 @@ function eachCellNear(center: Vec3, radius: number, maxCells: number, visit: (sl
       }
     }
   }
+  return visited;
 }
 
 export interface QueryOptions {
@@ -189,15 +195,20 @@ export function systemsWithin(seed: Seed, center: Vec3, radius: number, options:
   const seed32 = seedToInt(seed);
   const out: NearSystem[] = [];
   const limit = radius * radius;
-  eachCellNear(center, radius, options.maxCells ?? DEFAULT_MAX_CELLS, (slab, sector, layer) => {
-    eachSystemInCell(seed32, slab, sector, layer, (s) => {
-      const dx = s.x - center.x;
-      const dy = s.y - center.y;
-      const dz = s.z - center.z;
-      const d2 = dx * dx + dy * dy + dz * dz;
-      if (d2 <= limit) out.push({ id: s.id, x: s.x, y: s.y, z: s.z, distance: Math.sqrt(d2) });
-    });
-  });
+  const maxCells = options.maxCells ?? DEFAULT_MAX_CELLS;
+  const add = (s: GalaxySystem): void => {
+    const dx = s.x - center.x;
+    const dy = s.y - center.y;
+    const dz = s.z - center.z;
+    const d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 <= limit) out.push({ id: s.id, x: s.x, y: s.y, z: s.z, distance: Math.sqrt(d2) });
+  };
+  const used = eachCellNear(center, radius, maxCells, (slab, sector, layer) => eachSystemInCell(seed32, slab, sector, layer, add));
+  // The bulge (a separate set of cells after the disc): same budget, same distance check.
+  const bulge = bulgeTable();
+  const left = maxCells - used;
+  const usedBulge = eachBulgeCellNear(bulge, center, radius, left, (level, ix, iy, iz) => eachBulgeSystemInCell(bulge, seed32, level, ix, iy, iz, add));
+  if (usedBulge > left) throw new TooManyCellsError(`query touches more than ${maxCells} cells`);
   return out;
 }
 

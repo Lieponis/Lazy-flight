@@ -11,11 +11,13 @@ import {
   ARM_PITCH_TAN,
   ARM_R0,
   ARM_STRENGTH,
+  BULGE,
   CENTRE_SPACING,
   DISC_RADIUS,
   RIM_SPACING,
   THICKNESS_CENTRE,
   THICKNESS_RIM,
+  type BulgeShape,
 } from "./params";
 
 export interface Vec3 {
@@ -82,11 +84,58 @@ export function densityPolar(r: number, y: number, c: number, s: number): number
   return (v * armFactor(r, c, s)) / (spacing * spacing * spacing);
 }
 
-/** Density at a point: systems per cubic ly. 0 outside the disc. */
-export function densityAt(p: Vec3): number {
+/**
+ * The bulge shape number: 1 at the centre, falling like a ball of stars (about 1 / distance cubed far out), then
+ * eased smoothly to exactly 0 at the bulge radius. `s` is the "bulge distance" (see bulgeDistance).
+ * Only + - x / and square roots, so it is identical on every device.
+ */
+export function bulgeProfile(s: number, shape: BulgeShape = BULGE): number {
+  const x = s / shape.radius;
+  if (x >= 1) return 0;
+  const u = s / shape.scale;
+  const q = 1 + u * u;
+  let fade = 1;
+  if (x > 0.5) {
+    const t = (x - 0.5) * 2;
+    fade = 1 - t * t * (3 - 2 * t);
+  }
+  return fade / (q * Math.sqrt(q));
+}
+
+/** Distance from the centre measured in the bulge's own squashed space (so equal-density shells are flattened balls). */
+export function bulgeDistance(x: number, y: number, z: number, shape: BulgeShape = BULGE): number {
+  const v = y / shape.flatten;
+  return Math.sqrt(x * x + z * z + v * v);
+}
+
+/** Density of the bulge alone at a point (systems per cubic ly). 0 beyond the bulge radius. */
+export function bulgeDensity(p: Vec3, shape: BulgeShape = BULGE): number {
+  if (Math.abs(p.x) >= shape.radius || Math.abs(p.z) >= shape.radius || Math.abs(p.y) >= shape.radius * shape.flatten) return 0;
+  return shape.peak * bulgeProfile(bulgeDistance(p.x, p.y, p.z, shape), shape);
+}
+
+/** Density of the disc alone at a point (the galaxy before the bulge). */
+export function discDensityAt(p: Vec3): number {
   const r = Math.sqrt(p.x * p.x + p.z * p.z);
   if (r === 0) return densityPolar(0, p.y, 1, 0);
   return densityPolar(r, p.y, p.x / r, p.z / r);
+}
+
+/** Density at a point: systems per cubic ly. Disc plus bulge. 0 outside both. */
+export function densityAt(p: Vec3, bulge: BulgeShape = BULGE): number {
+  return discDensityAt(p) + bulgeDensity(p, bulge);
+}
+
+/** The expected number of bulge systems, by adding up the density in thin shells (the bulge is round in its own space). */
+export function expectedBulgeTotal(shape: BulgeShape = BULGE): number {
+  const n = 20000;
+  const h = shape.radius / n;
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    const s = (i + 0.5) * h;
+    sum += shape.peak * bulgeProfile(s, shape) * 4 * Math.PI * s * s * shape.flatten * h;
+  }
+  return sum;
 }
 
 /**
@@ -98,7 +147,7 @@ export function densityAt(p: Vec3): number {
  * which is what the sky seen from a position is built from. Use more steps for longer lines (about 1 step per 100 ly
  * in the disc is plenty for a smooth sky; arms are thousands of ly wide).
  */
-export function lineIntegralDensity(origin: Vec3, direction: Vec3, maxDistance: number, steps: number): number {
+export function lineIntegralDensity(origin: Vec3, direction: Vec3, maxDistance: number, steps: number, bulge: BulgeShape = BULGE): number {
   const length = Math.sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
   if (!(length > 0) || !(maxDistance > 0) || !(steps >= 1)) return 0;
   const n = Math.floor(steps);
@@ -109,7 +158,7 @@ export function lineIntegralDensity(origin: Vec3, direction: Vec3, maxDistance: 
   let sum = 0;
   for (let i = 0; i < n; i++) {
     const t = (i + 0.5) * step;
-    sum += densityAt({ x: origin.x + dx * t, y: origin.y + dy * t, z: origin.z + dz * t });
+    sum += densityAt({ x: origin.x + dx * t, y: origin.y + dy * t, z: origin.z + dz * t }, bulge);
   }
   return sum * step;
 }
@@ -124,7 +173,7 @@ export function expectedTotal(): number {
     const s = spacingAt(r);
     sum += (VERTICAL_AREA * thicknessAt(r) * 2 * Math.PI * r * h) / (s * s * s);
   }
-  return sum;
+  return sum + expectedBulgeTotal();
 }
 
 /**

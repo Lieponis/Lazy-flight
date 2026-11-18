@@ -3,6 +3,8 @@ import "./previewboot"; // KEEP THIS FIRST: it must run before any other code re
 // It only READS from src/universe (the galaxy and the names). It does not touch the game.
 
 import {
+  BULGE,
+  BULGE_OPTIONS,
   DISC_RADIUS,
   START_POINT,
   cellTable,
@@ -18,6 +20,8 @@ import {
   thicknessAt,
   encodeSystemNumber,
   VERTICAL_AREA,
+  expectedBulgeTotal,
+  type BulgeShape,
   type Vec3,
 } from "./universe/galaxy";
 import { getSystem, pureNameCount } from "./universe";
@@ -339,8 +343,125 @@ function runTimings(): void {
     <p class="note">first run / best of five. Near the centre "within 80 ly" holds about 360,000 systems, which the game would never ask for (it asks for the nearest N).</p>`;
 }
 
+// 0. Bulge options (stage G7): A, B, C compared with today's galaxy, side view and sky from five places.
+const NO_BULGE: BulgeShape = { radius: 1, flatten: 1, scale: 1, peak: 0 };
+const SKY_PLACES: { label: string; at: () => Vec3 }[] = [
+  { label: "In the middle (1,500 ly from the centre)", at: () => skyPlace("inner") },
+  { label: "10,000 ly out", at: () => ({ x: (START_POINT.x / startRadius()) * 10000, y: 0, z: (START_POINT.z / startRadius()) * 10000 }) },
+  { label: "At the start (16,500 ly out)", at: () => START_POINT },
+  { label: "Half-way to the rim (30,000 ly out)", at: () => skyPlace("mid") },
+  { label: "Above the start (4,000 ly up)", at: () => skyPlace("above") },
+];
+
+/** Sky value for one direction: three pieces so the crowded middle gets small steps. */
+function skyValue(origin: Vec3, dir: Vec3, shape: BulgeShape): number {
+  const at = (d: number): Vec3 => ({ x: origin.x + dir.x * d, y: origin.y + dir.y * d, z: origin.z + dir.z * d });
+  return lineIntegralDensity(at(0), dir, 6000, 48, shape) + lineIntegralDensity(at(6000), dir, 14000, 28, shape) + lineIntegralDensity(at(20000), dir, 50000, 28, shape);
+}
+
+function drawOptionSide(canvas: HTMLCanvasElement, shape: BulgeShape, max: { value: number }): void {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const w = canvas.width;
+  const h = canvas.height;
+  const half = 12000;
+  const scale = (2 * half) / w; // the same scale sideways and up: no stretching at all
+  const values = new Float64Array(w * h);
+  let peak = 0;
+  for (let row = 0; row < h; row++) {
+    const y = (h / 2 - row - 0.5) * scale;
+    for (let px = 0; px < w; px++) {
+      const x = (px + 0.5) * scale - half;
+      const v = lineIntegralDensity({ x, y, z: -half }, { x: 0, y: 0, z: 1 }, 2 * half, 120, shape);
+      values[row * w + px] = v;
+      if (v > peak) peak = v;
+    }
+  }
+  if (max.value === 0) max.value = peak; // the "today" picture sets the colour scale for the others
+  const image = ctx.createImageData(w, h);
+  for (let i = 0; i < values.length; i++) {
+    const v = (values[i] as number) > 0 ? (Math.log10(values[i] as number) - (Math.log10(max.value) - 3.2)) / 3.2 : 0;
+    const [cr, cg, cb] = colour(v);
+    image.data[i * 4] = cr;
+    image.data[i * 4 + 1] = cg;
+    image.data[i * 4 + 2] = cb;
+    image.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(image, 0, 0);
+}
+
+function drawOptionSky(canvas: HTMLCanvasElement, origin: Vec3, shape: BulgeShape, max: { value: number }): void {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const w = canvas.width;
+  const h = canvas.height;
+  const values = new Float64Array(w * h);
+  let peak = 0;
+  for (let py = 0; py < h; py++) {
+    const lat = (0.5 - (py + 0.5) / h) * Math.PI;
+    for (let px = 0; px < w; px++) {
+      const lon = ((px + 0.5) / w - 0.5) * 2 * Math.PI;
+      const v = skyValue(origin, { x: Math.cos(lat) * Math.cos(lon), y: Math.sin(lat), z: Math.cos(lat) * Math.sin(lon) }, shape);
+      values[py * w + px] = v;
+      if (v > peak) peak = v;
+    }
+  }
+  if (max.value === 0) max.value = peak;
+  const image = ctx.createImageData(w, h);
+  for (let i = 0; i < values.length; i++) {
+    const v = (values[i] as number) > 0 ? (Math.log10(values[i] as number) - (Math.log10(max.value) - 3.2)) / 3.2 : 0;
+    const [cr, cg, cb] = colour(v);
+    image.data[i * 4] = cr;
+    image.data[i * 4 + 1] = cg;
+    image.data[i * 4 + 2] = cb;
+    image.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(image, 0, 0);
+}
+
+function renderBulgeOptions(): void {
+  const host = el("bulgeOptions");
+  const rows: { key: string; title: string; shape: BulgeShape; note: string }[] = [
+    { key: "none", title: "Today (no bulge)", shape: NO_BULGE, note: "the galaxy as it was before this stage; the colour scale of the other rows is taken from this row" },
+    ...(["A", "B", "C"] as const).map((k) => {
+      const s = BULGE_OPTIONS[k];
+      const name = k === "A" ? "small" : k === "B" ? "medium" : "large";
+      return {
+        key: k,
+        title: `${k}: ${name} bulge`,
+        shape: s,
+        note: `radius ${s.radius.toLocaleString("en")} ly, ${(2 * s.radius * s.flatten).toLocaleString("en")} ly tall, adds about ${big(expectedBulgeTotal(s))} systems${s === BULGE ? " (this one is built in for now)" : ""}`,
+      };
+    }),
+  ];
+  host.innerHTML = rows
+    .map(
+      (r) =>
+        `<h3>${esc(r.title)}</h3><p class="note">${esc(r.note)}</p><canvas id="bo-side-${r.key}" width="160" height="80" style="width: 100%; max-width: 640px; image-rendering: pixelated"></canvas>
+        <div class="skygrid">${SKY_PLACES.map((p, i) => `<figure><canvas id="bo-sky-${r.key}-${i}" width="120" height="30" style="width: 100%; image-rendering: pixelated"></canvas><figcaption>${esc(p.label)}</figcaption></figure>`).join("")}</div>`,
+    )
+    .join("");
+  const sideMax = { value: 0 };
+  const skyMax = SKY_PLACES.map(() => ({ value: 0 }));
+  const jobs: (() => void)[] = [];
+  for (const r of rows) {
+    jobs.push(() => drawOptionSide(el<HTMLCanvasElement>(`bo-side-${r.key}`), r.shape, sideMax));
+    SKY_PLACES.forEach((p, i) => jobs.push(() => drawOptionSky(el<HTMLCanvasElement>(`bo-sky-${r.key}-${i}`), p.at(), r.shape, skyMax[i] as { value: number })));
+  }
+  let next = 0;
+  const status = el("bulgeStatus");
+  const run = (): void => {
+    const job = jobs[next++];
+    if (job) job();
+    status.textContent = next < jobs.length ? `Drawing picture ${next} of ${jobs.length}... (they appear one by one)` : "All pictures drawn.";
+    if (next < jobs.length) setTimeout(run, 0);
+  };
+  run();
+}
+
 renderChecksumBanner();
 renderFacts();
+setTimeout(renderBulgeOptions, 0);
 drawTop();
 renderSpacing();
 drawNear();

@@ -2,7 +2,9 @@
 // This folder only knows WHERE systems are and which system numbers exist. Names, planets and docks are built on top of it.
 
 export * from "./params";
-export { VERTICAL_AREA, spacingAt, thicknessAt, verticalFactor, armFactor, densityAt, densityPolar, lineIntegralDensity, expectedTotal, expectedCountIn } from "./density";
+export { VERTICAL_AREA, spacingAt, thicknessAt, verticalFactor, armFactor, densityAt, densityPolar, discDensityAt, bulgeDensity, bulgeProfile, bulgeDistance, expectedBulgeTotal, lineIntegralDensity, expectedTotal, expectedCountIn } from "./density";
+export { bulgeTable, bulgeCellAddress, bulgeCellNumber, findBulgeSystemById } from "./bulge";
+export type { BulgeTable, BulgeLevel, BulgeCellAddress } from "./bulge";
 export type { Vec3 } from "./density";
 export { cellTable, cellAddress, cellNumber, slabIndexAt } from "./cells";
 export type { Slab, CellTable } from "./cells";
