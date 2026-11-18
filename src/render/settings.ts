@@ -45,13 +45,17 @@ export const MAP_SKY_BUDGET_MS = 6;
 export const MAP_SKY_OVERLAP_STARS = 3000;
 export const MAP_SKY_OVERLAP_CELL_DEG = 0.35;
 /**
- * The map's sky is also built ahead of time, a few milliseconds per frame while another screen is showing (Andy: "make the backdrop on
- * the galaxy map draw as fast as on the system view"). So it is usually already there when the map opens. This is the time per frame
+ * The map's sky is also built ahead of time, a slice per frame while another screen is showing (Andy: "make the backdrop on the
+ * galaxy map draw as fast as on the system view"). So it is usually already there when the map opens. This is the time per frame
  * that background work may use, and how many frames the app waits after the start (or after a jump) before it asks for the stars and
- * begins, so the first picture and the arrival are not disturbed (30 frames is about half a second).
+ * begins, so the very first picture is not disturbed (10 frames is about a sixth of a second).
+ *
+ * First try: 4 ms per frame and 30 frames. On Andy's iPhone the sky is about 0.75 s of work, so that took about 4 s from the start
+ * to "ready" (Andy: "seems like it took 4 seconds"). Now 8 ms and 10 frames: about 2 s. If a busy screen ever stutters while this
+ * runs, lower MAP_SKY_IDLE_MS (it only costs time-to-ready); the work stops by itself once the sky is built.
  */
-export const MAP_SKY_IDLE_MS = 4;
-export const MAP_SKY_WARM_DELAY_FRAMES = 30;
+export const MAP_SKY_IDLE_MS = 8;
+export const MAP_SKY_WARM_DELAY_FRAMES = 10;
 
 /**
  * The faint galaxy backdrop behind the system view (Andy: "very faint backdrop of the galaxy, same as in the galaxy map, for immersion").
