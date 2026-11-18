@@ -328,3 +328,9 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Andy cannot set up hosting: `.github/workflows/deploy.yml` now also builds branch `universe-v3` (VITE_PREVIEW=1, no type check) into dist/preview. Preview steps are continue-on-error; a broken preview is removed and never blocks the live game. Rebuilds on every push to main, twice an hour (cron 7,37), and by hand.
 - Safety: the preview uses its own save box (prefix "preview-v3:", src/previewboot.ts, Agent 3, test tests/previewstorage.test.ts), shows a PREVIEW tag and runs no offline helper. The live site's helper handles /preview/ as network-only (not touched).
 - Remove the preview step (and the cron) when universe-v3 is merged into main.
+
+## G5a (render, map, sky) and G5b (screens) DELIVERED (Agents 3 and 5, branch universe-v3; reports docs/report-agent-3k.md, docs/report-agent-5i.md) - Lead 2026-11-18
+- Accepted. Andy checked on his iPhone: map at centre/start/middle/rim 60 fps; smaller diamonds at the centre "better"; per-system sky "different"; job card badges (READY TO FLY / REFUEL FIRST / TOO FAR FOR THIS SHIP) and board messages "Ok"; rebuilt-note and import texts "Ok". Check runs green on the branch (1,127 tests).
+- Preview timer unreliable (ran once in 10 h): added `.github/workflows/preview-refresh.yml` (main): after "Check the game layer" finishes on universe-v3 it starts "Build and publish" by itself.
+- Open: far-dock text says "next dock 94.7 ly" even if the same system has another dock (src/game text, Agent 4 small fix); sky has NO bulge (universe is a thin disc): Andy decides if Agent 2 adds a bulge to densityAt; title text glitch screenshot (Plaboo 53J25-4557) not reproduced; planets.html not confirmed by Andy yet.
+- Next: G6 (Agent 6): QA, balance, offline-app update path, phones; then MERGE universe-v3 into main after Andy has played it. Before the merge Andy must EXPORT A SAVE FILE from the live game (SAVE FILE menu).
