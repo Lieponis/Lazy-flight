@@ -114,8 +114,9 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
   const forcedReach = parseReachParam(window.location.search); // testing aid ?reach=NUMBER (diamonds only)
   const mapAt = parseMapAt(window.location.search, START_POINT); // testing aid ?mapat=centre|start|middle|rim: look from there, ship unmoved
   const mapHere = (here: StarSystem) => ({ id: here.id, name: here.name, starLabel: here.star.label, position: mapAt ? mapAt.position : here.position });
+  const mapSource = options.mapSource ? options.mapSource(seed) : null; // one source for the map and the system view's faint sky
   const starmap = new StarMapScreen({
-    source: options.mapSource ? options.mapSource(seed) : null,
+    source: mapSource,
     host: canvas,
     hud,
     state,
@@ -136,6 +137,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     host: canvas,
     hud,
     state,
+    sky: mapSource?.sky ?? null, // the faint galaxy sky behind the system view (null = none, the view looks as before)
   });
 
   systemView.setMarkStyle(parseMarks(window.location.search) ?? SYSTEM_MARK_STYLE);

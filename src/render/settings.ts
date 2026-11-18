@@ -45,6 +45,17 @@ export const MAP_SKY_BUDGET_MS = 6;
 export const MAP_SKY_OVERLAP_STARS = 3000;
 export const MAP_SKY_OVERLAP_CELL_DEG = 0.35;
 
+/**
+ * The faint galaxy backdrop behind the system view (Andy: "very faint backdrop of the galaxy, same as in the galaxy map, for immersion").
+ * It is the map's own sky (same builders, same real-universe shape) drawn at SYSTEM_SKY_FAINT of the map's strength: 1 = as bright as the
+ * map, 0 = off. Make it a bit more or less visible by changing this one number (0.15 = barely there, 0.4 = easy to see).
+ */
+export const SYSTEM_SKY_FAINT = 0.25;
+/** Stars closer than this many star gaps are left out of that sky (no single stars are drawn on the system view). */
+export const SYSTEM_SKY_NEAR_SPACINGS = 3;
+/** Milliseconds per frame the system view's sky build may use (the map uses MAP_SKY_BUDGET_MS = 6). */
+export const SYSTEM_SKY_BUDGET_MS = 4;
+
 /** The reach (light years) the map uses until the app has told it the ship's real reach. */
 export const MAP_REACH_FALLBACK_LY = 35;
 
