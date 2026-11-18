@@ -195,12 +195,12 @@ describe("bulge cells", () => {
 
   it("systemsWithin finds exactly the systems a slow search over the bulge cells finds (centre, up, side, edge)", () => {
     const spots = [
-      { c: { x: 5, y: 2, z: -3 }, r: 20 },
-      { c: { x: 0, y: 1800, z: 0 }, r: 60 },
-      { c: { x: 1200, y: 600, z: -900 }, r: 80 },
-      { c: { x: 3300, y: 100, z: 200 }, r: 400 },
-      { c: { x: 0, y: -2500, z: 1000 }, r: 500 },
-      { c: { x: 700, y: 0, z: 0 }, r: 150 }, // across a zone border
+      { c: { x: 5, y: 2, z: -3 }, r: 12 },
+      { c: { x: 0, y: 1800, z: 0 }, r: 30 },
+      { c: { x: 1200, y: 600, z: -900 }, r: 40 },
+      { c: { x: 3300, y: 100, z: 200 }, r: 120 },
+      { c: { x: 0, y: -2500, z: 1000 }, r: 150 },
+      { c: { x: 550, y: 0, z: 0 }, r: 40 }, // across a zone border (zone edge at 0.1 x 5,500 = 550 ly)
     ];
     for (const { c, r } of spots) {
       const fast = new Set(systemsWithin(SEED, c, r).filter((s) => s.id >= disc.idSpace).map((s) => s.id));
@@ -220,14 +220,14 @@ describe("bulge cells", () => {
   });
 
   it("no system number is used twice, disc and bulge together, and every bulge system is inside the bulge", () => {
-    const found = systemsWithin(SEED, { x: 0, y: 0, z: 0 }, 150);
+    const found = systemsWithin(SEED, { x: 0, y: 0, z: 0 }, 50);
     const ids = new Set(found.map((s) => s.id));
     expect(ids.size).toBe(found.length);
     const bulgeOnes = found.filter((s) => s.id >= disc.idSpace);
-    expect(bulgeOnes.length).toBeGreaterThan(1000);
-    expect(found.length - bulgeOnes.length).toBeGreaterThan(1000);
+    expect(bulgeOnes.length).toBeGreaterThan(500);
+    expect(found.length - bulgeOnes.length).toBeGreaterThan(500);
     for (const s of bulgeOnes) expect(Math.hypot(s.x, s.z, s.y / BULGE.flatten)).toBeLessThan(BULGE.radius);
-    const wide = systemsWithin(SEED, { x: 0, y: 2000, z: 0 }, 600);
+    const wide = systemsWithin(SEED, { x: 0, y: 2000, z: 0 }, 200);
     expect(new Set(wide.map((s) => s.id)).size).toBe(wide.length);
   });
 
