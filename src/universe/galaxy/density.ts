@@ -94,12 +94,13 @@ export function bulgeProfile(s: number, shape: BulgeShape = BULGE): number {
   if (x >= 1) return 0;
   const u = s / shape.scale;
   const q = 1 + u * u;
+  // A long gentle tail (about 1 / distance^2.5) so the bulge melts into the disc, eased to exactly 0 over the outer 85%.
   let fade = 1;
-  if (x > 0.5) {
-    const t = (x - 0.5) * 2;
-    fade = 1 - t * t * (3 - 2 * t);
+  if (x > 0.15) {
+    const t = (x - 0.15) / 0.85;
+    fade = 1 - t * t * t * (t * (t * 6 - 15) + 10); // smoother than smoothstep: no visible edge
   }
-  return fade / (q * Math.sqrt(q));
+  return fade / (q * Math.sqrt(Math.sqrt(q)));
 }
 
 /** Distance from the centre measured in the bulge's own squashed space (so equal-density shells are flattened balls). */
@@ -108,10 +109,27 @@ export function bulgeDistance(x: number, y: number, z: number, shape: BulgeShape
   return Math.sqrt(x * x + z * z + v * v);
 }
 
-/** Density of the bulge alone at a point (systems per cubic ly). 0 beyond the bulge radius. */
+/**
+ * Density of the bulge alone at (x, y, z) (systems per cubic ly). 0 beyond the bulge radius.
+ * The profile falls with distance. A "flare" factor also thins the bulge out above and below the disc plane, and the
+ * height it reaches shrinks smoothly with distance from the axis (tall in the middle, low further out), so the bulge
+ * rises out of the disc along a smooth curve instead of looking like a ball sitting on it. The factor is never above
+ * 1, so `peak x profile(s)` is always an upper bound (the bulge cells rely on that).
+ */
+export function bulgeDensityXYZ(x: number, y: number, z: number, shape: BulgeShape = BULGE): number {
+  if (Math.abs(x) >= shape.radius || Math.abs(z) >= shape.radius || Math.abs(y) >= shape.radius * shape.flatten) return 0;
+  const v = y / shape.flatten;
+  const s = Math.sqrt(x * x + z * z + v * v);
+  if (s === 0) return shape.peak;
+  const r2 = (x * x + z * z) / (FLARE_REACH * shape.radius * FLARE_REACH * shape.radius);
+  const height = (FLARE_HEIGHT * shape.radius * shape.flatten) / (1 + r2);
+  const w = y / height;
+  return (shape.peak * bulgeProfile(s, shape)) / (1 + w * w);
+}
+
+/** Density of the bulge alone at a point. */
 export function bulgeDensity(p: Vec3, shape: BulgeShape = BULGE): number {
-  if (Math.abs(p.x) >= shape.radius || Math.abs(p.z) >= shape.radius || Math.abs(p.y) >= shape.radius * shape.flatten) return 0;
-  return shape.peak * bulgeProfile(bulgeDistance(p.x, p.y, p.z, shape), shape);
+  return bulgeDensityXYZ(p.x, p.y, p.z, shape);
 }
 
 /** Density of the disc alone at a point (the galaxy before the bulge). */
@@ -126,14 +144,24 @@ export function densityAt(p: Vec3, bulge: BulgeShape = BULGE): number {
   return discDensityAt(p) + bulgeDensity(p, bulge);
 }
 
+/** Flare: the height where the bulge has thinned to half (fraction of its top height) on the axis, and how far out that height has halved... (see bulgeDensityXYZ). */
+const FLARE_HEIGHT = 0.35;
+const FLARE_REACH = 0.5;
+
 /** The expected number of bulge systems, by adding up the density in thin shells (the bulge is round in its own space). */
 export function expectedBulgeTotal(shape: BulgeShape = BULGE): number {
-  const n = 20000;
-  const h = shape.radius / n;
+  // Adds up the bulge density over rings of (distance from the axis, height): a 600 x 600 grid is plenty for a smooth function.
+  const n = 600;
+  const dr = shape.radius / n;
+  const top = shape.radius * shape.flatten;
+  const dy = (2 * top) / n;
   let sum = 0;
   for (let i = 0; i < n; i++) {
-    const s = (i + 0.5) * h;
-    sum += shape.peak * bulgeProfile(s, shape) * 4 * Math.PI * s * s * shape.flatten * h;
+    const r = (i + 0.5) * dr;
+    for (let j = 0; j < n; j++) {
+      const y = -top + (j + 0.5) * dy;
+      sum += bulgeDensityXYZ(r, y, 0, shape) * 2 * Math.PI * r * dr * dy;
+    }
   }
   return sum;
 }

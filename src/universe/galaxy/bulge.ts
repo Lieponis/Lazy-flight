@@ -11,7 +11,7 @@
 //    zone of its level, so every point of the bulge belongs to exactly one zone: no gaps, no overlaps.
 //  - System number = (cell number x 8) + slot, with cell numbers continuing after the last disc cell.
 
-import { bulgeDistance, bulgeProfile } from "./density";
+import { bulgeDensityXYZ, bulgeDistance, bulgeProfile } from "./density";
 import type { Vec3 } from "./density";
 import { cellTable } from "./cells";
 import { hashNumber, partOf } from "./hash";
@@ -61,7 +61,7 @@ export function bulgeTable(shape: BulgeShape = BULGE): BulgeTable {
   for (let k = 0; k + 1 < BULGE_ZONES.length; k++) {
     const sIn = (BULGE_ZONES[k] as number) * shape.radius;
     const sOut = (BULGE_ZONES[k + 1] as number) * shape.radius;
-    const dens = shape.peak * bulgeProfile(sIn, shape);
+    const dens = shape.peak * bulgeProfile(sIn, shape); // upper bound: the flare factor is at most 1
     let edge = BULGE_EDGES[0] as number;
     for (const e of BULGE_EDGES) if (dens * e * e * e <= BULGE_WANTED) edge = e;
     const across = 2 * Math.ceil(sOut / edge);
@@ -132,7 +132,7 @@ function bulgeSlot(table: BulgeTable, seed32: number, level: BulgeLevel, ix: num
   const z = (iz - level.across / 2 + uz) * e;
   const s = bulgeDistance(x, y, z, table.shape);
   if (s < level.sIn || s >= level.sOut) return false;
-  if (chance >= (table.shape.peak * bulgeProfile(s, table.shape) * e * e * e) / SLOTS) return false;
+  if (chance >= (bulgeDensityXYZ(x, y, z, table.shape) * e * e * e) / SLOTS) return false;
   out.id = id;
   out.x = x;
   out.y = y;

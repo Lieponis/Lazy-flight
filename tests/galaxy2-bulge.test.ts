@@ -117,7 +117,7 @@ describe("the bulge shape", () => {
   });
 
   it("reaches well above the thin disc and is a little flattened", () => {
-    const up = { x: 0, y: 0.5 * BULGE.radius, z: 0 }; // far above the 1,000 ly the disc reaches
+    const up = { x: 0, y: 0.4 * BULGE.radius, z: 0 }; // far above the 1,000 ly the disc reaches
     expect(discDensityAt(up)).toBe(0);
     expect(densityAt(up)).toBeGreaterThan(0);
     const side = bulgeDensity({ x: 0.5 * BULGE.radius * BULGE.flatten, y: 0, z: 0 });

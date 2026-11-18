@@ -57,9 +57,9 @@ const CENTRE_DENSITY = 1 / (CENTRE_SPACING * CENTRE_SPACING * CENTRE_SPACING);
 
 /** The three sizes shown to Andy (picture options A, B, C). */
 export const BULGE_OPTIONS: Record<"A" | "B" | "C", BulgeShape> = {
-  A: { radius: 2000, flatten: 0.8, scale: 700, peak: 0.6 * CENTRE_DENSITY },
-  B: { radius: 3500, flatten: 0.8, scale: 1225, peak: 0.6 * CENTRE_DENSITY },
-  C: { radius: 5500, flatten: 0.8, scale: 1925, peak: 0.5 * CENTRE_DENSITY },
+  A: { radius: 2000, flatten: 0.9, scale: 500, peak: 0.8 * CENTRE_DENSITY },
+  B: { radius: 3500, flatten: 0.9, scale: 875, peak: 0.8 * CENTRE_DENSITY },
+  C: { radius: 5500, flatten: 0.9, scale: 1375, peak: 0.8 * CENTRE_DENSITY },
 };
 
 /** The bulge that is built into the galaxy. */
