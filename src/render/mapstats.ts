@@ -54,6 +54,37 @@ export function mapStatsText(s: MapStatsInput): string {
   return lines.join("\n");
 }
 
+/** One line for the other screens (docked, flight): the same FRAME wording as the map's block. */
+export function frameLineText(frameMs: number, jsMs: number): string {
+  return `FRAME ${frameMs.toFixed(1)} ms (${(1000 / Math.max(1, frameMs)).toFixed(0)} fps)  JS ${jsMs.toFixed(1)} ms`;
+}
+
+/** Averages the picture time over a window of frames (default 30, about half a second), for the stats line on docked and flight. */
+export class FrameLine {
+  private n = 0;
+  private ms = 0;
+  private js = 0;
+
+  constructor(private readonly window = 30) {}
+
+  /** Adds one picture; returns the text for the averaged window when it is full (then starts over), otherwise null. */
+  add(frameMs: number, jsMs: number): string | null {
+    this.n++;
+    this.ms += frameMs;
+    this.js += jsMs;
+    if (this.n < this.window) return null;
+    const text = frameLineText(this.ms / this.n, this.js / this.n);
+    this.reset();
+    return text;
+  }
+
+  reset(): void {
+    this.n = 0;
+    this.ms = 0;
+    this.js = 0;
+  }
+}
+
 /** A small see-through text block in the top left corner. */
 export function mountMapStats(parent: HTMLElement): HTMLPreElement {
   const el = document.createElement("pre");

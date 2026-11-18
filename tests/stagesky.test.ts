@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { makeMapSource } from "../src/mapsource";
 import { CockpitLens } from "../src/render/assets/lens";
+import { FrameLine, frameLineText } from "../src/render/mapstats";
 import type { SkyLayer } from "../src/render/galaxy/skylayer";
 import { makeSystemSkyLayer, renderWithSky } from "../src/render/systemsky";
 import { WORLD_SEED } from "../src/universe";
@@ -100,6 +101,20 @@ describe("one sky layer made one way", () => {
     }
     expect(built[0]).toBeGreaterThan(1000);
     expect(built[1]).toBe(built[0]);
+  });
+});
+
+describe("the FRAME line on the docked and flight screens (?mapstats=1)", () => {
+  it("says the map's FRAME words, and averages a window of 30 pictures", () => {
+    expect(frameLineText(16.7, 0.5)).toBe("FRAME 16.7 ms (60 fps)  JS 0.5 ms");
+    expect(frameLineText(33.3, 12)).toBe("FRAME 33.3 ms (30 fps)  JS 12.0 ms");
+    const line = new FrameLine(30);
+    for (let i = 0; i < 29; i++) expect(line.add(16.7, 0.5)).toBeNull();
+    expect(line.add(16.7, 0.5)).toBe("FRAME 16.7 ms (60 fps)  JS 0.5 ms");
+    expect(line.add(16.7, 0.5)).toBeNull(); // starts over
+    line.reset();
+    for (let i = 0; i < 29; i++) line.add(50, 1);
+    expect(line.add(10, 1)).toBe("FRAME 48.7 ms (21 fps)  JS 1.0 ms");
   });
 });
 

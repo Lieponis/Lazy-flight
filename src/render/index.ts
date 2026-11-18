@@ -16,6 +16,7 @@ import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import type { Screen } from "./screen";
 import { LOOK_DEFAULT_STYLE, START_SEED, SYSTEM_MARK_STYLE, SYSTEM_SKY_IDLE_MS, WARP_DEFAULT_STYLE } from "./settings";
 import { makeSystemSkyLayer } from "./systemsky";
+import { FrameLine, mountMapStats, parseMapStats } from "./mapstats";
 import { findStartSystem } from "./start";
 import { StateStore } from "./state";
 import { DockedScreen } from "./docked";
@@ -360,8 +361,14 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     mountLookPreview(parent, startLook, (style) => pixelLook.set(lookPreset(style)));
   }
 
+  // Testing aid (?mapstats=1, the same switch as the map's block): a FRAME line on the docked and flight screens for the phone speed check.
+  const stageStats = parseMapStats(window.location.search) ? mountMapStats(canvas.parentElement ?? document.body) : null;
+  if (stageStats) stageStats.style.display = "none";
+  const stageLine = new FrameLine();
+
   let last = performance.now();
   function frame(now: number): void {
+    const jsStart = performance.now();
     const seconds = Math.min((now - last) / 1000, 0.1); // cap so a paused tab does not jump
     last = now;
     if (active !== systemView) systemView.warmSky(); // the system view's sky is prepared in the background while other screens show
@@ -377,6 +384,15 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
         },
         seconds,
       );
+    }
+    if (stageStats) {
+      const stage = active === docked || active === flight;
+      stageStats.style.display = stage ? "block" : "none";
+      if (!stage) stageLine.reset();
+      else {
+        const text = stageLine.add(seconds * 1000, performance.now() - jsStart);
+        if (text) stageStats.textContent = `${active === docked ? "DOCKED" : "FLIGHT"}  ${text}`;
+      }
     }
     requestAnimationFrame(frame);
   }
