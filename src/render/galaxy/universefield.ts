@@ -31,6 +31,13 @@ export const UNIVERSE_ARM_STRENGTH = 0.75;
 export const UNIVERSE_ARM_FADE_FROM = 1500;
 export const UNIVERSE_ARM_FADE_TO = 5000;
 
+/**
+ * How far the universe's central bulge reaches from the galaxy centre (light years): a copy of `BULGE.radius` in
+ * src/universe/galaxy/params.ts (option C, 5,500). The sky glow uses it to take finer steps where a ray crosses the bulge
+ * (`SkyParams.bulgeReach`). A test (tests/skybulge.test.ts) measures the real bulge and fails if the two ever drift apart.
+ */
+export const UNIVERSE_BULGE_REACH_LY = 5500;
+
 /** How narrow the bright arms look (bigger = thinner arms), and how far before an arm its dust lane sits (radians). Same as the stand-in. */
 const ARM_SHARP = 2.2;
 const DUST_ANGLE_SHIFT = 0.3;

@@ -13,7 +13,7 @@ import { DotsBuilder } from "./skydots";
 import { skyToTexels } from "./skylook";
 import { fadeStep, layerLevels, layerNearRadius } from "./skylayermath";
 import { SkyView } from "./skyview";
-import { universeField, type SkyFunctions } from "./universefield";
+import { UNIVERSE_BULGE_REACH_LY, universeField, type SkyFunctions } from "./universefield";
 
 export interface SkyLayerOptions {
   /** How much of the map's look is left: 1 = exactly the map's sky, 0.25 = a quarter as bright. */
@@ -71,7 +71,7 @@ export class SkyLayer {
     if (key === this.builtKey || this.pending?.key === key) return;
     this.pending = {
       key,
-      glow: new SkyBuilder(this.field, cell.centre, { faceSize: this.opts.faceSize, steps: this.opts.steps, nearRadius }),
+      glow: new SkyBuilder(this.field, cell.centre, { faceSize: this.opts.faceSize, steps: this.opts.steps, nearRadius, bulgeReach: UNIVERSE_BULGE_REACH_LY }),
       dots: new DotsBuilder(this.field, standInProposal, cell.centre, { count: this.opts.dots, nearRadius, seed: cell.starSeed, squeeze: 0.5 }),
     };
   }

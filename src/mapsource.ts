@@ -16,6 +16,20 @@ function hexToRgb(hex: string): [number, number, number] {
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
+/**
+ * The typical gap between neighbouring systems at a point, for the map's zoom limit and diamond size. In the disc this is the
+ * universe's `spacingAt` of the distance from the centre (unchanged). Systems of the central bulge also lie far above and below the
+ * disc plane, where the disc's number is far too small (it would say 1.9 ly where the gap is 4.6 ly): there the gap follows the
+ * local density (gap = density^(-1/3), which is how `spacingAt` is defined at the centre), never smaller than the disc's number.
+ */
+export function localSpacing(centre: MapPoint): number {
+  const r = Math.hypot(centre.x, centre.z);
+  const base = spacingAt(r);
+  if (Math.abs(centre.y) <= thicknessAt(r) / 2) return base; // inside the disc's own thickness: as before
+  const density = densityAt(centre);
+  return density > 0 ? Math.max(base, Math.cbrt(1 / density)) : base;
+}
+
 function buildList(seed: Seed, centre: MapPoint, count: number): MapStarList {
   const sites = nearestSites(seed, centre, count);
   const n = sites.length;
@@ -26,7 +40,7 @@ function buildList(seed: Seed, centre: MapPoint, count: number): MapStarList {
     distances: new Float32Array(n),
     colors: new Float32Array(n * 3),
     radii: new Float32Array(n),
-    spacingLy: spacingAt(Math.hypot(centre.x, centre.z)),
+    spacingLy: localSpacing(centre),
   };
   const colours = new Map<string, [number, number, number]>(); // a handful of star colours: convert each hex text once
   for (let i = 0; i < n; i++) {

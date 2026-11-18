@@ -30,7 +30,7 @@ import { skyToTexels } from "./galaxy/skylook";
 import { removeNearOverlaps } from "./galaxy/skystars";
 import { SkyView } from "./galaxy/skyview";
 import { StarGrid, nearestTo } from "./galaxy/starpick";
-import { universeField } from "./galaxy/universefield";
+import { UNIVERSE_BULGE_REACH_LY, universeField } from "./galaxy/universefield";
 import { orbitCameraPosition, starfieldPositions } from "./helpers";
 import type { Hud } from "./hud";
 import { OrbitView } from "./input";
@@ -296,7 +296,7 @@ export class StarMapScreen implements Screen {
       return;
     }
     this.pendingSky = {
-      glow: needGlow ? new SkyBuilder(field, cell.centre, { faceSize: MAP_SKY_SIZE, steps: MAP_SKY_STEPS, nearRadius: near.radius }) : null,
+      glow: needGlow ? new SkyBuilder(field, cell.centre, { faceSize: MAP_SKY_SIZE, steps: MAP_SKY_STEPS, nearRadius: near.radius, bulgeReach: UNIVERSE_BULGE_REACH_LY }) : null,
       dots: needDots
         ? new DotsBuilder(field, standInProposal, cell.centre, { count: MAP_SKY_DOTS, nearRadius: near.radius, seed: cell.starSeed, squeeze: 0.5 })
         : null,
