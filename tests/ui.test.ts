@@ -707,7 +707,7 @@ describe("G5b: job cards say if this ship can fly them (Andy chose A)", () => {
       text: "Every job you could fly needs more fuel than you have.",
       hint: "Tap REFUEL at the top.",
     });
-    const remote = "Nothing here is within reach of this ship. The next dock is 94.7 ly away; a full tank takes you 30 ly.";
+    const remote = "Nothing here is within reach of this ship. The nearest dock in another system is 94.7 ly away; a full tank takes you 30 ly.";
     const far = boardMessage({ total: 6, doNow: 0, afterRefuel: 0, never: 6, message: remote }, { isRemote: true, remoteMessage: remote })!;
     expect(far.title).toBe("WAY OUT IN THE DARK");
     expect(far.text).toBe(remote); // shown once, not twice

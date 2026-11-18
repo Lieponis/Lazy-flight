@@ -245,8 +245,11 @@ export class Game {
     const fuelRangeLy = rangeForFuel(this.state, this.state.fuel);
     const position = getSite(this.seed, systemId)?.position;
     let nearestOtherDock: PlaceInfo["nearestOtherDock"] = null;
+    let sameSystemDocks = 0; // other docks in THIS system (0 ly away); their jobs are just as far (6h text fix)
     if (position) {
-      const other = this.near.docks(position, 6).find((d) => d.systemId !== systemId);
+      const around = this.near.docks(position, 6);
+      sameSystemDocks = around.filter((d) => d.systemId === systemId && d.dockId !== placeId).length;
+      const other = around.find((d) => d.systemId !== systemId);
       if (other) nearestOtherDock = { dockId: other.dockId, name: this.placeName(other.dockId), systemId: other.systemId, distanceLy: Math.round(other.distance * 10) / 10 };
     }
     const isRemote = nearestOtherDock !== null && nearestOtherDock.distanceLy > rangeLy;
@@ -260,7 +263,7 @@ export class Game {
       nearestOtherDock,
       isRemote,
       remoteMessage: isRemote && nearestOtherDock
-        ? `Nothing here is within reach of this ship. The next dock is ${nearestOtherDock.distanceLy} ly away; a full tank takes you ${rangeLy} ly.`
+        ? `Nothing here is within reach of this ship.${sameSystemDocks > 0 ? " The other docks in this system are just as far from everything." : ""} The nearest dock in another system is ${nearestOtherDock.distanceLy} ly away; a full tank takes you ${rangeLy} ly.`
         : null,
     };
   }
