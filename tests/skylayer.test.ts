@@ -85,7 +85,7 @@ describe("the faint sky layer (real universe)", () => {
       layer.update(1 / 60, camera);
       seen.push(layer.view.dim);
     }
-    expect(seen[0] as number).toBeLessThan(0.05);
+    expect(seen[0] as number).toBeLessThan(OPTS.faint * 0.5); // well below its final level on the first frames
     for (let i = 1; i < seen.length; i++) expect(seen[i] as number).toBeGreaterThanOrEqual(seen[i - 1] as number);
     expect(seen[seen.length - 1] as number).toBeLessThanOrEqual(OPTS.faint + 1e-12);
     layer.dispose();
