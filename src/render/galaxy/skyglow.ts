@@ -28,7 +28,19 @@ export interface SkyParams {
   steps: number;
   /** Distance (light years) inside which stars are drawn one by one, so the glow starts here. */
   nearRadius: number;
+  /**
+   * Optional (0 or missing = off). How far from the galaxy centre a compact central bulge reaches (light years). Far steps of the glow
+   * can be thousands of light years long, so a bulge a few thousand light years across can be stepped over or hit by one lucky
+   * sample. While a ray is inside this ball, any step longer than a tenth of it is cut into equal pieces (`BULGE_STEPS_ACROSS`).
+   * Rays that miss the ball, and every sky built without this number, come out exactly as before.
+   */
+  bulgeReach?: number;
 }
+
+/** A ray inside the bulge ball is sampled at least this many times across the ball's radius. */
+export const BULGE_STEPS_ACROSS = 10;
+/** One step is never cut into more than this many pieces. */
+const BULGE_MAX_SPLIT = 12;
 
 export const DEFAULT_SKY: SkyParams = { faceSize: 64, steps: 56, nearRadius: 100 };
 
@@ -101,34 +113,54 @@ export function integrateRay(
   let attB = Math.exp(-tauG * DUST_RGB[2]);
   const steps = params.steps;
   const q = Math.pow(t1 / s0, 1 / steps);
+  // Where this ray is inside the bulge ball (from the galaxy centre at 0,0,0): the stretch [chordA, chordB] of the ray, if any.
+  const reach = params.bulgeReach ?? 0;
+  let chordA = Infinity;
+  let chordB = -Infinity;
+  let cap = Infinity;
+  if (reach > 0) {
+    const tc = -(p.x * dx + p.y * dy + p.z * dz); // where the ray comes closest to the centre
+    const miss2 = p.x * p.x + p.y * p.y + p.z * p.z - tc * tc; // squared distance of that closest point from the centre
+    if (miss2 < reach * reach) {
+      const w = Math.sqrt(reach * reach - miss2);
+      chordA = tc - w;
+      chordB = tc + w;
+      cap = reach / BULGE_STEPS_ACROSS;
+    }
+  }
   let r = 0;
   let g = 0;
   let b = 0;
   let t = s0;
   for (let k = 0; k < steps; k++) {
     const tNext = t * q;
-    const tm = Math.sqrt(t * tNext);
-    const dt = tNext - t;
-    field.sample(p.x + dx * tm, p.y + dy * tm, p.z + dz * tm, s);
-    if (s.dust > 0) {
-      // Dim by the dust up to the middle of this step, then by the rest of the step.
-      const half = 0.5 * s.dust * dt;
-      const eR = Math.exp(-half * DUST_RGB[0]);
-      const eG = Math.exp(-half * DUST_RGB[1]);
-      const eB = Math.exp(-half * DUST_RGB[2]);
-      const cr = s.old * OLD_RGB[0] + s.young * YOUNG_RGB[0];
-      const cg = s.old * OLD_RGB[1] + s.young * YOUNG_RGB[1];
-      const cb = s.old * OLD_RGB[2] + s.young * YOUNG_RGB[2];
-      r += cr * dt * attR * eR;
-      g += cg * dt * attG * eG;
-      b += cb * dt * attB * eB;
-      attR *= eR * eR;
-      attG *= eG * eG;
-      attB *= eB * eB;
-    } else {
-      r += (s.old * OLD_RGB[0] + s.young * YOUNG_RGB[0]) * dt * attR;
-      g += (s.old * OLD_RGB[1] + s.young * YOUNG_RGB[1]) * dt * attG;
-      b += (s.old * OLD_RGB[2] + s.young * YOUNG_RGB[2]) * dt * attB;
+    const len = tNext - t;
+    // Normally one sample in the middle of the step; a long step inside the bulge is cut into equal pieces.
+    const pieces = len > cap && tNext > chordA && t < chordB ? Math.min(BULGE_MAX_SPLIT, Math.ceil(len / cap)) : 1;
+    const dt = pieces === 1 ? len : len / pieces;
+    for (let j = 0; j < pieces; j++) {
+      const tm = pieces === 1 ? Math.sqrt(t * tNext) : t + (j + 0.5) * dt;
+      field.sample(p.x + dx * tm, p.y + dy * tm, p.z + dz * tm, s);
+      if (s.dust > 0) {
+        // Dim by the dust up to the middle of this step, then by the rest of the step.
+        const half = 0.5 * s.dust * dt;
+        const eR = Math.exp(-half * DUST_RGB[0]);
+        const eG = Math.exp(-half * DUST_RGB[1]);
+        const eB = Math.exp(-half * DUST_RGB[2]);
+        const cr = s.old * OLD_RGB[0] + s.young * YOUNG_RGB[0];
+        const cg = s.old * OLD_RGB[1] + s.young * YOUNG_RGB[1];
+        const cb = s.old * OLD_RGB[2] + s.young * YOUNG_RGB[2];
+        r += cr * dt * attR * eR;
+        g += cg * dt * attG * eG;
+        b += cb * dt * attB * eB;
+        attR *= eR * eR;
+        attG *= eG * eG;
+        attB *= eB * eB;
+      } else {
+        r += (s.old * OLD_RGB[0] + s.young * YOUNG_RGB[0]) * dt * attR;
+        g += (s.old * OLD_RGB[1] + s.young * YOUNG_RGB[1]) * dt * attG;
+        b += (s.old * OLD_RGB[2] + s.young * YOUNG_RGB[2]) * dt * attB;
+      }
     }
     t = tNext;
   }

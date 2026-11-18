@@ -1,63 +1,18 @@
 // Agent 7c: new planet looks (option B). Looks are chosen in the render layer from the planet id;
-// src/universe output must stay exactly as it was (the Lead's hard rule), proven by the fingerprint test.
+// (Until universe v3 this file also held the "universe output is unchanged except names" fingerprint test. Universe v3 is a new universe on
+// purpose, so that block is gone; the v3 fingerprints live in tests/universe-v3.test.ts.)
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import {
-  generateDock,
-  getJobBoard,
-  getMarket,
-  getPlanetsOfSystem,
-  listSystemsNear,
-  type Planet,
-  type PlanetType,
-  type Seed,
-} from "../src/universe";
-import { EXOTIC_CHANCE, RING_CHANCE, RING_COLOURS, chooseLook, fbm3, hashString, noise3, surfaceColour } from "../src/render/planetlook";
+import { START_POINT, getPlanetsOfSystem, nearestSystems, type Planet, type PlanetType, type Seed } from "../src/universe";
+import { EXOTIC_CHANCE, RING_CHANCE, RING_COLOURS, chooseLook, fbm3, noise3, surfaceColour } from "../src/render/planetlook";
 import { RING_SEGMENTS, makePlanetMesh } from "../src/render/systemview";
 
 const TYPES: PlanetType[] = ["ROCKY", "DESERT", "OCEAN", "ICE", "LAVA", "GAS", "JUNGLE", "BARREN"];
 
-function planetsOf(seed: Seed, radius = 35): Planet[] {
-  return listSystemsNear(seed, { x: 0, y: 0, z: 0 }, radius).flatMap((s) => getPlanetsOfSystem(seed, s.id));
+// Universe v3: the nearest `count` systems to the start (a radius would hold 363,000 systems at the dense centre).
+function planetsOf(seed: Seed, count = 180): Planet[] {
+  return nearestSystems(seed, START_POINT, count).flatMap(({ system }) => getPlanetsOfSystem(seed, system.id));
 }
-
-/**
- * One number that changes if anything the universe produces changes (systems, planets, docks, markets, job boards),
- * EXCEPT names. Names are cut out on purpose (N1, unique names): system name/baseName/code/isPure, planet name/nickname,
- * dock name/fullName and job blurbs. Everything else is hashed as before.
- */
-function universeFingerprint(seed: Seed): string {
-  const parts: string[] = [];
-  for (const s of listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 12)) {
-    const { name: _n, baseName: _b, code: _c, isPure: _p, ...system } = s as unknown as Record<string, unknown>;
-    parts.push(JSON.stringify(system));
-    for (const p of getPlanetsOfSystem(seed, s.id)) {
-      const { name: _pn, nickname: _nn, ...planet } = p as unknown as Record<string, unknown>;
-      parts.push(JSON.stringify(planet));
-      const dock = generateDock(seed, p);
-      const { name: _dn, fullName: _fn, ...dockRest } = dock as unknown as Record<string, unknown>;
-      parts.push(JSON.stringify(dockRest));
-      parts.push(JSON.stringify(getMarket(seed, dock, 3)));
-      const board = getJobBoard(seed, dock.id, 3);
-      parts.push(JSON.stringify(board === null ? null : board.map((j) => { const { blurb: _bl, ...job } = j as unknown as Record<string, unknown>; return job; })));
-    }
-  }
-  const text = parts.join("|");
-  return `${hashString(text).toString(16)}:${text.length}`;
-}
-
-describe("src/universe output is unchanged except names (Lead's hard rule)", () => {
-  // Re-recorded by Agent 2 (N1, unique names) with the fingerprint now ignoring names. These values were computed from
-  // the OLD main (commit 8ad4fb5, before any name change) and are identical with the new code: only names changed.
-  // The v2 fingerprints WITH names were 12345 "653a25ba:112766", 777 "a66eedf6:142327", 4242 "6f3a080c:53146".
-  // If this fails, the universe changed (not just names): saves would break.
-  const RECORDED: Record<string, string> = { "12345": "dca87fd6:104508", "777": "523c0b9d:133025", "4242": "fcec8a42:48518" };
-  for (const seed of [12345, 777, 4242]) {
-    it(`seed ${seed}: same systems, planets, docks, markets and jobs (names ignored)`, () => {
-      expect(universeFingerprint(seed)).toBe(RECORDED[String(seed)]);
-    });
-  }
-});
 
 describe("a planet's look", () => {
   const planets = planetsOf(12345);
@@ -67,7 +22,7 @@ describe("a planet's look", () => {
   });
 
   it("looks are spread: about 8 % rings, about 1 in 3 surprising colours, over many seeds", () => {
-    const all = [12345, 777, 4242, 1, 99999].flatMap((s) => planetsOf(s, 25));
+    const all = [12345, 777, 4242, 1, 99999].flatMap((s) => planetsOf(s, 70));
     expect(all.length).toBeGreaterThan(1000);
     const looks = all.map((p) => chooseLook(p));
     const rings = looks.filter((l) => l.rings).length / looks.length;

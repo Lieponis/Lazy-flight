@@ -36,6 +36,21 @@ export function publishRoom(node: HTMLElement, cssVar: string, edge: "top" | "bo
 }
 
 /**
+ * Calls `cb` when a web font finishes loading (G5b: the status strip was fitted with the wider fallback font before
+ * VT323 arrived and then kept a too-short name). Never throws where fonts cannot be watched.
+ */
+export function onFontsLoaded(cb: () => void): void {
+  try {
+    const fonts = document.fonts;
+    if (!fonts) return;
+    fonts.addEventListener?.("loadingdone", () => cb());
+    void fonts.ready?.then(() => cb());
+  } catch {
+    // no font events here: the next resize or change fits the text again
+  }
+}
+
+/**
  * Puts `full` into a one-line element; if it does not fit, asks `shorten(maxLetters)` for a shorter text (N3a: long
  * names keep their code). The game font is monospace, so letters are all the same width. The full text stays in the
  * title (shown on long-press or hover). Returns the text shown.

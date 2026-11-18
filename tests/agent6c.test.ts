@@ -49,11 +49,12 @@ describe("6c Part 0: no Passenger Comfort for a ship without a cabin", () => {
 
 import { withBonuses, type GameState } from "../src/game";
 import { RANK_JOBS_NEEDED, RANK_MAX_REWARD } from "../src/game/settings";
-import { getJobBoard, getPlanetsOfSystem, listSystemsNear, type Job } from "../src/universe";
+import { getJobBoard, getPlanetsOfSystem, type Job } from "../src/universe";
+import { nearStart } from "./helpers/near";
 
 describe("6c Part A: the stacking rule (rank + outpost + comfort, added on the plain reward, top +50%)", () => {
   const passengerJob = (): Job => {
-    for (const sys of listSystemsNear(12345, { x: 0, y: 0, z: 0 }, 30))
+    for (const sys of nearStart(12345, 40))
       for (const p of getPlanetsOfSystem(12345, sys.id))
         for (const j of getJobBoard(12345, p.id, 0) ?? []) if (j.kind === "PASSENGER") return j;
     throw new Error("no passenger job");

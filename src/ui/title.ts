@@ -17,7 +17,7 @@ const NAME_SHADOW = "#1b2a8a";
 export interface TitleOptions {
   seed: Seed;
   dockId: string;
-  systemId: string;
+  systemId: number;
   onPlay: () => void;
 }
 

@@ -7,7 +7,7 @@
 //   api.state.subscribe((s) => ...)    // be told when something changes
 
 import type * as THREE from "three";
-import { getDocksOfSystem, getPlanetsOfSystem, getSystem, listSystemsNear, parseDockId, type StarSystem } from "../universe";
+import { START_POINT, getDocksOfSystem, getPlanetsOfSystem, getSystem, nearestSystems, parseDockId, type Seed, type StarSystem } from "../universe";
 import type { FlightInfo } from "./flightplan";
 import { Hud } from "./hud";
 import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
@@ -29,7 +29,8 @@ import { mountSystemPreview } from "./systempreview";
 import { mountWarpPreview } from "./warppreview";
 import { parseFloatPreview, parseFloatStyle } from "./floatmath";
 import { floatCandidates } from "./floatpick";
-import { parseReachParam, reachBeyondMap, starmapRadius } from "./starmapradius";
+import { parseMapAt, parseReachParam } from "./starmapradius";
+import type { MapSource } from "./galaxy/mapdata";
 import { mountFloatPreview } from "./floatpreview";
 import { splitCodedName } from "./namefit";
 import { WORST_DOCK_FULL, WORST_PLANET, parseNamePreview, pickSamples } from "./namesamples";
@@ -40,19 +41,21 @@ import { parseWarpPreview, parseWarpStyle } from "./warpmath";
 export { StateStore } from "./state";
 export type { RenderState, ScreenName } from "./state";
 export type { FlightInfo, FlightProgress } from "./flightplan";
+export type { MapPoint, MapSource, MapStarList, StarInfo } from "./galaxy/mapdata";
+export type { SkyFunctions } from "./galaxy/universefield";
 
 export interface RenderApi {
   state: StateStore;
-  /** The home screen: the camera above the ship, parked at this dock (a planet id like "3:-2:5:0/2"). */
+  /** The home screen: the camera above the ship, parked at this dock (a planet id like "44776692551/2": system number / planet number). */
   showDocked(dockId: string): void;
   showStarmap(): void;
-  showSystem(systemId: string): void;
+  showSystem(systemId: number): void;
   /** Move the "you are here" system (the starmap ring and label follow). Used by the game on arrival. */
-  setCurrentSystem(systemId: string): void;
+  setCurrentSystem(systemId: number): void;
   /**
-   * How far (light years) the current ship can fly with the fuel it carries (the app works it out: fuel divided by the fuel one light
-   * year burns). The galaxy map grows to show every reachable star, up to a cap (see STARMAP_MAX_RADIUS_LY). Call it whenever fuel,
-   * ship or engines change; the map is only rebuilt when its radius really changes. null = the normal 35 ly map.
+   * How far (light years) the current ship can fly (the app works it out). The galaxy map gives a diamond to every star inside this
+   * reach (the nearest 5,000 at most); every star is drawn as a pixel anyway. Cheap to call often: only the diamonds are redrawn, and
+   * only when the number of stars in reach changes. null = the map's 35 ly fallback.
    */
   setReachLy(reachLy: number | null): void;
   /** Show the flight screen (launch, warp, approach) for a trip the game has started. */
@@ -60,7 +63,7 @@ export interface RenderApi {
   /** The game says the trip is over: finish the animation, then show the docked view at the destination dock. */
   endFlight(): void;
   /**
-   * Free travel: show the calm "in space at this planet" scene for a planet WITHOUT a dock (id like "3:-2:5:0/4").
+   * Free travel: show the calm "in space at this planet" scene for a planet WITHOUT a dock (id like "44776692551/4").
    * Use it when the page opens while the ship floats there. A free trip that ends at such a planet goes into this scene by itself.
    * Returns false for an unknown planet. The screen is "flight" and state.floatingPlanetId holds the planet id while it shows.
    */
@@ -81,6 +84,11 @@ export interface RenderApi {
 /** Options for startRender. seed: the universe seed chosen by the game (saving); without it, ?seed= or 12345. */
 export interface RenderOptions {
   seed?: number;
+  /**
+   * Makes the star data for the galaxy map from the seed the render layer uses. The app (src/mapsource.ts) owns it because the render
+   * layer asks the universe nothing for the map: it gets plain lists of numbers. Without it the map has no stars to show.
+   */
+  mapSource?: (seed: Seed) => MapSource;
 }
 
 export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, options: RenderOptions = {}): RenderApi {
@@ -103,33 +111,20 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     screen.enter();
   }
 
-  const forcedReach = parseReachParam(window.location.search); // testing aid ?reach=NUMBER (map size only)
-  let reachLy: number | null = forcedReach; // set by the app (api.setReachLy)
-  function makeStarmap(here: StarSystem): StarMapScreen {
-    return new StarMapScreen({
-      seed,
-      host: canvas,
-      hud,
-      state,
-      current: here,
-      onOpenSystem: (id) => api.showSystem(id),
-      radiusLy: starmapRadius(reachLy),
-      farNote: reachBeyondMap(reachLy),
-    });
-  }
-  /** Builds the map again (the map is centred on the current system and sized by the reach), keeping the screen the player is on. */
-  function rebuildStarmap(here: StarSystem): void {
-    const wasShowing = active === starmap;
-    if (wasShowing) {
-      starmap.exit();
-      active = null;
-    }
-    starmap = makeStarmap(here);
-    resize(); // give the new map the right camera shape
-    state.set({ selectedSystemId: null });
-    if (wasShowing) show(starmap);
-  }
-  let starmap = makeStarmap(current);
+  const forcedReach = parseReachParam(window.location.search); // testing aid ?reach=NUMBER (diamonds only)
+  const mapAt = parseMapAt(window.location.search, START_POINT); // testing aid ?mapat=centre|start|middle|rim: look from there, ship unmoved
+  const mapHere = (here: StarSystem) => ({ id: here.id, name: here.name, starLabel: here.star.label, position: mapAt ? mapAt.position : here.position });
+  const mapSource = options.mapSource ? options.mapSource(seed) : null; // one source for the map and the system view's faint sky
+  const starmap = new StarMapScreen({
+    source: mapSource,
+    host: canvas,
+    hud,
+    state,
+    current: mapHere(current),
+    onOpenSystem: (id) => api.showSystem(id),
+    reachLy: forcedReach,
+    testView: mapAt ? mapAt.name : null,
+  });
   // The dock the ship is parked at (the first one shown). Navigation buttons live in src/ui (Agent 5).
   let lastDockId = getDocksOfSystem(seed, current.id)[0]?.id ?? "";
   const docked = new DockedScreen({
@@ -142,9 +137,21 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     host: canvas,
     hud,
     state,
+    sky: mapSource?.sky ?? null, // the faint galaxy sky behind the system view (null = none, the view looks as before)
   });
 
   systemView.setMarkStyle(parseMarks(window.location.search) ?? SYSTEM_MARK_STYLE);
+
+  // The faint galaxy sky behind the system view is built ahead of time, while other screens show: first for the system the ship is in,
+  // then for a star the moment it is picked on the map (or the ship moves), so it is usually already there when the view opens.
+  let skyPreparedFor = current.id;
+  systemView.prepareSky(current.id);
+  state.subscribe((s) => {
+    const want = s.selectedSystemId ?? s.currentSystemId;
+    if (want === skyPreparedFor) return;
+    skyPreparedFor = want;
+    systemView.prepareSky(want);
+  });
 
   const flight = new FlightScreen({ seed, host: canvas, hud, parent });
   docked.setShip(shipId);
@@ -161,25 +168,20 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
       const systemId = parseDockId(dockId)?.systemId ?? null;
       state.set({ screen: "docked", dockedDockId: dockId, viewedSystemId: null, selectedPlanetId: null, floatingPlanetId: null });
       show(docked);
-      if (systemId && systemId !== state.get().currentSystemId) api.setCurrentSystem(systemId);
+      if (systemId !== null && systemId !== state.get().currentSystemId) api.setCurrentSystem(systemId);
     },
     showStarmap(): void {
       state.set({ screen: "starmap", viewedSystemId: null, selectedPlanetId: null, floatingPlanetId: null });
       show(starmap);
     },
-    setCurrentSystem(systemId: string): void {
+    setCurrentSystem(systemId: number): void {
       const here = getSystem(seed, systemId);
       if (!here || here.id === state.get().currentSystemId) return;
       state.set({ currentSystemId: here.id });
-      rebuildStarmap(here); // the map is centered on the current system, so build a new one
+      starmap.setCurrent(mapHere(here)); // the map is centered on the current system: it asks for the stars around it when it is next shown
     },
     setReachLy(value: number | null): void {
-      const before = starmapRadius(reachLy);
-      const noteBefore = reachBeyondMap(reachLy);
-      reachLy = forcedReach ?? value;
-      if (starmapRadius(reachLy) === before && reachBeyondMap(reachLy) === noteBefore) return; // nothing the map shows has changed
-      const here = getSystem(seed, state.get().currentSystemId);
-      if (here) rebuildStarmap(here);
+      starmap.setReachLy(forcedReach ?? value);
     },
     setShip(id: string, livery?: string): void {
       shipId = resolveShipId(id, forcedShip);
@@ -214,13 +216,13 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     leaveFloating(): void {
       const id = flight.isFloating() ? flight.floatingPlanetId() : null;
       const systemId = id ? parseDockId(id)?.systemId : null;
-      if (systemId) api.showSystem(systemId);
+      if (typeof systemId === "number") api.showSystem(systemId);
       else api.showStarmap();
     },
     isFlying(): boolean {
       return active === flight;
     },
-    showSystem(systemId: string): void {
+    showSystem(systemId: number): void {
       if (!getSystem(seed, systemId) || !systemView.open(systemId)) return;
       state.set({ screen: "system", viewedSystemId: systemId, selectedPlanetId: null, floatingPlanetId: null });
       show(systemView);
@@ -258,7 +260,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
 
   // Testing aid for the system view (stage U3): ?systempreview=1 gives buttons to compare dock marks and step through systems.
   if (parseSystemPreview(window.location.search)) {
-    const region = listSystemsNear(seed, current.position, 40);
+    const region = nearestSystems(seed, current.position, 400).map((n) => n.system); // the 400 nearest systems
     // Stage 3i: the longest system name and a pure-name system (no code) come first, to check long names in the title and the summary.
     const longest = [...region].sort((a, b) => b.name.length - a.name.length)[0];
     const pure = region.find((s) => splitCodedName(s.name) === null && getDocksOfSystem(seed, s.id).length > 0);
@@ -278,7 +280,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
 
   // Testing aid for free travel (stage 3g): ?floatpreview=1 floats at planets without a dock; A / B / C layouts, free trips, triangle count.
   if (parseFloatPreview(window.location.search)) {
-    const near = listSystemsNear(seed, current.position, 40);
+    const near = nearestSystems(seed, current.position, 400).map((n) => n.system);
     const picks = floatCandidates(seed, near, 3);
     const docks = getDocksOfSystem(seed, current.id).map((d) => d.id);
     let shown = 0;
@@ -336,7 +338,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
 
   // Testing aid for long unique names (stage 3i): ?namepreview=1 shows a sheet of cockpit information screens with real and worst-case names.
   if (parseNamePreview(window.location.search)) {
-    const region = listSystemsNear(seed, current.position, 100);
+    const region = nearestSystems(seed, current.position, 1500).map((n) => n.system); // the 1,500 nearest systems
     const sources = region.map((s) => ({
       system: s.name,
       planets: getPlanetsOfSystem(seed, s.id).map((p) => p.name),
@@ -357,6 +359,8 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
   function frame(now: number): void {
     const seconds = Math.min((now - last) / 1000, 0.1); // cap so a paused tab does not jump
     last = now;
+    if (active !== systemView) systemView.warmSky(); // the system view's sky is prepared in the background while other screens show
+    if (active !== starmap) starmap.warmSky(); // and the map's sky the same way, so it is already there when the map opens
     if (active) {
       active.update(seconds);
       const screen = active;

@@ -8,25 +8,82 @@ export const START_SEED: Seed = 12345;
 
 /**
  * Which system you start in.
- *   null          = the system nearest to the middle of the galaxy (START_POINT)
- *   "3:-2:5:0"    = a specific system id (copy one from /debug.html)
+ *   null          = the universe's own start system (`startSystem(seed)`: the nearest system with a dock to the universe's START_POINT)
+ *   44776692551   = a specific system number (copy one from /debug.html)
  */
-export const START_SYSTEM_ID: string | null = null;
+export const START_SYSTEM_ID: number | null = null;
 
-/** The middle of the galaxy, in light years. Used when START_SYSTEM_ID is null. */
-export const START_POINT = { x: 0, y: 0, z: 0 };
+// ---- The galaxy map (stage G5a). The map shows the nearest stars by COUNT, never by distance (80 ly at the dense centre holds
+// 363,000 systems, 1,000 ly at the rim holds 718). Numbers from the G2 phone test (iPhone 17 Air held 60 fps with all of these).
 
-/** The starmap shows every system closer than this to the current one, in light years, as a minimum. */
-export const STARMAP_RADIUS_LY = 35;
+/** Stars the map draws as one coloured pixel each: the nearest ones around the player (fallback if a phone is slow: 30,000). */
+export const MAP_NEAR_STARS = 60_000;
+
+/** Diamonds drawn for stars inside the ship's reach, at most this many (the nearest ones). The hard maximum is 10,000. */
+export const MAP_DIAMOND_CAP = 5_000;
+
+/** The nearest stars a tap can pick. */
+export const MAP_TAPPABLE_STARS = 10_000;
+
+/** How close (in CSS pixels) a tap must be to a star on the galaxy map to pick it. */
+export const MAP_TAP_RADIUS_PX = 20;
 
 /**
- * With more fuel on board the map grows to show every star the ship can reach (plus the padding), but never past the cap.
- * Measured with the real universe (seed 12345, from the start system): 35 ly = 184 stars, 60 ly = 998, 75 ly = 1,970 (about 15,800
- * triangles, listed in about 16 ms on a computer), 90 ly = 3,366, 110 ly = 6,102. 75 ly covers every ship with a full tank
- * (Hauler 30 ly, Liner 50, Scout 55) and several upgrades. Free travel itself has NO distance cap: only fuel.
+ * The sky behind the map: what you would see from where you stand (a soft glow plus single-pixel dots), rebuilt only when you move
+ * into another "sky cell" (60 ly near the galaxy centre up to 3,840 ly at the rim), a few milliseconds per frame, the old sky staying
+ * until the new one is ready. Fallbacks for a slow phone: MAP_SKY_SIZE 32 (a quarter of the squares), then fewer dots.
  */
-export const STARMAP_MAX_RADIUS_LY = 75;
-export const STARMAP_RADIUS_PAD_LY = 3;
+export const MAP_SKY_DOTS = 60_000;
+/** Squares per cube face the glow is built from (64 = 24,600 squares in the sphere; 32 = 6,200). */
+export const MAP_SKY_SIZE: 32 | 64 | 128 = 64;
+/** How strong the glow under the dots is (0..1): the "medium" level Andy picked in G2. */
+export const MAP_SKY_GLOW = 0.24;
+/** Steps along each ray of the glow, and the milliseconds per frame the sky build may use. */
+export const MAP_SKY_STEPS = 56;
+export const MAP_SKY_BUDGET_MS = 6;
+/** Sky dots that share a patch of sky with one of this many nearest real stars are left out. */
+export const MAP_SKY_OVERLAP_STARS = 3000;
+export const MAP_SKY_OVERLAP_CELL_DEG = 0.35;
+/**
+ * The map's sky is also built ahead of time, a slice per frame while another screen is showing (Andy: "make the backdrop on the
+ * galaxy map draw as fast as on the system view"). So it is usually already there when the map opens. This is the time per frame
+ * that background work may use, and how many frames the app waits after the start (or after a jump) before it asks for the stars and
+ * begins, so the very first picture is not disturbed (10 frames is about a sixth of a second).
+ *
+ * First try: 4 ms per frame and 30 frames. On Andy's iPhone the sky is about 0.75 s of work, so that took about 4 s from the start
+ * to "ready" (Andy: "seems like it took 4 seconds"). Now 8 ms and 10 frames: about 2 s. If a busy screen ever stutters while this
+ * runs, lower MAP_SKY_IDLE_MS (it only costs time-to-ready); the work stops by itself once the sky is built.
+ */
+export const MAP_SKY_IDLE_MS = 8;
+export const MAP_SKY_WARM_DELAY_FRAMES = 10;
+
+/**
+ * The faint galaxy backdrop behind the system view (Andy: "very faint backdrop of the galaxy, same as in the galaxy map, for immersion").
+ * It is the map's own sky (same builders, same real-universe shape) drawn at SYSTEM_SKY_FAINT of the map's strength: 1 = as bright as the
+ * map, 0 = off. Make it a bit more or less visible by changing this one number (0.15 = barely there, 0.4 = easy to see).
+ */
+export const SYSTEM_SKY_FAINT = 0.25;
+/** Stars closer than this many star gaps are left out of that sky (no single stars are drawn on the system view). */
+export const SYSTEM_SKY_NEAR_SPACINGS = 3;
+/**
+ * How much work that sky takes. Because it is only a faint backdrop it is built much coarser than the map's (a third of the dots, a
+ * quarter of the glow squares): about 0.3 seconds of work on a phone instead of about 1, so it appears within a second or two.
+ * (The first version used the map's full detail and took about 10 seconds to appear on Andy's iPhone.)
+ */
+export const SYSTEM_SKY_DOTS = 30_000;
+export const SYSTEM_SKY_SIZE: 32 | 64 | 128 = 32;
+export const SYSTEM_SKY_STEPS = 24;
+/** Milliseconds per frame the system view's sky build may use (same as the map's MAP_SKY_BUDGET_MS = 6). */
+export const SYSTEM_SKY_BUDGET_MS = 6;
+/**
+ * The sky is also built ahead of time, a few milliseconds per frame while another screen is showing: at the start for the system the ship
+ * is in, and for a star the moment it is picked on the map. So it is usually already there when the system view opens (Andy: "can it
+ * appear in 0.1 s?"). This is the time per frame that background work may use.
+ */
+export const SYSTEM_SKY_IDLE_MS = 3;
+
+/** The reach (light years) the map uses until the app has told it the ship's real reach. */
+export const MAP_REACH_FALLBACK_LY = 35;
 
 /** How close (in screen pixels) a tap must be to a star or planet to select it. */
 export const TAP_RADIUS_PX = 18;

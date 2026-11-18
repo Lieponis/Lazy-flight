@@ -1,10 +1,11 @@
+import "./previewboot"; // KEEP THIS FIRST: it must run before any other code reads the save box (src/previewboot.ts)
 // PLANET LOOKS PREVIEW (/planets.html, Agent 7c): a wall of real planets from a seed, drawn with the game's own
 // makePlanetMesh, so Andy can check the new looks (colours, caps, craters, clouds, stripes, rings) in one place.
 // Address: ?seed=NUMBER&page=N&filter=all|rings|exotic|earthlike (&earth=A|B|C to compare Earth looks, 7f).
 // Reads the universe only; changes nothing.
 
 import * as THREE from "three";
-import { getPlanetsOfSystem, listSystemsNear, type Planet, type Seed } from "./universe";
+import { getPlanetsOfSystem, nearestSystems, START_POINT, type Planet, type Seed } from "./universe";
 import { makePlanetMesh, disposeAll } from "./render/systemview";
 import { chooseLook, type EarthStyle } from "./render/planetlook";
 import { parseSeedParam } from "./render/helpers";
@@ -26,7 +27,7 @@ const state = {
 
 function allPlanets(seed: Seed): Planet[] {
   const out: Planet[] = [];
-  for (const s of listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 40)) out.push(...getPlanetsOfSystem(seed, s.id));
+  for (const { system } of nearestSystems(seed, START_POINT, 40)) out.push(...getPlanetsOfSystem(seed, system.id));
   return out;
 }
 

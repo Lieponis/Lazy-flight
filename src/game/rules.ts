@@ -52,6 +52,25 @@ export function tripFuelCost(state: GameState, distanceLy: number): number {
   return fuelCost(distanceLy, shipStats(state).fuelBurnPercent);
 }
 
+/** The longest trip (whole light years) that `fuel` units pay for with the active ship. */
+export function rangeForFuel(state: GameState, fuel: number): number {
+  let d = Math.max(0, Math.floor(fuel / FUEL_PER_LY));
+  while (d > 0 && tripFuelCost(state, d) > fuel) d--;
+  while (tripFuelCost(state, d + 1) <= fuel && d < 100000) d++;
+  return d;
+}
+
+/** Can this ship fly a trip of this length: "now" (fuel is enough), "refuel" (fits the tank, buy fuel first), or "never" (more than a full tank). */
+export type Reach = "now" | "refuel" | "never";
+
+export function reachOf(state: GameState, distanceLy: number): { reach: Reach; text: string; fuelNeeded: number } {
+  const need = tripFuelCost(state, distanceLy);
+  const tank = shipStats(state).fuelTankSize;
+  if (need > tank) return { reach: "never", fuelNeeded: need, text: `Too far for this ship: needs ${need} fuel, the tank holds ${tank}.` };
+  if (need > state.fuel) return { reach: "refuel", fuelNeeded: need, text: `Needs ${need} fuel, you have ${state.fuel}. Refuel first.` };
+  return { reach: "now", fuelNeeded: need, text: `You can fly this now (${need} fuel).` };
+}
+
 // ------------------------------------------------------------ can the player take a job?
 
 export type BlockCode =
@@ -239,7 +258,7 @@ export function settleArrival(
   nowMs: number,
   placeNameOf: (dockId: string) => string,
   /** What a star system pays for being explored (before the rank bonus). Without it, jobs explore for nothing. */
-  discoveryBaseOf?: (systemId: string) => number,
+  discoveryBaseOf?: (systemId: number) => number,
 ): { state: GameState; arrival: Arrival | null } {
   const job = state.currentJob;
   if (!job || state.travelEndMs === null || nowMs < state.travelEndMs) return { state, arrival: null };

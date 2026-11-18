@@ -2,38 +2,40 @@ import { describe, expect, it } from "vitest";
 import {
   GOODS,
   JOBS_PER_BOARD,
-  MAX_JOB_DISTANCE,
+  JOB_DESTINATION_COUNT,
   MAX_PLANETS,
   MAX_PRICE_MULTIPLIER,
   MIN_PRICE_MULTIPLIER,
+  START_POINT,
   distance,
   distanceBetweenDocks,
-  docksOf,
   generateJobBoard,
   getDock,
+  getDocks,
   getMarket,
   getPlanet,
   getPlanetsOfSystem,
   getSite,
   getSystem,
-  listSystemsNear,
+  nearestDocks,
+  nearestSystems,
   rngFor,
+  type StarSystem,
   type Dock,
   type Job,
 } from "../src/universe";
 
 const SEED = 12345;
-const ORIGIN = { x: 0, y: 0, z: 0 };
 
-/** A small set of systems used by many tests. */
-function sampleSystems(seed: number | string, count = 12) {
-  return listSystemsNear(seed, ORIGIN, 40).slice(0, count);
+/** A small set of systems used by many tests: the nearest ones to the start point. */
+function sampleSystems(seed: number | string, count = 12): StarSystem[] {
+  return nearestSystems(seed, START_POINT, count).map((n) => n.system);
 }
 
 function sampleDocks(seed: number | string, systemCount = 8): Dock[] {
   const docks: Dock[] = [];
   for (const system of sampleSystems(seed, systemCount)) {
-    docks.push(...docksOf(seed, system)); // only planets that have a dock (universe version 2)
+    docks.push(...getDocks(seed, system.id)); // only planets that have a dock
   }
   return docks;
 }
@@ -53,7 +55,7 @@ describe("random numbers", () => {
 
 describe("determinism (same seed = same universe)", () => {
   it("lists the same systems twice", () => {
-    expect(listSystemsNear(SEED, ORIGIN, 30)).toEqual(listSystemsNear(SEED, ORIGIN, 30));
+    expect(nearestSystems(SEED, START_POINT, 30)).toEqual(nearestSystems(SEED, START_POINT, 30));
   });
 
   it("gives the same planets, docks, prices and jobs twice", () => {
@@ -66,14 +68,14 @@ describe("determinism (same seed = same universe)", () => {
   });
 
   it("treats the seed 12345 and the text '12345' as the same seed", () => {
-    expect(listSystemsNear(12345, ORIGIN, 30)).toEqual(listSystemsNear("12345", ORIGIN, 30));
+    expect(nearestSystems(12345, START_POINT, 30)).toEqual(nearestSystems("12345", START_POINT, 30));
   });
 });
 
 describe("different seeds differ", () => {
   it("gives different systems for different seeds", () => {
-    const a = listSystemsNear(1, ORIGIN, 30).map((s) => s.name + s.id);
-    const b = listSystemsNear(2, ORIGIN, 30).map((s) => s.name + s.id);
+    const a = nearestSystems(1, START_POINT, 30).map((n) => n.system.name + n.system.id);
+    const b = nearestSystems(2, START_POINT, 30).map((n) => n.system.name + n.system.id);
     expect(a).not.toEqual(b);
   });
 
@@ -122,7 +124,7 @@ describe("systems, planets and docks", () => {
 
   it("every dock is an outpost or a station on one of its system's planets (the dock rule itself is in universe-v2.test.ts)", () => {
     for (const system of sampleSystems(SEED, 25)) {
-      const docks = docksOf(SEED, system);
+      const docks = getDocks(SEED, system.id);
       expect(docks.length).toBeGreaterThanOrEqual(1);
       for (const dock of docks) {
         const planet = getPlanet(SEED, dock.id);
@@ -151,8 +153,12 @@ describe("systems, planets and docks", () => {
   });
 
   it("asking for something that does not exist gives null", () => {
+    const real = sampleSystems(SEED, 1)[0] as StarSystem;
     expect(getSystem(SEED, "nonsense")).toBe(null);
     expect(getSite(SEED, "0:0:0:99")).toBe(null);
+    expect(getSite(SEED, -5)).toBe(null);
+    expect(getSite(SEED, 1.5)).toBe(null);
+    expect(getPlanet(SEED, `${real.id}/99`)).toBe(null);
     expect(getPlanet(SEED, "0:0:0:0/99")).toBe(null);
     expect(getDock(SEED, "not-an-id")).toBe(null);
   });
@@ -176,7 +182,7 @@ describe("names", () => {
       for (const planet of getPlanetsOfSystem(SEED, system.id)) {
         expect(planet.name.trim().length).toBeGreaterThan(0);
       }
-      for (const dock of docksOf(SEED, system)) {
+      for (const dock of getDocks(SEED, system.id)) {
         expect(dock.name.trim().length).toBeGreaterThan(0);
       }
     }
@@ -262,24 +268,25 @@ describe("jobs", () => {
     }
   });
 
-  it("every destination exists and is within MAX_JOB_DISTANCE", () => {
+  it("every destination exists and is one of the nearest docks (by count, no distance limit)", () => {
     for (const dock of sampleDocks(SEED, 6)) {
+      const system = getSystem(SEED, dock.systemId) as StarSystem;
+      const near = nearestDocks(SEED, system.position, JOB_DESTINATION_COUNT + 1)
+        .filter((d) => d.dockId !== dock.id)
+        .slice(0, JOB_DESTINATION_COUNT)
+        .map((d) => d.dockId);
+      expect(near.length).toBe(JOB_DESTINATION_COUNT);
       for (const slot of [0, 5, 40]) {
         for (const job of checkBoard(dock, slot)) {
           expect(job.originDockId).toBe(dock.id);
           expect(job.stops.length).toBeGreaterThanOrEqual(1);
           expect(job.stops[job.stops.length - 1]).toBe(job.destinationDockId);
           expect(job.destinationDockId).not.toBe(dock.id);
-          let previous = dock.id;
+          expect(new Set(job.stops).size).toBe(job.stops.length); // no stop twice
           for (const stop of job.stops) {
             expect(getDock(SEED, stop)).not.toBe(null);
-            const fromOrigin = distanceBetweenDocks(SEED, dock.id, stop);
-            const leg = distanceBetweenDocks(SEED, previous, stop);
-            expect(fromOrigin).not.toBe(null);
-            expect(leg).not.toBe(null);
-            expect(fromOrigin as number).toBeLessThanOrEqual(MAX_JOB_DISTANCE);
-            expect(leg as number).toBeLessThanOrEqual(MAX_JOB_DISTANCE);
-            previous = stop;
+            expect(near).toContain(stop);
+            expect(distanceBetweenDocks(SEED, dock.id, stop)).not.toBe(null);
           }
         }
       }
@@ -349,21 +356,24 @@ describe("jobs", () => {
 });
 
 describe("galaxy", () => {
-  it("lists systems nearest first and all within the radius", () => {
-    const list = listSystemsNear(SEED, { x: 5, y: -3, z: 8 }, 30);
-    expect(list.length).toBeGreaterThan(0);
+  it("lists systems nearest first with their real distances", () => {
+    const here = { x: START_POINT.x + 5, y: -3, z: START_POINT.z + 8 };
+    const list = nearestSystems(SEED, here, 300);
+    expect(list.length).toBe(300);
     let last = -1;
-    for (const s of list) {
-      const d = distance(s.position, { x: 5, y: -3, z: 8 });
-      expect(d).toBeLessThanOrEqual(30);
+    for (const n of list) {
+      const d = distance(n.system.position, here);
+      expect(Math.abs(d - n.distance)).toBeLessThan(1e-9);
       expect(d).toBeGreaterThanOrEqual(last);
       last = d;
     }
   });
 
-  it("works with negative coordinates (endless in every direction)", () => {
-    const list = listSystemsNear(SEED, { x: -500, y: -250, z: -90 }, 30);
-    expect(list.length).toBeGreaterThan(0);
-    for (const s of list) expect(getSystem(SEED, s.id)).toEqual(s);
+  it("works on every side of the centre (negative coordinates, the centre itself)", () => {
+    for (const where of [{ x: -5000, y: -250, z: -90 }, { x: 0, y: 0, z: 0 }, { x: 4000, y: 10, z: -3000 }]) {
+      const list = nearestSystems(SEED, where, 40);
+      expect(list.length).toBe(40);
+      for (const n of list) expect(getSystem(SEED, n.system.id)).toEqual(n.system);
+    }
   });
 });

@@ -23,13 +23,13 @@ import {
   withBonuses,
   type GameState,
 } from "../src/game";
-import { generateJobBoard, listSystemsNear, type Dock, type Job, docksOf } from "../src/universe";
+import { generateJobBoard, type Dock, type Job, docksOf } from "../src/universe";
+import { nearStart } from "./helpers/near";
 
 const SEED = 12345;
-const ORIGIN = { x: 0, y: 0, z: 0 };
 
 const docks: Dock[] = [];
-for (const system of listSystemsNear(SEED, ORIGIN, 40).slice(0, 14)) {
+for (const system of nearStart(SEED, 60).slice(0, 14)) {
   docks.push(...docksOf(SEED, system));
 }
 const OUTPOST = docks.find((d) => d.kind === "OUTPOST")!;
@@ -73,7 +73,7 @@ describe("ranks: progress", () => {
   });
 
   it("counts a delivered job and announces a rank-up in the debrief", () => {
-    const job = JOBS.find((j) => j.kind === "TRADE" && j.reward <= RANK_MAX_REWARD.TRADE[0])!;
+    const job = JOBS.find((j) => j.kind === "TRADE" && j.amount <= 30 && j.reward <= RANK_MAX_REWARD.TRADE[0])!;
     const need = RANK_JOBS_NEEDED.TRADE[0];
     const base = { ...newGameState(job.originDockId), completedJobs: { ...emptyCompletedJobs(), TRADE: need - 1 }, shipId: "cargo-hauler" };
     const started = acceptJob(base, job, 0);
@@ -85,7 +85,7 @@ describe("ranks: progress", () => {
   });
 
   it("does not announce a rank-up when none happens", () => {
-    const job = JOBS.find((j) => j.kind === "TRADE" && j.reward <= RANK_MAX_REWARD.TRADE[0])!;
+    const job = JOBS.find((j) => j.kind === "TRADE" && j.amount <= 30 && j.reward <= RANK_MAX_REWARD.TRADE[0])!;
     const started = acceptJob(newGameState(job.originDockId), job, 0);
     if (!started.ok) throw new Error(started.block.text);
     const done = settleArrival(started.state, 10 * 3_600_000, () => "Somewhere");
@@ -231,8 +231,8 @@ describe("outposts: perks", () => {
   });
 });
 
-function systemOf(dockId: string): string {
-  return dockId.slice(0, dockId.lastIndexOf("/"));
+function systemOf(dockId: string): number {
+  return Number(dockId.slice(0, dockId.lastIndexOf("/")));
 }
 
 describe("saving: old saves and new fields", () => {

@@ -10,7 +10,7 @@ import {
   EXPLORER_DISCOVERY_BONUS_PERCENT,
   MAX_EXPLORED_SYSTEMS,
 } from "./settings";
-import { hashUnit, type Seed } from "../universe";
+import { hashUnit, parsePlanetId as parseUniversePlanetId, type Seed } from "../universe";
 import type { GameState } from "./state";
 
 /** The three Explorer rank names (rank 1 is where everybody starts). Andy's names. */
@@ -20,19 +20,17 @@ export const EXPLORER_RANK_NAMES: [string, string, string] = ["Lost in Space", "
 const MAX_PLANET_BITS = 10;
 const ALL_BITS = (1 << MAX_PLANET_BITS) - 1;
 
-/** Star system id and planet number of a planet id like "3:-2:5:0/2", or null if it is not that shape. */
-export function parsePlanetId(planetId: string): { systemId: string; index: number } | null {
-  const cut = planetId.lastIndexOf("/");
-  if (cut <= 0) return null;
-  const index = Number(planetId.slice(cut + 1));
-  if (!Number.isInteger(index) || index < 0 || index >= MAX_PLANET_BITS) return null;
-  return { systemId: planetId.slice(0, cut), index };
+/** Star system number and planet number of a planet id like "44776692551/2", or null if it is not that shape (old ids give null). */
+export function parsePlanetId(planetId: string): { systemId: number; index: number } | null {
+  const parsed = parseUniversePlanetId(planetId);
+  if (!parsed || parsed.planetIndex >= MAX_PLANET_BITS) return null;
+  return { systemId: parsed.systemId, index: parsed.planetIndex };
 }
 
 /** The amount (credits, before the rank bonus) this system pays for being explored: the same every time. */
-export function discoveryBase(seed: Seed, systemId: string): number {
+export function discoveryBase(seed: Seed, systemId: number | string): number {
   const span = DISCOVERY_MAX_CREDITS - DISCOVERY_MIN_CREDITS + 1;
-  return DISCOVERY_MIN_CREDITS + Math.floor(hashUnit(seed, "discovery", systemId) * span);
+  return DISCOVERY_MIN_CREDITS + Math.floor(hashUnit(seed, "discovery", String(systemId)) * span);
 }
 
 /** Repairs a saved explored list: only text ids with whole-number planet masks from 1 to 1023, at most MAX_EXPLORED_SYSTEMS. */
@@ -69,11 +67,11 @@ export function exploredCounts(explored: Record<string, number>): { systems: num
 
 export function hasExploredPlanet(explored: Record<string, number>, planetId: string): boolean {
   const p = parsePlanetId(planetId);
-  return p !== null && ((explored[p.systemId] ?? 0) & (1 << p.index)) !== 0;
+  return p !== null && ((explored[String(p.systemId)] ?? 0) & (1 << p.index)) !== 0;
 }
 
-export function hasExploredSystem(explored: Record<string, number>, systemId: string): boolean {
-  return (explored[systemId] ?? 0) !== 0;
+export function hasExploredSystem(explored: Record<string, number>, systemId: number | string): boolean {
+  return (explored[String(systemId)] ?? 0) !== 0;
 }
 
 /** Total discoveries: systems explored plus planets arrived at. This decides the Explorer rank. */
@@ -147,11 +145,12 @@ export const NO_DISCOVERY: Discovery = { credits: 0, newSystem: false, newPlanet
 export function recordArrival(
   explored: Record<string, number>,
   planetId: string,
-  baseCreditsOf: (systemId: string) => number,
+  baseCreditsOf: (systemId: number) => number,
 ): { explored: Record<string, number>; discovery: Discovery } {
   const place = parsePlanetId(planetId);
   if (!place) return { explored, discovery: NO_DISCOVERY };
-  const before = explored[place.systemId] ?? 0;
+  const key = String(place.systemId);
+  const before = explored[key] ?? 0;
   const bit = 1 << place.index;
   const newSystem = before === 0;
   const newPlanet = (before & bit) === 0;
@@ -161,7 +160,7 @@ export function recordArrival(
   const rankBefore = explorerRankIndexFor(discoveriesOf(explored));
   const bonus = EXPLORER_DISCOVERY_BONUS_PERCENT[rankBefore];
   const credits = newSystem ? Math.round(baseCreditsOf(place.systemId) * (1 + bonus / 100)) : 0;
-  const next = { ...explored, [place.systemId]: before | bit };
+  const next = { ...explored, [key]: before | bit };
   const rankAfter = explorerRankIndexFor(discoveriesOf(next));
   const explorerRankUp = rankAfter > rankBefore ? { rankNumber: rankAfter + 1, rankName: EXPLORER_RANK_NAMES[rankAfter] } : null;
   return { explored: next, discovery: { credits, newSystem, newPlanet, explorerRankUp } };

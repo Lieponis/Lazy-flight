@@ -44,6 +44,8 @@ export {
   tripFuelCost,
   fuelUnitCents,
   isStuck,
+  rangeForFuel,
+  reachOf,
   refuel,
   settleArrival,
   travelProgress,
@@ -68,9 +70,9 @@ export {
 export type { LiveryResult, LiveryRow, ShipLivery } from "./liveries";
 export { buyShip, ownedShipIds, ownsShip, shipCatalog, shipFuel, switchShip } from "./fleet";
 export type { FleetResult, ShipCatalogEntry } from "./fleet";
-export type { AcceptResult, EmergencyResult, ExtraBlockCode, PayInfo, RankUp, Arrival, Block, BlockCode, RefuelResult, TravelProgress } from "./rules";
+export type { Reach, AcceptResult, EmergencyResult, ExtraBlockCode, PayInfo, RankUp, Arrival, Block, BlockCode, RefuelResult, TravelProgress } from "./rules";
 export { Game } from "./game";
-export type { BoardEntry, FreeTravelCheck, GameListener, OutpostOffer, OwnedOutpost } from "./game";
+export type { BoardEntry, BoardSummary, FreeTravelCheck, PlaceInfo, GameListener, OutpostOffer, OwnedOutpost } from "./game";
 export {
   RANK_KINDS,
   RANK_KIND_LABELS,

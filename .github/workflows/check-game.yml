@@ -1,0 +1,33 @@
+name: Check the game layer (universe-v3 only)
+
+# Stage G4. Runs ONLY on the branch universe-v3. It checks the three parts that were ported to the new galaxy
+# (src/universe, src/game, src/save) and nothing else, because the screens (render, ui) are ported later.
+# It never publishes anything. The existing workflows are not changed.
+on:
+  push:
+    branches: [universe-v3]
+  workflow_dispatch: # lets you also start it by hand from the Actions tab (choose the branch universe-v3)
+
+permissions:
+  contents: read
+
+jobs:
+  check-game:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install software the project needs
+        run: npm install
+      - name: Type check (only universe, game and save)
+        run: npx tsc -p tsconfig.game.json
+      - name: Tests (universe, game and save)
+        run: >
+          npx vitest run
+          tests/universe.test.ts tests/universe-v2.test.ts tests/universe-v3.test.ts tests/universe-names.test.ts tests/galaxy2.test.ts tests/galaxy2-sky.test.ts tests/galaxysky.test.ts
+          tests/game.test.ts tests/game4b.test.ts tests/game4c.test.ts tests/game4d.test.ts tests/game4e.test.ts
+          tests/game4f.test.ts tests/game4g.test.ts tests/game4i.test.ts
+          tests/save.test.ts tests/save-transfer.test.ts tests/world-seed.test.ts
+          tests/balance-sim.test.ts tests/agent6c.test.ts

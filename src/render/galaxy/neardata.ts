@@ -30,8 +30,11 @@ export interface NearStars {
   colors: Float32Array;
   /** Star size class (the game's star radius). */
   radii: Float32Array;
-  /** A made-up id per star: the rank by distance (0 = nearest). */
-  ids: Uint32Array;
+  /**
+   * One id per star. The preview page makes up the rank by distance (0 = nearest); the game's map gets the real system numbers,
+   * which go up to about 4.7e10 (more than a 32-bit whole number holds), so this is any list of numbers.
+   */
+  ids: ArrayLike<number>;
   /**
    * Radius of the near-star bubble (light years): no star lies farther, and the fade-out at the edge, the camera's far plane and
    * the sky's start all follow it. It is the same with or without a shape (the shape only thins stars out inside the ball).
@@ -44,6 +47,11 @@ export interface NearStars {
    * follows it, so the limit is the same with or without a shape (Andy approved it at the rim: about 829 ly).
    */
   zoomNearLy: number;
+  /**
+   * The typical gap between neighbouring stars here (light years), when the source knows it (the game's map does; the G2 preview does
+   * not). The diamonds are never bigger than a share of it, so they do not cover each other where the stars are packed (the dense centre).
+   */
+  spacingLy?: number;
 }
 
 /** How many stars of a full ball the "near" zoom-out limit reaches out to (see `NearStars.zoomNearLy`). */

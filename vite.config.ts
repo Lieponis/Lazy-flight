@@ -33,6 +33,7 @@ export default defineConfig({
         planets: "planets.html", // planet looks preview (Agent 7c)
         about: "about.html", // release page (Agent 7d), online only
         galaxymap: "galaxy-map-preview.html", // galaxy map prototype G2 (Agent 3), online only
+        galaxy: "galaxy-debug.html", // galaxy prototype page (Agent 2, G1), online only
       },
     },
   },

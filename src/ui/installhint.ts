@@ -20,6 +20,7 @@ export class InstallHint {
   private seen: HintsSeen;
   private promptEvent: InstallPromptEvent | null = null;
   private showing: ReturnType<typeof hintToShow> = null;
+  private watched: HTMLElement | null = null;
 
   constructor(parent: HTMLElement, private storage: StorageLike | null) {
     this.seen = parseHints(this.read());
@@ -44,12 +45,34 @@ export class InstallHint {
     const nav = navigator as Navigator & { standalone?: boolean };
     const installed = window.matchMedia?.("(display-mode: standalone)").matches === true || nav.standalone === true;
     const which = hintToShow(deviceKind(navigator.userAgent, navigator.maxTouchPoints), installed, this.seen, safeMoment);
+    if (which !== null) this.placeAboveLabel();
     if (which === this.showing) return;
     this.showing = which;
     this.root.hidden = which === null;
     if (which === null) return;
     this.text.textContent = HINT_TEXT[which];
     this.installBtn.hidden = !(which === "install-android" && this.promptEvent !== null);
+  }
+
+  /**
+   * G5b: long names make the dock's name label (drawn by the render layer, `.hud-label`) two or three lines tall, so the
+   * card sits just above the label's real top instead of a fixed distance (otherwise it covered the label's first line).
+   */
+  private placeAboveLabel(): void {
+    const label = document.querySelector<HTMLElement>(".hud-label");
+    if (label && label !== this.watched && typeof ResizeObserver !== "undefined") {
+      this.watched = label; // the label changes size after a dock change: follow it
+      new ResizeObserver(() => {
+        if (this.showing !== null) this.placeAboveLabel();
+      }).observe(label);
+    }
+    const top = label && label.offsetParent !== null ? label.getBoundingClientRect().top : 0;
+    if (top <= 0) {
+      this.root.style.bottom = ""; // no label: the CSS place
+      return;
+    }
+    const bottom = `${Math.ceil(window.innerHeight - top + 6)}px`;
+    if (this.root.style.bottom !== bottom) this.root.style.bottom = bottom;
   }
 
   private async install(): Promise<void> {

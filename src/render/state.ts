@@ -6,15 +6,15 @@ export type ScreenName = "docked" | "starmap" | "system" | "flight";
 export interface RenderState {
   /** Which screen is showing. */
   screen: ScreenName;
-  /** The dock shown in the docked view (the ship is parked there), e.g. "3:-2:5:0/2", or null. */
+  /** The dock shown in the docked view (the ship is parked there), e.g. "44776692551/2" (system number / planet number), or null. */
   dockedDockId: string | null;
-  /** The system the player is in, e.g. "3:-2:5:0". */
-  currentSystemId: string;
+  /** The system the player is in: its system number (a whole number such as 44776692551). */
+  currentSystemId: number;
   /** Star selected on the starmap, or null. */
-  selectedSystemId: string | null;
+  selectedSystemId: number | null;
   /** The system shown in the system view (null while on the starmap). */
-  viewedSystemId: string | null;
-  /** Planet (and dock) selected in the system view, e.g. "3:-2:5:0/2", or null. */
+  viewedSystemId: number | null;
+  /** Planet (and dock) selected in the system view, e.g. "44776692551/2", or null. */
   selectedPlanetId: string | null;
   /** Free travel: the planet WITHOUT a dock the ship floats at (screen is "flight" then), or null. */
   floatingPlanetId: string | null;
@@ -26,7 +26,7 @@ export class StateStore {
   private state: RenderState;
   private listeners: StateListener[] = [];
 
-  constructor(currentSystemId: string) {
+  constructor(currentSystemId: number) {
     this.state = {
       screen: "docked",
       dockedDockId: null,

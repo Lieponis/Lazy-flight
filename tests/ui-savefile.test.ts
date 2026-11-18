@@ -2,8 +2,9 @@
 import { describe, expect, it } from "vitest";
 import { startSpeed } from "../src/game/clock";
 import { MAX_SPEED } from "../src/game";
-import type { SaveSummary } from "../src/save";
+import { WARN_OLD_UNIVERSE, WARN_OTHER_SEED, WARN_TRAVELLING, type SaveSummary } from "../src/save";
 import {
+  IMPORT_MOVE_TEXT,
   HINTS_KEY,
   HINT_TEXT,
   REPLACE_WARNING,
@@ -82,6 +83,16 @@ describe("P3: what a save holds, in plain words", () => {
     ]);
   });
 
+  it("G5b: a save that moves gets the relaxed words (kept, left behind, start dock); its trip is called off", () => {
+    expect(warningLines([WARN_OLD_UNIVERSE, WARN_TRAVELLING])).toEqual([
+      "! This save is from an older universe, so it moves into the new galaxy. Kept: credits, ships, upgrades, paint jobs, ranks, job counts, time. " +
+        "Left behind: your job, any free trip, the explored list. Outposts are sold back for what they cost. The ship starts at the start dock.",
+      "! The trip it was on is called off, and its fuel comes back.",
+    ]);
+    expect(warningLines([WARN_OTHER_SEED])).toEqual([`! ${IMPORT_MOVE_TEXT}`]);
+    expect(warningLines([WARN_TRAVELLING])).toEqual([`! ${WARN_TRAVELLING}`]); // a current save's trip still lands
+  });
+
   it("the big confirm says it replaces the game and can be undone once", () => {
     expect(REPLACE_WARNING).toMatch(/replaces/);
     expect(REPLACE_WARNING).toMatch(/UNDO/);
@@ -102,9 +113,10 @@ describe("P3: pasted text repaired the way phones break it (Andy's iPhone)", () 
 
   it("a real exported text survives the iPhone change and still imports; a damaged one is still refused", async () => {
     const { Game, createClock } = await import("../src/game");
-    const { getPlanetsOfSystem, listSystemsNear } = await import("../src/universe");
+    const { getPlanetsOfSystem } = await import("../src/universe");
+    const { nearStart } = await import("./helpers/near");
     const { exportSaveFile, inspectImport, makeSaveData, SAVE_KEY } = await import("../src/save");
-    const sys = listSystemsNear(1337, { x: 0, y: 0, z: 0 }, 30).find((x) => getPlanetsOfSystem(1337, x.id).length > 0)!;
+    const sys = nearStart(1337, 30).find((x) => getPlanetsOfSystem(1337, x.id).length > 0)!;
     const game = new Game(1337, getPlanetsOfSystem(1337, sys.id)[0]!.id, createClock(1));
     const store = new Map<string, string>();
     const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };

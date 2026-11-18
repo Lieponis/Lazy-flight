@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  JOB_DESTINATION_COUNT,
   MAX_DOCKS_PER_SYSTEM,
-  MAX_JOB_DISTANCE,
   MAX_PLANETS,
   MIN_PLANETS,
+  START_POINT,
   UNIVERSE_VERSION,
   dockPlanetIndexes,
   docksOf,
@@ -16,8 +17,9 @@ import {
   getPlanetsOfSystem,
   getSystem,
   hasDock,
-  listSystemsNear,
   maxDocksFor,
+  nearestDocks,
+  nearestSystems,
   parseDockId,
   startDockOf,
   summarizeSurveys,
@@ -26,19 +28,19 @@ import {
   type StarSystem,
 } from "../src/universe";
 
-// Universe version 2: systems have 1 to 10 planets, and only some planets have a dock (1 to 3 per system).
+// Universe rules that did not change in version 3: systems have 1 to 10 planets, and only some planets have a dock (1 to 3 per
+// system). (The file keeps its old name; the version 3 specific tests are in universe-v3.test.ts.)
 
-const ORIGIN = { x: 0, y: 0, z: 0 };
 const SEEDS = [1, 2, 3, 7, 42, 99, 12345, 2024, 777777, "lazy", "freight", "space cheese"];
 
-/** Systems near the origin for one seed. */
-function systemsOf(seed: number | string, radius = 40): StarSystem[] {
-  return listSystemsNear(seed, ORIGIN, radius);
+/** The nearest `count` systems to the start point for one seed. */
+function systemsOf(seed: number | string, count = 40): StarSystem[] {
+  return nearestSystems(seed, START_POINT, count).map((n) => n.system);
 }
 
-describe("universe version 2: settings", () => {
-  it("is version 2 with 1 to 10 planets per system and at most 3 docks", () => {
-    expect(UNIVERSE_VERSION).toBe(2);
+describe("universe settings", () => {
+  it("is version 3 with 1 to 10 planets per system and at most 3 docks", () => {
+    expect(UNIVERSE_VERSION).toBe(3);
     expect(MIN_PLANETS).toBe(1);
     expect(MAX_PLANETS).toBe(10);
     expect(MAX_DOCKS_PER_SYSTEM).toBe(3);
@@ -215,6 +217,10 @@ describe("docks sit on planets and have valid ids", () => {
     expect(getDock(12345, "nonsense")).toBe(null);
     expect(getDock(12345, "0:0:0:0/99")).toBe(null);
     expect(getDock(12345, "0:0:0:99/0")).toBe(null);
+    const real = systemsOf(12345, 1)[0] as StarSystem;
+    expect(getDock(12345, `${real.id}/99`)).toBe(null);
+    expect(getDock(12345, `${real.id}/-1`)).toBe(null);
+    expect(getDock(12345, `${real.id}`)).toBe(null);
     expect(hasDock(12345, "")).toBe(false);
     expect(getDocksOfSystem(12345, "nonsense")).toEqual([]);
   });
@@ -276,12 +282,9 @@ describe("jobs only start and end at docks", () => {
               expect(hasDock(seed, job.destinationDockId)).toBe(true);
               expect(job.destinationDockId).not.toBe(dock.id);
               expect(job.stops[job.stops.length - 1]).toBe(job.destinationDockId);
-              let previous = dock.id;
               for (const stop of job.stops) {
                 expect(getDock(seed, stop)).not.toBe(null);
-                const leg = distanceBetweenDocks(seed, previous, stop) as number;
-                expect(leg).toBeLessThanOrEqual(MAX_JOB_DISTANCE);
-                previous = stop;
+                expect(distanceBetweenDocks(seed, dock.id, stop)).not.toBe(null);
               }
             }
           }
@@ -310,22 +313,22 @@ describe("jobs only start and end at docks", () => {
 
   it("boards stay full (6 jobs, never fewer than 3) in 20 seeds", () => {
     const surveys = [];
-    for (let seed = 1; seed <= 20; seed++) surveys.push(surveySeed(seed, { sampleRadius: 12 }));
+    for (let seed = 1; seed <= 20; seed++) surveys.push(surveySeed(seed, { systems: 40, sampleSystems: 8 }));
     const summary = summarizeSurveys(surveys);
     expect(summary.boards).toBeGreaterThan(100);
     expect(summary.thinBoards).toBe(0);
     expect(summary.emptyBoards).toBe(0);
     expect(summary.jobsMin).toBeGreaterThanOrEqual(3);
-    expect(summary.reachableMin).toBeGreaterThanOrEqual(10);
+    expect(summary.farthestDestinationAvg).toBeGreaterThan(0);
   });
 });
 
 describe("survey numbers add up", () => {
   it("counts match the real universe", () => {
-    const survey = surveySeed(12345, { sampleRadius: 10 });
+    const survey = surveySeed(12345, { systems: 100, sampleSystems: 5 });
     let systems = 0;
     let docks = 0;
-    for (const system of listSystemsNear(12345, ORIGIN, 35)) {
+    for (const system of systemsOf(12345, 100)) {
       systems++;
       docks += docksOf(12345, system).length;
     }
@@ -339,11 +342,10 @@ describe("survey numbers add up", () => {
 });
 
 describe("startDockOf (the one start dock every layer uses)", () => {
-  it("is the first dock of the system nearest to the middle, a real dock, and always the same", () => {
+  it("is the first dock of the system nearest to the start point, a real dock, and always the same", () => {
     for (const seed of [12345, 999, 1, 7, 2024, 31337]) {
       const start = startDockOf(seed);
-      // 40 ly is plenty to contain the nearest system (the old 320 ly built thousands of systems and timed out on a slow build machine).
-      const nearest = listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 40)[0]!;
+      const nearest = systemsOf(seed, 1)[0]!;
       expect(nearest).toBeDefined();
       expect(start.systemId).toBe(nearest.id);
       expect(start.id).toBe(docksOf(seed, nearest)[0]!.id);
@@ -353,9 +355,18 @@ describe("startDockOf (the one start dock every layer uses)", () => {
     }
   });
 
-  it("changes nothing in the universe (same dock ids as docksOf says) and works for a one-dock system", () => {
+  it("changes nothing in the universe (same dock ids as docksOf says)", () => {
     const seed = 12345;
     const start = startDockOf(seed);
     expect(docksOf(seed, getSystem(seed, start.systemId)!).map((d) => d.id)).toContain(start.id);
+  });
+
+  it("nearest docks of the start dock's system start with that system's own docks", () => {
+    const seed = 12345;
+    const start = startDockOf(seed);
+    const system = getSystem(seed, start.systemId) as StarSystem;
+    const near = nearestDocks(seed, system.position, JOB_DESTINATION_COUNT);
+    expect(near[0]?.distance).toBe(0);
+    expect(near.filter((d) => d.systemId === system.id).length).toBe(docksOf(seed, system).length);
   });
 });

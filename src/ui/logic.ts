@@ -29,6 +29,11 @@ import type { JobKind } from "../universe";
 // ------------------------------------------------------------ numbers
 
 /** 1250 -> "1,250 CR". Negative and odd numbers are handled. */
+/** A whole count with thousands separators: 100000 -> "100,000" (G5b, Explorer counts). */
+export function formatCount(n: number): string {
+  return formatCredits(n).replace(/ CR$/, "");
+}
+
 export function formatCredits(credits: number): string {
   const n = Number.isFinite(credits) ? Math.round(credits) : 0;
   const sign = n < 0 ? "-" : "";
@@ -140,6 +145,29 @@ export interface JobCardText {
   reasonDetail: string;
   /** "+10%" when the job ends in a system where you own an outpost, otherwise "". */
   outpostBonus: string;
+  /** G5b (Andy chose A): can this ship fly it? "now" = takeable, "refuel" = fuel first, "far" = too far for this ship, "other" = blocked for another reason. */
+  reach: CardReach;
+  /** The badge on the card ("READY TO FLY", "REFUEL FIRST", "TOO FAR FOR THIS SHIP"), or "" for other blocks. */
+  badge: string;
+}
+
+export type CardReach = "now" | "refuel" | "far" | "other";
+
+/** G5b: the badge texts on job cards (Andy chose A: one list, a badge on each card). */
+export const REACH_BADGES: Record<Exclude<CardReach, "other">, string> = {
+  now: "READY TO FLY",
+  refuel: "REFUEL FIRST",
+  far: "TOO FAR FOR THIS SHIP",
+};
+export const REFUEL_HINT = "Tap REFUEL at the top.";
+export const FAR_HINT = "Bigger tanks in the SHIPYARD reach farther.";
+
+/** Which of the four card states a board entry is in (from the game's reach and block; never computed here). */
+export function cardReach(entry: Pick<BoardEntry, "reach" | "block">): CardReach {
+  if (entry.reach === "never") return "far";
+  if (entry.block === null) return "now";
+  if (entry.block.code === "not-enough-fuel") return "refuel";
+  return "other";
 }
 
 export interface PlaceNames {
@@ -155,6 +183,11 @@ export function jobCardText(entry: BoardEntry, names: PlaceNames, speed: number,
   const { job, block } = entry;
   const dest = placeLabel(names.dockName(job.destinationDockId), names.systemNameOfDock(job.destinationDockId));
   const stops = job.stops.length;
+  const reach = cardReach(entry);
+  // The red "✕ REASON" line: none when the badge already says it (fuel, tank); kept for cargo, cabin, rank and so on.
+  const reasonShown = !block || reach === "refuel" || (reach === "far" && block.code === "tank-too-small") ? "" : block.code === "rank-too-low" ? neededRankText({ kind: job.kind, reward: entry.baseReward }) : blockedReason(block.code);
+  const detail =
+    reach === "refuel" ? `${entry.reachText} ${REFUEL_HINT}` : reach === "far" ? `${entry.reachText} ${FAR_HINT}` : block ? block.text : "";
   return {
     id: job.id,
     kind: kindLabel(job.kind),
@@ -166,15 +199,55 @@ export function jobCardText(entry: BoardEntry, names: PlaceNames, speed: number,
     fuel: `${entry.fuelNeeded} FUEL`,
     blurb: job.blurb,
     takeable: block === null,
-    reason: !block ? "" : block.code === "rank-too-low" ? neededRankText({ kind: job.kind, reward: entry.baseReward }) : blockedReason(block.code),
-    reasonDetail: block ? block.text : "",
+    reason: reasonShown,
+    reasonDetail: detail,
     outpostBonus: outpostBonusPercent > 0 ? `+${outpostBonusPercent}%` : "",
+    reach,
+    badge: reach === "other" ? "" : REACH_BADGES[reach],
   };
 }
 
-/** Takeable jobs first, keeping the board's own order inside each group. */
-export function sortForDisplay<T extends { takeable: boolean }>(cards: readonly T[]): T[] {
-  return [...cards.filter((c) => c.takeable), ...cards.filter((c) => !c.takeable)];
+const REACH_ORDER: Record<CardReach, number> = { now: 0, refuel: 1, other: 2, far: 3 };
+
+/**
+ * Takeable jobs first, then "refuel first", then other blocked jobs, then "too far for this ship" (G5b);
+ * the board's own order inside each group. Cards without `reach` sort by `takeable` only (as before).
+ */
+export function sortForDisplay<T extends { takeable: boolean; reach?: CardReach }>(cards: readonly T[]): T[] {
+  const rank = (c: T) => (c.reach ? REACH_ORDER[c.reach] : c.takeable ? 0 : 2);
+  return cards.map((c, i) => ({ c, i })).sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i).map((x) => x.c);
+}
+
+// ------------------------------------------------------------ board message (G5b)
+
+export interface BoardMessage {
+  title: string;
+  text: string;
+  hint: string;
+}
+
+export const EXPLORE_HINT = "Fly somewhere new: MAP, tap a planet, FLY HERE. New star systems pay discovery credits.";
+
+/**
+ * The friendly box at the top of the job board when nothing can be flown now. The game's sentences
+ * (`summary.message`, `place.remoteMessage`) are shown as they are; the UI adds a title and one hint.
+ */
+export function boardMessage(
+  summary: { total: number; doNow: number; afterRefuel: number; never: number; message: string | null },
+  place: { isRemote: boolean; remoteMessage: string | null },
+): BoardMessage | null {
+  if (summary.doNow > 0) return null;
+  if (summary.message === null) {
+    if (summary.afterRefuel === 0) return null;
+    return { title: "FUEL UP FIRST", text: "Every job you could fly needs more fuel than you have.", hint: REFUEL_HINT };
+  }
+  if (summary.total === 0) return { title: "EMPTY BOARD", text: summary.message, hint: "New jobs arrive every 6 hours. Have a coffee." };
+  if (place.isRemote) {
+    const extra = place.remoteMessage && place.remoteMessage !== summary.message ? ` ${place.remoteMessage}` : "";
+    return { title: "WAY OUT IN THE DARK", text: `${summary.message}${extra}`, hint: "Bigger tanks in the SHIPYARD reach farther. This system's own planets are close: MAP, tap a planet, FLY HERE." };
+  }
+  if (summary.never === summary.total) return { title: "TOO FAR FOR THIS SHIP", text: summary.message, hint: EXPLORE_HINT };
+  return { title: "NOTHING FITS YOUR SHIP", text: summary.message, hint: EXPLORE_HINT };
 }
 
 // ------------------------------------------------------------ refuel button
@@ -539,15 +612,21 @@ export function planetPanelText(p: PlanetPanelInput): PlanetPanelText {
 /** The hint on the system map before a planet is tapped. */
 export const PLANET_PANEL_HINT = "Tap a planet to see it. Drag to turn, pinch to zoom.";
 
+/** G5b: what a move into the new galaxy keeps and what it leaves behind (one wording for the start note and the import confirm). */
+export const MOVE_KEPT = "Kept: credits, ships, upgrades, paint jobs, ranks, job counts, time.";
+export const MOVE_GONE = "Left behind: your job, any free trip, the explored list.";
+
 /**
  * The start-up note. The "universe was rebuilt" message from src/save becomes friendlier and stays longer
- * (Andy chose the fading note, tap to close). Other notes stay as they are.
+ * (Andy chose the fading note, tap to close). G5b: it now says what was kept, what is gone and where the ship is.
+ * Other notes stay as they are.
  */
-export function startNotice(notice: string, rebuiltMessage: string): { text: string; ms: number } {
+export function startNotice(notice: string, rebuiltMessage: string, startDockName = ""): { text: string; ms: number } {
   if (!notice.startsWith(rebuiltMessage)) return { text: notice, ms: 7000 };
   const sold = /sold back for (\d+) credits/.exec(notice);
-  const refund = sold ? ` Your outposts were sold back for ${formatCredits(Number(sold[1]))}.` : "";
-  return { text: `Universe rebuilt! Your credits and ships came along.${refund}`, ms: 12000 };
+  const refund = sold ? ` Outposts sold back for ${formatCredits(Number(sold[1]))}.` : "";
+  const where = startDockName ? ` Your ship waits at the start dock, ${startDockName}.` : " Your ship waits at the start dock.";
+  return { text: `Universe rebuilt: welcome to the new spiral galaxy! ${MOVE_KEPT} ${MOVE_GONE}${refund}${where}`, ms: 20000 };
 }
 
 /** The empty Jobs board: calm, and true in a system with one dock too. */
@@ -607,8 +686,9 @@ export function explorerRowText(e: ExplorerInfo): RankRowText {
     progress,
     next: e.nextRankName === null ? "TOP RANK" : `${n} more ${n === 1 ? "discovery" : "discoveries"} to ${e.nextRankName}`,
     bonus: e.discoveryBonusPercent > 0 ? `+${e.discoveryBonusPercent}% DISCOVERY PAY` : "NO BONUS YET",
-    limit: `${e.systems} ${e.systems === 1 ? "SYSTEM" : "SYSTEMS"} · ${e.planets} ${e.planets === 1 ? "PLANET" : "PLANETS"}`,
-    done: `${e.discoveries} discovered`,
+    // G5b: counts can reach 100,000 systems now, so they get thousands separators (and the card wraps, see theme.css).
+    limit: `${formatCount(e.systems)} ${e.systems === 1 ? "SYSTEM" : "SYSTEMS"} · ${formatCount(e.planets)} ${e.planets === 1 ? "PLANET" : "PLANETS"}`,
+    done: `${formatCount(e.discoveries)} discovered`,
   };
 }
 
@@ -622,11 +702,6 @@ export function whatNowChoices(stuck: boolean): { id: "fly" | "shipyard" | "jobs
   if (stuck) list.push({ id: "emergency", text: "EMERGENCY FUEL" });
   list.push({ id: "menu", text: "MENU & RANKS" }, { id: "stay", text: "STAY & ENJOY" });
   return list;
-}
-
-/** A hint on the Jobs menu when nothing on the board can be taken (5f tutorial hint). */
-export function noJobsHint(cards: readonly { takeable: boolean }[]): string {
-  return cards.some((c) => c.takeable) ? "" : "No jobs for you? Fly somewhere new: MAP, tap a planet, FLY HERE. New star systems pay discovery credits.";
 }
 
 /** One paint job row in the Shipyard (Andy chose A: a list inside the ship card). */

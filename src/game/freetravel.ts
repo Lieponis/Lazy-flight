@@ -105,7 +105,7 @@ export function settleFreeArrival(
   nowMs: number,
   isDock: (placeId: string) => boolean,
   placeNameOf: (placeId: string) => string,
-  discoveryBaseOf: (systemId: string) => number,
+  discoveryBaseOf: (systemId: number) => number,
 ): { state: GameState; arrival: FreeArrival | null } {
   const trip = state.freeTrip;
   if (!trip || state.travelEndMs === null || nowMs < state.travelEndMs) return { state, arrival: null };

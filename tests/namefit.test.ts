@@ -20,20 +20,39 @@ import {
   LIMIT_DOCK_FULL,
   LIMIT_PLANET,
   LIMIT_SYSTEM,
+  START_DOCK_FULL,
+  START_PLANET,
+  START_SYSTEM,
+  STRESS_DOCK_FULL,
+  STRESS_PLANET,
+  STRESS_SYSTEM,
+  WORST_CODE_PLANET,
+  WORST_DOCK,
   WORST_DOCK_FULL,
   WORST_PLANET,
   WORST_SYSTEM,
   parseNamePreview,
   pickSamples,
 } from "../src/render/namesamples";
+import {
+  MAX_DOCK_FULL_NAME_LENGTH,
+  MAX_PLANET_NAME_LENGTH,
+  MAX_SYSTEM_NAME_LENGTH,
+  WORLD_SEED,
+  docksOf,
+  getPlanets,
+  startSystem,
+} from "../src/universe";
+import { OUTPOST_ADJECTIVES, OUTPOST_NOUNS, STATION_ADJECTIVES, STATION_NOUNS } from "../src/universe/data/words";
 
-// The longest names the universe can make (src/universe limits: system 42 letters, planet 47, dock full name 75).
+// STRESS names: longer than universe v3 allows (42, 47 and 73 letters, the first prototype's limits). They keep the strict tests below
+// strict: if the screens fit these, they fit anything the universe makes. The v3 worst cases have their own tests further down.
 const SYSTEM = "Fizniploo Jambazook Quindlebe 89-3R"; // a long word and a code
-const SYSTEM_LONG = WORST_SYSTEM; // 42 letters, the limit
-const PLANET_LONG = WORST_PLANET; // 47, the limit
-const DOCK_LONG = WORST_DOCK_FULL; // 73 letters, close to the limit of 75
+const SYSTEM_LONG = STRESS_SYSTEM; // 42 letters
+const PLANET_LONG = STRESS_PLANET; // 47
+const DOCK_LONG = STRESS_DOCK_FULL; // 73 letters
 const PURE_PLANET = "Lazy Harbour II";
-const LONGEST_CODE = "Kopipex RP5N3-MT662 II";
+const LONGEST_CODE = "Kopipex RP5N3-MT662 II"; // the longest code of the first prototype (11 characters), kept as a stress case
 
 const NAMES = [
   "Kopi Station",
@@ -249,12 +268,38 @@ describe("the info screen with long names", () => {
   });
 });
 
-describe("the made-up worst cases and the sample list", () => {
-  it("are as long as the universe allows, and no longer", () => {
+describe("the worst cases and the sample list (universe v3)", () => {
+  it("are as long as the universe allows, and no longer (limits 29, 34 and 62)", () => {
+    expect(LIMIT_SYSTEM).toBe(MAX_SYSTEM_NAME_LENGTH);
+    expect(LIMIT_PLANET).toBe(MAX_PLANET_NAME_LENGTH);
+    expect(LIMIT_DOCK_FULL).toBe(MAX_DOCK_FULL_NAME_LENGTH);
     expect(WORST_SYSTEM.length).toBe(LIMIT_SYSTEM);
     expect(WORST_PLANET.length).toBe(LIMIT_PLANET);
-    expect(WORST_DOCK_FULL.length).toBeLessThanOrEqual(LIMIT_DOCK_FULL);
-    expect(WORST_DOCK_FULL.length).toBeGreaterThan(LIMIT_DOCK_FULL - 6);
+    expect(WORST_DOCK_FULL.length).toBe(LIMIT_DOCK_FULL);
+  });
+
+  it("are made of what the generator can make: a coded system name, 'VIII' on it, and the longest dock name in the word lists", () => {
+    expect(splitCodedName(WORST_SYSTEM)?.code).toBe("HH8H3-2526");
+    expect(splitCodedName(WORST_PLANET)).toEqual({ word: "Snugaploo Junction", code: "HH8H3-2526", suffix: " VIII" });
+    const own: string[] = [];
+    for (const a of STATION_ADJECTIVES) for (const n of STATION_NOUNS) own.push(`${a} ${n} Station`);
+    for (const a of OUTPOST_ADJECTIVES) for (const n of OUTPOST_NOUNS) own.push(`${a} ${n} Outpost`);
+    expect(Math.max(...own.map((n) => n.length))).toBe(WORST_DOCK.length);
+    expect(own.includes(WORST_DOCK)).toBe(true);
+    expect(WORST_DOCK_FULL).toBe(`${WORST_DOCK}, ${WORST_PLANET}`);
+  });
+
+  it("the stress names are longer than the universe allows", () => {
+    expect(STRESS_SYSTEM.length).toBeGreaterThan(LIMIT_SYSTEM);
+    expect(STRESS_PLANET.length).toBeGreaterThan(LIMIT_PLANET);
+    expect(STRESS_DOCK_FULL.length).toBeGreaterThan(LIMIT_DOCK_FULL);
+  });
+
+  it("the real start names are the ones in the sample list (seed 12345, as the game starts)", () => {
+    const system = startSystem(WORLD_SEED);
+    expect(system.name).toBe(START_SYSTEM);
+    expect(getPlanets(WORLD_SEED, system.id).some((p) => p.name === START_PLANET)).toBe(true);
+    expect(docksOf(WORLD_SEED, system).some((d) => d.fullName === START_DOCK_FULL)).toBe(true);
   });
 
   it("picks real names first, leaves out kinds that are missing, and never repeats a name", () => {
@@ -267,6 +312,7 @@ describe("the made-up worst cases and the sample list", () => {
     expect(texts.includes("Lazy Harbour I")).toBe(true); // a pure-name planet
     expect(texts.includes("Slow Pier, Lazy Harbour I")).toBe(true); // a pure-name dock with its place
     expect(texts.includes(WORST_DOCK_FULL)).toBe(true);
+    for (const t of [START_SYSTEM, START_PLANET, START_DOCK_FULL, WORST_SYSTEM, WORST_PLANET, WORST_CODE_PLANET, STRESS_DOCK_FULL]) expect(texts.includes(t)).toBe(true);
     expect(list.some((s) => s.heading === "NEXT STOP 2/3")).toBe(true);
     expect(list.some((s) => s.heading === "FINAL STOP 3/3")).toBe(true);
     const keys = list.map((s) => `${s.heading}|${s.text}`);
@@ -288,5 +334,66 @@ describe("names in plain HTML text", () => {
     expect(nameHtml("Kopipex 2N-83 II")).toBe('Kopipex <span class="nm-code">2N-83</span> II');
     expect(nameHtml("A&B <x> 2N-83")).toBe('A&amp;B &lt;x&gt; <span class="nm-code">2N-83</span>');
     expect(nameHtml("Lazy Harbour")).toBe("Lazy Harbour");
+  });
+});
+
+describe("universe v3 names on the cockpit screen and in the text helpers", () => {
+  const V3 = [START_SYSTEM, START_PLANET, START_DOCK_FULL, WORST_SYSTEM, WORST_PLANET, WORST_DOCK_FULL, WORST_CODE_PLANET];
+
+  it("every v3 name fits the big cockpit layout (width and height), with its code whole", () => {
+    for (const name of V3) {
+      const l = layout(name);
+      expect(l.fits).toBe(true);
+      expect(l.height).toBeLessThanOrEqual(AREA + 1e-6);
+      for (const row of l.rows) expect(monoMeasureAt(row.size)(row.text)).toBeLessThanOrEqual(MAX_W + 1e-6);
+      const code = splitCodedName(name)?.code as string;
+      expect(nameRows(l).join(" ").includes(code)).toBe(true);
+    }
+  });
+
+  it("every v3 name fits the small picture (96 x 112, scale 1) too, with its code whole, in every tour caption", () => {
+    for (const name of V3) {
+      for (const heading of ["TO", "NEXT STOP 2/3", "FINAL STOP 3/3"]) {
+        const l = layoutInfo({
+          heading,
+          name: name.toUpperCase(),
+          arrivesLabel: "TOUR ENDS IN",
+          countdown: "12:34:56",
+          phase: "WARP",
+          measureAt: monoMeasureAt,
+          width: 96,
+          height: 112,
+          scale: 1,
+          bodySize: 19,
+        });
+        expect(l.fits).toBe(true);
+        expect(l.height).toBeLessThanOrEqual(112 * 0.92 + 1e-6);
+        for (const row of l.rows) expect(monoMeasureAt(row.size)(row.text)).toBeLessThanOrEqual(96 - 8 + 1e-6);
+        const code = splitCodedName(name)?.code as string;
+        expect(l.rows.filter((r) => r.tone === "value").map((r) => r.text).join(" ").includes(code)).toBe(true);
+      }
+    }
+  });
+
+  it("the real start names are shown whole in the big layout (nothing cut), and the worst dock is shortened only if it must", () => {
+    for (const name of [START_SYSTEM, START_PLANET, START_DOCK_FULL]) expect(layout(name).shortened).toBe(false);
+    // The worst dock may be shortened, but then its place keeps the code and the planet number.
+    const worst = layout(WORST_DOCK_FULL);
+    if (worst.shortened) expect(nameRows(worst).join(" ").endsWith("HH8H3-2526 VIII")).toBe(true);
+  });
+
+  it("the text helpers keep the v3 codes whole when they shorten (the code letters of universe v3 are recognised)", () => {
+    for (const name of [START_PLANET, WORST_PLANET, WORST_CODE_PLANET]) {
+      const parts = splitCodedName(name);
+      expect(parts === null).toBe(false);
+      expect(shortenName(name, 14).includes(`${parts?.code} ${parts?.suffix.trim()}`)).toBe(true);
+    }
+    for (const full of [START_DOCK_FULL, WORST_DOCK_FULL]) {
+      const short = shortenPlace(full, 44);
+      expect(short.length).toBeLessThanOrEqual(44);
+      expect(/ [2-9DHJMNPRTV]+-[2-9DHJMNPRTV]+ [IVX]+$/.test(short)).toBe(true);
+    }
+    expect(nameHtml(START_PLANET)).toBe('Bimvik Deep <span class="nm-code">JR62R-MT37</span> III');
+    expect(nameTokens(WORST_PLANET).slice(-1)).toEqual(["HH8H3-2526 VIII"]);
   });
 });

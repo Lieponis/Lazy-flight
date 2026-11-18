@@ -8,7 +8,7 @@ import { button, el, nameEl, setNameText } from "./dom";
 import {
   EMPTY_BOARD_TEXT,
   emergencyVisible,
-  noJobsHint,
+  boardMessage,
   formatCredits,
   jobCardText,
   outpostPanelText,
@@ -123,9 +123,13 @@ export class JobsMenu {
     this.list.replaceChildren();
     const outpost = this.outpostPanel();
     if (outpost) this.list.append(outpost);
-    if (cards.length === 0) this.list.append(el("div", "ui-empty", EMPTY_BOARD_TEXT));
-    const hint = noJobsHint(cards); // 5f: nothing takeable? Exploring is always an option.
-    if (hint && cards.length > 0) this.list.append(el("div", "ui-hint-card", hint));
+    // G5b: nothing to fly now? A friendly box says why (the game's own sentence) and what to try.
+    const msg = boardMessage(game.getBoardSummary(), game.getPlaceInfo());
+    if (msg) {
+      const box = el("div", "ui-board-msg");
+      box.append(el("div", "ui-board-msg-title", msg.title), nameEl("div", "ui-board-msg-text", msg.text), el("div", "ui-board-msg-hint", msg.hint));
+      this.list.append(box);
+    } else if (cards.length === 0) this.list.append(el("div", "ui-empty", EMPTY_BOARD_TEXT));
     for (const card of cards) this.list.append(this.card(card));
     this.list.scrollTop = scrolled; // keep the place after refuelling or buying
   }
@@ -166,11 +170,14 @@ export class JobsMenu {
   }
 
   private card(c: JobCardText): HTMLElement {
-    const box = el("div", c.takeable ? "ui-card" : "ui-card ui-card-blocked");
+    const box = el("div", `ui-card ui-card-${c.reach}${c.takeable ? "" : " ui-card-blocked"}`);
     const top = el("div", "ui-card-top");
     const reward = el("span", "ui-card-reward", c.reward);
     if (c.outpostBonus) reward.prepend(el("span", "ui-bonus", `${c.outpostBonus} OUTPOST`)); // your outpost pays extra
-    top.append(el("span", "ui-chip", c.kind), reward);
+    const chips = el("span", "ui-card-chips");
+    chips.append(el("span", "ui-chip", c.kind));
+    if (c.badge) chips.append(el("span", `ui-reach ui-reach-${c.reach}`, c.badge)); // G5b: READY TO FLY / REFUEL FIRST / TOO FAR
+    top.append(chips, reward);
     const title = el("div", "ui-card-title", c.title);
     const dest = nameEl("div", "ui-card-dest", `→ ${c.destination}`); // codes never split (N3a)
     const facts = el("div", "ui-card-facts");
@@ -190,7 +197,8 @@ export class JobsMenu {
       );
     } else {
       const reason = el("div", "ui-card-reason");
-      reason.append(el("b", undefined, `✕ ${c.reason.toUpperCase()}`), el("span", undefined, c.reasonDetail));
+      if (c.reason) reason.append(el("b", undefined, `✕ ${c.reason.toUpperCase()}`));
+      reason.append(el("span", undefined, c.reasonDetail));
       box.append(reason);
     }
     return box;

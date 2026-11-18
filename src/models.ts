@@ -1,3 +1,4 @@
+import "./previewboot"; // KEEP THIS FIRST: it must run before any other code reads the save box (src/previewboot.ts)
 // THE MODEL VIEWER (/models.html): look at every ship, outpost and station, and find what is wrong with them.
 // Every control is written into the web address, so any exact view can be shared and opened again.
 // This page only READS the game's old shapes (for "Compare"); it never changes them.
@@ -31,11 +32,12 @@ import {
 import type { AssetEntry, AssetModel } from "./render/assets/types";
 import { CockpitLens } from "./render/assets/lens";
 import { DEFAULT_LIVERY, liveriesFor } from "./render/assets/liveries";
-import { cameraFov, clamp, orbitCameraPosition, renderSizeFor, starfieldPositions } from "./render/helpers";
+import { cameraFov, clamp, orbitCameraPosition, renderSizeFor } from "./render/helpers";
+import { makeBackdrop } from "./render/backdrop";
 import { buildCargoHauler } from "./render/ship";
 import { makeOutpost, makeStation } from "./render/systemview";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "./settings";
-import { docksOf, getPlanet, listSystemsNear, type Planet } from "./universe";
+import { docksOf, getPlanet, nearestSystems, START_POINT, type Planet } from "./universe";
 
 // ------------------------------------------------------------------ state (mirrors the address)
 
@@ -62,6 +64,8 @@ interface ViewState {
   park: boolean;
   buddy: string;
   seed: number;
+  /** Sky of this system number (?system=NUMBER): each system has its own pattern of background dots. null = the default pattern. */
+  system: number | null;
   cam: { yaw: number; pitch: number; dist: number } | null;
   /** Cockpits: camera at the pilot's eye. */
   sit: boolean;
@@ -114,6 +118,7 @@ function readAddress(): ViewState {
       return l.length === 2 && l.every(Number.isFinite) ? { yaw: l[0]!, pitch: l[1]! } : { yaw: 0, pitch: 0 };
     })(),
     seed: Number.isFinite(Number(q.get("seed"))) && q.get("seed") ? Number(q.get("seed")) : 12345,
+    system: q.get("system") && Number.isFinite(Number(q.get("system"))) && Number(q.get("system")) >= 0 ? Math.floor(Number(q.get("system"))) : null,
     cam,
   };
 }
@@ -136,6 +141,7 @@ function addressFor(s: ViewState): string {
   if (s.park) q.set("park", "1");
   if (s.buddy) q.set("buddy", s.buddy);
   q.set("seed", String(s.seed));
+  if (s.system !== null) q.set("system", String(s.system));
   if (s.sit) {
     q.set("sit", "1");
     q.set("fov", String(s.fov));
@@ -219,9 +225,7 @@ const helpers = new THREE.Group(); // grid, box, ruler, anchor markers
 const backdrop = new THREE.Group();
 scene.add(backdrop, stage, helpers);
 
-const starGeo = new THREE.BufferGeometry();
-starGeo.setAttribute("position", new THREE.BufferAttribute(starfieldPositions(400, 600), 3));
-const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x8890c8, size: 1, sizeAttenuation: false }));
+const stars = makeBackdrop(400, 600, S.system); // the sky of ?system=NUMBER (the default pattern without it)
 backdrop.add(stars);
 let bgPlanet: THREE.Mesh | null = null;
 
@@ -988,7 +992,7 @@ function renderGridPage(): void {
   page.appendChild(seedRow);
 
   const docks: { id: string; planet: Planet; kind: string }[] = [];
-  for (const system of listSystemsNear(S.seed, { x: 0, y: 0, z: 0 }, 25)) {
+  for (const { system } of nearestSystems(S.seed, START_POINT, 40)) {
     for (const dock of docksOf(S.seed, system)) {
       const planet = getPlanet(S.seed, dock.id);
       if (planet) docks.push({ id: dock.id, planet, kind: dock.kind });

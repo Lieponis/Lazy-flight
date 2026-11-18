@@ -1,8 +1,8 @@
 // Plain functions (no drawing) for stage P3: the SAVE FILE panel, the install hint and the tester speed switch.
 // Tested in tests/ui-savefile.test.ts.
 
-import type { SaveSummary } from "../save";
-import { formatCredits } from "./logic";
+import { WARN_OLD_UNIVERSE, WARN_OTHER_SEED, WARN_TRAVELLING, type SaveSummary } from "../save";
+import { MOVE_GONE, MOVE_KEPT, formatCredits } from "./logic";
 
 // ------------------------------------------------------------ SAVE FILE panel
 
@@ -48,9 +48,25 @@ export function compareRows(file: SaveSummary, now: SaveSummary | null): Compare
   ];
 }
 
-/** Warnings from the import check, made friendly: each starts with "!" so they read as a caution, never HTML. */
+/** G5b: the import confirm's words for a save that moves into the new galaxy (old universe or another seed). */
+export const IMPORT_MOVE_TEXT = `This save is from an older universe, so it moves into the new galaxy. ${MOVE_KEPT} ${MOVE_GONE} Outposts are sold back for what they cost. The ship starts at the start dock.`;
+/** G5b: a trip in such a save does not land; it is called off and its fuel comes back. */
+export const IMPORT_TRIP_CANCELLED = "The trip it was on is called off, and its fuel comes back.";
+
+/**
+ * Warnings from the import check, made friendly: each starts with "!" so they read as a caution, never HTML.
+ * G5b: the save layer's move warnings get the relaxed wording above (what is kept, what is gone, where the ship is).
+ */
 export function warningLines(warnings: readonly string[]): string[] {
-  return warnings.filter((w) => w.trim() !== "").map((w) => `! ${w.trim()}`);
+  const moving = warnings.some((w) => w === WARN_OLD_UNIVERSE || w === WARN_OTHER_SEED);
+  return warnings
+    .filter((w) => w.trim() !== "")
+    .map((w) => {
+      if (w === WARN_OLD_UNIVERSE || w === WARN_OTHER_SEED) return IMPORT_MOVE_TEXT;
+      if (w === WARN_TRAVELLING && moving) return IMPORT_TRIP_CANCELLED;
+      return w.trim();
+    })
+    .map((w) => `! ${w}`);
 }
 
 /** The red line on the big confirm button: it must be clear this replaces the current game. */

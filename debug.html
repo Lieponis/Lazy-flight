@@ -13,7 +13,7 @@
       input { padding: 4px; font-size: 1rem; }
       input[type="number"] { width: 90px; }
       #seed { width: 160px; }
-      #systemId { width: 130px; }
+      #systemId { width: 170px; }
       table { border-collapse: collapse; width: 100%; background: #fff; margin: 8px 0; font-size: 0.92rem; }
       th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; }
       th { background: #eee; }
@@ -31,25 +31,34 @@
     <h1>Universe debug view</h1>
     <p class="note">
       Plain text and tables, no graphics. Type a seed, then press <b>Show</b>. The same seed always shows the same universe.
-      Universe version 2: not every planet has a dock (1 to 3 docks per system). Click a blue system name or planet number to look closer. <a href="./">Back to the cube page</a>.
+      Universe version 3: the spiral galaxy (about 18 billion systems; every one is worked out from the seed when asked for). Not every planet has a dock (1 to 3 docks per system).
+      Click a blue system name or planet number to look closer. <a href="./">Back to the game</a>.
     </p>
 
     <div class="box">
       <label>Seed <input id="seed" type="text" value="12345" /></label>
       <label>Time slot (1 = one hour) <input id="slot" type="number" value="0" step="1" /></label><br />
-      <label>Look around x <input id="cx" type="number" value="0" step="1" /></label>
+      <label>Place
+        <select id="place">
+          <option value="start" selected>the start (16,667 ly from the centre)</option>
+          <option value="centre">the galaxy centre (crowded)</option>
+          <option value="middle">half way out (30,000 ly)</option>
+          <option value="rim">near the rim (49,000 ly, empty)</option>
+        </select>
+      </label><br />
+      <label>Look around x <input id="cx" type="number" value="-16559" step="1" /></label>
       <label>y <input id="cy" type="number" value="0" step="1" /></label>
-      <label>z <input id="cz" type="number" value="0" step="1" /></label>
-      <label>Radius (light years) <input id="radius" type="number" value="25" step="1" min="1" max="60" /></label>
+      <label>z <input id="cz" type="number" value="1892" step="1" /></label>
+      <label>How many nearest systems (1 to 200) <input id="count" type="number" value="25" step="1" min="1" max="200" /></label>
       <button id="show" type="button">Show</button>
     </div>
 
-    <h2>1. Nearby systems</h2>
+    <h2>1. The nearest systems</h2>
     <div id="nearby"></div>
 
     <h2>2. One system and its planets</h2>
     <div class="box">
-      <label>System id <input id="systemId" type="text" placeholder="e.g. 0:0:0:0" /></label>
+      <label>System id (the system number) <input id="systemId" type="text" placeholder="e.g. 44776692551" /></label>
       <label>Planet number <input id="planetIndex" type="number" value="0" step="1" min="0" max="9" /></label>
       <button id="showSystem" type="button">Show this system</button>
     </div>
@@ -63,19 +72,19 @@
 
     <h2>5. Names: find a system, and name statistics</h2>
     <div class="box">
-      <label>Find a system by name or code <input id="nameSearch" type="text" placeholder="e.g. 4F-92 or Lazy Harbour" style="width: 260px" /></label>
+      <label>Find a system by name or code <input id="nameSearch" type="text" placeholder="e.g. JR62R-MT37 or Lazy Harbour" style="width: 260px" /></label>
       <button id="nameFind" type="button">Find</button>
     </div>
     <div id="nameSearchOut"></div>
-    <p class="note">Statistics for the systems around the look-around point and radius at the top (planets and docks included).</p>
+    <p class="note">Statistics for the nearest systems to the look-around point (the same number as at the top; planets and docks included).</p>
     <div id="nameStats"></div>
 
     <h2>6. Many seeds at once (does the universe look sensible?)</h2>
     <div class="box">
       <label>First seed <input id="surveyFirst" type="number" value="1" step="1" /></label>
-      <label>How many seeds (1 to 200) <input id="surveyCount" type="number" value="50" step="1" min="1" max="200" /></label>
+      <label>How many seeds (1 to 100) <input id="surveyCount" type="number" value="10" step="1" min="1" max="100" /></label>
       <button id="runSurvey" type="button">Run survey (about 10 seconds)</button>
-      <p class="note">Uses the look-around point and counts docks, reachable docks and job boards for each seed.</p>
+      <p class="note">Uses the look-around point and counts docks, job destination distances and job boards for each seed.</p>
     </div>
     <div id="survey"></div>
 

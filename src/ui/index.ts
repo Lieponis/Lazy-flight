@@ -82,8 +82,9 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   }
   api.setShip(game.state.shipId, game.currentLivery(game.state.shipId)); // the ship the player owns, in its paint (5f)
   api.setCurrentSystem(game.currentSystemId()); // a loaded save may be in another system
-  // The galaxy map grows with how far the ship can fly on its fuel (3h): fuel divided by the fuel one light year burns for this ship.
-  const reachNow = (): number => game.state.fuel / Math.max(0.01, tripFuelCost(game.state, 100) / 100);
+  // The galaxy map gives a diamond to every star the ship can reach (G5a): the longest trip a FULL tank allows (it changes with the
+  // ship and engines, not with every litre burnt; game.getPlaceInfo().fuelRangeLy would be the reach on the fuel on board right now).
+  const reachNow = (): number => game.getPlaceInfo().rangeLy;
   api.setReachLy(reachNow());
 
   // ------------------------------------------------------------ names
@@ -130,7 +131,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   );
   strip.setSpeaker(sound.getPrefs().muted);
   let overlay: Overlay = "none";
-  let lastViewedSystemId: string | null = null; // the system map the "SYSTEM" tab goes back to
+  let lastViewedSystemId: number | null = null; // the system map the "SYSTEM" tab goes back to
 
   const closeOverlay = (): void => {
     overlay = "none";
@@ -217,7 +218,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   // It appears when PLAY is pressed, so the title screen never hides it. Tap closes it.
   const showStartNotice = (): void => {
     if (!plan.notice) return;
-    const note = startNotice(plan.notice, MESSAGE_REBUILT);
+    const note = startNotice(plan.notice, MESSAGE_REBUILT, game.state.currentDockId === firstDock.id ? firstDock.name : ""); // G5b: says where the ship is
     showToast(layer, note.text, note.ms);
   };
   // 5e: DOCK / SCENERY card on the system map; 5f: FLY HERE on it.
@@ -402,7 +403,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   game.subscribe(() => {
     api.setShip(game.state.shipId, game.currentLivery(game.state.shipId)); // follows buying, switching and painting ships (5f)
     api.setCurrentSystem(game.currentSystemId()); // the starmap "you are here" follows the player
-    api.setReachLy(reachNow()); // and its size follows fuel, ship and engines
+    api.setReachLy(reachNow()); // and its diamonds follow the ship and engines
     if (game.lastArrival && game.lastArrival !== seenArrival) {
       seenArrival = game.lastArrival;
       pendingArrival = game.lastArrival;

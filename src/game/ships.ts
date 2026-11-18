@@ -30,7 +30,7 @@ export const SHIPS: Record<string, ShipDef> = {
     id: "passenger-liner",
     name: "Passenger Liner",
     description: "Comfy cabin for 12 passengers, with a tiny cargo closet.",
-    price: 2500, // was 1500; raised by Andy's decision (6b balance pass) so the first ship takes a little longer
+    price: 7350, // 1500 -> 2500 (6b) -> x2.94 = 7350 (6h, Andy: "funny price, you need to work more"); first ship about 2.8 h
     cargoCapacity: 6,
     cabinCapacity: 12,
     fuelTankSize: 100, // was 70; raised by Andy's decision (5b) so more tours fit
@@ -39,7 +39,7 @@ export const SHIPS: Record<string, ShipDef> = {
     id: "scout",
     name: "Scout",
     description: "Small and thirsty for distance: a huge tank, two seats, a little cargo.",
-    price: 1200,
+    price: 3528, // 1200 x2.94 (6h, Andy decided 2026-11-18)
     cargoCapacity: 10,
     cabinCapacity: 2,
     fuelTankSize: 110,

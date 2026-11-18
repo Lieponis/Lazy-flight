@@ -68,9 +68,10 @@ const STAR_VERTEX = /* glsl */ `
 `;
 
 const STAR_FRAGMENT = /* glsl */ `
+  uniform float uDim;  // 1 = the dots' own colours (the galaxy map); less = fainter (the system view's backdrop)
   varying vec3 vColor;
   void main() {
-    gl_FragColor = vec4(vColor, 1.0);
+    gl_FragColor = vec4(vColor * uDim, 1.0);
   }
 `;
 
@@ -85,6 +86,7 @@ export class SkyView {
   private countsTexture: THREE.DataTexture | null = null;
   private layout: RingLayout | null = null;
   private glowOn = true;
+  private readonly starMaterial: THREE.ShaderMaterial;
 
   constructor() {
     this.domeMaterial = new THREE.ShaderMaterial({
@@ -111,10 +113,14 @@ export class SkyView {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(0), 3));
     geometry.setAttribute("aColor", new THREE.BufferAttribute(new Float32Array(0), 3));
-    this.starPoints = new THREE.Points(
-      geometry,
-      new THREE.ShaderMaterial({ vertexShader: STAR_VERTEX, fragmentShader: STAR_FRAGMENT, depthTest: false, depthWrite: false }),
-    );
+    this.starMaterial = new THREE.ShaderMaterial({
+      vertexShader: STAR_VERTEX,
+      fragmentShader: STAR_FRAGMENT,
+      uniforms: { uDim: { value: 1 } },
+      depthTest: false,
+      depthWrite: false,
+    });
+    this.starPoints = new THREE.Points(geometry, this.starMaterial);
     this.starPoints.frustumCulled = false;
     this.starPoints.renderOrder = 1; // after the glow
     this.scene.add(this.starPoints);
@@ -143,6 +149,16 @@ export class SkyView {
   setGlowStrength(strength: number): void {
     this.domeMaterial.uniforms.uGlow.value = strength;
     this.refreshDome();
+  }
+
+  /** How bright the dots are, 0..1 (1 = their own colours, the default). A faint backdrop uses a small number. */
+  setDim(dim: number): void {
+    this.starMaterial.uniforms.uDim.value = Math.max(0, Math.min(1, Number.isFinite(dim) ? dim : 1));
+  }
+
+  /** The dot brightness now (0..1). */
+  get dim(): number {
+    return this.starMaterial.uniforms.uDim.value as number;
   }
 
   /** The glow box is only drawn when it has something to show (a built sky, switched on, strength above 0). */
@@ -180,7 +196,7 @@ export class SkyView {
     this.domeMaterial.dispose();
     this.dome.geometry.dispose();
     this.starPoints.geometry.dispose();
-    (this.starPoints.material as THREE.Material).dispose();
+    this.starMaterial.dispose();
   }
 }
 

@@ -1,3 +1,4 @@
+import "./previewboot"; // KEEP THIS FIRST: it must run before any other code reads the save box (src/previewboot.ts)
 // The /game-debug.html test page: plain text and buttons. It makes its OWN Game (never the live one).
 // No Three.js, no menus. Buttons marked TEST break the normal rules so Andy can try everything quickly.
 
@@ -48,12 +49,22 @@ import {
   getPlanet,
   getPlanetsOfSystem,
   getSystem,
-  listSystemsNear,
+  type StarSystem,
+  START_POINT,
+  nearestSystems,
   startDockOf,
   type Seed,
+  type Vec3,
 } from "./universe";
 
 const HOUR_MS = 3_600_000;
+
+/** The nearest `count` star systems around a point, nearest first (the new galaxy is asked by count, never by radius). */
+function systemsNear(sd: Seed, centre: Vec3, count: number): StarSystem[] {
+  const out: StarSystem[] = [];
+  for (const near of nearestSystems(sd, centre, count)) out.push(near.system);
+  return out;
+}
 const seedMatch = /[?&]seed=(-?\d{1,12})(?:&|$)/.exec(window.location.search);
 const seed: Seed = seedMatch && seedMatch[1] !== undefined ? Number(seedMatch[1]) : 12345;
 const speed = parseSpeedParam(window.location.search);
@@ -156,7 +167,7 @@ function dockList(): { id: string; text: string }[] {
   if (key === dockCacheKey) return dockCache;
   const list: { id: string; text: string }[] = [];
   const tank = game.getShipStats().fuelTankSize;
-  for (const system of listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 30).slice(0, 25)) {
+  for (const system of systemsNear(seed, START_POINT, 30).slice(0, 25)) {
     for (const dock of docksOf(seed, system)) {
       const board = generateJobBoard(seed, dock, slot);
       let passengers = 0;
@@ -204,7 +215,7 @@ function sampleOldSave(): SaveData {
   const here = game.state.currentDockId;
   const job = (getJobBoard(seed, here, game.currentSlot()) ?? [])[0] ?? null;
   const outposts: string[] = [];
-  for (const system of listSystemsNear(seed, { x: 0, y: 0, z: 0 }, 40)) {
+  for (const system of systemsNear(seed, START_POINT, 40)) {
     for (const dock of docksOf(seed, system)) {
       if (dock.kind === "OUTPOST" && outposts.length < 2) outposts.push(dock.id);
     }
@@ -706,8 +717,11 @@ function render(): void {
   else if (s.spacePlanetId !== null) app.append(h("p", { class: "note" }, game.whyNotDocked() ?? "No board while you float in space."));
   else if (board.length === 0) app.append(h("p", { class: "note" }, "This board is empty."));
   else {
+    const sum = game.getBoardSummary();
+    const info = game.getPlaceInfo();
+    app.append(h("p", { class: "note" }, `Board: ${sum.total} jobs, ${sum.doNow} can do now, ${sum.afterRefuel} after refuelling, ${sum.never} too far. Range ${info.rangeLy} ly on a full tank, ${info.fuelRangeLy} ly on the fuel you have. Nearest other dock: ${info.nearestOtherDock ? `${info.nearestOtherDock.distanceLy.toFixed(1)} ly` : "none"}.${sum.message ? ` MESSAGE: ${sum.message}` : ""}`));
     const t = h("table");
-    t.append(h("tr", {}, ...["Kind", "Load", "To", "Stops", "Distance", "Reward", "Trip", "Fuel", "Status", ""].map((x) => h("th", {}, x))));
+    t.append(h("tr", {}, ...["Kind", "Load", "To", "Stops", "Distance", "Reward", "Trip", "Fuel", "Can the ship do it?", "Status", ""].map((x) => h("th", {}, x))));
     for (const e of board) {
       const j = e.job;
       const tr = h("tr");
@@ -727,6 +741,7 @@ function render(): void {
         h("td", {}, e.bonusPercent > 0 ? `${j.reward} cr (base ${e.baseReward} + ${e.bonusPercent}%)` : `${j.reward} cr`),
         h("td", {}, formatDuration(e.tripSeconds)),
         h("td", {}, String(e.fuelNeeded)),
+        h("td", { class: e.reach === "now" ? "ok" : e.reach === "refuel" ? "" : "bad" }, e.reach === "now" ? `CAN DO NOW - ${e.reachText}` : e.reach === "refuel" ? `NEEDS FUEL - ${e.reachText}` : `TOO FAR - ${e.reachText}`),
         e.block ? h("td", { class: "bad" }, `BLOCKED [${e.block.code}]: ${e.block.text}`) : h("td", { class: "ok" }, "can take"),
         act,
       );
@@ -740,7 +755,7 @@ function render(): void {
 function otherSeedSave(): SaveData | null {
   const OTHER = 777;
   let outpostId: string | null = null;
-  for (const system of listSystemsNear(OTHER, { x: 0, y: 0, z: 0 }, 40)) {
+  for (const system of systemsNear(OTHER, START_POINT, 40)) {
     for (const dock of docksOf(OTHER, system)) if (!outpostId && dock.kind === "OUTPOST") outpostId = dock.id;
   }
   if (!outpostId) return null;
@@ -829,7 +844,7 @@ function freeTravelBox(flying: boolean): HTMLElement {
     }, { test: true }),
     button("TEST: set fuel to exactly what the nearest other star system needs (so that trip would strand you)", () => {
       const from = getSystem(seed, game.currentSystemId());
-      const near = from ? listSystemsNear(seed, from.position, 40).find((x) => x.id !== from.id) : undefined;
+      const near = from ? systemsNear(seed, from.position, 40).find((x) => x.id !== from.id) : undefined;
       if (!from || !near) return say("No other star system is near.");
       const need = tripFuelCost(game.state, distanceBetweenSystems(seed, from.id, near.id) ?? 0);
       game.state = { ...game.state, fuel: need };
@@ -854,7 +869,7 @@ function freeTravelBox(flying: boolean): HTMLElement {
 
   const here = getSystem(seed, game.currentSystemId());
   if (!here) return box;
-  const systems = [here, ...listSystemsNear(seed, here.position, 40).filter((x) => x.id !== here.id).slice(0, 6)];
+  const systems = [here, ...systemsNear(seed, here.position, 40).filter((x) => x.id !== here.id).slice(0, 6)];
   const table = h("table");
   table.append(h("tr", {}, ...["Place", "What", "Star system", "Distance", "Trip", ""].map((t) => h("th", {}, t))));
   for (const system of systems) {

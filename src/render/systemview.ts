@@ -15,17 +15,20 @@ import {
   planetOrbitPosition,
   planetTypeLabel,
   starDisplayRadius,
-  starfieldPositions,
   type ScreenPoint,
 } from "./helpers";
 import type { AssetModel } from "./assets";
+import { makeBackdrop, reseedBackdrop } from "./backdrop";
 import type { Hud } from "./hud";
+import { SkyLayer } from "./galaxy/skylayer";
+import type { SkyFunctions } from "./galaxy/universefield";
 import { OrbitView } from "./input";
 import { buildDockModel } from "./models3d";
 import { fitDistance, focusDistance, orbitRadii, planetDetail, planetFootprint, stationOrbitFor, systemSummary } from "./systemlayout";
 import { markParts, type MarkStyle } from "./systemmarks";
 import type { Screen } from "./screen";
 import {
+  MAP_SKY_GLOW,
   STARFIELD_COUNT,
   SYSTEM_LANE_DOCK,
   SYSTEM_LANE_OLD,
@@ -35,6 +38,13 @@ import {
   SYSTEM_OUTPOST_SCALE,
   SYSTEM_OUTPOST_SCALE_MAX,
   SYSTEM_OUTPOST_SCALE_MIN,
+  SYSTEM_SKY_BUDGET_MS,
+  SYSTEM_SKY_DOTS,
+  SYSTEM_SKY_FAINT,
+  SYSTEM_SKY_IDLE_MS,
+  SYSTEM_SKY_NEAR_SPACINGS,
+  SYSTEM_SKY_SIZE,
+  SYSTEM_SKY_STEPS,
   SYSTEM_STATION_SCALE,
   TAP_RADIUS_PX,
 } from "./settings";
@@ -45,6 +55,11 @@ export interface SystemViewOptions {
   host: HTMLElement; // the canvas
   hud: Hud;
   state: StateStore;
+  /**
+   * The universe's sky functions (the same ones the galaxy map gets). With them the system view draws a very faint galaxy sky behind
+   * everything, from where the system is. Without them (null or left out: the developer pages) the view looks exactly as before.
+   */
+  sky?: SkyFunctions | null;
 }
 
 interface PlanetEntry {
@@ -220,17 +235,30 @@ export class SystemViewScreen implements Screen {
   private starLabel = "";
   private temp = new THREE.Vector3();
   private clockT = 0;
-  private systemId: string | null = null;
+  private systemId: number | null = null;
+  /** The plain background dots; each system has its own pattern (set in open()). */
+  private readonly backdrop = makeBackdrop(STARFIELD_COUNT, 450);
   private markStyle: MarkStyle = SYSTEM_MARK_STYLE;
   private summary = "";
   private triangles = 0;
   private fitDist = 40;
   private footprints: number[] = [];
+  /** The faint galaxy sky behind everything (null = the app gave no sky functions). */
+  private readonly sky: SkyLayer | null;
 
   constructor(private opts: SystemViewOptions) {
-    const bg = new THREE.BufferGeometry();
-    bg.setAttribute("position", new THREE.BufferAttribute(starfieldPositions(STARFIELD_COUNT, 450), 3));
-    this.scene.add(new THREE.Points(bg, new THREE.PointsMaterial({ color: 0x8890c8, size: 1, sizeAttenuation: false })));
+    this.sky = opts.sky
+      ? new SkyLayer(opts.sky, {
+          faint: SYSTEM_SKY_FAINT,
+          glow: MAP_SKY_GLOW,
+          dots: SYSTEM_SKY_DOTS,
+          faceSize: SYSTEM_SKY_SIZE,
+          steps: SYSTEM_SKY_STEPS,
+          nearSpacings: SYSTEM_SKY_NEAR_SPACINGS,
+          budgetMs: SYSTEM_SKY_BUDGET_MS,
+        })
+      : null;
+    this.scene.add(this.backdrop);
     this.scene.add(this.content);
 
     this.selectionMarker = new THREE.LineSegments(
@@ -247,7 +275,7 @@ export class SystemViewScreen implements Screen {
   /** Marks docks with bright orbit lines ("A", the default) or the old look ("off"). Rebuilds the picture but keeps the camera. */
   setMarkStyle(style: MarkStyle): void {
     this.markStyle = style;
-    if (!this.systemId) return;
+    if (this.systemId === null) return;
     const { yaw, pitch, dist } = this.view;
     this.open(this.systemId);
     this.view.yaw = yaw;
@@ -261,7 +289,7 @@ export class SystemViewScreen implements Screen {
   }
 
   /** Builds the picture of one system. Call before enter(). */
-  open(systemId: string): boolean {
+  open(systemId: number): boolean {
     const { seed } = this.opts;
     const system = getSystem(seed, systemId);
     if (!system) return false;
@@ -346,6 +374,8 @@ export class SystemViewScreen implements Screen {
     });
 
     this.systemId = system.id;
+    reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, system.id);
+    this.sky?.setPosition(system.position); // the galaxy sky as seen from this system (rebuilt only in another sky cell)
     this.summary = systemSummary(
       planets.length,
       docks.filter((d): d is Dock => d !== null).map((d) => ({ name: d.name, kind: dockKindLabel(d.kind) })),
@@ -390,6 +420,37 @@ export class SystemViewScreen implements Screen {
       this.selectionMarker.scale.setScalar(chosen.radius * 2.6 + (chosen.station ? chosen.station.orbit : 0.6));
       this.selectionMarker.rotation.y += 0.02;
     }
+    this.sky?.update(seconds, this.camera); // after view.apply(): the sky turns with the camera
+  }
+
+  /**
+   * Starts building the faint galaxy sky for a system BEFORE its view is opened (the app calls this for the ship's own system at the
+   * start and for a star picked on the map). Only starts a build when the system is in another sky cell than the sky already built.
+   */
+  prepareSky(systemId: number): void {
+    if (!this.sky) return;
+    const system = getSystem(this.opts.seed, systemId);
+    if (system) this.sky.setPosition(system.position);
+  }
+
+  /** Called every frame while ANOTHER screen is showing: spends a few milliseconds on a sky that is being prepared. */
+  warmSky(): void {
+    this.sky?.warm(SYSTEM_SKY_IDLE_MS);
+  }
+
+  /** Draws the faint galaxy sky first (it only turns with the camera), then the system over it. Without a sky: the plain way. */
+  render(renderer: THREE.WebGLRenderer): void {
+    const sky = this.sky;
+    if (!sky || !sky.visible) {
+      renderer.render(this.scene, this.camera);
+      return;
+    }
+    const autoClear = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.clear();
+    sky.draw(renderer);
+    renderer.render(this.scene, this.camera);
+    renderer.autoClear = autoClear;
   }
 
   private countTriangles(): number {

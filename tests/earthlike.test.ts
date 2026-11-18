@@ -1,12 +1,13 @@
 // Agent 7f (E1): rare Earth-like planets, render only. Andy chose looks A (classic) and C (tropical), fewer clouds.
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { getPlanetsOfSystem, listSystemsNear, type Planet, type Seed } from "../src/universe";
+import { START_POINT, getPlanetsOfSystem, nearestSystems, type Planet, type Seed } from "../src/universe";
 import { EARTH_CHANCE, EARTH_PALETTES, EARTH_STYLES_IN_GAME, chooseLook, coastSpot, earthStyleOf, hasCloud, isEarthLike, surfaceColour } from "../src/render/planetlook";
 import { RING_SEGMENTS, makePlanetMesh } from "../src/render/systemview";
 
 const SEEDS: Seed[] = [12345, 777, 4242, 1, 99999, 31337, 2026, 55];
-const planetsOf = (seed: Seed, radius = 30): Planet[] => listSystemsNear(seed, { x: 0, y: 0, z: 0 }, radius).flatMap((s) => getPlanetsOfSystem(seed, s.id));
+// Universe v3: the nearest 150 systems to the start (a radius would hold 363,000 systems at the dense centre).
+const planetsOf = (seed: Seed, count = 150): Planet[] => nearestSystems(seed, START_POINT, count).flatMap(({ system }) => getPlanetsOfSystem(seed, system.id));
 const ALL = SEEDS.flatMap((s) => planetsOf(s));
 
 describe("Earth-like planets: how many", () => {

@@ -1,5 +1,5 @@
 // The front door of the universe generator. Other parts of the project import from here only:
-//   import { listSystemsNear, getDock, getMarket, getJobBoard } from "../universe";
+//   import { nearestSystems, nearestDocks, findDockById, getMarket, getJobBoard, startDockOf } from "../universe";
 
 export * from "./settings";
 export { hashString, hashUnit, mulberry32, rngFor, Rng } from "./random";
@@ -8,14 +8,30 @@ export {
   distance,
   distanceBetweenSystems,
   getSite,
-  getSitesInSector,
-  listSitesNear,
+  isLegacyId,
+  nearestSites,
   parseSystemId,
-  sectorOf,
-  systemIdOf,
+  sitesWithin,
+} from "./sites";
+export type { NearSite, SystemSite, Vec3 } from "./sites";
+// The galaxy itself (shape, density, cells, codes). The other layers mostly need only the numbers below.
+export {
+  ARM_COUNT,
+  DISC_RADIUS,
+  START_ANGLE,
+  START_POINT,
+  armFactor,
+  decodeSystemNumber,
+  densityAt,
+  encodeSystemNumber,
+  expectedTotal,
+  galaxyChecksum,
+  lineIntegralDensity,
+  normalizeSystemNumberCode,
+  spacingAt,
+  thicknessAt,
+  TooManyCellsError,
 } from "./galaxy";
-export type { SystemSite, Vec3 } from "./galaxy";
-export { decodeSystemCode, encodeSystemCode, normalizeSystemCode, systemCodeOfId } from "./syscode";
 export { PURE_NAMES, pureNameCount, pureNameOf, systemIdOfPureName } from "./purenames";
 export { generateSystem } from "./system";
 export type { Star, StarSystem, StarType } from "./system";
@@ -29,18 +45,30 @@ export { getMarket, getPrice, roleOf } from "./economy";
 export type { MarketEntry, MarketRole } from "./economy";
 export {
   distanceBetweenDocks,
+  findDockById,
+  findPlanetById,
+  findSystemById,
   findSystemByName,
   getDock,
+  getDocks,
   getDocksOfSystem,
   getPlanet,
+  getPlanets,
   getPlanetsOfSystem,
   getSystem,
   hasDock,
-  listSystemsNear,
+  nearestDocks,
+  nearestSystems,
   parseDockId,
+  parsePlanetId,
+  planetIdOf,
   startDockOf,
+  startSystem,
+  systemsWithin,
 } from "./lookup";
-export { boardPeriodOf, generateJobBoard, getJobBoard } from "./jobs";
+export type { NearDock, NearSystem } from "./lookup";
+export { NearCache } from "./near";
+export { boardPeriodOf, generateJobBoard, getJobBoard, paidDistance } from "./jobs";
 export type { HoldType, Job, JobKind, LoadType, SpecialJobData } from "./jobs";
 export { summarizeSurveys, surveySeed } from "./survey";
 export type { SeedSurvey, SurveyOptions, SurveySummary } from "./survey";

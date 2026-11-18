@@ -42,7 +42,8 @@ import {
   type SaveData,
   type StorageLike,
 } from "../src/save";
-import { UNIVERSE_VERSION, docksOf, getJobBoard, listSystemsNear, startDockOf } from "../src/universe";
+import { UNIVERSE_VERSION, docksOf, getJobBoard, startDockOf } from "../src/universe";
+import { nearStart } from "./helpers/near";
 
 const SEED = 12345;
 const START = startDockOf(SEED).id;
@@ -83,11 +84,11 @@ function boot(storage: StorageLike, now: number, page: PageEvents | null = null)
 /** A rich, played-looking state: credits, three ships, upgrades, paint jobs, outposts with prices, ranks, explored list. */
 function richState(): GameState {
   const outposts: string[] = [];
-  for (const system of listSystemsNear(SEED, { x: 0, y: 0, z: 0 }, 40)) {
+  for (const system of nearStart(SEED, 60)) {
     for (const dock of docksOf(SEED, system)) if (dock.kind === "OUTPOST" && outposts.length < 2) outposts.push(dock.id);
   }
   const explored: Record<string, number> = {};
-  for (const s of listSystemsNear(SEED, { x: 0, y: 0, z: 0 }, 30).slice(0, 25)) explored[s.id] = 0b111;
+  for (const s of nearStart(SEED, 40).slice(0, 25)) explored[s.id] = 0b111;
   return normalizeState({
     ...newGameState(START),
     credits: 54_321,
