@@ -56,7 +56,7 @@ Codes depend only on the number. Disc numbers (and so every old code) are unchan
 
 ## 10. Risks
 - Disc and bulge systems are placed independently, so a bulge system can land very close to a disc system (rare, like the existing "twins").
-- Zone borders: a bulge system whose twin/odd position falls outside its zone is dropped (about 1 % of odd systems at zone borders). Deterministic, harmless.
+- Zone borders: a bulge system whose twin/odd position falls outside its zone is dropped (only odd systems, 3 % of all, and only those at zone borders; not measured). Deterministic, harmless.
 - The centre is about 1.7 times denser than before; per-system work near the centre (lists of thousands of systems) costs more.
 
 ## 11. Suggestions (labelled, not built)
