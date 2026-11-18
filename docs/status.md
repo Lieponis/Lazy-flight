@@ -351,3 +351,7 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 
 ## Safe copy before the big merge (Lead 2026-11-18)
 - Branch `backup-before-galaxy` points to main commit 2f7b995 (the last main with universe v2). A tag and a GitHub Release could not be created from this session (blocked); the branch is the safe copy. Roll back: on main run `git revert -m 1 <merge commit>` (keeps history) and push; "Build and publish" then publishes the old game again. Saves migrated to v3 are not understood by the old game: use Andy's exported save file (SAVE FILE menu) after a rollback.
+
+## BIG MERGE DONE: universe-v3 merged into main (Lead 2026-11-18)
+- Merge commit message "Merge universe-v3: the spiral galaxy ...". Preview step and cron removed from deploy.yml, preview-refresh.yml deleted. Preview code (VITE_PREVIEW) stays, harmless without the flag. Old version safe on branch `backup-before-galaxy`.
+- Next: watch "Build and publish" (runs the tests, then publishes); Andy does the 5-step phone checklist (docs/report-agent-6h.md "Andy's phone checklist"); then open items: first-ship pacing decided (prices x2.94, Scout 3,528, Liner 7,350), no-ship player hint (Andy undecided), faint backdrop on docked/flight screens, diamond legend, name-shortening merge, QA leftovers (320 px width cut, npm audit), late long-range ship (suggestion).
