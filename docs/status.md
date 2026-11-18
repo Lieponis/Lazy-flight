@@ -356,3 +356,8 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Merge commit message "Merge universe-v3: the spiral galaxy ...". Preview step and cron removed from deploy.yml, preview-refresh.yml deleted. Preview code (VITE_PREVIEW) stays, harmless without the flag. Old version safe on branch `backup-before-galaxy`.
 - Next: watch "Build and publish" (runs the tests, then publishes); Andy does the 5-step phone checklist (docs/report-agent-6h.md "Andy's phone checklist"); then open items: first-ship pacing decided (prices x2.94, Scout 3,528, Liner 7,350), no-ship player hint (Andy undecided), faint backdrop on docked/flight screens, diamond legend, name-shortening merge, QA leftovers (320 px width cut, npm audit), late long-range ship (suggestion).
 - Andy 2026-11-18 13:06: phone checklist after the merge "All ok" (installed app updated, universe rebuilt note, credits and ships kept, offline relaunch). UNIVERSE v3 / BIG CHANGE COMPLETE and live. Backup branch backup-before-galaxy stays.
+
+## After the merge: next small tasks (Andy agreed the order, 2026-11-18)
+- Order: (1) empty-board hint for no-seat players, (2) faint backdrop on docked and flight, (3) legend under the map, (4) small QA leftovers, (5) late long-range ship (needs Andy's design decision).
+- Briefs: docs/briefs/agent-5j-brief.md (items 1 and 3, Agent 5), docs/briefs/agent-3m-brief.md (item 2, Agent 3). Item 4 and 5 later.
+- Andy asked: Agent 8 draws rough 2D sketches of 9 future ships (3 cargo, 3 passenger, 3 explorer), inspiration only, nothing in the game: docs/briefs/agent-8-sketches-brief.md (files only in docs/concepts/ship-sketches/). The "max 3 ships" rule is untouched.
