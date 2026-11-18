@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SPACING_LY, ZOOM_BALL_FACTOR, nearStarsFromList, nearestLineText, starsWithin, type MapStarList } from "../src/render/galaxy/mapdata";
 import { DIAMOND_MAX_SPACING_SHARE, DIAMOND_MIN_SIZE, MAX_ZOOM_SHARE, diamondSize, zoomOutLimit } from "../src/render/galaxy/previewmath";
+import { mapStatsText, type MapStatsInput } from "../src/render/mapstats";
 import { makeMapSource } from "../src/mapsource";
 import { WORLD_SEED, START_POINT, getSystem, spacingAt, startSystem, DISC_RADIUS, armFactor, densityAt } from "../src/universe";
 import { ARM_FADE_FROM, ARM_FADE_TO, ARM_STRENGTH } from "../src/universe/galaxy/params";
@@ -273,6 +274,13 @@ describe("the real map data (universe v3, world seed)", () => {
       expect(sizeAt(place, 1)).toBe(diamondSize(1));
       expect(sizeAt(place, 3)).toBe(diamondSize(3));
     }
+  });
+
+  it("the ?mapstats=1 block shows the diamond width (so a screenshot proves which build it came from), and still works without it", () => {
+    const base: MapStatsInput = { stars: 60000, diamonds: 5000, tappable: 10000, radiusLy: 45, zoomLimitLy: 12, lookupMs: 100, sky: null, skyProgress: null, frameMs: 16.6, jsMs: 0, drawCalls: 5, triangles: 40012 };
+    expect(mapStatsText({ ...base, diamondLy: 0.1803 })).toContain("diamonds 5,000  diamond 0.18 ly wide  tappable 10,000");
+    expect(mapStatsText(base).includes("ly wide")).toBe(false);
+    expect(mapStatsText(base)).toContain("diamonds 5,000  tappable 10,000");
   });
 
   it("a diamond never gets smaller than the minimum, never bigger than the plain size, and never grows when the stars get closer", () => {

@@ -18,6 +18,7 @@ import {
   MIN_TAP_VISIBILITY,
   MIN_ZOOM_LY,
   ROOM_AROUND_TARGET_LY,
+  diamondSize,
   maxOrbitDistance,
   tapVisibility,
   zoomOutLimit,
@@ -394,7 +395,7 @@ export class StarMapScreen implements Screen {
   }
 
   /** What the map holds now, for the developer counters and the report. */
-  stats(): { stars: number; diamonds: number; tappable: number; buildMs: number; zoomLimitLy: number; radiusLy: number; sky: SkyStats | null } {
+  stats(): { stars: number; diamonds: number; tappable: number; buildMs: number; zoomLimitLy: number; radiusLy: number; diamondLy: number; sky: SkyStats | null } {
     const near = this.near;
     return {
       stars: near?.count ?? 0,
@@ -403,6 +404,7 @@ export class StarMapScreen implements Screen {
       buildMs: this.lastBuildMs,
       zoomLimitLy: near ? this.zoomLimit(near) : 0,
       radiusLy: near?.radius ?? 0,
+      diamondLy: diamondSize(1, near?.spacingLy),
       sky: this.skyStats,
     };
   }
@@ -428,6 +430,7 @@ export class StarMapScreen implements Screen {
       tappable: st.tappable,
       radiusLy: st.radiusLy,
       zoomLimitLy: st.zoomLimitLy,
+      diamondLy: st.diamondLy,
       lookupMs: st.buildMs,
       sky: st.sky,
       skyProgress: this.skyField ? progress : null,

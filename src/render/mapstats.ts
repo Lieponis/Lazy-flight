@@ -14,6 +14,8 @@ export interface MapStatsInput {
   tappable: number;
   radiusLy: number;
   zoomLimitLy: number;
+  /** Width in light years of the diamond of an ordinary star (size class 1) here; shown so a screenshot proves which build it came from. */
+  diamondLy?: number;
   /** Milliseconds the last star lookup and set-up took (once per move). */
   lookupMs: number;
   /** The last finished sky build (null = none yet), and whether one is being built now (0..1 progress, or null). */
@@ -32,8 +34,9 @@ function n(value: number): string {
 
 /** The text block. Pure, so it can be tested. */
 export function mapStatsText(s: MapStatsInput): string {
+  const diamondPart = s.diamondLy !== undefined ? `  diamond ${s.diamondLy.toFixed(2)} ly wide` : "";
   const lines = [
-    `MAP  stars ${n(s.stars)}  diamonds ${n(s.diamonds)}  tappable ${n(s.tappable)}  bubble ${n(s.radiusLy)} ly  zoom-out limit ${n(s.zoomLimitLy)} ly`,
+    `MAP  stars ${n(s.stars)}  diamonds ${n(s.diamonds)}${diamondPart}  tappable ${n(s.tappable)}  bubble ${n(s.radiusLy)} ly  zoom-out limit ${n(s.zoomLimitLy)} ly`,
     `STAR LOOKUP ${s.lookupMs.toFixed(0)} ms (once per move)`,
   ];
   if (s.skyProgress !== null) lines.push(`SKY building ${Math.round(s.skyProgress * 100)}%`);
