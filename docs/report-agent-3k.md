@@ -89,6 +89,7 @@ Everything fits (`fits: true`, no row wider than the picture, code whole, never 
 4. **No central bulge in the sky** (the universe has none). Kept the parts the universe does not have (cloud lumpiness, dust lanes, young blue stars in the arms) as in G2, with the arm numbers copied into render and **guarded by a test against the real `armFactor`** (if Agent 2 ever changes them, the test fails).
 5. **`?mapat=`** was added because the real game cannot teleport and Andy's check needs the centre and the rim.
 6. **The preview never registers the offline helper** (section 7).
+7. **Smaller diamonds in a crowd** (Andy, after seeing the dense centre: "reduce the size of the diamonds near the centre, as it is covering everything"). A diamond is now at most **a tenth of the typical gap between neighbouring stars** (`DIAMOND_MAX_SPACING_SHARE` 0.1, floor `DIAMOND_MIN_SIZE` 0.08 ly, both in `previewmath.ts`; the gap comes from the universe's `spacingAt` through the map list). At the centre (gap 1.8 ly) a diamond is about **0.18 ly instead of 0.5 to 0.9 ly** (3 to 5 times smaller). Start (gap 8 ly): normal stars unchanged, only the very biggest stars' diamonds are about 8% smaller. Middle and rim: unchanged. The G2 preview page passes no gap, so it is unchanged. If it is still too big or too small: change the 0.1.
 
 ## 7. Preview isolation (the Lead's extra step)
 
@@ -111,8 +112,8 @@ Everything fits (`fits: true`, no row wider than the picture, code whole, never 
 
 ## 10. Test status
 
-- Real CI on `universe-v3` (last run at commit `9b8051d`): **Check a branch: green** (`tsc --noEmit`, build, 51 files, 1,125 tests); **Check the game layer: green**.
-- New or changed test files: `galaxymap` (34 checks: pure helpers, the real universe at the four places, arm numbers guarded, thin-disc sky cells), `starmapradius` (6), `starfield` (10), `backdrop` (5, real three.js), `previewstorage` (16), `namefit` (v3 names), and the early render fixes (`earthlike`, `floatpick`, `planetlook`, `title`).
+- Real CI on `universe-v3` (last run at commit `1dcf237`): **Check a branch: green** (`tsc --noEmit`, build, 51 files, 1,125 tests); **Check the game layer: green**.
+- New or changed test files: `galaxymap` (36 checks: pure helpers, the real universe at the four places, arm numbers guarded, thin-disc sky cells, diamond size in a crowd), `starmapradius` (6), `starfield` (10), `backdrop` (5, real three.js), `previewstorage` (16), `namefit` (v3 names), and the early render fixes (`earthlike`, `floatpick`, `planetlook`, `title`).
 - Run offline by me: a stand-in type check (only known stand-in noise: no `three` types, no `import.meta.env`) and the pure tests in a stand-in runner. CI is the real proof.
 
 ## 11. Known issues
