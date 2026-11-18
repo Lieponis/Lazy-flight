@@ -14,7 +14,8 @@ import { cameraFov, renderSizeFor, resolveRenderSeed } from "./helpers";
 import { parseShipParam, resolveShipId } from "./integration";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
 import type { Screen } from "./screen";
-import { LOOK_DEFAULT_STYLE, START_SEED, SYSTEM_MARK_STYLE, WARP_DEFAULT_STYLE } from "./settings";
+import { LOOK_DEFAULT_STYLE, START_SEED, SYSTEM_MARK_STYLE, SYSTEM_SKY_IDLE_MS, WARP_DEFAULT_STYLE } from "./settings";
+import { makeSystemSkyLayer } from "./systemsky";
 import { findStartSystem } from "./start";
 import { StateStore } from "./state";
 import { DockedScreen } from "./docked";
@@ -127,10 +128,14 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
   });
   // The dock the ship is parked at (the first one shown). Navigation buttons live in src/ui (Agent 5).
   let lastDockId = getDocksOfSystem(seed, current.id)[0]?.id ?? "";
+  // The faint galaxy sky behind the docked and flight screens: one layer for both (they are never shown together), built once for the
+  // system the ship is in or heading for and reused. The system view has its own (prepared ahead for the star picked on the map).
+  const stageSky = mapSource?.sky ? makeSystemSkyLayer(mapSource.sky) : null;
   const docked = new DockedScreen({
     seed,
     host: canvas,
     hud,
+    skyLayer: stageSky,
   });
   const systemView = new SystemViewScreen({
     seed,
@@ -153,7 +158,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     systemView.prepareSky(want);
   });
 
-  const flight = new FlightScreen({ seed, host: canvas, hud, parent });
+  const flight = new FlightScreen({ seed, host: canvas, hud, parent, skyLayer: stageSky });
   docked.setShip(shipId);
   flight.setShip(shipId);
 
@@ -361,6 +366,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     last = now;
     if (active !== systemView) systemView.warmSky(); // the system view's sky is prepared in the background while other screens show
     if (active !== starmap) starmap.warmSky(); // and the map's sky the same way, so it is already there when the map opens
+    if (active !== docked && active !== flight) stageSky?.warm(SYSTEM_SKY_IDLE_MS); // finish a sky the docked or flight screen asked for
     if (active) {
       active.update(seconds);
       const screen = active;

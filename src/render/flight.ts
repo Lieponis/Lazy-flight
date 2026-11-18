@@ -33,6 +33,8 @@ import { SCENERY_TIME_FACTOR, arriveEase, arrivePose, departPose, floatDrift, sh
 import { chooseLook } from "./planetlook";
 import type { Hud } from "./hud";
 import type { Screen } from "./screen";
+import type { SkyLayer } from "./galaxy/skylayer";
+import { renderWithSky } from "./systemsky";
 import type { AssetModel } from "./assets";
 import {
   FALLBACK_SHIP_ID,
@@ -169,6 +171,8 @@ export interface FlightScreenOptions {
   host: HTMLElement; // the canvas (not used for input: you only watch)
   hud: Hud;
   parent: HTMLElement;
+  /** The faint galaxy sky behind the ship (shared with the docked screen, see systemsky.ts). Left out or null: the screen looks as before. */
+  skyLayer?: SkyLayer | null;
 }
 
 export class FlightScreen implements Screen {
@@ -209,6 +213,9 @@ export class FlightScreen implements Screen {
   private floatStyle: FloatStyle = parseFloatStyle(window.location.search) ?? FLOAT_DEFAULT_STYLE;
   /** The plain background dots; each system has its own pattern (set when a flight or a float begins). */
   private readonly backdrop = makeBackdrop(STARFIELD_COUNT, 450);
+  /** The faint galaxy sky behind everything, and where the flight's sky system is (so enter() can point the shared sky at it again). */
+  private readonly sky: SkyLayer | null;
+  private skyAt: Vec3 | null = null;
 
   private flash = document.createElement("div");
   private hudRoot = document.createElement("div");
@@ -218,6 +225,7 @@ export class FlightScreen implements Screen {
   private modeButton = document.createElement("button");
 
   constructor(private opts: FlightScreenOptions) {
+    this.sky = opts.skyLayer ?? null;
     this.scene.add(this.backdrop);
     this.screens.onFontLoaded = () => (this.hudTimer = 0); // redraw with the pixel font as soon as it is there
     this.cockpitRig.add(this.cockpitModel.group);
@@ -273,7 +281,9 @@ export class FlightScreen implements Screen {
     this.free = false;
     this.info = info;
     // One sky for the whole flight: the system the ship is heading for (it is also the sky it floats under after arriving).
-    reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, parseDockId(info.destinationDockId)?.systemId ?? null);
+    const skySystem = parseDockId(info.destinationDockId)?.systemId ?? null;
+    reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, skySystem);
+    this.pointSkyAt(skySystem);
     this.finishing = null;
     this.lastPlan = null;
     this.clockT = 0;
@@ -296,6 +306,7 @@ export class FlightScreen implements Screen {
     if (!planet) return false;
     this.flightCounter++;
     reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, planet.systemId);
+    this.pointSkyAt(planet.systemId);
     this.clearBodies();
     this.resetLook();
     this.finishing = null;
@@ -426,6 +437,7 @@ export class FlightScreen implements Screen {
   }
 
   enter(): void {
+    if (this.skyAt) this.sky?.setPosition(this.skyAt);
     const el = this.opts.host;
     el.addEventListener("pointerdown", this.onDown);
     el.addEventListener("pointermove", this.onMove);
@@ -459,6 +471,7 @@ export class FlightScreen implements Screen {
     if (!this.info) return;
     this.clockT += seconds;
     this.dt = seconds;
+    this.sky?.update(seconds, this.camera);
     this.glideHome(seconds);
     this.lastFrameMs = performance.now();
 
@@ -721,10 +734,29 @@ export class FlightScreen implements Screen {
   render(renderer: THREE.WebGLRenderer): void {
     if (renderPathFor(this.mode) === "lens") {
       this.lens ??= new CockpitLens(renderer);
-      this.lens.render(this.scene, this.camera, this.cockpitFov(), COCKPIT_LENS);
+      const sky = this.sky;
+      this.lens.render(
+        this.scene,
+        this.camera,
+        this.cockpitFov(),
+        COCKPIT_LENS,
+        sky && sky.visible
+          ? (r, wide) => {
+              sky.view.follow(wide); // the sky is seen by the lens's own wide camera
+              sky.draw(r);
+            }
+          : undefined,
+      );
     } else {
-      renderer.render(this.scene, this.camera);
+      renderWithSky(renderer, this.sky, this.scene, this.camera);
     }
+  }
+
+  /** The faint galaxy sky is the one seen from this system (the flight's sky system, the same one the backdrop dots use). */
+  private pointSkyAt(systemId: number | null): void {
+    const system = systemId === null ? null : getSystem(this.opts.seed, systemId);
+    this.skyAt = system ? system.position : null;
+    if (this.skyAt) this.sky?.setPosition(this.skyAt);
   }
 
   /** Which warp look is shown (A, B or C). Used by the warp preview to compare them. */

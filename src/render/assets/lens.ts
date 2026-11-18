@@ -69,9 +69,16 @@ export class CockpitLens {
   /**
    * Draws `scene` as seen by `camera` (its position and direction are used; its own field of view is not) through the
    * lens, at the renderer's current size. `fov` = side to side in degrees on a wide screen (top to bottom on a tall
-   * one); `strength` 0..1.
+   * one); `strength` 0..1. `before` (optional) draws something behind the scene into the hidden picture, seen by the same wide camera
+   * (the faint galaxy sky); without it the picture is exactly as before.
    */
-  render(scene: THREE.Scene, camera: THREE.PerspectiveCamera, fov = COCKPIT_FOV, strength = COCKPIT_LENS): void {
+  render(
+    scene: THREE.Scene,
+    camera: THREE.PerspectiveCamera,
+    fov = COCKPIT_FOV,
+    strength = COCKPIT_LENS,
+    before?: (renderer: THREE.WebGLRenderer, wide: THREE.PerspectiveCamera) => void,
+  ): void {
     const size = this.renderer.getSize(new THREE.Vector2());
     const aspect = size.x / Math.max(1, size.y);
     const d = Math.max(0, Math.min(1, strength));
@@ -111,7 +118,16 @@ export class CockpitLens {
     this.wide.aspect = tx / ty;
     this.wide.updateProjectionMatrix();
     this.renderer.setRenderTarget(this.target);
-    this.renderer.render(scene, this.wide);
+    if (before) {
+      const autoClear = this.renderer.autoClear;
+      this.renderer.autoClear = false;
+      this.renderer.clear();
+      before(this.renderer, this.wide);
+      this.renderer.render(scene, this.wide);
+      this.renderer.autoClear = autoClear;
+    } else {
+      this.renderer.render(scene, this.wide);
+    }
     this.renderer.setRenderTarget(null);
     this.material.uniforms.extent!.value.set(ex, ey);
     this.material.uniforms.tanHalf!.value.set(tx, ty);

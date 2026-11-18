@@ -20,15 +20,15 @@ import {
 import type { AssetModel } from "./assets";
 import { makeBackdrop, reseedBackdrop } from "./backdrop";
 import type { Hud } from "./hud";
-import { SkyLayer } from "./galaxy/skylayer";
+import type { SkyLayer } from "./galaxy/skylayer";
 import type { SkyFunctions } from "./galaxy/universefield";
 import { OrbitView } from "./input";
 import { buildDockModel } from "./models3d";
 import { fitDistance, focusDistance, orbitRadii, planetDetail, planetFootprint, stationOrbitFor, systemSummary } from "./systemlayout";
 import { markParts, type MarkStyle } from "./systemmarks";
 import type { Screen } from "./screen";
+import { makeSystemSkyLayer, renderWithSky } from "./systemsky";
 import {
-  MAP_SKY_GLOW,
   STARFIELD_COUNT,
   SYSTEM_LANE_DOCK,
   SYSTEM_LANE_OLD,
@@ -38,13 +38,7 @@ import {
   SYSTEM_OUTPOST_SCALE,
   SYSTEM_OUTPOST_SCALE_MAX,
   SYSTEM_OUTPOST_SCALE_MIN,
-  SYSTEM_SKY_BUDGET_MS,
-  SYSTEM_SKY_DOTS,
-  SYSTEM_SKY_FAINT,
   SYSTEM_SKY_IDLE_MS,
-  SYSTEM_SKY_NEAR_SPACINGS,
-  SYSTEM_SKY_SIZE,
-  SYSTEM_SKY_STEPS,
   SYSTEM_STATION_SCALE,
   TAP_RADIUS_PX,
 } from "./settings";
@@ -247,17 +241,7 @@ export class SystemViewScreen implements Screen {
   private readonly sky: SkyLayer | null;
 
   constructor(private opts: SystemViewOptions) {
-    this.sky = opts.sky
-      ? new SkyLayer(opts.sky, {
-          faint: SYSTEM_SKY_FAINT,
-          glow: MAP_SKY_GLOW,
-          dots: SYSTEM_SKY_DOTS,
-          faceSize: SYSTEM_SKY_SIZE,
-          steps: SYSTEM_SKY_STEPS,
-          nearSpacings: SYSTEM_SKY_NEAR_SPACINGS,
-          budgetMs: SYSTEM_SKY_BUDGET_MS,
-        })
-      : null;
+    this.sky = opts.sky ? makeSystemSkyLayer(opts.sky) : null;
     this.scene.add(this.backdrop);
     this.scene.add(this.content);
 
@@ -440,17 +424,7 @@ export class SystemViewScreen implements Screen {
 
   /** Draws the faint galaxy sky first (it only turns with the camera), then the system over it. Without a sky: the plain way. */
   render(renderer: THREE.WebGLRenderer): void {
-    const sky = this.sky;
-    if (!sky || !sky.visible) {
-      renderer.render(this.scene, this.camera);
-      return;
-    }
-    const autoClear = renderer.autoClear;
-    renderer.autoClear = false;
-    renderer.clear();
-    sky.draw(renderer);
-    renderer.render(this.scene, this.camera);
-    renderer.autoClear = autoClear;
+    renderWithSky(renderer, this.sky, this.scene, this.camera);
   }
 
   private countTriangles(): number {

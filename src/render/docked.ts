@@ -38,6 +38,9 @@ import {
 import { buildDockModel, buildShipModel, parkAtOrigin, shipRadius, type DockModel } from "./models3d";
 import type { AssetModel } from "./assets";
 import type { Screen } from "./screen";
+import type { SkyLayer } from "./galaxy/skylayer";
+import type { Vec3 } from "./galaxy/skyglow";
+import { renderWithSky } from "./systemsky";
 import {
   DOCKED_ANGLE_MAX_DEG,
   DOCKED_ANGLE_MIN_DEG,
@@ -77,6 +80,11 @@ export interface DockedOptions {
   seed: Seed;
   host: HTMLElement; // the canvas (drag and zoom listen here)
   hud: Hud;
+  /**
+   * The faint galaxy sky behind the ship (the same layer type and settings as the system view's, see systemsky.ts). The docked and flight
+   * screens share one. Left out or null: the screen looks exactly as before.
+   */
+  skyLayer?: SkyLayer | null;
 }
 
 /** Drag to turn, scroll or pinch to zoom. Between touches the camera drifts slowly by itself (outposts only). */
@@ -181,8 +189,12 @@ export class DockedScreen implements Screen {
   private tmp = new THREE.Vector3();
   /** The plain background dots; each system has its own pattern (set in open()). */
   private readonly backdrop = makeBackdrop(STARFIELD_COUNT, 450);
+  /** The faint galaxy sky behind everything, and where this dock's system is (so enter() can point the shared sky at it again). */
+  private readonly sky: SkyLayer | null;
+  private skyAt: Vec3 | null = null;
 
   constructor(private opts: DockedOptions) {
+    this.sky = opts.skyLayer ?? null;
     this.scene.add(this.backdrop);
     this.scene.add(this.content);
     this.controls = new DockedControls(opts.host);
@@ -205,6 +217,8 @@ export class DockedScreen implements Screen {
     if (!planet || !dock) return false;
     const system = getSystem(seed, planet.systemId);
     reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, planet.systemId);
+    this.skyAt = system ? system.position : null;
+    if (this.skyAt) this.sky?.setPosition(this.skyAt); // the galaxy sky as seen from this system (built only when it is another sky cell)
 
     // Throw away the previous dock completely (no memory growth).
     disposeAll(this.content);
@@ -298,6 +312,7 @@ export class DockedScreen implements Screen {
   }
 
   enter(): void {
+    if (this.skyAt) this.sky?.setPosition(this.skyAt);
     this.controls.attach();
     this.opts.hud.setTitle(this.titleText);
     this.opts.hud.setLabel(this.labelText);
@@ -311,6 +326,7 @@ export class DockedScreen implements Screen {
   update(seconds: number): void {
     this.clockT += seconds;
     this.controls.update(seconds);
+    this.sky?.update(seconds, this.camera);
     this.ship?.update(this.clockT);
     this.dock?.model.update(this.clockT);
 
@@ -334,5 +350,10 @@ export class DockedScreen implements Screen {
     }
     this.appliedFov = camera.fov;
     this.camera.updateMatrixWorld();
+  }
+
+  /** Draws the faint galaxy sky first, then the dock and the ship over it (no sky: the plain picture). */
+  render(renderer: THREE.WebGLRenderer): void {
+    renderWithSky(renderer, this.sky, this.scene, this.camera);
   }
 }
