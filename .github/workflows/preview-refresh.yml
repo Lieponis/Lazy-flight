@@ -1,0 +1,23 @@
+name: Refresh the preview
+
+# Lead, 2026-11-18. The branch preview (/Lazy-flight/preview/) is built by "Build and publish". Its twice-an-hour timer is not reliable,
+# so every time the check "Check the game layer (universe-v3 only)" finishes on branch universe-v3, this starts "Build and publish" on main.
+# Workflow-run files are always read from main, which is why this file lives here. It changes nothing else.
+on:
+  workflow_run:
+    workflows: ["Check the game layer (universe-v3 only)"]
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  refresh:
+    if: github.event.workflow_run.head_branch == 'universe-v3'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start Build and publish on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --repo "${{ github.repository }}" --ref main

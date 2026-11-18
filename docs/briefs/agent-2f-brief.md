@@ -1,0 +1,29 @@
+# Agent 2 brief, stage G7: a central bulge for the galaxy (Andy: "Yes, add a bulge")
+
+You are Agent 2 (Universe Generator). The galaxy is built on branch `universe-v3` (never main). Andy looked at the sky and map and wants a real **central bulge**: today the galaxy is a flat disc with the centre only 2,000 ly thick, so the sky from the middle of the disc is a thin band. Real spiral galaxies have a thick, round, bright bulge in the middle, and the sky from inside the disc shows it. Work on branch `universe-v3`, current head. Nothing merges into main in this stage. One step at a time with Andy (Step N of M / DO (max 3 actions) / LOOK FOR / REPLY WITH). Visual choices: options A/B/C with pictures and "matches / does not match". Explain technical words in one sentence. Combat never. Report: docs/report-agent-2f.md.
+
+## Read first
+docs/WHERE-TO-LOOK.md, docs/status.md, docs/report-agent-2d.md and docs/report-agent-2e.md (galaxy scheme, cells, ids, numbers), src/universe/galaxy/ (params, density, cells, tests), docs/report-agent-3k.md section 3 and decision 4 (how the map's sky uses `densityAt`, `thicknessAt`, `spacingAt`, `armFactor`).
+
+## The hard rule (keeps this change small)
+**Everything outside the bulge must stay exactly as it is.** The start region and everything beyond about 8,000 ly from the centre keep the same systems, the same system numbers, codes, names, planets, docks, markets and job boards. In particular the pinned galaxy checksum of the 2,000 nearest systems at the start (`d0019075`), the start system "Bimvik Deep JR62R-MT37" (number 44776692551), its dock `44776692551/2` and the universe fingerprints for the START region must NOT change (re-pin only the fingerprints that include centre systems, and say which). Only systems near the centre may appear, disappear or move. If this cannot be kept, STOP and tell the Lead with the reason and options before building.
+
+Suggested way (you may propose a better one): the bulge is an extra density component that falls to zero by a fixed radius (for example about 6,000 ly); the existing cells and ids stay as they are, and the extra bulge volume (the stars above and below the old disc thickness) gets its OWN cell family numbered AFTER the existing numbers, so no old number moves. Inside the old disc volume near the centre the bulge raises the density (so some more systems exist there; with the jittered-slot method a higher density only turns more slots on; say clearly if old systems in those cells can change or vanish and how you handle it).
+
+## Goal
+1. A bulge component in `densityAt` (and `thicknessAt` / `spacingAt` as needed): a thick, roughly round (a little flattened) mass of stars in the middle, much denser in the core, fading smoothly to nothing. Keep the centre spacing about 1.8 ly (do not make the middle emptier). Total systems should stay in the same range (17 to 22 billion); report the new total (by integration and by sampling).
+2. Three bulge sizes as options, shown to Andy as pictures on `/galaxy-debug.html` (side view with the height stretched less than today, and the sky from five places, including from the middle of the disc and from 10,000 ly out): A small (radius about 2,000 ly), B medium (about 3,500 ly), C large (about 5,500 ly). Andy chooses; build the chosen one into the constants (`galaxy/params.ts`).
+3. Sky: `lineIntegralDensity` already uses the density, so the sky from the start should show a brighter patch toward the centre of the galaxy and, from near the middle, a glow all around. Check that this is visible in your sky pictures; Agent 3 will check the real map after you.
+4. Queries stay correct: `nearestSystems`, `systemsWithin`, `findSystemById`, cells, counts, ids round trip, name codes (the code alphabet and lengths: report any change in code length distribution; codes for the old numbers must not change), pure-name owners, `NearCache`. A runaway query at the dense centre still stops with `TooManyCellsError`. Report the density at the very centre and the number of systems within 80 ly of the centre (today 363,000) and the speed of nearest 10,000 at the centre, start, middle, rim.
+5. Tests: update only what the bulge truly changes (centre numbers, expected totals, cell counts); every old test about the start region must pass UNCHANGED. New tests: nothing outside the bulge radius changed (compare a large sample of systems before and after, using the saved numbers from the commit before this work), ids and names unchanged beyond the bulge radius, no id repeated, the bulge cells' boundaries (no gaps, no overlaps, no double counting), determinism, bulge shape (density at the core, at the edge, above the plane).
+
+## Allowed / not allowed
+Allowed: `src/universe/galaxy` and its tests, `src/galaxy-debug.ts` / `galaxy-debug.html` (pictures), `tests/galaxy2*` and `tests/universe*` only where the centre numbers are pinned, docs. Not allowed: `src/game`, `src/save`, `src/render`, `src/ui`, anything that changes the start region, existing workflows. If the render side needs a change (for example the map copy of arm numbers or the sky cell shape in `src/render`), do not touch it: list it for Agent 3.
+
+## Andy checks
+1. Pictures of A / B / C on `/galaxy-debug.html` (the preview at https://lieponis.github.io/Lazy-flight/preview/galaxy-debug.html rebuilds itself within minutes after your push): choose one.
+2. The checksum banner is still green with `d0019075`; the start system name is unchanged.
+3. The sky picture from the middle of the disc shows the bulge.
+
+## Report must contain
+What was built; the three options with numbers; the chosen constants; what changed and what is proven unchanged (with the comparison numbers); new totals, centre density, speed table; code length facts; the list for Agent 3 (render) and Agent 6 (QA); risks; suggestions labelled "suggestion".
