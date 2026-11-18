@@ -1,6 +1,6 @@
 # Report: Agent 3, stage G7b (does the render layer see Agent 2's central bulge?)
 
-Branch: `universe-v3` only (nothing went to main). Code commit: `c384981` ("G7b: the sky and the map see the central bulge"). Status of this report: **v3 (was v2: added Andy's verdict). The iPhone numbers at the centre are in (Andy's screenshot of `?mapat=centre&mapstats=1`, 10:39 local on 2026-11-18, preview rebuilt after my push): sky built in 1,053 ms over 65 frames, FRAME 16.7 ms = 60 fps, STAR LOOKUP 13 ms (section 3). Andy's verdict on how the centre looks: "Its okay" (section 6). He did not say whether the two dark smudges in the system view are new.**
+Branch: `universe-v3` only (nothing went to main). Code commit: `c384981` ("G7b: the sky and the map see the central bulge"). Status of this report: **v4 (v3 added Andy's verdict; v4 adds step 2, the smaller zoom-out limit and diamonds at the centre, section 8; known issue 6 is fixed, issue 7: Andy says leave the smudges). The iPhone numbers at the centre are in (Andy's screenshot of `?mapat=centre&mapstats=1`, 10:39 local on 2026-11-18, preview rebuilt after my push): sky built in 1,053 ms over 65 frames, FRAME 16.7 ms = 60 fps, STAR LOOKUP 13 ms (section 3). Andy's verdict on how the centre looks: "Its okay" (section 6). He did not say whether the two dark smudges in the system view are new.**
 
 **What I could NOT do in my workspace:** open the page in a real browser (no WebGL, no network for the shell). Before Andy's screenshots (section 6) the sky and the map with the bulge had never been seen by me on a screen; I have now seen his two phone screenshots and nothing more. Proof so far = the real GitHub Actions runs on `c384981` (both green: "Check a branch" = `tsc --noEmit`, build, **57 test files, 1,183 tests all passed**, and "Check the game layer") plus numbers measured in plain Node on the cloud machine. Andy's check in section 6 is the real proof.
 
@@ -22,7 +22,7 @@ Brief from the Lead (via Andy): read `docs/report-agent-2f.md` sections 1, 2 and
 
 ## 2. Files touched
 
-Render layer: `src/render/galaxy/skyglow.ts` (finer steps inside the bulge), `src/render/galaxy/universefield.ts` (one constant, `UNIVERSE_BULGE_REACH_LY = 5500`, with a test that it equals Agent 2's `BULGE.radius`), `src/render/galaxy/skylayer.ts` and `src/render/starmap.ts` (pass the setting). Glue: `src/mapsource.ts` (`localSpacing`). Nothing in `src/universe`, `src/game` or `src/ui` was touched. New tests: `tests/skybulge.test.ts` (6) and `tests/mapcentre.test.ts` (8).
+Render layer: `src/render/galaxy/skyglow.ts` (finer steps inside the bulge), `src/render/galaxy/universefield.ts` (one constant, `UNIVERSE_BULGE_REACH_LY = 5500`, with a test that it equals Agent 2's `BULGE.radius`), `src/render/galaxy/skylayer.ts` and `src/render/starmap.ts` (pass the setting). Glue: `src/mapsource.ts` (`localSpacing`; step 2 changed it again and added one import, `discDensityAt` from `./universe/galaxy`, which the glue file `src/galaxy-debug.ts` already imports from). Nothing in `src/universe`, `src/game` or `src/ui` was touched. New tests: `tests/skybulge.test.ts` (6) and `tests/mapcentre.test.ts` (8, then 10 after step 2); `tests/galaxymap.test.ts` was updated in step 2 (it had the old centre numbers).
 
 ## 3. Numbers (cloud machine, plain Node, real universe; NOT a phone)
 
@@ -70,8 +70,8 @@ In Node the same build is about 500 ms of work (505 ms above).
 3. The system sky's "near radius" (the distance under which the sky is not drawn so single stars do not double) still uses the disc spacing for off-plane bulge systems. Cosmetic only, not changed. *Suggestion (unbuilt):* use `localSpacing` there too.
 4. Known issue 7 from G5a still stands: the preview's automatic rebuild timer is unreliable; Andy may need the "Run workflow" button.
 5. **STAR LOOKUP read 13 ms on the phone**, but plain Node needs about 150 to 270 ms for the same 60,000 stars at the centre and the phone read 100 ms before the bulge. I think the stat caught a cached answer (the glue keeps the last two lookups), not a fresh one, but I have not confirmed that. Nothing is wrong with the map (FRAME 60 fps); it only means the 13 ms is not a trustworthy lookup time.
-6. **The map's zoom-out limit and diamond size at the centre still use the disc's star gap** (1.93 ly, so zoom-out limit 12 ly), because inside the disc's thickness `localSpacing` keeps the old number on purpose. The real gap there, from the screenshot's own numbers (60,000 stars in a 37 ly ball), is about 1.5 ly, which agrees with Agent 2's 1.48 ly. So at the centre the limit and the diamonds are about 25 % larger than the real gap suggests. Cosmetic, not changed. *Suggestion (unbuilt):* take the smaller of the disc number and the real local gap inside the disc as well (one line in `localSpacing`), but that also changes the map in the whole disc by a little, so it needs Andy's say-so.
-7. **The two dark round smudges above and below the system in the system view (screenshot 1, Bimvik Deep)** are most likely the two galactic poles, the darkest points of the sky glow. Node numbers from the start place: the glow falls smoothly from 1.0 at 30 degrees above the plane to 0.50 at the pole (lat 90), with no sharp spot, so what shows is a smooth gradient made into a round patch by the pixel look and the dither. My bulge change does not touch those directions (the bulge ball seen from the start place is only about 19 degrees in radius, around the centre direction). I do not know whether Andy has seen the smudges before; I did not change them. If he says they are new, I will look at the sky's ring layout at the poles.
+6. **FIXED in step 2 (section 8).** The map's zoom-out limit and diamond size at the centre used the disc's star gap (1.87 ly at `?mapat=centre`, so zoom-out limit 12 ly) because inside the disc's thickness `localSpacing` kept the old number on purpose. (Wording from this report's v2/v3, kept for the record:) The real gap there, from the screenshot's own numbers (60,000 stars in a 37 ly ball), is about 1.5 ly, which agrees with Agent 2's 1.48 ly. So at the centre the limit and the diamonds are about 25 % larger than the real gap suggests. Andy said yes ("make the zoom-out limit and diamonds at the centre about 25% smaller", 11:24 local). Note that "25 %" was my own wording the wrong way round: the map's number was about 25 % bigger than the real gap, which means the real gap is about 18 % smaller than the map's number. I used the real gap (18 % smaller), and told Andy.
+7. **The two dark round smudges above and below the system in the system view (screenshot 1, Bimvik Deep)** are most likely the two galactic poles, the darkest points of the sky glow. Node numbers from the start place: the glow falls smoothly from 1.0 at 30 degrees above the plane to 0.50 at the pole (lat 90), with no sharp spot, so what shows is a smooth gradient made into a round patch by the pixel look and the dither. My bulge change does not touch those directions (the bulge ball seen from the start place is only about 19 degrees in radius, around the centre direction). Andy's decision (11:24 local): **leave them, "seems more natural"**. Not changed.
 8. *Suggestion (unbuilt, Agent 2's idea):* a warmer colour for bulge stars and the glow near the centre. Not done: it needs an agreed colour rule from the universe layer.
 
 ## 6. Andy's check (one step) and what came back
@@ -86,5 +86,29 @@ What came back: two screenshots at 10:39 local (03:39 UTC), no comment.
 ## 7. Hand-off for the Lead
 
 - Nothing outside `src/render`, `src/mapsource.ts` (glue), `tests` and `docs` was touched. Nothing went to main.
-- Andy's verdict on the centre: "Its okay". Nothing to tune.
-- Open items: whether the two pole smudges (known issue 7) are new to Andy (he did not say); known issues 5 to 7 and the suggestions in section 5 (all unbuilt).
+- Andy's verdict on the centre: "Its okay". Step 2 done on his request (section 8). Smudges: leave them.
+- Open items: Andy's look at the smaller diamonds on the phone (section 8); known issues 3 and 5 and the colour suggestion (unbuilt).
+
+## 8. Step 2 (Andy, 11:24 local): smaller zoom-out limit and diamonds at the centre
+
+**Request:** "make the zoom-out limit and diamonds at the centre about 25% smaller. Smudges: leave them. Do (1) as one small step, then stop."
+
+**What changed** (`src/mapsource.ts`, `localSpacing`, plus tests): the map's star gap is now the real local gap wherever the bulge is a big part of the density. The change fades in with the bulge's share of the density (full at 30 % share or more) and is **exactly zero beyond the bulge's reach**. Measured in the plane (Node):
+
+| Distance from the centre | Old gap | New gap | New / old |
+|---|---|---|---|
+| 0 ly (exact centre) | 1.800 ly | 1.480 ly | 0.822 |
+| 400 ly (`?mapat=centre`) | 1.866 ly | 1.532 ly | 0.821 |
+| 800 ly | 1.934 ly | 1.624 ly | 0.840 |
+| 1,500 ly | 2.059 ly | 1.824 ly | 0.886 |
+| 3,000 ly and farther (start place, middle, rim) | unchanged | unchanged, **exactly equal** | 1.000 |
+
+So at `?mapat=centre` the zoom-out limit goes from **11.6 ly (shown as 12) to 9.5 ly**, and the diamonds from **0.19 ly to 0.15 ly wide**: about **18 % smaller**, not 25 %. I used the real gap (the number the star count in the 37 ly ball gives) on purpose: 25 % would have made the diamonds smaller than the real gap warrants. If Andy still wants 25 %, it is a single number (`BULGE_FULL_SHARE` is not it; a plain factor on the centre value would be).
+
+**Also changed:** the height rule (stars far above or below the plane) now blends between the disc's number and the real gap over the band from half the disc's thickness to the full thickness. Before, the number jumped by about 45 % at exactly half the thickness (about 990 ly above the plane near the centre). The new tests check the step per 20 ly of height stays under 5 %.
+
+**Tests** (`tests/mapcentre.test.ts` 10, `tests/galaxymap.test.ts` 37, both pass): exactly the disc's number at 300 random points beyond 5,600 ly from the centre and at the start place, middle, rim and 10,000 ly out (any angle, at the plane and at half the thickness); between 0.80 and 1.00 of the disc's number at 300 random points inside the bulge's plane; 0.80 to 0.84 at the centre; no jump with height. In `galaxymap.test.ts` three expectations that had the old centre numbers (spacing 1.8, zoom-out limit 10 to 13 ly) now have the new ones (spacing 0.79 to 0.85 of 1.8, limit 8.5 to 11 ly); the start, middle and rim expectations are untouched and still pass (the 829 ly rim limit Andy approved is unchanged).
+
+**Checks:** CI on `9e1d5a8`: "Check a branch" and "Check the game layer" both green.
+
+**Not measured on a phone yet.** The only thing the phone can show is the numbers in the stats block: at `?mapat=centre` expect "diamond 0.15 ly wide" and "zoom-out limit 10 ly" (rounded; 9.5), where the old preview said 0.19 and 12.
