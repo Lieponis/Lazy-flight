@@ -51,6 +51,9 @@ import {
   explorerRowText,
   whatNowChoices,
   boardMessage,
+  noCabinCount,
+  SEATS_LINE,
+  MAP_LEGEND,
   cardReach,
   REACH_BADGES,
   paintRowText,
@@ -706,6 +709,7 @@ describe("G5b: job cards say if this ship can fly them (Andy chose A)", () => {
       title: "FUEL UP FIRST",
       text: "Every job you could fly needs more fuel than you have.",
       hint: "Tap REFUEL at the top.",
+      seats: "",
     });
     const remote = "Nothing here is within reach of this ship. The nearest dock in another system is 94.7 ly away; a full tank takes you 30 ly.";
     const far = boardMessage({ total: 6, doNow: 0, afterRefuel: 0, never: 6, message: remote }, { isRemote: true, remoteMessage: remote })!;
@@ -728,12 +732,32 @@ describe("G5b: job cards say if this ship can fly them (Andy chose A)", () => {
       const msg = boardMessage(summary, place)!;
       expect(msg.title).toBe("WAY OUT IN THE DARK");
       expect(msg.text).toContain("ly away");
-      const cards = game.getBoard().map((e) => jobCardText(e, names, 1));
+      // Jobs that are too far get the grey badge (a job inside this system can be blocked for another reason, e.g. no cabin).
+      const cards = game.getBoard().filter((e) => e.reach === "never").map((e) => jobCardText(e, names, 1));
       expect(cards.length).toBeGreaterThan(0);
       for (const c of cards) expect(c.badge).toBe("TOO FAR FOR THIS SHIP");
       checked++;
       if (checked >= 2) break;
     }
     expect(checked).toBeGreaterThan(0);
+  });
+});
+
+describe("5j: seats line and map legend (Andy chose B for both)", () => {
+  const none = { isRemote: false, remoteMessage: null };
+  it("counts only the no-cabin blocks", () => {
+    expect(noCabinCount([{ block: null }, { block: { code: "no-cabin" } }, { block: { code: "cabin-too-small" } }, { block: { code: "no-cabin" } }])).toBe(2);
+  });
+  it("adds the seats line to the box, or shows it alone when nothing else needs saying", () => {
+    expect(SEATS_LINE).toBe("Passengers are waving at you, but your ship has no seats. A cabin ship from the SHIPYARD can carry them.");
+    expect(boardMessage({ total: 6, doNow: 2, afterRefuel: 0, never: 0, message: null }, none, 3)).toEqual({ title: "PASSENGERS WAITING", text: "", hint: "", seats: SEATS_LINE });
+    expect(boardMessage({ total: 6, doNow: 2, afterRefuel: 0, never: 0, message: null }, none, 0)).toBeNull();
+    const fits = boardMessage({ total: 6, doNow: 0, afterRefuel: 0, never: 0, message: "No job here fits your ship right now (cargo, cabin, rank or tank)." }, none, 4)!;
+    expect(fits.title).toBe("NOTHING FITS YOUR SHIP");
+    expect(fits.seats).toBe(SEATS_LINE);
+  });
+  it("the map legend", () => {
+    expect(MAP_LEGEND).toBe("Diamonds: stars you can reach. Little dots: too far for now.");
+    expect(MAP_LEGEND.length).toBeLessThanOrEqual(60);
   });
 });

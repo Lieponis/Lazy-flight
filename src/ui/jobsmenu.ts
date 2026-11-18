@@ -9,6 +9,7 @@ import {
   EMPTY_BOARD_TEXT,
   emergencyVisible,
   boardMessage,
+  noCabinCount,
   formatCredits,
   jobCardText,
   outpostPanelText,
@@ -124,10 +125,13 @@ export class JobsMenu {
     const outpost = this.outpostPanel();
     if (outpost) this.list.append(outpost);
     // G5b: nothing to fly now? A friendly box says why (the game's own sentence) and what to try.
-    const msg = boardMessage(game.getBoardSummary(), game.getPlaceInfo());
+    const msg = boardMessage(game.getBoardSummary(), game.getPlaceInfo(), noCabinCount(game.getBoard()));
     if (msg) {
       const box = el("div", "ui-board-msg");
-      box.append(el("div", "ui-board-msg-title", msg.title), nameEl("div", "ui-board-msg-text", msg.text), el("div", "ui-board-msg-hint", msg.hint));
+      box.append(el("div", "ui-board-msg-title", msg.title));
+      if (msg.text) box.append(nameEl("div", "ui-board-msg-text", msg.text));
+      if (msg.seats) box.append(el("div", "ui-board-msg-seats", msg.seats)); // 5j: no seats on this ship
+      if (msg.hint) box.append(el("div", "ui-board-msg-hint", msg.hint));
       this.list.append(box);
     } else if (cards.length === 0) this.list.append(el("div", "ui-empty", EMPTY_BOARD_TEXT));
     for (const card of cards) this.list.append(this.card(card));

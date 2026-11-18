@@ -415,6 +415,24 @@
   overflow-wrap: anywhere;
 }
 
+/* 5j: the "no seats" line */
+.ui-board-msg-seats {
+  color: var(--ui-amber);
+  font-size: 18px;
+}
+
+/* 5j: the galaxy map legend, just above the map's label (placed by maplegend.ts) */
+.ui-map-legend {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 64px;
+  text-align: center;
+  color: var(--ui-dim);
+  font-size: 16px;
+  pointer-events: none;
+}
+
 .ui-board-msg-hint {
   color: var(--ui-teal);
   font-size: 18px;

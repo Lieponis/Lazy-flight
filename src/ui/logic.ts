@@ -224,6 +224,18 @@ export interface BoardMessage {
   title: string;
   text: string;
   hint: string;
+  /** 5j: the extra line when jobs need seats and this ship has none, or "". */
+  seats: string;
+}
+
+/** 5j (Andy chose B): jobs here carry passengers but the ship has no cabin. */
+export const SEATS_LINE = "Passengers are waving at you, but your ship has no seats. A cabin ship from the SHIPYARD can carry them.";
+/** 5j (Andy chose B): the galaxy map legend. */
+export const MAP_LEGEND = "Diamonds: stars you can reach. Little dots: too far for now.";
+
+/** How many board jobs are blocked only because this ship has no passenger cabin (the game's "no-cabin" block). */
+export function noCabinCount(entries: readonly { block: { code: string } | null }[]): number {
+  return entries.filter((e) => e.block?.code === "no-cabin").length;
 }
 
 export const EXPLORE_HINT = "Fly somewhere new: MAP, tap a planet, FLY HERE. New star systems pay discovery credits.";
@@ -232,10 +244,10 @@ export const EXPLORE_HINT = "Fly somewhere new: MAP, tap a planet, FLY HERE. New
  * The friendly box at the top of the job board when nothing can be flown now. The game's sentences
  * (`summary.message`, `place.remoteMessage`) are shown as they are; the UI adds a title and one hint.
  */
-export function boardMessage(
+function baseBoardMessage(
   summary: { total: number; doNow: number; afterRefuel: number; never: number; message: string | null },
   place: { isRemote: boolean; remoteMessage: string | null },
-): BoardMessage | null {
+): Omit<BoardMessage, "seats"> | null {
   if (summary.doNow > 0) return null;
   if (summary.message === null) {
     if (summary.afterRefuel === 0) return null;
@@ -248,6 +260,21 @@ export function boardMessage(
   }
   if (summary.never === summary.total) return { title: "TOO FAR FOR THIS SHIP", text: summary.message, hint: EXPLORE_HINT };
   return { title: "NOTHING FITS YOUR SHIP", text: summary.message, hint: EXPLORE_HINT };
+}
+
+/**
+ * The friendly box at the top of the job board (see baseBoardMessage). 5j: when jobs need seats and the ship has
+ * none, the seats line is added; if nothing else needs saying, the box shows just that line.
+ */
+export function boardMessage(
+  summary: { total: number; doNow: number; afterRefuel: number; never: number; message: string | null },
+  place: { isRemote: boolean; remoteMessage: string | null },
+  noCabinJobs = 0,
+): BoardMessage | null {
+  const base = baseBoardMessage(summary, place);
+  const seats = noCabinJobs > 0 ? SEATS_LINE : "";
+  if (base) return { ...base, seats };
+  return seats ? { title: "PASSENGERS WAITING", text: "", hint: "", seats } : null;
 }
 
 // ------------------------------------------------------------ refuel button

@@ -28,6 +28,7 @@ import { JobsMenu } from "./jobsmenu";
 import { freeArrivalNote, overlayAllowed, placeLabel, startNotice, visibleControls, type Overlay } from "./logic";
 import { Popup } from "./popup";
 import { SaveFilePanel } from "./savefile";
+import { MapLegend } from "./maplegend";
 import { InstallHint } from "./installhint";
 import { TEST_SPEED_KEY, storedTestSpeed } from "./savefilelogic";
 import { startSpeed } from "../game/clock";
@@ -214,6 +215,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     closeOverlay,
   );
   const installHint = new InstallHint(layer, storage);
+  const mapLegend = new MapLegend(layer); // 5j: what diamonds and dots mean on the galaxy map
   // The start-up note (e.g. "universe was rebuilt") is reworded and stays longer (5e, Andy chose the fading note).
   // It appears when PLAY is pressed, so the title screen never hides it. Tap closes it.
   const showStartNotice = (): void => {
@@ -329,6 +331,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     nav.apply(controls);
     whatNow.showButton(controls.whatNow);
     installHint.update(controls.dockButtons); // only docked, no menu, no trip
+    mapLegend.update(screen === "starmap" && overlay === null);
     strip.showMenuButton(controls.dockButtons); // MENU sits at the right end of the strip, docked only
     refreshStrip();
   }
