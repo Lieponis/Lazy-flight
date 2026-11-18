@@ -1,10 +1,10 @@
 # Report: Agent 3, stage G5a (the real galaxy map, the sky from where you stand, a sky per system)
 
-Branch: `universe-v3` only (nothing went to main). Last code commit when this was written: `1dcf237` (smaller diamonds at the centre). Status of this report: **v4. Everything that can be measured without a phone is in, and the iPhone FRAME numbers for all four places (centre, start, middle, rim) are in: 60 fps at all four. Andy checked the smaller centre diamonds on the preview and said "better".**
+Branch: `universe-v3` only (nothing went to main). Last code commit when this was written: `12a87f4` (smaller diamonds at the centre, `diamond ... ly wide` in the stats block). Status of this report: **v4. Everything that can be measured without a phone is in, and the iPhone FRAME numbers for all four places (centre, start, middle, rim) are in: 60 fps at all four. Andy checked the smaller centre diamonds on the preview and said "better".**
 
 **What I could NOT do in my workspace:** open the page in a real browser (no WebGL, no network for the shell). The map, the sky and the new dots have never been seen by me on a screen. Proof so far = the real GitHub Actions runs (every push green: `tsc --noEmit`, build, **51 test files, 1,128 tests**; plus the game-layer check) and numbers measured in plain Node on the cloud machine. Andy's checks in section 8 are the real proof.
 
-Live preview (the Lead's `/Lazy-flight/preview/`, rebuilt from this branch twice an hour): https://lieponis.github.io/Lazy-flight/preview/ . Test pages on it: `planets.html`, `models.html`, `galaxy-map-preview.html`, `?namepreview=1`, `?floatpreview=1`, `?systempreview=1`, `?mapstats=1`, `?mapat=centre|start|middle|rim`.
+Live preview (the Lead's `/Lazy-flight/preview/`, rebuilt from this branch by the deploy workflow; the timer is meant to run at :07 and :37 but in practice it ran only once in about 8 hours, so a rebuild may need the "Run workflow" button, see known issue 7): https://lieponis.github.io/Lazy-flight/preview/ . Test pages on it: `planets.html`, `models.html`, `galaxy-map-preview.html`, `?namepreview=1`, `?floatpreview=1`, `?systempreview=1`, `?mapstats=1`, `?mapat=centre|start|middle|rim`.
 
 ## 1. What was built
 
@@ -16,7 +16,7 @@ Live preview (the Lead's `/Lazy-flight/preview/`, rebuilt from this branch twice
 | 4 sky per system | `starfieldPositions(count, radius, seed?)`: no seed = exactly today's dots (frozen numbers + a copy of the old function in `tests/starfield.test.ts`). `systemSkySeed(systemId)` makes the number from the system number (both halves, ids above 2^32 included). System view, docked, flight (a trip: the system the ship is heading for; floating: the planet's system) and the models page (`?system=NUMBER`) give each system its own pattern. New `src/render/backdrop.ts` keeps one dots object per screen and re-patterns it in place. Only a seed line was added to `flight.ts` (no new `launchSeconds:` / `this.phases = `). |
 | 5 names | Limits updated to 29 / 34 / 62. Worst cases made from what the generator can make: `Snugaploo Junction HH8H3-2526` (29), `... VIII` (34), `Gleaming Marmalade Station, ... VIII` (62; "Gleaming Marmalade Station" is the longest dock name the word lists make). The real start names (`Bimvik Deep JR62R-MT37`, `Bimvik Deep JR62R-MT37 III`, `Breezy Hill Outpost, Bimvik Deep JR62R-MT37 III`) are in `?namepreview=1` and checked against the universe by a test. The old 42/47/73 names stay as STRESS names. See section 5 for the fit numbers. |
 | 6 centre / rim | `?mapat=centre|start|middle|rim` (or `x,y,z` in ly) shows the map and its sky from that place without moving the ship. Measured numbers in section 3. `/galaxy-map-preview.html` **stays** as a developer page (online only, stand-in galaxy, not the real map). `?namepreview=1`, `?floatpreview=1`, `?systempreview=1` build and their code paths are unchanged (CI build + tests). |
-| 7 phone speed | Centre, start, middle and rim measured on Andy's iPhone: **60 fps** at all four, and the dense centre too, so no fallback was needed (section 4). Fallbacks are in place and listed there. |
+| 7 phone speed | Centre, start, middle and rim measured on Andy's iPhone: **60 fps** at all four, so no fallback was needed (section 4). Fallbacks are in place and listed there. |
 | 8 tests | All render tests fixed (the 4 files that called `listSystemsNear` and the `planetlook` fingerprint). No new `launchSeconds:` / `this.phases = ` literals. |
 | Lead's extra step | **Preview isolation** (done first, commit `b3cd489`): see section 7. |
 
@@ -124,6 +124,7 @@ Everything fits (`fits: true`, no row wider than the picture, code whole, never 
 4. The glow is quantised to 8 bits, so faint parts show thin contour bands (same technique as G2, more visible in the dim middle of the disc).
 5. `?mapat=` labels the real current system "you are here" if you tap it.
 6. `/galaxy-map-preview.html` shows the stand-in galaxy, not the universe: it is a developer page and must not be mistaken for the real map.
+7. **The preview does not rebuild on time** (for the Lead): the deploy workflow's timer (`7,37 * * * *`) is not reliable; the last timer run before Andy's check was 23:06 UTC and the next one did not come for hours, so Andy first looked at an old build. GitHub does not promise scheduled runs on time. Fix: press "Run workflow" on "Build and publish" (Actions tab) after a push, or add a trigger on pushes to `universe-v3`. I was not allowed to start the deploy job myself and did not try to get around that.
 
 ## 12. Suggestions (not requested, nothing here is built)
 
