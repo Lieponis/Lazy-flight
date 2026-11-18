@@ -116,9 +116,24 @@ export function lyText(n: number): string {
   return `${Math.round(n).toLocaleString("en-US")} ly`;
 }
 
-/** Size of one diamond (light years across) for a star of the game's size class: a bit smaller than the game map's diamonds. */
-export function diamondSize(starRadius: number): number {
-  return 0.6 * (0.55 + 0.3 * Math.max(0.5, Math.min(3, starRadius)));
+/**
+ * A diamond is never wider than this share of the gap between neighbouring stars. Plain words: where the stars are far apart (the middle,
+ * the rim, and almost all of the start) the diamonds keep their size; at the dense centre, where the stars are under 2 ly apart, a 0.5 ly diamond would
+ * cover its neighbours, so there the diamonds shrink with the gap (Andy: "reduce the size of the diamonds near the centre").
+ */
+export const DIAMOND_MAX_SPACING_SHARE = 0.1;
+
+/** The smallest a diamond ever gets (light years across), so it stays a visible dot even in the densest part. */
+export const DIAMOND_MIN_SIZE = 0.08;
+
+/**
+ * Size of one diamond (light years across) for a star of the game's size class: a bit smaller than the game map's diamonds.
+ * `spacingLy` (optional) = the typical gap between neighbouring stars here; without it the size is the plain one (as before).
+ */
+export function diamondSize(starRadius: number, spacingLy?: number): number {
+  const plain = 0.6 * (0.55 + 0.3 * Math.max(0.5, Math.min(3, starRadius)));
+  if (spacingLy === undefined || !Number.isFinite(spacingLy) || spacingLy <= 0) return plain;
+  return Math.max(DIAMOND_MIN_SIZE, Math.min(plain, DIAMOND_MAX_SPACING_SHARE * spacingLy));
 }
 
 /** The fade starts at this share of the bubble radius. */

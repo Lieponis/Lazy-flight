@@ -71,6 +71,7 @@ export function nearStarsFromList(list: MapStarList): NearStars {
     radius,
     ballCount: count,
     zoomNearLy: spacing * ZOOM_BALL_FACTOR,
+    spacingLy: spacing,
   };
 }
 

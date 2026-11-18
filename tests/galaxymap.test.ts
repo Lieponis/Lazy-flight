@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SPACING_LY, ZOOM_BALL_FACTOR, nearStarsFromList, nearestLineText, starsWithin, type MapStarList } from "../src/render/galaxy/mapdata";
-import { MAX_ZOOM_SHARE, zoomOutLimit } from "../src/render/galaxy/previewmath";
+import { DIAMOND_MAX_SPACING_SHARE, DIAMOND_MIN_SIZE, MAX_ZOOM_SHARE, diamondSize, zoomOutLimit } from "../src/render/galaxy/previewmath";
 import { makeMapSource } from "../src/mapsource";
 import { WORLD_SEED, START_POINT, getSystem, spacingAt, startSystem, DISC_RADIUS, armFactor, densityAt } from "../src/universe";
 import { ARM_FADE_FROM, ARM_FADE_TO, ARM_STRENGTH } from "../src/universe/galaxy/params";
@@ -243,6 +243,54 @@ describe("the real map data (universe v3, world seed)", () => {
     const sigmaUp = Math.sqrt(up / rim.count);
     expect(sigmaUp).toBeLessThan(0.2 * sigmaSideways); // flat: the stars spread many times wider than tall
     expect(listAt("rim").distances[0]).toBeGreaterThan(40); // far from the nearest star at the rim: no crowd
+  });
+
+  it("the diamonds shrink at the dense centre so they do not cover each other, and stay (nearly) as they were at the start, middle and rim", () => {
+    const sizeAt = (place: PlaceId, radius = 1): number => {
+      const near = nearStarsFromList(listAt(place));
+      expect(near.spacingLy).toBe(spacingAt(Math.hypot(PLACES[place].x, PLACES[place].z)));
+      return diamondSize(radius, near.spacingLy);
+    };
+    // Without a gap handed over, the size is the plain one (nothing changed for the G2 preview).
+    for (const r of [0.5, 1, 2, 3]) {
+      expect(diamondSize(r)).toBe(diamondSize(r, undefined));
+      expect(diamondSize(r)).toBe(diamondSize(r, NaN));
+      expect(diamondSize(r)).toBe(diamondSize(r, 0));
+      expect(diamondSize(r)).toBe(diamondSize(r, -3));
+    }
+    // The centre: the gap is under 2 ly, so a diamond is a tenth of that (about 0.18 ly), a good three times smaller than before.
+    const centreGap = spacingAt(Math.hypot(PLACES.centre.x, PLACES.centre.z));
+    expect(centreGap).toBeLessThan(2.5);
+    expect(sizeAt("centre")).toBeCloseTo(DIAMOND_MAX_SPACING_SHARE * centreGap, 6);
+    expect(sizeAt("centre")).toBeLessThan(diamondSize(1) / 2.5);
+    expect(sizeAt("centre", 3)).toBeLessThan(diamondSize(3) / 4);
+    // The start (gap about 8 ly): the normal diamonds are exactly as before; only the very biggest stars' diamonds are a touch smaller (under 10%).
+    expect(sizeAt("start", 1)).toBe(diamondSize(1));
+    expect(sizeAt("start", 2)).toBe(diamondSize(2));
+    expect(sizeAt("start", 3)).toBeGreaterThan(0.9 * diamondSize(3));
+    // The middle and the rim (gaps in the tens of ly): nothing changes.
+    for (const place of ["middle", "rim"] as const) {
+      expect(sizeAt(place, 1)).toBe(diamondSize(1));
+      expect(sizeAt(place, 3)).toBe(diamondSize(3));
+    }
+  });
+
+  it("a diamond never gets smaller than the minimum, never bigger than the plain size, and never grows when the stars get closer", () => {
+    for (const gap of [0.001, 0.2, 0.5, 0.8, 1, 1.9, 3, 5, 8, 20, 134, 1e9]) {
+      for (const r of [0.5, 1, 3]) {
+        const d = diamondSize(r, gap);
+        expect(Number.isFinite(d)).toBe(true);
+        expect(d).toBeGreaterThanOrEqual(DIAMOND_MIN_SIZE);
+        expect(d).toBeLessThanOrEqual(diamondSize(r) + 1e-12);
+      }
+    }
+    // Sizes go up (or stay) as the gap goes up.
+    const gaps = [0.2, 0.5, 1, 1.9, 3, 5, 8, 20];
+    const sizes = gaps.map((g) => diamondSize(1, g));
+    for (let i = 1; i < sizes.length; i++) expect(sizes[i] as number).toBeGreaterThanOrEqual(sizes[i - 1] as number);
+    // The minimum is a real, visible size (not zero).
+    expect(DIAMOND_MIN_SIZE).toBeGreaterThan(0.05);
+    expect(DIAMOND_MIN_SIZE).toBeLessThan(0.2);
   });
 
   it("stars inside the reach at the start (a 55 ly ship sees about 1,300 diamonds, well under the 5,000 cap)", () => {

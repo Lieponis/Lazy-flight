@@ -47,6 +47,11 @@ export interface NearStars {
    * follows it, so the limit is the same with or without a shape (Andy approved it at the rim: about 829 ly).
    */
   zoomNearLy: number;
+  /**
+   * The typical gap between neighbouring stars here (light years), when the source knows it (the game's map does; the G2 preview does
+   * not). The diamonds are never bigger than a share of it, so they do not cover each other where the stars are packed (the dense centre).
+   */
+  spacingLy?: number;
 }
 
 /** How many stars of a full ball the "near" zoom-out limit reaches out to (see `NearStars.zoomNearLy`). */

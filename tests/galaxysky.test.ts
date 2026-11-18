@@ -515,9 +515,11 @@ describe("galaxy prototype: preview page helpers", () => {
     expect(pixelBrightness(100, 100)).toBe(0);
     expect(pixelBrightness(99, 100)).toBeLessThan(0.05);
   });
-  it("diamonds are the same size in space everywhere (the size depends only on the star's own size class)", () => {
-    // No place, distance or density enters the size.
-    expect(diamondSize.length).toBe(1);
+  it("diamonds are the same size in space everywhere (the size depends only on the star's own size class, plus the optional local star gap that shrinks them in a crowd)", () => {
+    // No place, distance or density enters the size. The one extra input is the gap between neighbouring stars, and it is optional:
+    // without it (the G2 preview) the size is the plain one for the size class.
+    expect(diamondSize.length).toBe(2);
+    expect(diamondSize(1)).toBe(diamondSize(1, undefined));
     expect(diamondSize(1)).toBe(diamondSize(1));
     expect(diamondSize(1)).toBeGreaterThan(0.4);
     expect(diamondSize(3)).toBeLessThan(1.1);

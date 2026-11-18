@@ -2,7 +2,8 @@
 //
 // Plain words: both layers are one single draw call each, however many stars there are (the GPU draws them all at once).
 // The diamonds are the nearest stars (the list is sorted nearest first). A diamond is always the same size in space (about
-// 0.7 light years across), wherever in the galaxy you are, so far away it shrinks below one pixel; that is why every star also
+// 0.7 light years across), wherever in the galaxy you are, except where the stars are packed (the dense centre): there it is at most a
+// tenth of the gap between neighbouring stars, so far away it shrinks below one pixel; that is why every star also
 // has a pixel: the pixel is hidden inside its diamond when you are close, and stays visible when the diamond is too small to see.
 // A pixel is brighter and a little bigger the closer the star is to the player, and every star fades to nothing at the edge of
 // the near-star bubble, so the bubble has no visible edge.
@@ -97,7 +98,7 @@ export class NearLayers {
   setDiamonds(stars: NearStars, withinReach: number, diamondCap: number): NearCounts {
     const k = Math.min(withinReach, diamondCap, MAX_DIAMONDS, stars.count);
     for (let i = 0; i < k; i++) {
-      const s = diamondSize(stars.radii[i] ?? 1);
+      const s = diamondSize(stars.radii[i] ?? 1, stars.spacingLy);
       this.matrix.makeScale(s, s, s);
       this.matrix.setPosition(stars.positions[i * 3] ?? 0, stars.positions[i * 3 + 1] ?? 0, stars.positions[i * 3 + 2] ?? 0);
       this.diamonds.setMatrixAt(i, this.matrix);
@@ -122,7 +123,7 @@ export class NearLayers {
       this.diamonds.count = this.reachDiamonds;
       return;
     }
-    const s = diamondSize(stars.radii[index] ?? 1);
+    const s = diamondSize(stars.radii[index] ?? 1, stars.spacingLy);
     this.matrix.makeScale(s, s, s);
     this.matrix.setPosition(stars.positions[index * 3] ?? 0, stars.positions[index * 3 + 1] ?? 0, stars.positions[index * 3 + 2] ?? 0);
     this.diamonds.setMatrixAt(this.reachDiamonds, this.matrix);
