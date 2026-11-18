@@ -1,6 +1,6 @@
 # Report: Agent 3, stage G5a (the real galaxy map, the sky from where you stand, a sky per system)
 
-Branch: `universe-v3` only (nothing went to main). Last code commit when this was written: `12a87f4` (smaller diamonds at the centre, `diamond ... ly wide` in the stats block). Status of this report: **v4. Everything that can be measured without a phone is in, and the iPhone FRAME numbers for all four places (centre, start, middle, rim) are in: 60 fps at all four. Andy checked the smaller centre diamonds on the preview and said "better".**
+Branch: `universe-v3` only (nothing went to main). Last code commit when this was written: `12a87f4` (smaller diamonds at the centre, `diamond ... ly wide` in the stats block). Status of this report: **v4. Everything that can be measured without a phone is in, and the iPhone FRAME numbers for all four places (centre, start, middle, rim) are in: 60 fps at all four. Andy checked on the preview: the smaller centre diamonds are "better", and two systems show "different" background dots (two screenshots).**
 
 **What I could NOT do in my workspace:** open the page in a real browser (no WebGL, no network for the shell). The map, the sky and the new dots have never been seen by me on a screen. Proof so far = the real GitHub Actions runs (every push green: `tsc --noEmit`, build, **51 test files, 1,128 tests**; plus the game-layer check) and numbers measured in plain Node on the cloud machine. Andy's checks in section 8 are the real proof.
 
@@ -101,9 +101,9 @@ Everything fits (`fits: true`, no row wider than the picture, code whole, never 
 
 ## 8. Andy's checks (what to do, in order)
 
-1. Open `.../preview/planets.html`: the planet looks draw (looks changed because the planet ids changed).
-2. Open `.../preview/`, play to the Starmap. Look for: stars as pixels, diamonds around the start, a tap picks the nearest star and flies to it, the label with the "5 nearest" line, the sky behind the stars after a few seconds. Then `?mapat=centre` and `?mapat=rim` (add `&mapstats=1` for the numbers).
-3. Fly or float in two different systems: the background dots differ.
+1. Open `.../preview/planets.html`: the planet looks draw (looks changed because the planet ids changed). **Not confirmed by Andy yet** (he sent no answer for this one).
+2. Open `.../preview/`, play to the Starmap. Look for: stars as pixels, diamonds around the start, a tap picks the nearest star and flies to it, the label with the "5 nearest" line, the sky behind the stars after a few seconds. Then `?mapat=centre` and `?mapat=rim` (add `&mapstats=1` for the numbers). **Done by Andy:** screenshots of start, middle, rim and centre (all 60 fps); the dense centre first showed huge diamonds on a stale preview, and after the rebuild he said "better" (decision 7).
+3. Fly or float in two different systems: the background dots differ. **Done by Andy: "different"**, with a System view screenshot of the start system `Bimvik Deep JR62R-MT37` and one of `Plaboo 53J25-4557` (the dots sit in different places).
 
 ## 9. What was left to Agent 5
 
@@ -125,6 +125,8 @@ Everything fits (`fits: true`, no row wider than the picture, code whole, never 
 5. `?mapat=` labels the real current system "you are here" if you tap it.
 6. `/galaxy-map-preview.html` shows the stand-in galaxy, not the universe: it is a developer page and must not be mistaken for the real map.
 7. **The preview does not rebuild on time** (for the Lead): the deploy workflow's timer (`7,37 * * * *`) is not reliable; the last timer run before Andy's check was 23:06 UTC and the next one did not come for hours, so Andy first looked at an old build. GitHub does not promise scheduled runs on time. Fix: press "Run workflow" on "Build and publish" (Actions tab) after a push, or add a trigger on pushes to `universe-v3`. I was not allowed to start the deploy job myself and did not try to get around that.
+
+8. **Unexplained title text, not reproduced** (from Andy's System view screenshot of `Plaboo 53J25-4557`): the title line read `SYSTEM - Plaboo 53J25-4557 (Red gBlue star)`. The code builds `SYSTEM - ${name} (${starLabel})` (`systemview.ts` line 369) from the universe's star label, which for a red giant is `Red giant`, and nothing else in `src` writes to the title (searched). So the code cannot make that text; it looks like a screenshot taken in the middle of a screen change (the previous system's `(Blue star)` showing through). It stayed unseen in the later screenshot of the start system (`(Blue star)`, correct). Andy was asked to reopen that system and say whether it repeats; until then it is not a confirmed bug.
 
 ## 12. Suggestions (not requested, nothing here is built)
 
