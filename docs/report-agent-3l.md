@@ -1,6 +1,6 @@
 # Report: Agent 3, stage G7b (does the render layer see Agent 2's central bulge?)
 
-Branch: `universe-v3` only (nothing went to main). Code commit: `c384981` ("G7b: the sky and the map see the central bulge"). Status of this report: **v2. The iPhone numbers at the centre are in (Andy's screenshot of `?mapat=centre&mapstats=1`, 10:39 local on 2026-11-18, preview rebuilt after my push): sky built in 1,053 ms over 65 frames, FRAME 16.7 ms = 60 fps, STAR LOOKUP 13 ms (section 3). Andy sent the screenshots without a comment, so I do not know his opinion of how the centre looks (section 6).**
+Branch: `universe-v3` only (nothing went to main). Code commit: `c384981` ("G7b: the sky and the map see the central bulge"). Status of this report: **v3 (was v2: added Andy's verdict). The iPhone numbers at the centre are in (Andy's screenshot of `?mapat=centre&mapstats=1`, 10:39 local on 2026-11-18, preview rebuilt after my push): sky built in 1,053 ms over 65 frames, FRAME 16.7 ms = 60 fps, STAR LOOKUP 13 ms (section 3). Andy's verdict on how the centre looks: "Its okay" (section 6). He did not say whether the two dark smudges in the system view are new.**
 
 **What I could NOT do in my workspace:** open the page in a real browser (no WebGL, no network for the shell). Before Andy's screenshots (section 6) the sky and the map with the bulge had never been seen by me on a screen; I have now seen his two phone screenshots and nothing more. Proof so far = the real GitHub Actions runs on `c384981` (both green: "Check a branch" = `tsc --noEmit`, build, **57 test files, 1,183 tests all passed**, and "Check the game layer") plus numbers measured in plain Node on the cloud machine. Andy's check in section 6 is the real proof.
 
@@ -79,11 +79,12 @@ In Node the same build is about 500 ms of work (505 ms above).
 The step was: rebuild the preview (Actions -> Build and publish -> Run workflow), open `/preview/?mapat=centre&mapstats=1`, play to the Starmap, look at the glow and the stars, reply with a screenshot showing the stats block.
 
 What came back: two screenshots at 10:39 local (03:39 UTC), no comment.
-- Screenshot 2 (the map at `?mapat=centre`, test view "centre (not where your ship is)"): the stats block in section 3, a tan/beige glow across the whole screen, a lighter blue-grey band across the lower half (the disc plane), thick salt-and-pepper star dots, and large yellow and red diamonds (selected star: "Fulwadar R464-J55, Yellow star, 15.8 ly; 5 nearest: 0.7, 0.7, 1.1, 1.3, 1.5 ly"). That looks like what the numbers predict at the middle of a dense bulge (stars about 1.5 ly apart, glow bright in every direction), but "does it look right to Andy" is his call, and he did not say.
+- Screenshot 2 (the map at `?mapat=centre`, test view "centre (not where your ship is)"): the stats block in section 3, a tan/beige glow across the whole screen, a lighter blue-grey band across the lower half (the disc plane), thick salt-and-pepper star dots, and large yellow and red diamonds (selected star: "Fulwadar R464-J55, Yellow star, 15.8 ly; 5 nearest: 0.7, 0.7, 1.1, 1.3, 1.5 ly"). That looks like what the numbers predict at the middle of a dense bulge (stars about 1.5 ly apart, glow bright in every direction), but "does it look right to Andy" is his call. He first sent the screenshots with no comment; when asked, he answered **"Its okay"** (10:44 local), so the glow strength and the look at the centre stay as they are.
 - Screenshot 1 (system view of Bimvik Deep at the start place): the faint backdrop with the dark dust lane and the two dark smudges at the poles (known issue 7).
 - The preview contained my change: the last "Build and publish" run began 03:34 UTC, after my push at 03:31 UTC. The stats block has no version line, so that is my reasoning from the times, not something the page shows.
 
 ## 7. Hand-off for the Lead
 
 - Nothing outside `src/render`, `src/mapsource.ts` (glue), `tests` and `docs` was touched. Nothing went to main.
-- Open items: Andy's opinion of how the centre looks (none given yet); known issues 5 to 7 and the suggestions in section 5 (all unbuilt).
+- Andy's verdict on the centre: "Its okay". Nothing to tune.
+- Open items: whether the two pole smudges (known issue 7) are new to Andy (he did not say); known issues 5 to 7 and the suggestions in section 5 (all unbuilt).
