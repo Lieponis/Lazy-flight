@@ -48,16 +48,18 @@ New glue files: `src/mapsource.ts` (96 lines: `makeMapSource(seed)`; the ONLY pl
 - The rim has diamonds only for ships with a long reach (0 at 35 ly): the map is never empty or broken because the 60,000 pixels are always there, but with the starting ship almost nothing is in reach out there (that is the universe, not the map).
 - The sky is built from the **real universe, a thin flat disc**. It has **no central bulge**, so the sky is a thin band; the old stand-in had a bulge. Comparison pictures (old vs new at the four places) were sent to Andy; he has not decided yet whether he wants a bulge added (my suggestion below, not what the universe has).
 
-## 4. FRAME numbers on Andy's iPhone: PENDING
+## 4. FRAME numbers on Andy's iPhone (start measured, the other three PENDING)
 
 How: open the preview, go to the Starmap, add `?mapstats=1` to the address together with `?mapat=...` (for example `.../preview/?mapstats=1&mapat=centre`). The block shows MAP / STAR LOOKUP / SKY / FRAME lines. The four places: `mapat=centre`, `start`, `middle`, `rim`.
 
 | Place | FRAME ms (average) | JS ms | Draw calls | Triangles | Sky built in | Verdict |
 |---|---|---|---|---|---|---|
 | centre | pending | pending | pending | pending | pending | pending |
-| start | pending | pending | pending | pending | pending | pending |
+| start | **16.6 (60 fps)** | 0.0 (the iPhone's timer is too coarse to show less than 1 ms) | 5 | 1,884 | 2,033 ms wall = glow 370 + dots 375 ms of work spread over 123 frames, worst slice 7.0 ms | fast, no fallback needed |
 | middle | pending | pending | pending | pending | pending | pending |
 | rim | pending | pending | pending | pending | pending | pending |
+
+Start, as shown on the iPhone (screenshot from Andy): stars 60,000, diamonds 233, tappable 10,000, ball radius 195 ly, zoom-out limit 50 ly, **STAR LOOKUP 125 ms (once per move)**, sky 24,592 glow squares and 59,553 dots, sky cell 960 ly. The iPhone is about 2.4 times faster than my cloud machine for the sky work (glow 906 to 370 ms, dots 887 to 375 ms) and 1.6 times faster for the star lookup (196 to 125 ms), so the cloud numbers in section 3 are an upper bound for this phone. The zoom-out limit of 50 ly (not the whole 195 ly ball) is by design: the farthest zoom shows a ball of about 3,000 stars, from the local star spacing (8 ly at the start), as in the G2 preview.
 
 Fallbacks if a number is slow (all are one-line settings in `src/render/settings.ts`): `MAP_NEAR_STARS` 60,000 to 30,000 (halves the pixels and the lookup), `MAP_SKY_SIZE` 64 to 32 (a quarter of the glow work), `MAP_DIAMOND_CAP` 5,000 to fewer, `MAP_SKY_DOTS` 60,000 to fewer.
 
