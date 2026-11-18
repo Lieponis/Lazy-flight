@@ -15,7 +15,7 @@ Brief from the Lead (via Andy): read `docs/report-agent-2f.md` sections 1, 2 and
 - **Fix** (`src/render/galaxy/skyglow.ts`, opt-in): a new setting `bulgeReach` (5,500 ly, the bulge's radius). While a ray is inside that ball, any step longer than a tenth of it is cut into equal pieces (at most 12). Rays that miss the ball, and builds without the setting, give **bit-identical** output to before (tested). The map's and the system view's sky builders both pass it.
 
 **(2) Does the map at the centre work with ids above 46.6 billion and cube cells? Yes. One flaw found and fixed.**
-- Real 60,000-star lists at `?mapat=centre`, at the exact centre, 2,000 ly above the plane and 3,000 ly out: all ids are whole numbers a computer holds exactly (bulge ids run from 46,599,825,056 up to about 8.27e10, far below 9e15), no duplicates, distances consistent with the positions, `describe` works for bulge ids (name and star type), and each bulge system gets its own pattern of background dots (`systemSkySeed` distinct for all 20+ sampled). At `?mapat=centre`, **45 % of the 60,000 stars are bulge systems**; the ball holding them is about **37 ly** across in radius.
+- Real 60,000-star lists at `?mapat=centre`, at the exact centre, 2,000 ly above the plane and 3,000 ly out: all ids are whole numbers a computer holds exactly (bulge ids run from 46,599,825,056 up to about 8.27e10, far below 9e15), no duplicates, distances consistent with the positions, `describe` works for bulge ids (name and star type), and each bulge system gets its own pattern of background dots (`systemSkySeed` distinct for all 20+ sampled). At `?mapat=centre`, **45 % of the 60,000 stars are bulge systems**; the ball that holds the 60,000 nearest stars is about **37 ly** in radius.
 - No render or glue code uses cell tables or 32-bit ids for the real map (the map asks `nearestSites` for the nearest stars; cubes vs. rings are inside Agent 2's code).
 - **Flaw:** the map's "star gap" (used for the closest/farthest zoom and the size of the diamonds) came from the disc's `spacingAt(r)`. Bulge systems lie up to about 4,950 ly above or below the plane, where the real gap is much larger (about 4 to 5 ly at 2,000 ly up, against the disc's 1.9), so zoom limit and diamonds were too small there.
 - **Fix** (glue, `src/mapsource.ts`): new `localSpacing(centre)`. Inside the disc's own thickness it returns exactly the old number (nothing changes for the disc: tested at six places). Above or below that thickness it returns the larger of the old number and the real local gap `density^(-1/3)`. `buildList` uses it.
@@ -54,7 +54,7 @@ Sky accuracy against a 1,500-step reference (bulge part = the light the bulge ad
 ## 5. Known issues and suggestions
 
 1. **Not seen on a screen** (section 6 is the real check).
-2. The system view's sky is a coarse build on purpose (a quarter of the glow squares, a third of the dots, 25 % brightness). Even after the fix, a few single directions seen from the middle are still off (worst direction x8.6, 90th percentile 29 %) while the average is within 13 %. At 25 % strength that is invisible in practice; the map's own sky (finer) is accurate within about 7 % at the 90th percentile at all four places.
+2. The system view's sky is a coarse build on purpose (a quarter of the glow squares, a third of the dots, 25 % brightness). Even after the fix, a few single directions seen from the middle are still off (worst single direction off by 859 %, 90th percentile 29 %) while the average is within 13 %. At 25 % strength that is invisible in practice; the map's own sky (finer) is accurate within about 7 % at the 90th percentile at all four places.
 3. The system sky's "near radius" (the distance under which the sky is not drawn so single stars do not double) still uses the disc spacing for off-plane bulge systems. Cosmetic only, not changed. *Suggestion (unbuilt):* use `localSpacing` there too.
 4. Known issue 7 from G5a still stands: the preview's automatic rebuild timer is unreliable; Andy may need the "Run workflow" button.
 5. *Suggestion (unbuilt, Agent 2's idea):* a warmer colour for bulge stars and the glow near the centre. Not done: it needs an agreed colour rule from the universe layer.
@@ -63,7 +63,7 @@ Sky accuracy against a 1,500-step reference (bulge part = the light the bulge ad
 
 1. Rebuild the preview: https://github.com/Lieponis/Lazy-flight/actions -> "Build and publish" -> "Run workflow" (green button), wait about 2 minutes.
 2. Open https://lieponis.github.io/Lazy-flight/preview/?mapat=centre&mapstats=1 , play to the Starmap.
-3. Look for: a soft warm glow behind the stars that is brightest toward one side (the centre of the galaxy, bulge) and stars packed close together; then reply with a screenshot that shows the grey stats block (the SKY line has the build time, the FRAME line has the milliseconds per frame).
+3. Look for: a soft glow behind the stars that is brighter toward one side (toward the centre of the galaxy, where the bulge is) and stars packed close together; then reply with a screenshot that shows the grey stats block (the SKY line has the build time, the FRAME line has the milliseconds per frame).
 
 ## 7. Hand-off for the Lead
 
