@@ -127,7 +127,7 @@ describe("the wiring (source checks, so the sky is reused and not copied)", () =
 
   it("the flight screen points the sky at the system its backdrop dots belong to (a trip: the destination; floating: the planet's system)", () => {
     const flight = read("src/render/flight.ts");
-    expect(flight).toContain("this.pointSkyAt(skySystem);");
+    expect(flight).toContain("this.pointSkyAt(parseDockId(info.destinationDockId)?.systemId ?? null);");
     expect(flight).toContain("this.pointSkyAt(planet.systemId);");
     expect(read("src/render/docked.ts")).toContain("this.sky?.setPosition(this.skyAt)");
   });

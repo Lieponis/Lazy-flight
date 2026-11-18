@@ -281,9 +281,8 @@ export class FlightScreen implements Screen {
     this.free = false;
     this.info = info;
     // One sky for the whole flight: the system the ship is heading for (it is also the sky it floats under after arriving).
-    const skySystem = parseDockId(info.destinationDockId)?.systemId ?? null;
-    reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, skySystem);
-    this.pointSkyAt(skySystem);
+    reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, parseDockId(info.destinationDockId)?.systemId ?? null);
+    this.pointSkyAt(parseDockId(info.destinationDockId)?.systemId ?? null);
     this.finishing = null;
     this.lastPlan = null;
     this.clockT = 0;
