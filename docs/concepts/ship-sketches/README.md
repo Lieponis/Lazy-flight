@@ -15,11 +15,11 @@ and these drawings do not change them.
 
 | File | Name | Group | Range class | Size | About |
 |---|---|---|---|---|---|
-| cargo-1.svg | Crate Expectations | Cargo | Mid range | Medium | 8 crates |
-| cargo-2.svg | Box Office | Cargo | Long haul | Large | 15 crates |
-| cargo-3.svg | Big Thirsty | Cargo | Heavy super long haul | Huge | 28 crates |
+| cargo-1.svg | Crate Expectations | Cargo | Mid range | Medium | 9 crates |
+| cargo-2.svg | Box Office | Cargo | Long haul | Large | 16 crates |
+| cargo-3.svg | Big Thirsty | Cargo | Heavy super long haul | Huge | 29 crates |
 | passenger-1.svg | Sunday Shuttle | Passenger | Mid range | Medium | 7 crates |
-| passenger-2.svg | Velvet Comet | Passenger | Long haul | Large | 14 crates |
+| passenger-2.svg | Velvet Comet | Passenger | Long haul | Large | 15 crates |
 | passenger-3.svg | Grand Snoozer | Passenger | Heavy super long haul | Huge | 29 crates |
 | explorer-1.svg | Pebble Picker | Explorer | Mid range | Medium | 9 crates |
 | explorer-2.svg | Long Way Round | Explorer | Long haul | Large | 19 crates |
@@ -35,6 +35,9 @@ and these drawings do not change them.
   - long haul is bigger, with more windows, containers and engines;
   - heavy super long haul is cruise-ship or tanker size.
 - **Passenger proportions:** bus, yacht and cruise ship.
+- **Revision 2 (Andy):** the first cargo and passenger drawings looked too much like sea ships. They were redrawn as
+  spaceships in the Elite Dangerous and Starfield manner: angular wedge hulls, modular frames, glazed strips instead of
+  portholes, landing legs and angled engines. Andy liked the explorers, which were kept as they were.
 - **Explorers:** angular, with wider bodies and extra attachments (dishes, tanks, pods, domes).
 - **No weapons** on any ship.
 - **Not drawn to final detail:** these are rough ideas. Turning any of them into a game model would be a separate
