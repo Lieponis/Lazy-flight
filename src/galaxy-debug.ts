@@ -7,6 +7,7 @@ import {
   BULGE_OPTIONS,
   DISC_RADIUS,
   START_POINT,
+  bulgeTable,
   cellTable,
   decodeSystemNumber,
   densityAt,
@@ -96,7 +97,8 @@ function renderFacts(): void {
   const rows: [string, string][] = [
     ["Systems in the galaxy (adding up the density)", `${big(total)} (${Math.round(total).toLocaleString("en")})`],
     ["Cells (the pieces the galaxy is cut into, none stored)", `${big(table.totalCells)} in ${table.slabs.length.toLocaleString("en")} rings, ${table.slots} slots each`],
-    ["System numbers", `0 to ${big(table.idSpace)}; codes have 4 to 9 symbols (almost all 9)`],
+    ["System numbers", `disc: 0 to ${big(table.idSpace)}; bulge: ${big(table.idSpace)} to ${big(bulgeTable().idEnd)}; codes have 4 to 9 symbols (almost all 9)`],
+    ["The central bulge (chosen: C, large)", `radius ${BULGE.radius.toLocaleString("en")} ly, ${(2 * BULGE.radius * BULGE.flatten).toLocaleString("en")} ly tall, about ${big(expectedBulgeTotal())} systems, ${big(bulgeTable().totalCells)} cells of its own`],
     ["Pure names (no code) that found a system", `${pureNameCount(SEED).toLocaleString("en")}, all within about 150 ly of the start`],
     ["Where the player starts", `${startRadius().toFixed(0)} ly from the centre, x ${START_POINT.x.toFixed(0)}, z ${START_POINT.z.toFixed(0)}, on the edge of a spiral arm`],
     ["Checksum of the 2,000 nearest systems to the start (must be identical on every phone and browser)", `<b>${galaxyChecksum(SEED, START_POINT, 2000)}</b>`],
@@ -281,7 +283,7 @@ function drawSky(): void {
     for (let px = 0; px < w; px++) {
       const lon = ((px + 0.5) / w - 0.5) * 2 * Math.PI;
       const dir = { x: Math.cos(lat) * Math.cos(lon), y: Math.sin(lat), z: Math.cos(lat) * Math.sin(lon) };
-      const sum = lineIntegralDensity(origin, dir, 70000, 96);
+      const sum = skyValue(origin, dir, BULGE); // three pieces, small steps near you (G7)
       values[py * w + px] = sum;
       if (sum > max) max = sum;
     }
@@ -296,7 +298,7 @@ function drawSky(): void {
   }
   ctx.putImageData(image, 0, 0);
   const ms = performance.now() - t;
-  el("skyText").textContent = `${(w * h).toLocaleString("en")} lines of sight x 96 steps drawn in ${ms.toFixed(0)} ms. Brightest line adds up to ${max.toFixed(1)} systems per square light year.`;
+  el("skyText").textContent = `${(w * h).toLocaleString("en")} lines of sight x 104 steps drawn in ${ms.toFixed(0)} ms. Brightest line adds up to ${max.toFixed(1)} systems per square light year.`;
 }
 
 // 7. Find by code
@@ -430,7 +432,7 @@ function renderBulgeOptions(): void {
         key: k,
         title: `${k}: ${name} bulge`,
         shape: s,
-        note: `radius ${s.radius.toLocaleString("en")} ly, ${(2 * s.radius * s.flatten).toLocaleString("en")} ly tall, adds about ${big(expectedBulgeTotal(s))} systems${s === BULGE ? " (this one is built in for now)" : ""}`,
+        note: `radius ${s.radius.toLocaleString("en")} ly, ${(2 * s.radius * s.flatten).toLocaleString("en")} ly tall, adds about ${big(expectedBulgeTotal(s))} systems${s === BULGE ? "" : ""}`,
       };
     }),
   ];

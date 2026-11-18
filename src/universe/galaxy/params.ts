@@ -63,11 +63,11 @@ export const BULGE_OPTIONS: Record<"A" | "B" | "C", BulgeShape> = {
 };
 
 /** The bulge that is built into the galaxy. */
-export const BULGE: BulgeShape = BULGE_OPTIONS.B;
+export const BULGE: BulgeShape = BULGE_OPTIONS.C;
 
 /** Bulge cells: a cell is at most this many systems on average (at the inner edge of its zone). */
-export const BULGE_WANTED = 4;
+export const BULGE_WANTED = 6;
 /** Bulge cell edges are picked from this list (ly), so they never depend on a cube root. */
-export const BULGE_EDGES = [1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32];
+export const BULGE_EDGES = [1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32];
 /** The bulge is cut into zones (3D shells) at these fractions of its radius; each zone has its own cell size. */
-export const BULGE_ZONES = [0, 0.1, 0.2, 0.4, 0.7, 1];
+export const BULGE_ZONES = [0, 0.05, 0.1, 0.2, 0.3, 0.45, 0.65, 1];

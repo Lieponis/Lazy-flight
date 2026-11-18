@@ -350,7 +350,7 @@ describe("the same galaxy on every device", () => {
   // The page galaxy-debug.html prints the first one: open it on a phone or another browser and compare.
   it("checksums of the nearest systems are fixed", () => {
     expect(galaxyChecksum(SEED, START_POINT, 2000)).toBe("d0019075");
-    expect(galaxyChecksum(SEED, { x: 0, y: 0, z: 0 }, 500)).toBe("CENTRE_NEW"); // G7: re-pinned, the bulge adds systems at the centre (was c01eb9ac)
+    expect(galaxyChecksum(SEED, { x: 0, y: 0, z: 0 }, 500)).toBe("2bfcbd0f"); // G7: re-pinned, the bulge adds systems at the centre (was c01eb9ac)
     expect(galaxyChecksum(SEED, { x: 49000, y: 0, z: 0 }, 500)).toBe("c679dfa8");
     expect(galaxyChecksum(7, START_POINT, 500)).toBe("6c8471cf");
   });
