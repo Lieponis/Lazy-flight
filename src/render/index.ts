@@ -360,6 +360,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     const seconds = Math.min((now - last) / 1000, 0.1); // cap so a paused tab does not jump
     last = now;
     if (active !== systemView) systemView.warmSky(); // the system view's sky is prepared in the background while other screens show
+    if (active !== starmap) starmap.warmSky(); // and the map's sky the same way, so it is already there when the map opens
     if (active) {
       active.update(seconds);
       const screen = active;

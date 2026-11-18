@@ -43,10 +43,12 @@ import {
   MAP_SKY_BUDGET_MS,
   MAP_SKY_DOTS,
   MAP_SKY_GLOW,
+  MAP_SKY_IDLE_MS,
   MAP_SKY_OVERLAP_CELL_DEG,
   MAP_SKY_OVERLAP_STARS,
   MAP_SKY_SIZE,
   MAP_SKY_STEPS,
+  MAP_SKY_WARM_DELAY_FRAMES,
   MAP_TAPPABLE_STARS,
   MAP_TAP_RADIUS_PX,
   STARFIELD_COUNT,
@@ -126,6 +128,12 @@ export class StarMapScreen implements Screen {
   private builtDotsKey: string | null = null;
   private skyBuilt = false;
   private skyStats: SkyStats | null = null;
+  /**
+   * The star set the sky is built from while the map is NOT shown (the real `near` only exists once the map has been opened here).
+   * It comes from the same source answer the map asks for later, so the radius, and with it the sky's keys, are identical.
+   */
+  private preNear: NearStars | null = null;
+  private warmFrames = 0;
 
   /** Developer counters (?mapstats=1): the text block and the averaged frame numbers. */
   private readonly statsEl: HTMLPreElement | null;
@@ -186,6 +194,8 @@ export class StarMapScreen implements Screen {
     this.current = here;
     if (same) return; // same place (maybe a new name text): nothing to rebuild
     this.near = null; // the stars are asked for again the next time the map is shown
+    this.preNear = null; // and the sky is prepared again for the new place (after a short wait, see warmSky)
+    this.warmFrames = 0;
     this.builtFor = null;
     this.selected = null;
     this.opts.state.set({ selectedSystemId: null });
@@ -214,6 +224,7 @@ export class StarMapScreen implements Screen {
     const t0 = performance.now();
     const near = nearStarsFromList(source.nearest(this.current.position, MAP_NEAR_STARS));
     this.near = near;
+    this.preNear = null;
     this.builtFor = this.current.id;
     this.selected = null;
     this.nearestLine = "";
@@ -227,7 +238,7 @@ export class StarMapScreen implements Screen {
     this.view.resetFocus();
     this.view.dist = this.defaultDist(near);
     this.lastBuildMs = performance.now() - t0;
-    this.ensureSky();
+    this.ensureSky(near);
   }
 
   private reachCount(near: NearStars): number {
@@ -266,8 +277,7 @@ export class StarMapScreen implements Screen {
    * Starts a new sky build when the player is in another sky cell, or the near-star bubble changed size. The glow and the dots are
    * separate builds, and one that is already finished for this cell is left alone. The old sky stays on screen until the new one is done.
    */
-  private ensureSky(): void {
-    const near = this.near;
+  private ensureSky(near: NearStars | null = this.near): void {
     const field = this.skyField;
     if (!near || !field) return;
     const fns = this.opts.source?.sky;
@@ -299,14 +309,14 @@ export class StarMapScreen implements Screen {
     };
   }
 
-  /** Spends about MAP_SKY_BUDGET_MS of this frame on the sky build (glow first, then dots); puts the finished sky on screen. */
-  private stepSky(): void {
+  /** Spends about `budgetMs` of this frame on the sky build (glow first, then dots); puts the finished sky on screen. */
+  private stepSky(budgetMs: number = MAP_SKY_BUDGET_MS): void {
     const p = this.pendingSky;
-    const near = this.near;
+    const near = this.near ?? this.preNear;
     if (!p || !near) return;
     const t0 = performance.now();
-    if (p.glow && !p.glow.done) p.glow.run(MAP_SKY_BUDGET_MS);
-    else if (p.dots && !p.dots.done) p.dots.run(MAP_SKY_BUDGET_MS);
+    if (p.glow && !p.glow.done) p.glow.run(budgetMs);
+    else if (p.dots && !p.dots.done) p.dots.run(budgetMs);
     p.frames++;
     p.worstSliceMs = Math.max(p.worstSliceMs, performance.now() - t0);
     if (!((!p.glow || p.glow.done) && (!p.dots || p.dots.done))) return;
@@ -338,6 +348,23 @@ export class StarMapScreen implements Screen {
     this.sky.setVisible(true, true);
     this.skyBuilt = true;
     this.backdrop.visible = false; // the real sky replaces the plain backdrop dots
+  }
+
+  /**
+   * Called every frame while ANOTHER screen is showing: builds the sky for the place the player stands in, a few milliseconds per frame,
+   * so it is already there when the map opens (Andy: "make the galaxy map's backdrop as fast as the system view's"). After the start
+   * or a jump it waits about half a second, then asks the source for the stars (the answer is kept, so the map's own request later
+   * costs nothing) and builds from them. Nothing else about the map changes: the stars, diamonds and sky look exactly as before.
+   */
+  warmSky(budgetMs: number = MAP_SKY_IDLE_MS): void {
+    if (this.active || !this.skyField || !this.opts.source) return;
+    if (!this.near && !this.preNear) {
+      this.warmFrames++;
+      if (this.warmFrames < MAP_SKY_WARM_DELAY_FRAMES) return;
+      this.preNear = nearStarsFromList(this.opts.source.nearest(this.current.position, MAP_NEAR_STARS));
+      this.ensureSky(this.preNear);
+    }
+    this.stepSky(budgetMs);
   }
 
   // ------------------------------------------------------------------ the Screen interface

@@ -44,6 +44,14 @@ export const MAP_SKY_BUDGET_MS = 6;
 /** Sky dots that share a patch of sky with one of this many nearest real stars are left out. */
 export const MAP_SKY_OVERLAP_STARS = 3000;
 export const MAP_SKY_OVERLAP_CELL_DEG = 0.35;
+/**
+ * The map's sky is also built ahead of time, a few milliseconds per frame while another screen is showing (Andy: "make the backdrop on
+ * the galaxy map draw as fast as on the system view"). So it is usually already there when the map opens. This is the time per frame
+ * that background work may use, and how many frames the app waits after the start (or after a jump) before it asks for the stars and
+ * begins, so the first picture and the arrival are not disturbed (30 frames is about half a second).
+ */
+export const MAP_SKY_IDLE_MS = 4;
+export const MAP_SKY_WARM_DELAY_FRAMES = 30;
 
 /**
  * The faint galaxy backdrop behind the system view (Andy: "very faint backdrop of the galaxy, same as in the galaxy map, for immersion").
