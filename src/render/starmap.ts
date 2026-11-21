@@ -41,6 +41,7 @@ import {
   frameBounds,
   routeLine,
   targetTagText,
+  NavInput,
   type MapPlace,
   type MapRoute,
   type RouteLine,
@@ -167,11 +168,9 @@ export class StarMapScreen implements Screen {
   private readonly route: RouteLayer;
   /** Made the first time a plan is shown (the page needs no extra element until then). */
   private routeTag: RouteTag | null = null;
-  private routeIn: MapRoute | null = null;
-  private placesIn: MapPlace[] = [];
+  /** What the app told the map to draw (and the made-up plan of ?mapplan=N, until a real plan arrives). */
+  private readonly nav: NavInput;
   private routeShape: RouteLine | null = null;
-  /** True while the plan and places are the made-up ones of ?mapplan=N (the app's own replace them). */
-  private demoPlanOn = false;
   private layoutClock = 0;
   private canvasRect = { left: 0, top: 0, width: 1, height: 1 };
   private freeRows = { top: 0, bottom: 0 };
@@ -210,7 +209,7 @@ export class StarMapScreen implements Screen {
 
     this.route = new RouteLayer(opts.routeLook ?? MAP_ROUTE_LOOK);
     this.scene.add(this.route.group);
-    this.demoPlanOn = (opts.testPlan ?? 0) > 0;
+    this.nav = new NavInput((opts.testPlan ?? 0) > 0);
 
     this.skyField = opts.source?.sky ? universeField(opts.source.sky) : null;
     this.sky.setGlowStrength(MAP_SKY_GLOW);
@@ -276,11 +275,10 @@ export class StarMapScreen implements Screen {
     this.view.resetFocus();
     this.view.dist = this.defaultDist(near);
     this.lastBuildMs = performance.now() - t0;
-    if (this.demoPlanOn) {
+    if (this.nav.demo) {
       // Testing aid ?mapplan=N: a made-up plan through real near stars, and made-up places, so the line can be looked at.
       const demo = demoPlan(this.current.position, near, this.reachLy ?? MAP_REACH_FALLBACK_LY, this.opts.testPlan ?? 20);
-      this.routeIn = demo.route;
-      this.placesIn = demo.places;
+      this.nav.setDemo(demo.route, demo.places);
       this.applyRoute();
       this.frameRoute(); // and the camera help turns the map to look at the first hops
     }
@@ -291,27 +289,26 @@ export class StarMapScreen implements Screen {
 
   /** The flight plan to draw (null = none). The app asks the game again after every arrival and hands the new plan over. */
   setRoute(route: MapRoute | null): void {
-    this.demoPlanOn = false;
-    this.routeIn = route;
+    this.nav.setRoute(route);
     this.applyRoute();
   }
 
   /** My places to mark (start dock, outposts, starred, recent). */
   setPlaces(places: readonly MapPlace[]): void {
-    this.demoPlanOn = false;
-    this.placesIn = [...places];
+    this.nav.setPlaces(places);
     this.applyRoute();
   }
 
   /** The line and the markers are drawn relative to the ship: work them out again (plan, places or the ship's place changed). */
   private applyRoute(): void {
     const origin = this.current.position;
-    this.routeShape = this.routeIn ? routeLine(origin, this.routeIn, MAP_ROUTE_MAX_HOPS) : null;
+    const plan = this.nav.route();
+    this.routeShape = plan ? routeLine(origin, plan, MAP_ROUTE_MAX_HOPS) : null;
     this.route.setRoute(this.routeShape);
-    this.route.setPlaces(this.placesIn, origin);
-    if (this.routeShape && this.routeIn) {
+    this.route.setPlaces(this.nav.places(), origin);
+    if (this.routeShape && plan) {
       this.routeTag ??= new RouteTag(this.opts.host.parentElement ?? document.body);
-      this.routeTag.setText(targetTagText(this.routeIn.target.name, this.routeShape.targetLy));
+      this.routeTag.setText(targetTagText(plan.target.name, this.routeShape.targetLy));
     } else {
       this.routeTag?.setText("");
     }
@@ -352,7 +349,7 @@ export class StarMapScreen implements Screen {
 
   /** Moves the plan's markers to match the camera and puts the target's words next to its marker. */
   private updateRoute(seconds: number, near: NearStars): void {
-    if (!this.routeShape && this.placesIn.length === 0) return; // nothing to draw: nothing to measure
+    if (!this.routeShape && this.nav.places().length === 0) return; // nothing to draw: nothing to measure
     this.refreshLayout(seconds);
     const size = renderSizeFor(this.camera.aspect, RENDER_WIDTH, RENDER_HEIGHT);
     const rect = this.canvasRect;
@@ -609,7 +606,7 @@ export class StarMapScreen implements Screen {
   /** One extra line for the developer counters when a plan or places are shown: the look, the stops and what was drawn. */
   private routeStatsText(): string {
     const shape = this.routeShape;
-    if (!shape && this.placesIn.length === 0) return "";
+    if (!shape && this.nav.places().length === 0) return "";
     const c = this.route.counts();
     const marks = c.hop + c.refuel + c.target + c.start + c.outpost + c.starred + c.recent;
     return `\nPLAN ${shape ? shape.count - 1 : 0} hops, ${shape ? Math.round(shape.targetLy) : 0} ly to target; markers ${marks}, dashes ${c.dashes}, dots ${c.dots}`;

@@ -93,6 +93,54 @@ export function placesFromRows(positionOf: PositionOf, rows: readonly PlaceRowLi
   return out;
 }
 
+/**
+ * What the map was told to draw: the app's flight plan and places, and (only when the testing aid ?mapplan=N is on) a made-up plan with
+ * made-up places. The made-up plan stays until a REAL plan arrives; the app's places are drawn together with the made-up ones.
+ */
+export class NavInput {
+  private readonly demoAllowed: boolean;
+  private demoOn: boolean;
+  private plan: MapRoute | null = null;
+  private real: MapPlace[] = [];
+  private demoPlaces: MapPlace[] = [];
+
+  constructor(demo: boolean) {
+    this.demoAllowed = demo;
+    this.demoOn = demo;
+  }
+
+  /** The app's flight plan (null = none). A real plan switches the made-up one off; null does not bring it back. */
+  setRoute(route: MapRoute | null): void {
+    if (route) this.demoOn = false;
+    if (!this.demoOn) this.plan = route;
+  }
+
+  /** The app's places. They never switch the made-up plan off. */
+  setPlaces(places: readonly MapPlace[]): void {
+    this.real = [...places];
+  }
+
+  /** The made-up plan and places (ignored unless the testing aid is on, and once a real plan has arrived). */
+  setDemo(route: MapRoute, places: readonly MapPlace[]): void {
+    if (!this.demoAllowed || !this.demoOn) return;
+    this.plan = route;
+    this.demoPlaces = [...places];
+  }
+
+  /** Is the made-up plan the one shown? */
+  get demo(): boolean {
+    return this.demoOn;
+  }
+
+  route(): MapRoute | null {
+    return this.plan;
+  }
+
+  places(): readonly MapPlace[] {
+    return this.demoOn && this.demoPlaces.length > 0 ? [...this.real, ...this.demoPlaces] : this.real;
+  }
+}
+
 // ------------------------------------------------------------------ the line
 
 export interface RouteLine {

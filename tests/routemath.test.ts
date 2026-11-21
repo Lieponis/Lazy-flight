@@ -9,6 +9,7 @@ import {
   fitPeriod,
   formatLy,
   frameBounds,
+  NavInput,
   ndcOfClip,
   parseMapLine,
   parseMapPlan,
@@ -441,5 +442,55 @@ describe("the words next to the marker", () => {
   it("go to the left of a marker inside the picture when there is no room on the right", () => {
     expect(tagPosition(380, 300, 100, 20, "inside", bounds).x).toBe(264);
     expect(tagPosition(100, 300, 100, 20, "inside", bounds).x).toBe(116);
+  });
+});
+
+describe("what the map was told to draw (the app's plan and the made-up one)", () => {
+  const demoRoute = route([[10, 0, 0]], [500, 0, 0]);
+  const realRoute = route([[0, 10, 0]], [0, 900, 0]);
+  const demoSpots: MapPlace[] = [{ systemId: -1, position: { x: 1, y: 2, z: 3 }, kinds: ["starred"], name: "demo" }];
+  const mine: MapPlace[] = [{ systemId: 5, position: { x: 0, y: 0, z: 0 }, kinds: ["start"], name: "start dock" }];
+
+  it("keeps the made-up plan when the app hands over its places (this was the first-try bug: no line showed)", () => {
+    const nav = new NavInput(true);
+    nav.setPlaces(mine);
+    nav.setDemo(demoRoute, demoSpots);
+    expect(nav.demo).toBe(true);
+    expect(nav.route()).toBe(demoRoute);
+    expect(nav.places().map((p) => p.name)).toEqual(["start dock", "demo"]);
+    nav.setPlaces(mine); // handed over again
+    expect(nav.route()).toBe(demoRoute);
+  });
+
+  it("lets a real plan replace the made-up one, and the made-up places go with it", () => {
+    const nav = new NavInput(true);
+    nav.setPlaces(mine);
+    nav.setDemo(demoRoute, demoSpots);
+    nav.setRoute(realRoute);
+    expect(nav.demo).toBe(false);
+    expect(nav.route()).toBe(realRoute);
+    expect(nav.places()).toHaveLength(1);
+    nav.setDemo(demoRoute, demoSpots); // asked again later: ignored
+    expect(nav.route()).toBe(realRoute);
+    nav.setRoute(null);
+    expect(nav.route()).toBeNull();
+  });
+
+  it("ignores 'no plan' while only the made-up plan is shown", () => {
+    const nav = new NavInput(true);
+    nav.setDemo(demoRoute, demoSpots);
+    nav.setRoute(null);
+    expect(nav.route()).toBe(demoRoute);
+  });
+
+  it("does nothing made-up unless the testing aid is on", () => {
+    const nav = new NavInput(false);
+    nav.setDemo(demoRoute, demoSpots);
+    expect(nav.route()).toBeNull();
+    expect(nav.places()).toHaveLength(0);
+    nav.setRoute(realRoute);
+    nav.setPlaces(mine);
+    expect(nav.route()).toBe(realRoute);
+    expect(nav.places()).toHaveLength(1);
   });
 });
