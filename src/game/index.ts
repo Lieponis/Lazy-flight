@@ -5,6 +5,8 @@ export * from "./settings";
 export { SHIPS, SHIP_ORDER, getShip, isShipId } from "./ships";
 export type { ShipDef } from "./ships";
 export { newGameState, normalizeState } from "./state";
+export { MAX_PLAN_HOPS, planHops } from "./route";
+export type { PlannedHop, RouteAnswer, RouteQuestion } from "./route";
 export { addStar, cleanIdList, pushRecentDock, removeStar } from "./places";
 export type { PlaceKind } from "./places";
 export type { FreeTrip, GameState } from "./state";
@@ -74,7 +76,7 @@ export { buyShip, ownedShipIds, ownsShip, shipCatalog, shipFuel, switchShip } fr
 export type { FleetResult, ShipCatalogEntry } from "./fleet";
 export type { Reach, AcceptResult, EmergencyResult, ExtraBlockCode, PayInfo, RankUp, Arrival, Block, BlockCode, RefuelResult, TravelProgress } from "./rules";
 export { Game } from "./game";
-export type { BoardEntry, BoardSummary, FreeTravelCheck, Place, PlaceInfo, GameListener, OutpostOffer, OwnedOutpost } from "./game";
+export type { BoardEntry, BoardSummary, FreeTravelCheck, Place, PlaceInfo, RouteHop, RoutePlan, GameListener, OutpostOffer, OwnedOutpost } from "./game";
 export {
   RANK_KINDS,
   RANK_KIND_LABELS,

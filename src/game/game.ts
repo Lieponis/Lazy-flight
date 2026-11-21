@@ -41,6 +41,7 @@ import {
   type TripFacts,
 } from "./freetravel";
 import { currentPlaceId, isFlying, notDockedReason } from "./location";
+import { MAX_PLAN_HOPS, planHops } from "./route";
 import { addStar, pushRecentDock, removeStar, type PlaceKind } from "./places";
 import { rankInfos, type RankInfo } from "./ranks";
 import { UPGRADE_LINES } from "./debriefs";
@@ -48,7 +49,7 @@ import { buyLivery, currentLivery, liveryCatalog, setLivery, type LiveryRow } fr
 import { buyUpgrade, shipStats, upgradeOffers, type ShipStats, type UpgradeOffer } from "./upgrades";
 import type { GameClock } from "./clock";
 import { slotOf } from "./clock";
-import { EXPLORER_DISCOVERY_BONUS_PERCENT, OUTPOST_DELIVERY_BONUS_PERCENT, OUTPOST_FUEL_DISCOUNT_PERCENT } from "./settings";
+import { EXPLORER_DISCOVERY_BONUS_PERCENT, OUTPOST_DELIVERY_BONUS_PERCENT, OUTPOST_FUEL_DISCOUNT_PERCENT, REFUEL_PRICE_PER_UNIT } from "./settings";
 import {
   acceptJob,
   checkJob,
@@ -132,6 +133,42 @@ export interface Place {
   reachText: string;
   starred: boolean;
   isHere: boolean;
+}
+
+/** One hop of the flight plan (stage NAV-1). Every hop lands at a dock. */
+export interface RouteHop {
+  /** 1-based. */
+  index: number;
+  dockId: string;
+  dockName: string;
+  systemId: number;
+  systemName: string;
+  /** From the previous stop (the first hop: from where the ship is). Never more than one full tank flies. */
+  distanceLy: number;
+  fuelNeeded: number;
+  /** True when the fuel on board is not enough for this hop: refuel at the stop you are leaving first. */
+  refuelBefore: boolean;
+  /** Estimated cost of that refuel (a full tank, at the price of the stop you leave; cheaper where you own an outpost). 0 when not needed. */
+  refuelCredits: number;
+}
+
+export interface RoutePlan {
+  status: "ok" | "here" | "too-far-no-docks" | "stuck" | "no-such-place";
+  target: { id: string; name: string; systemId: number } | null;
+  /** At most 20 (the next 20); empty unless status is "ok". */
+  hops: RouteHop[];
+  /** True when the plan shows only the next 20 hops of the whole way. */
+  moreHops: boolean;
+  /** About how many hops the whole way takes (the shown hops when the plan is complete). */
+  hopsTotalEstimate: number;
+  totalLy: number;
+  totalFuel: number;
+  totalRefuelCredits: number;
+  /** The longest hop of this plan: one full tank minus the 1 fuel strand reserve, in whole light years (1 ly less than getPlaceInfo().rangeLy for the Cargo Hauler). */
+  rangeLy: number;
+  closestLy: number | null;
+  gapLy: number | null;
+  message: string | null;
 }
 
 export type GameListener = () => void;
@@ -370,6 +407,97 @@ export class Game {
     this.state = { ...this.state, starredPlaces: r.list };
     this.changed();
     return { ok: true };
+  }
+
+  // ------------------------------------------------------------ the hopping flight plan (NAV-1)
+
+  /**
+   * A plan to a place (a dock id, or a star system number as digits): hops that land at docks, each one within a FULL tank of this ship.
+   * Changes nothing in the game. Ask again after every arrival. The player flies a hop with freeTravel(hop.dockId).
+   */
+  planRoute(targetId: string): RoutePlan {
+    // Strand protection: after a hop at least the reserve (1 fuel) must be left, so a hop may use the tank minus that reserve.
+    const reserve = tripFuelCost(this.state, 0);
+    const rangeLy = rangeForFuel(this.state, Math.max(0, shipStats(this.state).fuelTankSize - reserve));
+    const empty = (status: RoutePlan["status"], target: RoutePlan["target"], message: string, extra: Partial<RoutePlan> = {}): RoutePlan => ({
+      status, target, hops: [], moreHops: false, hopsTotalEstimate: 0, totalLy: 0, totalFuel: 0, totalRefuelCredits: 0, rangeLy, closestLy: null, gapLy: null, message, ...extra,
+    });
+    const found = this.resolvePlace(targetId);
+    if (!found || found.dockId === null) return empty("no-such-place", null, "There is no such place.");
+    const target = { id: targetId, name: found.name, systemId: found.systemId };
+    const fromSystemId = this.currentSystemId();
+    const from = getSite(this.seed, fromSystemId)?.position;
+    const to = getSite(this.seed, found.systemId)?.position;
+    if (!from || !to) return empty("no-such-place", null, "There is no such place.");
+    if (found.systemId === fromSystemId) return empty("here", target, "You are already in that star system. Fly there directly.");
+    const answer = planHops({ seed: this.seed, from, fromSystemId, to, toSystemId: found.systemId, toDockId: found.dockId, rangeLy, maxHops: MAX_PLAN_HOPS });
+    if (answer.status === "here") return empty("here", target, "You are already in that star system. Fly there directly.");
+    if (answer.status === "no-docks-in-reach" || (answer.status === "stuck" && answer.hops.length === 0 && rangeLy < 1)) {
+      return empty("too-far-no-docks", target, `No dock lies within one tank of here (${rangeLy} ly). A flight plan is not possible from this place.`, { closestLy: answer.closestLy, gapLy: answer.gapLy });
+    }
+    const tank = shipStats(this.state).fuelTankSize;
+    let fuel = this.state.fuel;
+    let previousSystem = fromSystemId;
+    let departDock = this.state.currentDockId;
+    const hops: RouteHop[] = [];
+    let totalLy = 0;
+    let totalFuel = 0;
+    let totalCredits = 0;
+    answer.hops.forEach((h, i) => {
+      const ly = distanceBetweenSystems(this.seed, previousSystem, h.systemId) ?? 0;
+      const need = tripFuelCost(this.state, ly);
+      const refuelBefore = fuel - need < reserve;
+      let credits = 0;
+      if (refuelBefore) {
+        const price = (REFUEL_PRICE_PER_UNIT * (100 - fuelDiscountPercentAt(this.state, departDock))) / 100;
+        credits = Math.round((tank - fuel) * price);
+        fuel = tank;
+      }
+      fuel -= need;
+      hops.push({
+        index: i + 1,
+        dockId: h.dockId,
+        dockName: this.placeName(h.dockId),
+        systemId: h.systemId,
+        systemName: getSystem(this.seed, h.systemId)?.name ?? "?",
+        distanceLy: Math.round(ly * 10) / 10,
+        fuelNeeded: need,
+        refuelBefore,
+        refuelCredits: credits,
+      });
+      totalLy += ly;
+      totalFuel += need;
+      totalCredits += credits;
+      previousSystem = h.systemId;
+      departDock = h.dockId;
+    });
+    if (answer.status === "stuck") {
+      return empty("stuck", target, `The way is blocked: the closest this ship can get is ${Math.round((answer.closestLy ?? 0) * 10) / 10} ly from the target${answer.gapLy !== null ? `, with an empty gap of ${answer.gapLy} ly beyond one tank (${rangeLy} ly)` : ""}.`, { closestLy: answer.closestLy, gapLy: answer.gapLy });
+    }
+    const avg = hops.length > 0 ? totalLy / hops.length : 1;
+    const estimate = answer.truncated ? hops.length + Math.ceil(answer.remainingLy / Math.max(avg, 1)) : hops.length;
+    let message: string | null = null;
+    if (answer.truncated) message = `The plan shows the next ${hops.length} hops of about ${estimate}. Ask again after you arrive.`;
+    if (this.state.spacePlanetId !== null && hops[0]?.refuelBefore) message = "You float in space: you cannot refuel here. Fly to a dock first, or use the emergency fuel." + (message ? ` ${message}` : "");
+    return {
+      status: "ok",
+      target,
+      hops,
+      moreHops: answer.truncated,
+      hopsTotalEstimate: estimate,
+      totalLy: Math.round(totalLy * 10) / 10,
+      totalFuel,
+      totalRefuelCredits: totalCredits,
+      rangeLy,
+      closestLy: null,
+      gapLy: null,
+      message,
+    };
+  }
+
+  /** The first hop of the plan to this place, or null (no plan, or you are already there). */
+  nextHop(targetId: string): RouteHop | null {
+    return this.planRoute(targetId).hops[0] ?? null;
   }
 
   /** Remembers the dock you just docked at (newest first). */

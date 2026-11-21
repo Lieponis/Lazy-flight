@@ -48,7 +48,9 @@ import {
   getJobBoard,
   getPlanet,
   getPlanetsOfSystem,
+  getSite,
   getSystem,
+  nearestDocks,
   type StarSystem,
   START_POINT,
   nearestSystems,
@@ -522,6 +524,10 @@ function render(): void {
   app.append(h("h2", {}, "12. One shared universe: test save on another seed"));
   app.append(worldSeedBox());
 
+  // My places and the flight plan (stage NAV-1)
+  app.append(h("h2", {}, "13. My places and the flight plan"));
+  app.append(navBox(flying));
+
   // Ship catalog
   app.append(h("h2", {}, "3. Ship catalog (numbers include upgrades)"));
   const shipTable = h("table");
@@ -831,6 +837,105 @@ function paintJobsBox(): HTMLElement {
 }
 
 /** The free-travel section: places to fly to (this star system and the nearest others), with the plain numbers and reasons. */
+// ------------------------------------------------------------ my places and the flight plan (NAV-1)
+
+let planTarget = "";
+const PLAN_PRESETS: { label: string; dx: number; dz: number }[] = [
+  { label: "a dock 60 ly east", dx: 60, dz: 0 },
+  { label: "a dock 300 ly south-west", dx: -210, dz: -210 },
+  { label: "a dock 1,000 ly west (the plan shows the next 20 hops)", dx: -1000, dz: 0 },
+  { label: "a dock 30,000 ly east (the rim side)", dx: 30000, dz: 0 },
+];
+
+function navBox(flying: boolean): HTMLElement {
+  const box = h("div", { class: "box" });
+  box.append(
+    h("div", { class: "note" }, "MY PLACES: the start dock, your outposts, the last 10 docks you used and the places you starred (up to 30), one row each. The FLIGHT PLAN lists the docks to hop through to a far place; each hop is at most one full tank minus 1 fuel. Nothing flies by itself: use Fly hop 1."),
+  );
+  const row = h("div");
+  row.append(
+    button("TEST: make a test save (own the nearest outpost, two recent docks, one star)", () => {
+      const docks = game.nearbyDocks(40);
+      const outpost = docks.find((d) => game.getOutpostOffer(d.dockId).isOutpost);
+      const others = docks.filter((d) => d.systemId !== game.currentSystemId());
+      const recent = others.slice(0, 2).map((d) => d.dockId);
+      const star = others[2];
+      game.state = {
+        ...game.state,
+        ownedOutposts: outpost ? [outpost.dockId] : [],
+        outpostCount: outpost ? 1 : 0,
+        recentDocks: [...recent, ...game.state.recentDocks.filter((id) => !recent.includes(id))].slice(0, 10),
+      };
+      if (star) game.starPlace(star.dockId);
+      say("Test save made: an outpost, two recent docks and one star were added.");
+    }, { test: true }),
+  );
+  box.append(row);
+  const places = game.getPlaces();
+  const t = h("table");
+  t.append(h("tr", {}, ...["Kind", "Place", "Star system", "Distance", "Fuel", "Can the ship do it?", ""].map((x) => h("th", {}, x))));
+  for (const p of places) {
+    const act = h("td");
+    act.append(
+      button(p.starred ? "Unstar" : "Star", () => {
+        const r = p.starred ? game.unstarPlace(p.id) : game.starPlace(p.id);
+        say(r.ok ? (p.starred ? "Star removed." : "Starred.") : r.reason);
+      }),
+      button("Plan route here", () => {
+        planTarget = p.id;
+        render();
+      }, { disabled: p.isHere }),
+    );
+    t.append(
+      h("tr", {}, h("td", {}, p.kinds.join(", ")), h("td", {}, p.isHere ? `${p.name} (you are here)` : p.name), h("td", {}, p.systemName), h("td", {}, `${p.distanceLy} ly`), h("td", {}, String(p.fuelNeeded)),
+        h("td", { class: p.reach === "now" ? "ok" : p.reach === "refuel" ? "" : "bad" }, p.reach === "now" ? "CAN DO NOW" : p.reach === "refuel" ? "NEEDS FUEL" : "TOO FAR"), act),
+    );
+  }
+  box.append(h("div", { class: "scroll" }, t));
+
+  box.append(h("div", {}, h("b", {}, `Flight plan (ship range per hop: ${game.planRoute(game.state.currentDockId).rangeLy} ly)`)));
+  const presets = h("div");
+  const here = game.currentSystemId();
+  const hereSite = getSite(seed, here)?.position ?? START_POINT;
+  for (const preset of PLAN_PRESETS) {
+    presets.append(
+      button(`Plan to ${preset.label}`, () => {
+        const d = nearestDocks(seed, { x: hereSite.x + preset.dx, y: hereSite.y, z: hereSite.z + preset.dz }, 1)[0];
+        planTarget = d ? d.dockId : "";
+        render();
+      }),
+    );
+  }
+  box.append(presets);
+  if (planTarget === "") {
+    box.append(h("div", { class: "note" }, "Pick a target above."));
+    return box;
+  }
+  const plan = game.planRoute(planTarget);
+  box.append(h("div", {}, `Target: ${plan.target ? `${placeLabel(plan.target.id.includes("/") ? plan.target.id : planTarget)}` : planTarget}   |   Status: ${plan.status}`));
+  if (plan.message) box.append(h("div", { class: plan.status === "ok" ? "note" : "bad" }, plan.message));
+  if (plan.hops.length > 0) {
+    const ht = h("table");
+    ht.append(h("tr", {}, ...["Hop", "Dock", "Star system", "Ly", "Fuel", "Refuel first?"].map((x) => h("th", {}, x))));
+    for (const hop of plan.hops) {
+      ht.append(h("tr", {}, h("td", {}, String(hop.index)), h("td", {}, hop.dockName), h("td", {}, hop.systemName), h("td", {}, String(hop.distanceLy)), h("td", {}, String(hop.fuelNeeded)), h("td", {}, hop.refuelBefore ? `YES (about ${hop.refuelCredits} cr)` : "no")));
+    }
+    box.append(h("div", { class: "scroll" }, ht));
+    box.append(h("div", {}, `Total of the ${plan.hops.length} shown hops: ${plan.totalLy} ly, ${plan.totalFuel} fuel, about ${plan.totalRefuelCredits} credits of refuelling.${plan.moreHops ? ` The whole way is about ${plan.hopsTotalEstimate} hops.` : ""}`));
+    const next = plan.hops[0];
+    if (next) {
+      box.append(
+        button(`Fly hop 1 (${next.dockName})`, () => {
+          if (next.refuelBefore && !flying) game.refuel();
+          const r = game.freeTravel(next.dockId);
+          say(r.ok ? `Flying to ${next.dockName}: ${r.fuelUsed} fuel, ${formatDuration(r.seconds)}. Ask for the plan again after you arrive.` : r.reason);
+        }, { disabled: flying }),
+      );
+    }
+  }
+  return box;
+}
+
 function freeTravelBox(flying: boolean): HTMLElement {
   const box = h("div", { class: "box" });
   box.append(

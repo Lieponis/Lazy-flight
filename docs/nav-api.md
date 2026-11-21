@@ -48,11 +48,11 @@ interface RouteHop {
   systemName: string;
   distanceLy: number;     // from the previous stop, never more than rangeLy
   fuelNeeded: number;     // for this hop
-  refuelBefore: boolean;  // true = the fuel on board is not enough for this hop: refuel at the stop you are leaving first
+  refuelBefore: boolean;  // true = the fuel on board is not enough for this hop (it must leave 1 fuel): refuel at the stop you are leaving first
   refuelCredits: number;  // estimated cost of that refuel (2 credits per unit at the stop you leave, less if you own an outpost there)
 }
 interface RoutePlan {
-  status: "ok" | "here" | "too-far-no-docks" | "stuck";
+  status: "ok" | "here" | "too-far-no-docks" | "stuck" | "no-such-place";
   target: { id: string; name: string; systemId: number };
   hops: RouteHop[];       // at most 20 (the next 20); empty unless status is "ok"
   moreHops: boolean;      // true when the plan shows only the next 20 hops of the whole way
@@ -60,7 +60,7 @@ interface RoutePlan {
   totalLy: number;        // sum of the shown hops
   totalFuel: number;
   totalRefuelCredits: number; // estimate, only the shown hops
-  rangeLy: number;        // one full tank of the current ship (same as getPlaceInfo().rangeLy)
+  rangeLy: number;        // the longest hop of this plan: one full tank minus the 1 fuel strand reserve (Cargo Hauler: 29 ly, while getPlaceInfo().rangeLy says 30)
   closestLy: number | null;   // stuck only: distance to the target from the closest point reached
   gapLy: number | null;       // stuck only: the empty gap (ly) to the next dock the ship could not cross
   message: string | null;     // plain sentence for every status except a plain "ok" ("The plan shows the next 20 hops of about 61.")
@@ -68,9 +68,9 @@ interface RoutePlan {
 game.planRoute(targetId: string): RoutePlan
 game.nextHop(targetId: string): RouteHop | null   // = planRoute(targetId).hops[0] or null
 ```
-Statuses: `ok` (hops listed), `here` (you are already at that place or in that system with a dock: no hops), `too-far-no-docks` (no dock lies within one full tank of the ship's place at all, the far-dock case from G4), `stuck` (greedy hopping with a short look-ahead cannot get closer: `closestLy` and `gapLy` say how far).
+Statuses: `no-such-place` (unknown or old-shape id; `target` is null), `ok` (hops listed), `here` (you are already at that place or in that system with a dock: no hops), `too-far-no-docks` (no dock lies within one full tank of the ship's place at all, the far-dock case from G4), `stuck` (greedy hopping with a short look-ahead cannot get closer: `closestLy` and `gapLy` say how far).
 
-Rules (so the screens can explain them): every hop lands at a dock; every hop is at most one FULL tank of the current ship (`rangeLy`, tank size, not the fuel on board); each hop gets closer to the target; the plan is for the ship you fly now (switch ship and ask again).
+Rules (so the screens can explain them): every hop lands at a dock; every hop is at most one FULL tank of the current ship minus the 1 fuel the strand protection keeps back (`rangeLy`, from the tank size, not the fuel on board); each hop gets closer to the target; the plan is for the ship you fly now (switch ship and ask again).
 
 ## Flying a hop
 Nothing flies by itself. The player flies each hop with the existing `game.freeTravel(hop.dockId)` (check first with `game.canFreeTravel(hop.dockId)`, which also tells the discovery credits). Strand protection, discovery credits and explorer counts work exactly as for any free trip. After the arrival (`game.update()` returns the arrival, state changes) call `planRoute` again: the first hop of the new plan is the next one. If `refuelBefore` is true, call `game.refuel()` first (only possible while docked).
