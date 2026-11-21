@@ -48,6 +48,7 @@ import {
   type RouteLook,
   type SafeRect,
 } from "./routemath";
+import { MarkerOverlay } from "./markeroverlay";
 import { RouteTag } from "./routetag";
 import type { Screen } from "./screen";
 import {
@@ -103,6 +104,8 @@ export interface StarMapOptions {
   testPlan?: number | null;
   /** Milliseconds the camera takes to follow the finger (testing aid `?mapturn=`); null = the standard from settings. */
   turnMs?: number | null;
+  /** Draw the markers as a finer layer above the picture (they glide like the stars); false = inside the picture, as before (testing aid `?mapicons=chunky`). */
+  iconsFine?: boolean;
 }
 
 /** A sky being built, a few milliseconds per frame: the glow first, then the dots. */
@@ -171,6 +174,7 @@ export class StarMapScreen implements Screen {
   private readonly route: RouteLayer;
   /** Made the first time a plan is shown (the page needs no extra element until then). */
   private routeTag: RouteTag | null = null;
+  private marks: MarkerOverlay | null = null;
   /** What the app told the map to draw (and the made-up plan of ?mapplan=N, until a real plan arrives). */
   private readonly nav: NavInput;
   private routeShape: RouteLine | null = null;
@@ -310,6 +314,10 @@ export class StarMapScreen implements Screen {
     this.routeShape = plan ? routeLine(origin, plan, MAP_ROUTE_MAX_HOPS) : null;
     this.route.setRoute(this.routeShape);
     this.route.setPlaces(this.nav.places(), origin);
+    if (!this.marks && this.opts.iconsFine !== false && typeof document !== "undefined" && (this.routeShape || this.nav.places().length > 0)) {
+      this.marks = new MarkerOverlay(this.opts.host.parentElement ?? document.body);
+      this.route.setSink(this.marks);
+    }
     if (this.routeShape && plan) {
       this.routeTag ??= new RouteTag(this.opts.host.parentElement ?? document.body);
       this.routeTag.setText(targetTagText(plan.target.name, this.routeShape.targetLy));
@@ -364,6 +372,7 @@ export class StarMapScreen implements Screen {
       top: Math.max(0, this.freeRows.top - rect.top) * k + 6,
       bottom: Math.max(0, this.freeRows.bottom) * k + 6,
     };
+    this.marks?.setView({ left: rect.left, top: rect.top, width: rect.width, height: rect.height, picW: size.width, picH: size.height, dpr: window.devicePixelRatio || 1 });
     const tag = this.route.update(seconds, this.camera, this.view.dist, size.width, size.height, safe, near.radius);
     if (!tag || !this.routeTag) {
       this.routeTag?.hide();
@@ -517,6 +526,7 @@ export class StarMapScreen implements Screen {
     this.active = false;
     this.view.detach();
     this.routeTag?.hide();
+    this.marks?.hide();
     if (this.statsEl) this.statsEl.style.display = "none";
   }
 
@@ -613,7 +623,7 @@ export class StarMapScreen implements Screen {
     if (!shape && this.nav.places().length === 0) return `\nTURN EASING ${Math.round(this.view.turnSmoothSeconds * 1000)} ms`;
     const c = this.route.counts();
     const marks = c.hop + c.refuel + c.target + c.start + c.outpost + c.starred + c.recent;
-    return `\nPLAN ${shape ? shape.count - 1 : 0} hops, ${shape ? Math.round(shape.targetLy) : 0} ly to target; markers ${marks}, dashes ${c.dashes}, dots ${c.dots}; turn easing ${Math.round(this.view.turnSmoothSeconds * 1000)} ms`;
+    return `\nPLAN ${shape ? shape.count - 1 : 0} hops, ${shape ? Math.round(shape.targetLy) : 0} ly to target; markers ${marks}, dashes ${c.dashes}, dots ${c.dots}; icons ${this.marks ? "fine" : "chunky"}; turn easing ${Math.round(this.view.turnSmoothSeconds * 1000)} ms`;
   }
 
   // ------------------------------------------------------------------ taps

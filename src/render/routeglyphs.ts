@@ -6,6 +6,21 @@
 
 export type GlyphName = "hop" | "refuel" | "target" | "start" | "outpost" | "starred" | "recent";
 
+/**
+ * Where the markers can be handed to instead of being drawn inside the small picture: a finer layer above it (src/render/markeroverlay.ts).
+ * Positions are in pixels of the small picture and are NOT snapped to whole pixels, so the layer can move them smoothly.
+ */
+export interface MarkSink {
+  /** A new frame starts: forget last frame's markers. */
+  begin(): void;
+  /** A marker whose middle is at (x, y) of the small picture. */
+  add(name: GlyphName, x: number, y: number): void;
+  /** The frame is complete: hide what was not added again. */
+  end(): void;
+  /** Nothing to show at all. */
+  clear(): void;
+}
+
 export interface GlyphDef {
   rows: readonly string[];
   /** Colours as 0xRRGGBB for "#" and "+". */

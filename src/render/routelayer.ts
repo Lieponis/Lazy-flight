@@ -9,7 +9,7 @@
 // except the positions of the markers (at most about 60 of them).
 
 import * as THREE from "three";
-import { GLYPHS, PLACE_GLYPH, glyphTexels, type GlyphName } from "./routeglyphs";
+import { GLYPHS, PLACE_GLYPH, glyphTexels, type GlyphName, type MarkSink } from "./routeglyphs";
 import {
   dashSegments,
   dotPositions,
@@ -144,6 +144,8 @@ export class RouteLayer {
   private dotCount = 0;
   private dotTime = 0;
   private readonly sets: Record<GlyphName, GlyphSet>;
+  /** When set, the markers go there (a finer layer above the picture, not snapped) instead of being drawn inside the picture. */
+  private sink: MarkSink | null = null;
 
   private readonly vp = new THREE.Matrix4();
   private readonly tmp = new THREE.Vector3();
@@ -185,6 +187,13 @@ export class RouteLayer {
   }
 
   // ------------------------------------------------------------------ what the map tells the layer
+
+  /** Hand the markers to a finer layer (null = draw them inside the small picture, snapped to its pixels). */
+  setSink(sink: MarkSink | null): void {
+    this.sink?.clear();
+    this.sink = sink;
+    for (const set of Object.values(this.sets)) set.points.visible = false;
+  }
 
   setLook(look: RouteLook): void {
     if (look === this.look) return;
@@ -247,6 +256,7 @@ export class RouteLayer {
     const any = this.line !== null || this.places.length > 0;
     this.group.visible = any;
     if (!any) {
+      this.sink?.clear();
       for (const set of Object.values(this.sets)) {
         set.n = 0;
         set.points.visible = false;
@@ -291,6 +301,7 @@ export class RouteLayer {
     }
     camera.updateMatrixWorld();
     this.vp.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.sink?.begin();
 
     // Light years on screen per pixel of the small picture, at the distance the camera looks at: sets the size of dashes and gaps.
     const lyPerPx = (2 * Math.tan((camera.fov * Math.PI) / 360) * Math.max(0.5, viewDist)) / Math.max(1, height);
@@ -323,10 +334,11 @@ export class RouteLayer {
       }
     }
     for (const set of Object.values(this.sets)) {
-      set.points.visible = set.n > 0;
+      set.points.visible = set.n > 0 && this.sink === null;
       set.points.geometry.setDrawRange(0, set.n);
       set.attribute.needsUpdate = true;
     }
+    this.sink?.end();
     return tag;
   }
 
@@ -352,18 +364,24 @@ export class RouteLayer {
     const ndc = ndcOfClip(cx, cy, cw);
     const p = pinToSafeRect(ndc.x, ndc.y, ndc.behind, width, height, safe, forcePin);
     if (p.pinned && !mayPin) return null;
-    // Sit on the middle of a pixel of the small picture: the little picture then lands pixel for pixel (and does not shimmer).
-    const sx = Math.min(width - 0.5, Math.max(0.5, Math.floor(p.x) + 0.5));
-    const sy = Math.min(height - 0.5, Math.max(0.5, Math.floor(p.y) + 0.5));
+    // Drawn inside the small picture: sit on the middle of a pixel, so the little picture lands pixel for pixel (and does not shimmer).
+    // Handed to the finer layer: keep the exact spot, that layer moves it smoothly.
+    const sink = this.sink;
+    const sx = Math.min(width - 0.5, Math.max(0.5, sink ? p.x : Math.floor(p.x) + 0.5));
+    const sy = Math.min(height - 0.5, Math.max(0.5, sink ? p.y : Math.floor(p.y) + 0.5));
     if (tooClose(this.accX, this.accY, this.accN, sx, sy, MAP_MARKER_MIN_SEP_PX)) return null;
     this.accX[this.accN] = sx;
     this.accY[this.accN] = sy;
     this.accN++;
-    this.tmp.set((sx / width) * 2 - 1, 1 - (sy / height) * 2, 0.5).unproject(camera);
-    const o = set.n * 3;
-    set.positions[o] = this.tmp.x;
-    set.positions[o + 1] = this.tmp.y;
-    set.positions[o + 2] = this.tmp.z;
+    if (sink) {
+      sink.add(name, sx, sy);
+    } else {
+      this.tmp.set((sx / width) * 2 - 1, 1 - (sy / height) * 2, 0.5).unproject(camera);
+      const o = set.n * 3;
+      set.positions[o] = this.tmp.x;
+      set.positions[o + 1] = this.tmp.y;
+      set.positions[o + 2] = this.tmp.z;
+    }
     set.n++;
     return { x: sx, y: sy, side: p.side };
   }

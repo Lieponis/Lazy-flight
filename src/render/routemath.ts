@@ -478,6 +478,48 @@ export function frameBounds(points: ArrayLike<number>, count: number, vfovDeg: n
   return { centre, dist };
 }
 
+// ------------------------------------------------------------------ the markers as a finer layer
+
+/** Where the small picture is on the page (CSS pixels), how big it is in its own pixels, and the screen's pixel ratio. */
+export interface MarkerView {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  picW: number;
+  picH: number;
+  dpr: number;
+}
+
+export interface MarkerBox {
+  /** Top-left corner on the page, CSS pixels, on a whole device pixel. */
+  left: number;
+  top: number;
+  /** Width and height of the whole picture of the marker, CSS pixels. */
+  size: number;
+  /** Device pixels across one texel of the marker's picture (a whole number, so every texel is the same size). */
+  texelDevice: number;
+}
+
+/**
+ * Where the box of a marker of `texels` x `texels` goes so its middle sits at (x, y) of the small picture. Every texel of the marker is a whole
+ * number of device pixels (about as big as one pixel of the small picture) and the box sits on a whole device pixel, so the marker stays
+ * crisp, yet it moves in steps of one device pixel (a seventh of a big pixel on a phone) instead of a whole big pixel: it glides like the stars do.
+ * Writes into `out` (no allocation per frame) and returns it.
+ */
+export function markerBox(view: MarkerView, x: number, y: number, texels: number, out: MarkerBox): MarkerBox {
+  const dpr = Math.max(1, view.dpr);
+  const kx = view.width / Math.max(1, view.picW);
+  const ky = view.height / Math.max(1, view.picH);
+  const texelDevice = Math.max(1, Math.round(kx * dpr));
+  const size = (texels * texelDevice) / dpr;
+  out.left = Math.round((view.left + x * kx - size / 2) * dpr) / dpr;
+  out.top = Math.round((view.top + y * ky - size / 2) * dpr) / dpr;
+  out.size = size;
+  out.texelDevice = texelDevice;
+  return out;
+}
+
 // ------------------------------------------------------------------ testing aids (address words)
 
 /** `?mapline=a|b|c` (or line | dashed | dots): the look of the plan line while Andy chooses. Null = not given. */
@@ -488,6 +530,16 @@ export function parseMapLine(search: string): RouteLook | null {
   if (word === "a" || word === "line" || word === "plain") return "line";
   if (word === "b" || word === "dashed" || word === "dash") return "dashed";
   if (word === "c" || word === "dots" || word === "dot") return "dots";
+  return null;
+}
+
+/** `?mapicons=chunky|fine`: draw the markers inside the small picture (chunky, as before) or as a finer layer above it (fine). Null = not given. */
+export function parseMapIcons(search: string): "fine" | "chunky" | null {
+  const raw = new URLSearchParams(search).get("mapicons");
+  if (raw === null) return null;
+  const word = raw.trim().toLowerCase();
+  if (word === "fine" || word === "smooth") return "fine";
+  if (word === "chunky" || word === "pixel" || word === "old") return "chunky";
   return null;
 }
 

@@ -14,3 +14,25 @@
   white-space: pre-line;
   z-index: 2;
 }
+
+/* The markers laid over the galaxy map as a finer layer (src/render/markeroverlay.ts): hard-edged enlargements, so they stay chunky. */
+.route-marks {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.route-mark {
+  position: fixed;
+  left: 0;
+  top: 0;
+  max-width: none;
+  pointer-events: none;
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: transform;
+}
