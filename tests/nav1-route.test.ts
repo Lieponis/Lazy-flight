@@ -207,6 +207,34 @@ describe("fuel and money", () => {
   });
 });
 
+describe("the plan uses the equipped ship with its upgrades, and takes about the fewest hops", () => {
+  it("tank upgrades lengthen the hops and shorten the plan; engine upgrades (less fuel burnt) too", () => {
+    const target = dockNear(at(-500, 0));
+    const plain = makeGame().game;
+    const base = plain.planRoute(target);
+    const upgraded = makeGame().game;
+    upgraded.state = { ...upgraded.state, shipUpgrades: { ...upgraded.state.shipUpgrades, "cargo-hauler": { tank: 3, hold: 0, engines: 0, comfort: 0 } } };
+    const withTank = upgraded.planRoute(target);
+    expect(upgraded.getShipStats().fuelTankSize).toBeGreaterThan(plain.getShipStats().fuelTankSize);
+    expect(withTank.rangeLy).toBeGreaterThan(base.rangeLy);
+    expect(withTank.hopsTotalEstimate).toBeLessThan(base.hopsTotalEstimate);
+    for (const hop of withTank.hops) expect(hop.distanceLy).toBeLessThanOrEqual(withTank.rangeLy);
+    const engines = makeGame().game;
+    engines.state = { ...engines.state, shipUpgrades: { ...engines.state.shipUpgrades, "cargo-hauler": { tank: 0, hold: 0, engines: 3, comfort: 0 } } };
+    expect(engines.planRoute(target).rangeLy).toBeGreaterThanOrEqual(base.rangeLy);
+  });
+
+  it("the number of hops is within one hop (or 10%) of the geometric minimum, distance / range", () => {
+    for (const [dx, dz] of [[60, 0], [150, 100], [300, 0], [0, -300], [-210, -210]] as [number, number][]) {
+      const { game } = makeGame();
+      const plan = game.planRoute(dockNear(at(dx, dz)));
+      const minimum = Math.ceil(Math.hypot(dx, dz) / plan.rangeLy);
+      expect(plan.status).toBe("ok");
+      expect(plan.hops.length).toBeLessThanOrEqual(Math.max(minimum + 1, Math.ceil(minimum * 1.1)));
+    }
+  });
+});
+
 describe("flying the plan hop by hop with the existing free travel", () => {
   it("three hops: every hop is allowed, arrival docks there, and the next plan starts from the new place", () => {
     const h = makeGame();
