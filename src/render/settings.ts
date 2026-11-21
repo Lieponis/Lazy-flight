@@ -85,6 +85,31 @@ export const SYSTEM_SKY_IDLE_MS = 3;
 /** The reach (light years) the map uses until the app has told it the ship's real reach. */
 export const MAP_REACH_FALLBACK_LY = 35;
 
+// ---------------------------------------------------------------- the flight-plan line and place markers on the map (NAV-2)
+
+/** The look of the plan line: "line" (A, plain), "dashed" (B), "dots" (C, a dim line with dots moving to the target). `?mapline=a|b|c` tries one. */
+export const MAP_ROUTE_LOOK: "line" | "dashed" | "dots" = "line";
+/** Only the first this-many hops of a plan are drawn (the game gives at most 20). */
+export const MAP_ROUTE_MAX_HOPS = 40;
+/** "Show the plan" frames the ship and this many first hops. */
+export const MAP_ROUTE_FRAME_HOPS = 4;
+/** Dashed line: the length of one dash plus gap in screen pixels of the small picture, and how much of it is dash. */
+export const MAP_ROUTE_DASH_PX = 6;
+export const MAP_ROUTE_DASH_SHARE = 0.5;
+/** Moving dots: pixels between two dots, and how many gaps a dot travels per second. */
+export const MAP_ROUTE_DOT_GAP_PX = 14;
+export const MAP_ROUTE_DOT_SPEED = 0.6;
+/** Upper limits so the line never costs frame time: dashes and dots drawn at most. */
+export const MAP_ROUTE_MAX_DASHES = 1200;
+export const MAP_ROUTE_MAX_DOTS = 400;
+/** Place markers: at most this many at once, of which at most MAP_PLACE_EDGE_MAX far ones on the edge of the picture. */
+export const MAP_PLACE_MAX = 8;
+export const MAP_PLACE_EDGE_MAX = 4;
+/** Two markers closer than this (pixels of the small picture) are not both drawn (the less important one is left out). */
+export const MAP_MARKER_MIN_SEP_PX = 6;
+/** Free space kept at the left and right of the picture for edge markers (pixels of the small picture). */
+export const MAP_EDGE_SIDE_MARGIN_PX = 8;
+
 /** How close (in screen pixels) a tap must be to a star or planet to select it. */
 export const TAP_RADIUS_PX = 18;
 

@@ -6,6 +6,7 @@
 import "./theme.css";
 import { Game, createClock, tripFuelCost, type Arrival, type FreeArrival } from "../game";
 import { WORLD_SEED, getDock, getPlanet, getSystem, startDockOf } from "../universe";
+import { makeNavForMap } from "../mapsource";
 import type { RenderApi } from "../render";
 import {
   addressWithSeed,
@@ -87,6 +88,17 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   // ship and engines, not with every litre burnt; game.getPlaceInfo().fuelRangeLy would be the reach on the fuel on board right now).
   const reachNow = (): number => game.getPlaceInfo().rangeLy;
   api.setReachLy(reachNow());
+  // NAV-2: the player's places (start dock, outposts, starred, recent) are marked on the galaxy map; handed over only when they change.
+  const mapNav = makeNavForMap(seed);
+  let placesKey = "";
+  const pushMapPlaces = (): void => {
+    const s = game.state;
+    const key = `${game.currentSystemId()}|${s.currentDockId}|${s.recentDocks.join(",")}|${s.starredPlaces.join(",")}|${s.ownedOutposts.join(",")}`;
+    if (key === placesKey) return;
+    placesKey = key;
+    api.setMapPlaces(mapNav.places(game.getPlaces()));
+  };
+  pushMapPlaces();
 
   // ------------------------------------------------------------ names
   const dockName = (dockId: string): string => getDock(seed, dockId)?.name ?? "Unknown dock";
@@ -407,6 +419,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     api.setShip(game.state.shipId, game.currentLivery(game.state.shipId)); // follows buying, switching and painting ships (5f)
     api.setCurrentSystem(game.currentSystemId()); // the starmap "you are here" follows the player
     api.setReachLy(reachNow()); // and its diamonds follow the ship and engines
+    pushMapPlaces(); // and its place markers
     if (game.lastArrival && game.lastArrival !== seenArrival) {
       seenArrival = game.lastArrival;
       pendingArrival = game.lastArrival;

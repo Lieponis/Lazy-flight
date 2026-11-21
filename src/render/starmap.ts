@@ -31,15 +31,32 @@ import { removeNearOverlaps } from "./galaxy/skystars";
 import { SkyView } from "./galaxy/skyview";
 import { StarGrid, nearestTo } from "./galaxy/starpick";
 import { UNIVERSE_BULGE_REACH_LY, universeField } from "./galaxy/universefield";
-import { orbitCameraPosition, starfieldPositions } from "./helpers";
+import { orbitCameraPosition, renderSizeFor, starfieldPositions } from "./helpers";
 import type { Hud } from "./hud";
 import { OrbitView } from "./input";
 import { mapStatsText, mountMapStats, parseMapStats } from "./mapstats";
+import { RouteLayer } from "./routelayer";
+import {
+  demoPlan,
+  frameBounds,
+  routeLine,
+  targetTagText,
+  type MapPlace,
+  type MapRoute,
+  type RouteLine,
+  type RouteLook,
+  type SafeRect,
+} from "./routemath";
+import { RouteTag } from "./routetag";
 import type { Screen } from "./screen";
 import {
   MAP_DIAMOND_CAP,
+  MAP_EDGE_SIDE_MARGIN_PX,
   MAP_NEAR_STARS,
   MAP_REACH_FALLBACK_LY,
+  MAP_ROUTE_FRAME_HOPS,
+  MAP_ROUTE_LOOK,
+  MAP_ROUTE_MAX_HOPS,
   MAP_SKY_BUDGET_MS,
   MAP_SKY_DOTS,
   MAP_SKY_GLOW,
@@ -78,6 +95,10 @@ export interface StarMapOptions {
   reachLy?: number | null;
   /** Testing aid ?mapat=: the name of the place the map is looking from instead of the ship's real one (shown in the title). */
   testView?: string | null;
+  /** The look of the flight-plan line (testing aid ?mapline=a|b|c; null = the setting MAP_ROUTE_LOOK). */
+  routeLook?: RouteLook | null;
+  /** Testing aid ?mapplan=N: a made-up plan of N hops and some made-up places, until the app hands over real ones. */
+  testPlan?: number | null;
 }
 
 /** A sky being built, a few milliseconds per frame: the glow first, then the dots. */
@@ -142,6 +163,19 @@ export class StarMapScreen implements Screen {
   private jsMs = 0;
   private drawInfo = { calls: 0, triangles: 0 };
 
+  /** The flight-plan line and the place markers (NAV-2), and the words next to the target. */
+  private readonly route: RouteLayer;
+  /** Made the first time a plan is shown (the page needs no extra element until then). */
+  private routeTag: RouteTag | null = null;
+  private routeIn: MapRoute | null = null;
+  private placesIn: MapPlace[] = [];
+  private routeShape: RouteLine | null = null;
+  /** True while the plan and places are the made-up ones of ?mapplan=N (the app's own replace them). */
+  private demoPlanOn = false;
+  private layoutClock = 0;
+  private canvasRect = { left: 0, top: 0, width: 1, height: 1 };
+  private freeRows = { top: 0, bottom: 0 };
+
   private current: StarMapHere;
   private reachLy: number | null;
   private active = false;
@@ -174,6 +208,10 @@ export class StarMapScreen implements Screen {
     this.selectionMarker.visible = false;
     this.scene.add(this.selectionMarker, this.currentMarker);
 
+    this.route = new RouteLayer(opts.routeLook ?? MAP_ROUTE_LOOK);
+    this.scene.add(this.route.group);
+    this.demoPlanOn = (opts.testPlan ?? 0) > 0;
+
     this.skyField = opts.source?.sky ? universeField(opts.source.sky) : null;
     this.sky.setGlowStrength(MAP_SKY_GLOW);
     this.statsEl = parseMapStats(window.location.search) ? mountMapStats(opts.host.parentElement ?? document.body) : null;
@@ -193,6 +231,7 @@ export class StarMapScreen implements Screen {
       here.position.z === this.current.position.z;
     this.current = here;
     if (same) return; // same place (maybe a new name text): nothing to rebuild
+    this.applyRoute(); // the plan and the places are drawn relative to where the ship is
     this.near = null; // the stars are asked for again the next time the map is shown
     this.preNear = null; // and the sky is prepared again for the new place (after a short wait, see warmSky)
     this.warmFrames = 0;
@@ -232,13 +271,108 @@ export class StarMapScreen implements Screen {
     this.counts = this.layers.setStars(near, this.reachCount(near), MAP_DIAMOND_CAP);
     this.grid = new StarGrid(near.positions, MAP_TAPPABLE_STARS);
     this.refreshTapVisibility(near);
-    // The camera can see out to twice the bubble.
-    this.camera.far = Math.max(800, near.radius * 2.2 + 50);
-    this.camera.updateProjectionMatrix();
+    // The camera can see out to twice the bubble (and as far as the flight plan goes).
+    this.applyFar();
     this.view.resetFocus();
     this.view.dist = this.defaultDist(near);
     this.lastBuildMs = performance.now() - t0;
+    if (this.demoPlanOn) {
+      // Testing aid ?mapplan=N: a made-up plan through real near stars, and made-up places, so the line can be looked at.
+      const demo = demoPlan(this.current.position, near, this.reachLy ?? MAP_REACH_FALLBACK_LY, this.opts.testPlan ?? 20);
+      this.routeIn = demo.route;
+      this.placesIn = demo.places;
+      this.applyRoute();
+    }
     this.ensureSky(near);
+  }
+
+  // ------------------------------------------------------------------ the flight plan and my places (NAV-2)
+
+  /** The flight plan to draw (null = none). The app asks the game again after every arrival and hands the new plan over. */
+  setRoute(route: MapRoute | null): void {
+    this.demoPlanOn = false;
+    this.routeIn = route;
+    this.applyRoute();
+  }
+
+  /** My places to mark (start dock, outposts, starred, recent). */
+  setPlaces(places: readonly MapPlace[]): void {
+    this.demoPlanOn = false;
+    this.placesIn = [...places];
+    this.applyRoute();
+  }
+
+  /** The line and the markers are drawn relative to the ship: work them out again (plan, places or the ship's place changed). */
+  private applyRoute(): void {
+    const origin = this.current.position;
+    this.routeShape = this.routeIn ? routeLine(origin, this.routeIn, MAP_ROUTE_MAX_HOPS) : null;
+    this.route.setRoute(this.routeShape);
+    this.route.setPlaces(this.placesIn, origin);
+    if (this.routeShape && this.routeIn) {
+      this.routeTag ??= new RouteTag(this.opts.host.parentElement ?? document.body);
+      this.routeTag.setText(targetTagText(this.routeIn.target.name, this.routeShape.targetLy));
+    } else {
+      this.routeTag?.setText("");
+    }
+    this.applyFar();
+  }
+
+  /** The camera sees out to twice the drawn stars, and as far as the plan's line goes. */
+  private applyFar(): void {
+    const near = this.near;
+    if (!near) return;
+    const far = Math.max(800, near.radius * 2.2 + 50, this.route.extentLy() * 1.05 + 50);
+    if (far === this.camera.far) return;
+    this.camera.far = far;
+    this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Camera help for the plan screen: turns the camera to look at the ship and the first few hops, as close as fits, never beyond the
+   * zoom-out limit. Does nothing until the map has its stars and there is a plan with at least one hop.
+   */
+  frameRoute(): void {
+    const near = this.near;
+    const shape = this.routeShape;
+    if (!near || !shape || shape.count < 2) return;
+    const frame = frameBounds(shape.points, Math.min(shape.count, 1 + MAP_ROUTE_FRAME_HOPS), this.camera.fov, this.camera.aspect, 1.3);
+    this.view.focusOn(frame.centre.x, frame.centre.y, frame.centre.z, Math.min(frame.dist, this.zoomLimit(near)));
+  }
+
+  /** Where the picture's free area is (window pixels), measured twice a second: the canvas, and the rows the title and label take. */
+  private refreshLayout(seconds: number): void {
+    this.layoutClock -= seconds;
+    if (this.layoutClock > 0) return;
+    this.layoutClock = 0.5;
+    const r = this.opts.host.getBoundingClientRect();
+    this.canvasRect = { left: r.left, top: r.top, width: Math.max(1, r.width), height: Math.max(1, r.height) };
+    this.freeRows = this.opts.hud.freeRows();
+  }
+
+  /** Moves the plan's markers to match the camera and puts the target's words next to its marker. */
+  private updateRoute(seconds: number, near: NearStars): void {
+    if (!this.routeShape && this.placesIn.length === 0) return; // nothing to draw: nothing to measure
+    this.refreshLayout(seconds);
+    const size = renderSizeFor(this.camera.aspect, RENDER_WIDTH, RENDER_HEIGHT);
+    const rect = this.canvasRect;
+    const k = size.height / rect.height; // pixels of the small picture per window pixel
+    const safe: SafeRect = {
+      left: MAP_EDGE_SIDE_MARGIN_PX,
+      right: MAP_EDGE_SIDE_MARGIN_PX,
+      top: Math.max(0, this.freeRows.top - rect.top) * k + 6,
+      bottom: Math.max(0, this.freeRows.bottom) * k + 6,
+    };
+    const tag = this.route.update(seconds, this.camera, this.view.dist, size.width, size.height, safe, near.radius);
+    if (!tag || !this.routeTag) {
+      this.routeTag?.hide();
+      return;
+    }
+    this.routeTag.place(rect.left + (tag.x / size.width) * rect.width, rect.top + (tag.y / size.height) * rect.height, tag.side, {
+      left: rect.left + 4,
+      right: rect.left + rect.width - 4,
+      top: this.freeRows.top + 4,
+      bottom: window.innerHeight - this.freeRows.bottom - 4,
+    });
   }
 
   private reachCount(near: NearStars): number {
@@ -380,6 +514,7 @@ export class StarMapScreen implements Screen {
   exit(): void {
     this.active = false;
     this.view.detach();
+    this.routeTag?.hide();
     if (this.statsEl) this.statsEl.style.display = "none";
   }
 
@@ -393,6 +528,7 @@ export class StarMapScreen implements Screen {
       if (this.view.dist > this.view.maxDist) this.view.dist = this.view.maxDist;
     }
     this.view.apply();
+    if (near) this.updateRoute(seconds, near);
     // Keep the markers about the same size on screen, however far you zoom.
     const s = this.view.dist * 0.045;
     this.currentMarker.scale.setScalar(s * 1.3);
@@ -451,7 +587,7 @@ export class StarMapScreen implements Screen {
       const dotsShare = p.dots ? (p.dots.done ? 1 : p.dots.progress) : 1;
       progress = (glowShare + dotsShare) / 2;
     }
-    el.textContent = mapStatsText({
+    const block = mapStatsText({
       stars: st.stars,
       diamonds: st.diamonds,
       tappable: st.tappable,
@@ -466,6 +602,16 @@ export class StarMapScreen implements Screen {
       drawCalls: this.drawInfo.calls,
       triangles: this.drawInfo.triangles,
     });
+    el.textContent = block + this.routeStatsText();
+  }
+
+  /** One extra line for the developer counters when a plan or places are shown: the look, the stops and what was drawn. */
+  private routeStatsText(): string {
+    const shape = this.routeShape;
+    if (!shape && this.placesIn.length === 0) return "";
+    const c = this.route.counts();
+    const marks = c.hop + c.refuel + c.target + c.start + c.outpost + c.starred + c.recent;
+    return `\nPLAN ${shape ? shape.count - 1 : 0} hops, ${shape ? Math.round(shape.targetLy) : 0} ly to target; markers ${marks}, dashes ${c.dashes}, dots ${c.dots}`;
   }
 
   // ------------------------------------------------------------------ taps

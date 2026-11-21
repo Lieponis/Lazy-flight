@@ -36,6 +36,20 @@ export class Hud {
     this.root.style.display = visible ? "" : "none";
   }
 
+  /**
+   * The rows the text takes, in window pixels: where the title ends (top) and how much room the label and buttons take from the bottom.
+   * The galaxy map keeps its edge markers clear of both. Zeros while the plain label is hidden (the flight screen).
+   */
+  freeRows(): { top: number; bottom: number } {
+    if (this.root.style.display === "none") return { top: 0, bottom: 0 };
+    const title = this.title.getBoundingClientRect();
+    const bottom = this.label.parentElement?.getBoundingClientRect();
+    return {
+      top: this.title.textContent ? Math.max(0, title.bottom) : Math.max(0, title.top),
+      bottom: bottom ? Math.max(0, window.innerHeight - bottom.top) : 0,
+    };
+  }
+
   setTitle(text: string): void {
     setNameText(this.title, text);
   }

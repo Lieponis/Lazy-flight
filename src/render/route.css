@@ -1,0 +1,16 @@
+/* The words next to the flight-plan target marker on the galaxy map (src/render/routetag.ts). Same pixel font and colours as the title. */
+.route-tag {
+  position: fixed;
+  left: 0;
+  top: 0;
+  max-width: 60vw;
+  pointer-events: none;
+  font-family: var(--ui-font, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 16px;
+  letter-spacing: 1px;
+  line-height: 1.1;
+  color: var(--ui-amber, #ffb547);
+  text-shadow: 0 1px 0 #000, 0 0 2px #000, 0 0 4px #000;
+  white-space: pre-line;
+  z-index: 2;
+}

@@ -8,6 +8,7 @@
 import { armFactor, densityAt, generateSystem, getSystem, nearestSites, spacingAt, thicknessAt, type Seed } from "./universe";
 import { discDensityAt } from "./universe/galaxy";
 import type { MapPoint, MapSource, MapStarList, SkyFunctions } from "./render";
+import { placesFromRows, routeFromPlan, type MapPlace, type MapRoute, type PlaceRowLike, type PlanLike } from "./render/routemath";
 
 /** How many answers are remembered (one list of 60,000 stars is about 2.5 MB). */
 const KEEP_ANSWERS = 2;
@@ -121,5 +122,17 @@ export function makeMapSource(seed: Seed): MapSource {
       const system = getSystem(seed, id);
       return system ? { name: system.name, starLabel: system.star.label } : null;
     },
+  };
+}
+
+/**
+ * NAV-2: turns the game's answers about places and the flight plan (docs/nav-api.md) into what the galaxy map draws. The map never asks
+ * the universe, so the positions of the stars come from here. `places(game.getPlaces())` and `route(game.planRoute(target))`.
+ */
+export function makeNavForMap(seed: Seed): { places(rows: readonly PlaceRowLike[]): MapPlace[]; route(plan: PlanLike): MapRoute | null } {
+  const positionOf = (id: number): MapPoint | null => getSystem(seed, id)?.position ?? null;
+  return {
+    places: (rows) => placesFromRows(positionOf, rows),
+    route: (plan) => routeFromPlan(positionOf, plan),
   };
 }

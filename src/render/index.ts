@@ -32,6 +32,7 @@ import { mountWarpPreview } from "./warppreview";
 import { parseFloatPreview, parseFloatStyle } from "./floatmath";
 import { floatCandidates } from "./floatpick";
 import { parseMapAt, parseReachParam } from "./starmapradius";
+import { parseMapLine, parseMapPlan, type MapPlace, type MapRoute } from "./routemath";
 import type { MapSource } from "./galaxy/mapdata";
 import { mountFloatPreview } from "./floatpreview";
 import { splitCodedName } from "./namefit";
@@ -45,6 +46,8 @@ export type { RenderState, ScreenName } from "./state";
 export type { FlightInfo, FlightProgress } from "./flightplan";
 export type { MapPoint, MapSource, MapStarList, StarInfo } from "./galaxy/mapdata";
 export type { SkyFunctions } from "./galaxy/universefield";
+export type { MapPlace, MapPlaceKind, MapRoute, MapRouteHop, PlaceRowLike, PlanLike, PositionOf, RouteLook } from "./routemath";
+export { placesFromRows, routeFromPlan } from "./routemath";
 
 export interface RenderApi {
   state: StateStore;
@@ -60,6 +63,16 @@ export interface RenderApi {
    * only when the number of stars in reach changes. null = the map's 35 ly fallback.
    */
   setReachLy(reachLy: number | null): void;
+  /**
+   * NAV-2: the flight plan to draw on the galaxy map (null = none). Build it with `routeFromPlan` from the game's `planRoute` answer;
+   * ask the game again after every arrival and hand the new plan over. The line goes from the ship through every stop; a far target
+   * is shown on the edge of the picture with its name and distance. Cheap: nothing is rebuilt per frame.
+   */
+  setMapRoute(route: MapRoute | null): void;
+  /** NAV-2: the player's places to mark on the galaxy map (build them with `placesFromRows` from the game's `getPlaces`). */
+  setMapPlaces(places: readonly MapPlace[]): void;
+  /** NAV-2: show the galaxy map with the camera turned to the ship and the first hops of the plan (the zoom-out limit is respected). */
+  showMapRoute(): void;
   /** Show the flight screen (launch, warp, approach) for a trip the game has started. */
   startFlight(info: FlightInfo): void;
   /** The game says the trip is over: finish the animation, then show the docked view at the destination dock. */
@@ -126,6 +139,8 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     onOpenSystem: (id) => api.showSystem(id),
     reachLy: forcedReach,
     testView: mapAt ? mapAt.name : null,
+    routeLook: parseMapLine(window.location.search), // testing aid ?mapline=a|b|c: the look of the plan line
+    testPlan: parseMapPlan(window.location.search), // testing aid ?mapplan=N: a made-up plan of N hops and made-up places
   });
   // The dock the ship is parked at (the first one shown). Navigation buttons live in src/ui (Agent 5).
   let lastDockId = getDocksOfSystem(seed, current.id)[0]?.id ?? "";
@@ -188,6 +203,16 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     },
     setReachLy(value: number | null): void {
       starmap.setReachLy(forcedReach ?? value);
+    },
+    setMapRoute(route: MapRoute | null): void {
+      starmap.setRoute(route);
+    },
+    setMapPlaces(places: readonly MapPlace[]): void {
+      starmap.setPlaces(places);
+    },
+    showMapRoute(): void {
+      api.showStarmap();
+      starmap.frameRoute();
     },
     setShip(id: string, livery?: string): void {
       shipId = resolveShipId(id, forcedShip);
