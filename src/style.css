@@ -44,3 +44,13 @@ body {
   text-align: center;
   padding: 24px;
 }
+
+/* Installed iPhone app with the see-through status bar: iOS makes the fixed "whole screen" box one status bar
+   shorter than the screen, which left a black strip at the bottom. In the installed app, 100vh is the real screen
+   height, so the picture box uses it. Browser tabs (not standalone) are unchanged. */
+@media (display-mode: standalone) {
+  #app {
+    bottom: auto;
+    height: 100vh;
+  }
+}

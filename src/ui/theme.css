@@ -1007,6 +1007,20 @@
   image-rendering: pixelated;
 }
 
+/* The turning station starts below the clock and the island (env() is 0 in browser tabs, so they are unchanged). */
+.ui-title-3d {
+  top: env(safe-area-inset-top, 0px);
+  height: calc(100% - env(safe-area-inset-top, 0px));
+}
+
+/* Installed app: the title fills the real screen height too (see #app in src/style.css). */
+@media (display-mode: standalone) {
+  .ui-title {
+    bottom: auto;
+    height: 100vh;
+  }
+}
+
 .ui-title-content {
   position: absolute;
   inset: 0;
