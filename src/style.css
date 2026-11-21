@@ -26,9 +26,10 @@ body {
 
 /* The canvas is tiny (e.g. 320x180). CSS stretches it to fill the WHOLE window.
    "pixelated" means NO smoothing. Its shape is set in src/render/index.ts. */
-/* It fills #app, which is fixed to every edge of the screen (inset 0). On the installed iPhone app the status bar is
-   see-through ("black-translucent" in index.html), so the picture runs under the clock and the island; the HUD keeps
-   clear of them with env(safe-area-inset-*). */
+/* It fills #app, which is fixed to every edge of the screen (inset 0).
+   Installed iPhone app: the status bar stays "black" (index.html). "black-translucent" was tried (Nov 2026) and hit an
+   iOS 26/27 bug (WebKit 301994, 301108): the page then cannot reach the bottom 62 pt of the screen, leaving a black
+   strip there. Try it again only after Apple fixes that bug. */
 #app canvas {
   display: block;
   width: 100%;
@@ -43,14 +44,4 @@ body {
   font-size: 16px;
   text-align: center;
   padding: 24px;
-}
-
-/* Installed iPhone app with the see-through status bar: iOS makes the fixed "whole screen" box one status bar
-   shorter than the screen, which left a black strip at the bottom. In the installed app, 100vh is the real screen
-   height, so the picture box uses it. Browser tabs (not standalone) are unchanged. */
-@media (display-mode: standalone) {
-  #app {
-    bottom: auto;
-    height: 100vh;
-  }
 }
