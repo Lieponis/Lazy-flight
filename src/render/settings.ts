@@ -90,10 +90,11 @@ export const MAP_REACH_FALLBACK_LY = 35;
 /** The look of the plan line: "line" (A, plain), "dashed" (B, Andy chose B), "dots" (C, a dim line with dots moving to the target). `?mapline=a|b|c` tries one. */
 export const MAP_ROUTE_LOOK: "line" | "dashed" | "dots" = "dashed";
 /**
- * How many milliseconds the map camera takes to follow your finger when you drag to turn the map (0 = at once, as it was). A little easing
- * stops the whole picture from shaking with every small jump of the finger. `?mapturn=0|60|120` tries one.
+ * How many milliseconds the map camera takes to follow your finger when you drag to turn the map (0 = at once, as it was). I tried 60 and 120
+ * against Andy's complaint that the picture shakes while turning: it made no difference he could see (the shake is the whole picture stepping in
+ * big pixels, see docs/report-agent-3n.md), so it is OFF. `?mapturn=60|120` still tries it.
  */
-export const MAP_TURN_SMOOTH_MS = 60;
+export const MAP_TURN_SMOOTH_MS = 0;
 /** Only the first this-many hops of a plan are drawn (the game gives at most 20). */
 export const MAP_ROUTE_MAX_HOPS = 40;
 /** "Show the plan" frames the ship and this many first hops. */
