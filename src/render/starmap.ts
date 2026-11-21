@@ -282,6 +282,7 @@ export class StarMapScreen implements Screen {
       this.routeIn = demo.route;
       this.placesIn = demo.places;
       this.applyRoute();
+      this.frameRoute(); // and the camera help turns the map to look at the first hops
     }
     this.ensureSky(near);
   }
