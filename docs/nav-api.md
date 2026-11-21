@@ -7,7 +7,7 @@ Status: agreed names and shapes (stage NAV-1, Agent 4). The methods are added to
 - A **place id** is either a dock id (`"44776692551/2"`) or a system id written as digits (`"44776692551"`, no slash = "this star system, at its first dock"). Every system has at least one dock.
 
 ## Save fields (new, small; old saves get empty lists, no save version change)
-- `state.recentDocks: string[]` newest first, no duplicates, at most 10 dock ids. Filled by `Game` whenever the ship docks (job arrival, free-travel arrival to a dock, load does not add).
+- `state.recentDocks: string[]` newest first, no duplicates, at most 10 dock ids. Filled by `Game` whenever the ship docks after a trip (job arrival, free-travel arrival to a dock). Loading adds nothing, but `getPlaces()` always counts the dock you are docked at as the newest recent one.
 - `state.starredPlaces: string[]` place ids the player starred, at most 30, in the order starred.
 - Start dock and owned outposts are NOT stored again: they are read from `startDockOf(seed)` and `state.ownedOutposts`.
 

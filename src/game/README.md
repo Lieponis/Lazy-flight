@@ -33,3 +33,8 @@ No drawing code. It may use `universe`; it must never import `render` or `ui`.
 - Nearby places are asked by count (the nearest N), never by radius: the galaxy centre holds hundreds of thousands of systems within 80 ly.
 - Long trips pay less per light year (`paidDistance` in `src/universe/jobs.ts`): full pay up to 50 ly, a slower square-root growth beyond.
 - The explored list holds up to 100,000 systems (about 1.7 MB of save text).
+
+## MY PLACES (stage NAV-1)
+
+`places.ts` holds the list rules; `Game.getPlaces()` builds the rows (start dock, owned outposts, stars, last 10 docks; one row per place with all its kinds).
+`recentDocks` (max 10) and `starredPlaces` (max 30) are new save fields; old saves get empty lists. Contract: `docs/nav-api.md`.

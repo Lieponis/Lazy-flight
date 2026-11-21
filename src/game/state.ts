@@ -5,7 +5,8 @@ import type { Job } from "../universe";
 import { cleanExplored } from "./explore";
 import { cleanShipLivery, STANDARD_LIVERY, type ShipLivery } from "./liveries";
 import { emptyCompletedJobs, RANK_KINDS, type CompletedJobs } from "./ranks";
-import { STARTER_SHIP_ID, STARTING_CREDITS } from "./settings";
+import { cleanIdList } from "./places";
+import { MAX_RECENT_DOCKS, MAX_STARRED_PLACES, STARTER_SHIP_ID, STARTING_CREDITS } from "./settings";
 import { getShip, isShipId } from "./ships";
 import { cleanUpgrades, noUpgrades, statsFor, type ShipUpgrades } from "./upgrades";
 
@@ -55,6 +56,10 @@ export interface GameState {
    * (currentDockId is then the last dock you used). Old saves have no such field and stay docked.
    */
   spacePlanetId: string | null;
+  /** The last docks you used (dock ids), newest first, no duplicates, at most MAX_RECENT_DOCKS. Old saves: empty (NAV-1). */
+  recentDocks: string[];
+  /** Places you starred (dock ids, or a star system number as digits), in the order starred, at most MAX_STARRED_PLACES. Old saves: empty. */
+  starredPlaces: string[];
   /** The accepted job (a full copy), or null. */
   currentJob: Job | null;
   /** A free trip (no job) on its way, or null. Never set together with currentJob. */
@@ -94,6 +99,8 @@ export function newGameState(startDockId: string): GameState {
     outpostCount: 0,
     currentDockId: startDockId,
     spacePlanetId: null,
+    recentDocks: [],
+    starredPlaces: [],
     currentJob: null,
     freeTrip: null,
     explored: {},
@@ -184,6 +191,8 @@ export function normalizeState(raw: Partial<GameState> & { currentDockId: string
     outpostCount: ownedOutposts.length,
     currentDockId: raw.currentDockId,
     spacePlanetId: typeof raw.spacePlanetId === "string" && raw.spacePlanetId !== "" ? raw.spacePlanetId : null,
+    recentDocks: cleanIdList(raw.recentDocks, MAX_RECENT_DOCKS),
+    starredPlaces: cleanIdList(raw.starredPlaces, MAX_STARRED_PLACES),
     currentJob: hasJob ? (raw.currentJob as Job) : null,
     freeTrip,
     explored: cleanExplored(raw.explored),

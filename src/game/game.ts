@@ -12,6 +12,7 @@ import {
   getSite,
   getSystem,
   hashString,
+  startDockOf,
   type Job,
   type NearDock,
   type NearSystem,
@@ -40,6 +41,7 @@ import {
   type TripFacts,
 } from "./freetravel";
 import { currentPlaceId, isFlying, notDockedReason } from "./location";
+import { addStar, pushRecentDock, removeStar, type PlaceKind } from "./places";
 import { rankInfos, type RankInfo } from "./ranks";
 import { UPGRADE_LINES } from "./debriefs";
 import { buyLivery, currentLivery, liveryCatalog, setLivery, type LiveryRow } from "./liveries";
@@ -112,6 +114,24 @@ export interface PlaceInfo {
   /** True when the nearest other dock is farther than a full tank can fly. */
   isRemote: boolean;
   remoteMessage: string | null;
+}
+
+/** One row of MY PLACES (stage NAV-1). One row per place, with every kind that applies. */
+export interface Place {
+  /** A dock id, or a star system number as digits. The key for star/unstar and for planning a route. */
+  id: string;
+  kinds: PlaceKind[];
+  name: string;
+  systemId: number;
+  systemName: string;
+  dockId: string | null;
+  /** From the ship now, one decimal (0 = here). */
+  distanceLy: number;
+  fuelNeeded: number;
+  reach: Reach;
+  reachText: string;
+  starred: boolean;
+  isHere: boolean;
 }
 
 export type GameListener = () => void;
@@ -266,6 +286,96 @@ export class Game {
         ? `Nothing here is within reach of this ship.${sameSystemDocks > 0 ? " The other docks in this system are just as far from everything." : ""} The nearest dock in another system is ${nearestOtherDock.distanceLy} ly away; a full tank takes you ${rangeLy} ly.`
         : null,
     };
+  }
+
+  // ------------------------------------------------------------ MY PLACES (NAV-1)
+
+  /** The dock a place id leads to, with its star system: a dock id, or a system number (its first dock). Null if it does not exist. */
+  private resolvePlace(id: string): { dockId: string | null; systemId: number; name: string } | null {
+    if (id.includes("/")) {
+      const dock = getDock(this.seed, id);
+      return dock ? { dockId: dock.id, systemId: dock.systemId, name: dock.name } : null;
+    }
+    if (!/^\d{1,12}$/.test(id)) return null;
+    const systemId = Number(id);
+    const system = getSystem(this.seed, systemId);
+    if (!system) return null;
+    const dock = getDocksOfSystem(this.seed, systemId)[0];
+    return { dockId: dock ? dock.id : null, systemId, name: dock ? dock.name : system.name };
+  }
+
+  /** The places: start dock, outposts, starred, then the last docks (newest first). One row per place, never twice. */
+  getPlaces(): Place[] {
+    const start = startDockOf(this.seed).id;
+    const here = this.state.spacePlanetId === null && !isFlying(this.state) ? this.state.currentDockId : null;
+    const kinds = new Map<string, PlaceKind[]>();
+    const add = (id: string, kind: PlaceKind): void => {
+      const list = kinds.get(id) ?? [];
+      if (!list.includes(kind)) list.push(kind);
+      kinds.set(id, list);
+    };
+    add(start, "start");
+    for (const id of this.state.ownedOutposts) add(id, "outpost");
+    for (const id of this.state.starredPlaces) add(id, "starred");
+    const recent = here !== null && !this.state.recentDocks.includes(here) ? [here, ...this.state.recentDocks] : this.state.recentDocks;
+    for (const id of recent.slice(0, 10)) add(id, "recent");
+    const fromSystem = this.currentSystemId();
+    const rows: Place[] = [];
+    for (const [id, k] of kinds) {
+      const found = this.resolvePlace(id);
+      if (!found) continue; // an id that does not exist in this universe is skipped
+      const ly = distanceBetweenSystems(this.seed, fromSystem, found.systemId);
+      if (ly === null) continue;
+      const r = reachOf(this.state, ly);
+      rows.push({
+        id,
+        kinds: k,
+        name: found.name,
+        systemId: found.systemId,
+        systemName: getSystem(this.seed, found.systemId)?.name ?? "?",
+        dockId: found.dockId,
+        distanceLy: Math.round(ly * 10) / 10,
+        fuelNeeded: r.fuelNeeded,
+        reach: r.reach,
+        reachText: r.text,
+        starred: this.state.starredPlaces.includes(id),
+        isHere: found.dockId !== null && found.dockId === here,
+      });
+    }
+    const order: PlaceKind[] = ["start", "outpost", "starred", "recent"];
+    const rank = (p: Place): number => Math.min(...p.kinds.map((x) => order.indexOf(x)));
+    const position = new Map(rows.map((p, i) => [p.id, i]));
+    return rows.sort((a, b) => rank(a) - rank(b) || (a.kinds.includes("recent") && b.kinds.includes("recent") ? (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0) : 0));
+  }
+
+  isStarred(id: string): boolean {
+    return this.state.starredPlaces.includes(id);
+  }
+
+  /** Star a dock or star system. The 31st returns { ok: false, full: true, reason } so the screen can ask the player to remove one. */
+  starPlace(id: string): { ok: true } | { ok: false; reason: string; full?: true } {
+    if (this.resolvePlace(id) === null) return { ok: false, reason: "There is no such place." };
+    const r = addStar(this.state.starredPlaces, id);
+    if (!r.ok) return r;
+    if (r.list.length !== this.state.starredPlaces.length) {
+      this.state = { ...this.state, starredPlaces: r.list };
+      this.changed();
+    }
+    return { ok: true };
+  }
+
+  unstarPlace(id: string): { ok: true } | { ok: false; reason: string } {
+    const r = removeStar(this.state.starredPlaces, id);
+    if (!r.ok) return r;
+    this.state = { ...this.state, starredPlaces: r.list };
+    this.changed();
+    return { ok: true };
+  }
+
+  /** Remembers the dock you just docked at (newest first). */
+  private rememberDock(): void {
+    if (this.state.spacePlanetId !== null || isFlying(this.state)) return;
+    this.state = { ...this.state, recentDocks: pushRecentDock(this.state.recentDocks, this.state.currentDockId) };
   }
 
   /** The nearest `count` star systems around the place you are at, nearest first (your own system first, distance 0). A count, never a radius. */
@@ -579,7 +689,14 @@ export class Game {
       const paid = state.outpostPrices[id];
       if (paid !== undefined) prices[id] = paid;
     }
-    let loaded: GameState = { ...state, ownedOutposts: real, outpostPrices: prices, outpostCount: real.length };
+    let loaded: GameState = {
+      ...state,
+      ownedOutposts: real,
+      outpostPrices: prices,
+      outpostCount: real.length,
+      recentDocks: state.recentDocks.filter((id) => getDock(this.seed, id) !== null),
+      starredPlaces: state.starredPlaces.filter((id) => this.resolvePlace(id) !== null),
+    };
     // A place that does not exist in this universe cannot be where you float or fly to: you stay docked at the last dock.
     if (typeof loaded.spacePlanetId === "string" && (getPlanet(this.seed, loaded.spacePlanetId) === null || getDock(this.seed, loaded.spacePlanetId) !== null)) {
       loaded = { ...loaded, spacePlanetId: null };
@@ -605,6 +722,7 @@ export class Game {
       );
       if (free.arrival) {
         this.state = free.state;
+        this.rememberDock();
         this.lastFreeArrival = free.arrival;
         this.changed();
       }
@@ -618,6 +736,7 @@ export class Game {
     );
     if (!arrival) return null;
     this.state = state;
+    this.rememberDock();
     this.lastArrival = arrival;
     this.changed();
     return arrival;

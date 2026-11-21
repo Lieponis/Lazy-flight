@@ -85,6 +85,8 @@ export function migrateSave(save: SaveData, toSeed?: number): Migration {
     outpostPrices: {},
     outpostCount: 0,
     deliveredJobIds: [],
+    recentDocks: [],
+    starredPlaces: [],
   };
 
   const message = refund > 0 ? `${MESSAGE_REBUILT} Your outposts were sold back for ${refund} credits.` : MESSAGE_REBUILT;

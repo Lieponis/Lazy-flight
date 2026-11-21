@@ -156,3 +156,7 @@ export const MAX_EXPLORED_SYSTEMS = 100000;
 
 /** Price of every extra paint job, in credits (Andy chose 500, 2026-11-11). The "standard" paint is always free. */
 export const LIVERY_PRICE = 500;
+
+/** MY PLACES (stage NAV-1): how many recently used docks are remembered, and how many places the player may star. */
+export const MAX_RECENT_DOCKS = 10;
+export const MAX_STARRED_PLACES = 30;
