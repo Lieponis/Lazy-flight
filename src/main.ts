@@ -6,6 +6,8 @@ import { startRender } from './render';
 import { makeMapSource } from './mapsource';
 import { chooseStart, startUi } from './ui';
 import { startOfflineApp } from './ui/updatenote';
+import { runBootGuard } from './rescue';
+import { getBrowserStorage } from './save/save';
 
 // Draws at a tiny resolution and stretches the picture up without smoothing (the chunky pixel look).
 // The two screens (starmap and system view) live in src/render.
@@ -20,6 +22,20 @@ function showFallback(message: string): void {
   note.className = 'fallback-message';
   note.textContent = message;
   app!.appendChild(note);
+}
+
+// HOTFIX 2026-11-21 (src/rescue.ts): after 2 starts in a row that did not keep running, or with ?rescue=1, show the small SAFE START
+// screen instead of the game (it clears only the flight plan destination and offers SAVE FILE DOWNLOAD). Nothing heavy runs before this.
+let sessionBox: Storage | null = null;
+try {
+  sessionBox = window.sessionStorage;
+} catch {
+  sessionBox = null;
+}
+if (runBootGuard(getBrowserStorage(), sessionBox, app)) {
+  // The offline helper still registers, so a fixed version of the game can arrive while the rescue screen shows.
+  if (!IS_PREVIEW) startOfflineApp(app, () => true);
+  throw new Error('Safe start: the game was not started (see the SAFE START screen).');
 }
 
 let renderer: THREE.WebGLRenderer;

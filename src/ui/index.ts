@@ -38,6 +38,7 @@ import { PlanetPanel } from "./planetpanel";
 import { PlacesScreen } from "./places";
 import { STAR_FULL_HINT } from "./navlogic";
 import { FlightPlanScreen } from "./flightplan";
+import { NAV_TARGET_KEY, ROUTE_START_DELAY_MS, cleanNavTarget } from "./navtarget";
 import { NavBar } from "./navbar";
 import { RanksScreen } from "./ranks";
 import { Shipyard } from "./shipyard";
@@ -103,15 +104,18 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
   };
   pushMapPlaces();
   // NAV-3 (5k): the destination the player chose in MY PLACES. A UI preference, kept in this browser only (not in the save).
-  const NAV_TARGET_KEY = "lazy-flight.nav-target";
+  // HOTFIX 2026-11-21: a stored destination is checked before use. Anything that is not a real dock or star system (old,
+  // broken or hand-edited) is dropped quietly instead of being handed to the flight planner.
   let navTarget: string | null = null;
   try {
-    navTarget = storage?.getItem(NAV_TARGET_KEY) ?? null;
+    navTarget = cleanNavTarget(seed, storage?.getItem(NAV_TARGET_KEY) ?? null);
+    if (navTarget === null) storage?.removeItem(NAV_TARGET_KEY);
   } catch {
     navTarget = null;
   }
   const setNavTarget = (id: string | null): void => {
     navTarget = id;
+    routeAllowed = true; // the player chose it now: show the line straight away
     try {
       if (id) storage?.setItem(NAV_TARGET_KEY, id);
       else storage?.removeItem(NAV_TARGET_KEY);
@@ -122,16 +126,37 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     pushMapRoute();
   };
   let routeKey = "";
+  // HOTFIX 2026-11-21: no flight plan is worked out during start-up. The map line is first asked a few seconds after the game
+  // has started (or as soon as the player opens the flight plan on the map), so a slow plan can never stop the game opening.
+  let routeAllowed = false;
   /** The flight plan line on the galaxy map: asked again only when the place, ship or destination changes. */
   const pushMapRoute = (): void => {
+    if (!routeAllowed) return;
     const s = game.state;
     const key = `${navTarget}|${s.currentDockId}|${s.spacePlanetId}|${s.shipId}|${s.freeTrip ? "trip" : ""}|${s.currentJob ? "job" : ""}`;
     if (key === routeKey) return;
     routeKey = key;
-    const plan = navTarget ? game.planRoute(navTarget) : null;
+    let plan: ReturnType<typeof game.planRoute> | null = null;
+    try {
+      plan = navTarget ? game.planRoute(navTarget) : null;
+    } catch {
+      // A destination the planner cannot handle is dropped (never a crash); the player can choose it again in MY PLACES.
+      navTarget = null;
+      try {
+        storage?.removeItem(NAV_TARGET_KEY);
+      } catch {
+        // storage off: nothing to remove
+      }
+      plan = null;
+    }
     api.setMapRoute(plan?.target ? mapNav.route({ ...plan, target: plan.target }) : null);
   };
-  pushMapRoute();
+  const allowRoute = (): void => {
+    if (routeAllowed) return;
+    routeAllowed = true;
+    pushMapRoute();
+  };
+  window.setTimeout(allowRoute, ROUTE_START_DELAY_MS);
   // NAV-2 testing aid ?mapto=far (or a system number): points the flight plan at a star far from the ship, WITHOUT saving it, so the
   // line on the map can be looked at with a real plan from the game (clear it on the FLIGHT PLAN screen, or open the page without it).
   const mapTo = new URLSearchParams(window.location.search).get("mapto");
@@ -142,6 +167,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     if (id !== undefined && Number.isFinite(id)) {
       navTarget = String(id);
       routeKey = "";
+      allowRoute();
       pushMapRoute();
     }
   }
@@ -247,6 +273,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
       },
       showOnMap: () => {
         overlay = "none";
+        routeAllowed = true;
         pushMapRoute();
         api.showMapRoute();
         refresh();

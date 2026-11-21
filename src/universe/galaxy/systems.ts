@@ -218,7 +218,12 @@ export function systemsWithin(seed: Seed, center: Vec3, radius: number, options:
  */
 export function nearestSystems(seed: Seed, center: Vec3, count: number, options: QueryOptions = {}): NearSystem[] {
   if (count <= 0) return [];
-  const density = densityAt(center);
+  // HOTFIX 2026-11-21: the first radius comes from the DENSER of the density here and the density in the disc's middle plane
+  // straight below/above. Before, a place high above the disc (sparse, e.g. Hobploo 9T6VR-7427 at 620 ly) got a huge first
+  // radius that reached deep into the dense disc: 3 million systems gathered to find 60,000 (13 s, about 400 MB), which made
+  // the iPhone app crash on every start. Starting small and growing gently gives exactly the same answer (all systems within
+  // the final radius are looked at, then the nearest `count` are kept), only without the huge overshoot.
+  const density = Math.max(densityAt(center), densityAt({ x: center.x, y: 0, z: center.z }));
   let radius = density > 0 ? Math.cbrt((3 * count) / (4 * Math.PI * density)) * 1.05 : 100;
   radius = Math.max(radius, 1);
   const reach = 4 * DISC_RADIUS;
@@ -228,7 +233,8 @@ export function nearestSystems(seed: Seed, center: Vec3, count: number, options:
       found.sort((a, b) => a.distance - b.distance || a.id - b.id);
       return found.length > count ? found.slice(0, count) : found;
     }
-    const grow = found.length === 0 ? 2 : Math.min(2, Math.max(1.15, Math.cbrt(count / found.length) * 1.1));
+    // Grow by at most 1.3 (about twice the volume) per step, so the ball never jumps far into a much denser region.
+    const grow = found.length === 0 ? 1.5 : Math.min(1.3, Math.max(1.1, Math.cbrt(count / found.length) * 1.05));
     radius *= grow;
   }
 }

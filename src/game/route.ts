@@ -15,6 +15,13 @@
 import { nearestDocks, type NearDock, type Seed, type Vec3 } from "../universe";
 
 export const MAX_PLAN_HOPS = 20;
+/**
+ * HOTFIX 2026-11-21: a work limit. A plan may ask the universe "which docks are near this point?" at most this many times.
+ * A normal plan of 20 hops asks about 40 to 150 times; a plan through empty space could ask far more and freeze a phone. When
+ * the limit is reached the plan stops where it got to (the hops so far, "ask again after you arrive"), never an endless search.
+ * Counting questions (not milliseconds) keeps the answer the same on every device.
+ */
+export const MAX_PLAN_QUERIES = 400;
 const FORWARD_PROBES = [1, 0.7];
 const LOOK_AHEAD_CANDIDATES = 6;
 const DOCKS_PER_PROBE = 20;
@@ -37,6 +44,22 @@ export interface RouteQuestion {
   /** The longest hop (whole light years) one full tank allows. */
   rangeLy: number;
   maxHops?: number;
+  /** The work limit (default MAX_PLAN_QUERIES). */
+  maxQueries?: number;
+}
+
+/** Thrown inside planHops when the work limit is reached; planHops turns it into a shorter answer. */
+class PlanBudgetError extends Error {}
+
+/** Counts the universe questions of one plan (one counter per planHops call). */
+interface Budget {
+  left: number;
+}
+let budget: Budget = { left: Infinity };
+
+function askDocks(seed: Seed, p: Vec3, count: number): NearDock[] {
+  if (--budget.left < 0) throw new PlanBudgetError("flight plan work limit reached");
+  return nearestDocks(seed, p, count);
 }
 
 export interface RouteAnswer {
@@ -85,7 +108,7 @@ function perpendiculars(dir: Vec3): [Vec3, Vec3] {
 function dockSites(seed: Seed, p: Vec3): NearDock[] {
   const seen = new Set<number>();
   const out: NearDock[] = [];
-  for (const d of nearestDocks(seed, p, DOCKS_PER_PROBE)) {
+  for (const d of askDocks(seed, p, DOCKS_PER_PROBE)) {
     if (seen.has(d.systemId)) continue;
     seen.add(d.systemId);
     out.push(d);
@@ -137,6 +160,24 @@ function greedyStep(q: RouteQuestion, pos: Vec3, systemId: number, visited: Read
 }
 
 export function planHops(q: RouteQuestion): RouteAnswer {
+  const outer = budget;
+  budget = { left: q.maxQueries ?? MAX_PLAN_QUERIES };
+  const hops: PlannedHop[] = [];
+  const state = { pos: q.from };
+  try {
+    return planHopsInner(q, hops, state);
+  } catch (error) {
+    if (!(error instanceof PlanBudgetError)) throw error;
+    // Work limit reached: the hops found so far are a fair start (each one is real and closer); ask again after arriving.
+    const remainingLy = dist(state.pos, q.to);
+    if (hops.length > 0) return { status: "ok", hops, truncated: true, remainingLy, closestLy: null, gapLy: null };
+    return { status: "stuck", hops, truncated: false, remainingLy, closestLy: remainingLy, gapLy: null };
+  } finally {
+    budget = outer;
+  }
+}
+
+function planHopsInner(q: RouteQuestion, hops: PlannedHop[], state: { pos: Vec3 }): RouteAnswer {
   const maxHops = q.maxHops ?? MAX_PLAN_HOPS;
   const answer = (status: RouteAnswer["status"], hops: PlannedHop[], truncated: boolean, pos: Vec3, extra: Partial<RouteAnswer> = {}): RouteAnswer => ({
     status,
@@ -148,7 +189,6 @@ export function planHops(q: RouteQuestion): RouteAnswer {
     ...extra,
   });
   if (q.fromSystemId === q.toSystemId) return answer("here", [], false, q.from);
-  const hops: PlannedHop[] = [];
   const visited = new Set<number>([q.fromSystemId]);
   let pos = q.from;
   let systemId = q.fromSystemId;
@@ -186,6 +226,7 @@ export function planHops(q: RouteQuestion): RouteAnswer {
     hops.push(toPlanned(next));
     visited.add(next.systemId);
     pos = next.position;
+    state.pos = pos;
     systemId = next.systemId;
   }
   return answer("ok", hops, dist(pos, q.to) > 0, pos);
@@ -197,7 +238,7 @@ function gapBeyondReach(q: RouteQuestion, pos: Vec3, systemId: number): number |
   const dir = unit(pos, q.to);
   const probe = along(pos, dir, Math.min(here, q.rangeLy + 1));
   let best: number | null = null;
-  for (const d of nearestDocks(q.seed, probe, 12)) {
+  for (const d of askDocks(q.seed, probe, 12)) {
     if (d.systemId === systemId) continue;
     if (dist(d.position, q.to) >= here) continue;
     const reach = dist(pos, d.position);
