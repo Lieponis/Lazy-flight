@@ -26,18 +26,15 @@ body {
 
 /* The canvas is tiny (e.g. 320x180). CSS stretches it to fill the WHOLE window.
    "pixelated" means NO smoothing. Its shape is set in src/render/index.ts. */
+/* It fills #app, which is fixed to every edge of the screen (inset 0). On the installed iPhone app the status bar is
+   see-through ("black-translucent" in index.html), so the picture runs under the clock and the island; the HUD keeps
+   clear of them with env(safe-area-inset-*). */
 #app canvas {
   display: block;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
-}
-
-@supports (height: 100dvh) {
-  #app canvas {
-    height: 100dvh;
-  }
 }
 
 .fallback-message {
