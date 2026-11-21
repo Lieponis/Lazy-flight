@@ -24,6 +24,9 @@ export interface TesterHooks {
 
 export interface MenuExtras {
   onSaveFile?: () => void;
+  /** NAV-3: MENU -> MY PLACES / FLIGHT PLAN. */
+  onPlaces?: () => void;
+  onPlan?: () => void;
   tester?: TesterHooks;
 }
 
@@ -79,6 +82,9 @@ export class GameMenu {
     titles.append(el("div", "ui-panel-title", "MENU"), this.sub);
     head.append(titles, button("CLOSE", "", () => this.onClose()));
     const body = this.mainView;
+    // NAV-3 (5k): MY PLACES and the FLIGHT PLAN come first: finding your way is the most used.
+    if (this.extras.onPlaces) body.append(button("MY PLACES", "ui-btn-primary ui-btn-wide", () => this.extras.onPlaces?.()));
+    if (this.extras.onPlan) body.append(button("FLIGHT PLAN", "ui-btn-primary ui-btn-wide", () => this.extras.onPlan?.()));
     // RANKS (part 5c): your ranks and the outposts you own.
     if (this.onRanks) body.append(button("RANKS & OUTPOSTS", "ui-btn-primary ui-btn-wide", () => this.onRanks?.()));
     if (this.sound) body.append(button("SETTINGS", "ui-btn-primary ui-btn-wide", () => this.showSettings(true)));

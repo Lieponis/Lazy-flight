@@ -427,8 +427,13 @@
   left: 8px;
   right: 8px;
   bottom: 64px;
+  margin: 0 auto;
+  width: fit-content;
+  max-width: calc(100% - 16px);
+  padding: 1px 8px;
   text-align: center;
-  color: var(--ui-dim);
+  color: var(--ui-text);
+  background: rgba(5, 10, 20, 0.78);
   font-size: 16px;
   pointer-events: none;
 }
@@ -1591,4 +1596,88 @@ body.ui-whatnow-on .ui-toast {
 body.ui-docked-on .hud-title,
 body.ui-floating-on .fh-title {
   display: none;
+}
+
+/* ------------------------------------------------------------ NAV-3 (5k): MY PLACES and FLIGHT PLAN */
+.ui-places-group {
+  color: var(--ui-dim);
+  letter-spacing: 2px;
+  font-size: 18px;
+  margin: 6px 0 -2px;
+}
+
+.ui-place {
+  cursor: pointer;
+}
+
+.ui-place-title {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.ui-place-sub {
+  color: var(--ui-dim);
+  overflow-wrap: anywhere;
+}
+
+.ui-place-dest {
+  color: var(--ui-amber);
+}
+
+.ui-place-detail {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.ui-place-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ui-card-far:not(.ui-card-blocked) {
+  border-left-color: var(--ui-dim);
+}
+
+.ui-plan-next {
+  border: 2px solid var(--ui-amber);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ui-plan-next-title {
+  color: var(--ui-amber);
+  font-size: 22px;
+  letter-spacing: 2px;
+}
+
+.ui-plan-next-name {
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+
+.ui-plan-refuel {
+  color: var(--ui-amber);
+}
+
+.ui-plan-totals {
+  color: var(--ui-dim);
+  overflow-wrap: anywhere;
+}
+
+.ui-nav-star {
+  flex: 0 0 auto;
+  min-width: 48px;
+}
+
+.ui-nav-star-on {
+  color: var(--ui-amber);
+}
+
+.ui-planet-star {
+  margin-left: auto;
+  padding: 0 8px;
 }

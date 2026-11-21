@@ -13,6 +13,7 @@ import { getDock, getPlanetsOfSystem } from "../universe";
 import { planetTypeLabel } from "../render/helpers";
 import { button, el, nameEl } from "./dom";
 import { PLANET_PANEL_HINT, flyHereText, planetPanelText } from "./logic";
+import { STAR_FULL_HINT, starButtonText } from "./navlogic";
 
 export class PlanetPanel {
   private root = el("div", "ui-planet");
@@ -51,7 +52,8 @@ export class PlanetPanel {
     const floatingHere = planet !== undefined && this.game.state.spacePlanetId === planet.id;
     const check = planet ? this.game.canFreeTravel(planet.id) : null;
     const fly = check ? flyHereText(check, this.game.getShipStats().fuelTankSize, this.game.clock.speed) : null;
-    const key = `${planet?.id ?? ""}|${owned}|${here}|${floatingHere}|${JSON.stringify(fly)}`;
+    const starred = dock ? this.game.isStarred(dock.id) : false;
+    const key = `${planet?.id ?? ""}|${owned}|${here}|${floatingHere}|${starred}|${JSON.stringify(fly)}`;
     if (key === this.shown) return;
     this.shown = key;
 
@@ -75,6 +77,17 @@ export class PlanetPanel {
     top.append(el("span", "ui-chip", t.tag));
     if (t.here) top.append(el("span", "ui-planet-here", t.here));
     else if (floatingHere) top.append(el("span", "ui-planet-here", "YOU ARE HERE"));
+    if (dock) {
+      // NAV-3 (5k): star this dock for MY PLACES.
+      const dockId = dock.id;
+      top.append(
+        button(starButtonText(starred), "ui-planet-star", () => {
+          const r = starred ? this.game.unstarPlace(dockId) : this.game.starPlace(dockId);
+          if (!r.ok) this.onFlyFailed(`${r.reason}${"full" in r && r.full ? ` ${STAR_FULL_HINT}` : ""}`);
+          this.refreshFacts();
+        }),
+      );
+    }
     const parts: HTMLElement[] = [top, nameEl("div", "ui-planet-title", t.title), nameEl("div", "ui-planet-details", t.details)];
     if (t.nickname) parts.push(el("div", "ui-planet-nickname", t.nickname));
     if (!fly || !fly.canFly) parts.push(el("div", "ui-planet-line", t.line));

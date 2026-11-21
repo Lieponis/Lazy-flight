@@ -297,7 +297,7 @@ export function refuelButton(preview: RefuelResult, discountPercent = 0): Refuel
 // ------------------------------------------------------------ which controls show where
 
 export type ScreenName = "docked" | "starmap" | "system" | "flight";
-export type Overlay = "none" | "jobs" | "shipyard" | "menu" | "ranks" | "arrival" | "whatnow" | "savefile";
+export type Overlay = "none" | "jobs" | "shipyard" | "menu" | "ranks" | "arrival" | "whatnow" | "savefile" | "places" | "plan";
 
 export interface Controls {
   statusStrip: boolean;
@@ -330,6 +330,7 @@ export function visibleControls(screen: ScreenName, overlay: Overlay, flying: bo
 /** Which overlay may stay open on this screen (menus belong to the docked view, and some to floating in space). */
 export function overlayAllowed(screen: ScreenName, overlay: Overlay, flying: boolean, floating = false): Overlay {
   if (flying) return "none";
+  if (overlay === "places" || overlay === "plan") return overlay; // NAV-3: from the docked view, the maps and floating
   if (floating && screen === "flight") return overlay === "jobs" || overlay === "arrival" ? "none" : overlay; // no dock: no Jobs board
   if (screen !== "docked") return "none";
   return overlay === "whatnow" ? "none" : overlay;

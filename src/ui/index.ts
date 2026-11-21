@@ -35,6 +35,9 @@ import { TEST_SPEED_KEY, storedTestSpeed } from "./savefilelogic";
 import { startSpeed } from "../game/clock";
 import { WhatNow } from "./whatnow";
 import { PlanetPanel } from "./planetpanel";
+import { PlacesScreen } from "./places";
+import { STAR_FULL_HINT } from "./navlogic";
+import { FlightPlanScreen } from "./flightplan";
 import { NavBar } from "./navbar";
 import { RanksScreen } from "./ranks";
 import { Shipyard } from "./shipyard";
@@ -99,6 +102,36 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     api.setMapPlaces(mapNav.places(game.getPlaces()));
   };
   pushMapPlaces();
+  // NAV-3 (5k): the destination the player chose in MY PLACES. A UI preference, kept in this browser only (not in the save).
+  const NAV_TARGET_KEY = "lazy-flight.nav-target";
+  let navTarget: string | null = null;
+  try {
+    navTarget = storage?.getItem(NAV_TARGET_KEY) ?? null;
+  } catch {
+    navTarget = null;
+  }
+  const setNavTarget = (id: string | null): void => {
+    navTarget = id;
+    try {
+      if (id) storage?.setItem(NAV_TARGET_KEY, id);
+      else storage?.removeItem(NAV_TARGET_KEY);
+    } catch {
+      // storage off: the destination lasts until the page closes
+    }
+    routeKey = "";
+    pushMapRoute();
+  };
+  let routeKey = "";
+  /** The flight plan line on the galaxy map: asked again only when the place, ship or destination changes. */
+  const pushMapRoute = (): void => {
+    const s = game.state;
+    const key = `${navTarget}|${s.currentDockId}|${s.spacePlanetId}|${s.shipId}|${s.freeTrip ? "trip" : ""}|${s.currentJob ? "job" : ""}`;
+    if (key === routeKey) return;
+    routeKey = key;
+    const plan = navTarget ? game.planRoute(navTarget) : null;
+    api.setMapRoute(plan?.target ? mapNav.route({ ...plan, target: plan.target }) : null);
+  };
+  pushMapRoute();
 
   // ------------------------------------------------------------ names
   const dockName = (dockId: string): string => getDock(seed, dockId)?.name ?? "Unknown dock";
@@ -166,6 +199,49 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     window.location.assign(pathname + search + hash);
   };
   const ranks = new RanksScreen(layer, game, closeOverlay);
+  // NAV-3 (5k): MY PLACES and the FLIGHT PLAN.
+  const openOverlay = (o: Overlay): void => {
+    overlay = o;
+    refresh();
+  };
+  const places = new PlacesScreen(
+    layer,
+    game,
+    {
+      setDestination: (p) => {
+        setNavTarget(p.id);
+        openOverlay("plan");
+      },
+      showOnMap: (p) => {
+        overlay = "none";
+        api.state.set({ selectedSystemId: p.systemId });
+        api.showStarmap();
+        refresh();
+      },
+      message: (text) => showToast(layer, text, 7000),
+      destination: () => navTarget,
+    },
+    closeOverlay,
+  );
+  const flightPlan = new FlightPlanScreen(
+    layer,
+    game,
+    {
+      destination: () => navTarget,
+      clearDestination: () => {
+        setNavTarget(null);
+        flightPlan.render();
+      },
+      showOnMap: () => {
+        overlay = "none";
+        pushMapRoute();
+        api.showMapRoute();
+        refresh();
+      },
+      message: (text) => showToast(layer, text, 7000),
+    },
+    closeOverlay,
+  );
   const menu = new GameMenu(
     layer,
     { seed: () => seed, savingWorks: () => saver.working },
@@ -177,6 +253,8 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     },
     { get: sound.getPrefs, set: setSoundPrefs }, // MENU -> SETTINGS (7a)
     {
+      onPlaces: () => openOverlay("places"),
+      onPlan: () => openOverlay("plan"),
       onSaveFile: () => {
         overlay = "savefile"; // MENU -> SAVE FILE (P3)
         refresh();
@@ -286,6 +364,14 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
       if (api.state.get().screen !== "starmap") api.showStarmap();
     },
     close: () => backHome(),
+    places: () => openOverlay("places"),
+    star: () => {
+      const here = game.state.currentDockId;
+      const r = game.isStarred(here) ? game.unstarPlace(here) : game.starPlace(here);
+      if (!r.ok) showToast(layer, `${r.reason}${"full" in r && r.full ? ` ${STAR_FULL_HINT}` : ""}`, 7000);
+      else showToast(layer, game.isStarred(here) ? "Starred! Find it in MY PLACES." : "Unstarred.", 3000);
+      refresh();
+    },
   });
 
   // ------------------------------------------------------------ keeping everything in step
@@ -331,6 +417,12 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     if (overlay === "ranks") {
       if (!ranks.opened) ranks.open();
     } else ranks.close();
+    if (overlay === "places") {
+      if (!places.opened) places.open();
+    } else places.close();
+    if (overlay === "plan") {
+      if (!flightPlan.opened) flightPlan.open();
+    } else flightPlan.close();
     if (overlay !== "arrival") arrivalCard.close();
     if (overlay === "whatnow") {
       if (!whatNow.opened) whatNow.open();
@@ -341,9 +433,10 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     document.body.classList.toggle("ui-floating-on", floating && screen === "flight");
     const controls = visibleControls(screen, overlay, flying, floating);
     nav.apply(controls);
+    nav.setStarred(game.isStarred(game.state.currentDockId));
     whatNow.showButton(controls.whatNow);
     installHint.update(controls.dockButtons); // only docked, no menu, no trip
-    mapLegend.update(screen === "starmap" && overlay === null);
+    mapLegend.update(screen === "starmap" && overlay === "none"); // 5k: was "=== null" (never true), so the 5j legend never showed
     strip.showMenuButton(controls.dockButtons); // MENU sits at the right end of the strip, docked only
     refreshStrip();
   }
@@ -420,6 +513,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     api.setCurrentSystem(game.currentSystemId()); // the starmap "you are here" follows the player
     api.setReachLy(reachNow()); // and its diamonds follow the ship and engines
     pushMapPlaces(); // and its place markers
+    pushMapRoute(); // and the flight plan line (NAV-3)
     if (game.lastArrival && game.lastArrival !== seenArrival) {
       seenArrival = game.lastArrival;
       pendingArrival = game.lastArrival;
@@ -433,6 +527,8 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     jobs.render();
     shipyard.render();
     ranks.render();
+    places.render();
+    flightPlan.render();
     refresh();
     maybeShowArrival();
   });
