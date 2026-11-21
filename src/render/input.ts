@@ -9,10 +9,30 @@ interface Pointer {
   y: number;
 }
 
+/**
+ * Eases a turn that the finger asked for (`pending`, radians) into the camera: returns how much to turn in this frame (`step`) and what is
+ * left for the next frames (`rest`). `tau` is the easing time in seconds; 0 (or less) turns at once. The ease does not depend on the frame rate.
+ */
+export function smoothTurn(pending: number, seconds: number, tau: number): { step: number; rest: number } {
+  if (!(tau > 0)) return { step: pending, rest: 0 };
+  const k = 1 - Math.exp(-Math.max(0, seconds) / tau);
+  const step = pending * k;
+  const rest = pending - step;
+  if (Math.abs(rest) < 0.0002) return { step: pending, rest: 0 };
+  return { step, rest };
+}
+
 export class OrbitView {
   yaw = 0.7;
   pitch = 0.5;
   dist: number;
+  /**
+   * Seconds the camera takes to follow the finger when you drag to turn. 0 = it follows every finger movement at once (as before). A small
+   * value evens out the little jumps of the finger, so the whole picture does not shake while you turn it. Needs glide() to run every frame.
+   */
+  turnSmoothSeconds = 0;
+  private pendingYaw = 0;
+  private pendingPitch = 0;
   /** The spot the camera looks at and circles around. */
   readonly target = { x: 0, y: 0, z: 0 };
   private goal: { x: number; y: number; z: number; dist: number | null } | null = null;
@@ -52,6 +72,8 @@ export class OrbitView {
     this.el.removeEventListener("wheel", this.onWheel);
     this.pointers.clear();
     this.tapStart = null;
+    this.pendingYaw = 0;
+    this.pendingPitch = 0;
   }
 
   /** Glide to look at (x, y, z), and optionally to a new distance. The player's own zoom stops the distance glide. */
@@ -69,6 +91,16 @@ export class OrbitView {
 
   /** Moves the glide on a little. Call every frame before apply(). */
   glide(seconds: number): void {
+    if (this.pendingYaw !== 0 || this.pendingPitch !== 0) {
+      const ty = smoothTurn(this.pendingYaw, seconds, this.turnSmoothSeconds);
+      const tp = smoothTurn(this.pendingPitch, seconds, this.turnSmoothSeconds);
+      this.pendingYaw = ty.rest;
+      this.pendingPitch = tp.rest;
+      this.yaw += ty.step;
+      const wanted = this.pitch + tp.step;
+      this.pitch = clamp(wanted, -1.4, 1.4);
+      if (wanted !== this.pitch) this.pendingPitch = 0; // at the top or bottom: nothing more to turn that way
+    }
     const g = this.goal;
     if (!g) return;
     this.target.x = approach(this.target.x, g.x, seconds);
@@ -121,8 +153,13 @@ export class OrbitView {
     p.y = e.clientY;
     this.moved += Math.abs(dx) + Math.abs(dy);
     if (this.pointers.size === 1) {
-      this.yaw -= dx * 0.01;
-      this.pitch = clamp(this.pitch + dy * 0.01, -1.4, 1.4);
+      if (this.turnSmoothSeconds > 0) {
+        this.pendingYaw -= dx * 0.01;
+        this.pendingPitch += dy * 0.01;
+      } else {
+        this.yaw -= dx * 0.01;
+        this.pitch = clamp(this.pitch + dy * 0.01, -1.4, 1.4);
+      }
     } else if (this.pointers.size === 2) {
       const d = this.pinchDistance();
       if (this.lastPinch > 0 && d > 0) {

@@ -491,6 +491,15 @@ export function parseMapLine(search: string): RouteLook | null {
   return null;
 }
 
+/** `?mapturn=MS`: how many milliseconds the map camera takes to follow the finger (0 to 400). Null = not given or not a number. */
+export function parseMapTurn(search: string): number | null {
+  const raw = new URLSearchParams(search).get("mapturn");
+  if (raw === null || raw.trim() === "") return null;
+  const n = Number(raw.trim());
+  if (!Number.isFinite(n)) return null;
+  return Math.min(400, Math.max(0, Math.round(n)));
+}
+
 /** `?mapplan=N`: show a made-up plan of N hops (1 to 40) and some made-up places on the map, to look at the line. Null = not asked. */
 export function parseMapPlan(search: string): number | null {
   const raw = new URLSearchParams(search).get("mapplan");

@@ -69,6 +69,7 @@ import {
   MAP_SKY_WARM_DELAY_FRAMES,
   MAP_TAPPABLE_STARS,
   MAP_TAP_RADIUS_PX,
+  MAP_TURN_SMOOTH_MS,
   STARFIELD_COUNT,
 } from "./settings";
 import { starLabelText, starmapHint } from "./starmapradius";
@@ -100,6 +101,8 @@ export interface StarMapOptions {
   routeLook?: RouteLook | null;
   /** Testing aid ?mapplan=N: a made-up plan of N hops and some made-up places, until the app hands over real ones. */
   testPlan?: number | null;
+  /** Milliseconds the camera takes to follow the finger (testing aid `?mapturn=`); null = the standard from settings. */
+  turnMs?: number | null;
 }
 
 /** A sky being built, a few milliseconds per frame: the glow first, then the dots. */
@@ -217,6 +220,7 @@ export class StarMapScreen implements Screen {
 
     this.view = new OrbitView(this.camera, opts.host, MIN_ZOOM_LY, 150, 60);
     this.view.onTap = (x, y) => this.handleTap(x, y);
+    this.view.turnSmoothSeconds = (opts.turnMs ?? MAP_TURN_SMOOTH_MS) / 1000;
   }
 
   // ------------------------------------------------------------------ what the app tells the map
@@ -606,10 +610,10 @@ export class StarMapScreen implements Screen {
   /** One extra line for the developer counters when a plan or places are shown: the look, the stops and what was drawn. */
   private routeStatsText(): string {
     const shape = this.routeShape;
-    if (!shape && this.nav.places().length === 0) return "";
+    if (!shape && this.nav.places().length === 0) return `\nTURN EASING ${Math.round(this.view.turnSmoothSeconds * 1000)} ms`;
     const c = this.route.counts();
     const marks = c.hop + c.refuel + c.target + c.start + c.outpost + c.starred + c.recent;
-    return `\nPLAN ${shape ? shape.count - 1 : 0} hops, ${shape ? Math.round(shape.targetLy) : 0} ly to target; markers ${marks}, dashes ${c.dashes}, dots ${c.dots}`;
+    return `\nPLAN ${shape ? shape.count - 1 : 0} hops, ${shape ? Math.round(shape.targetLy) : 0} ly to target; markers ${marks}, dashes ${c.dashes}, dots ${c.dots}; turn easing ${Math.round(this.view.turnSmoothSeconds * 1000)} ms`;
   }
 
   // ------------------------------------------------------------------ taps

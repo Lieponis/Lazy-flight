@@ -32,7 +32,7 @@ import { mountWarpPreview } from "./warppreview";
 import { parseFloatPreview, parseFloatStyle } from "./floatmath";
 import { floatCandidates } from "./floatpick";
 import { parseMapAt, parseReachParam } from "./starmapradius";
-import { parseMapLine, parseMapPlan, type MapPlace, type MapRoute } from "./routemath";
+import { parseMapLine, parseMapPlan, parseMapTurn, type MapPlace, type MapRoute } from "./routemath";
 import type { MapSource } from "./galaxy/mapdata";
 import { mountFloatPreview } from "./floatpreview";
 import { splitCodedName } from "./namefit";
@@ -141,6 +141,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     testView: mapAt ? mapAt.name : null,
     routeLook: parseMapLine(window.location.search), // testing aid ?mapline=a|b|c: the look of the plan line
     testPlan: parseMapPlan(window.location.search), // testing aid ?mapplan=N: a made-up plan of N hops and made-up places
+    turnMs: parseMapTurn(window.location.search), // testing aid ?mapturn=MS: how softly the map follows the finger when turning
   });
   // The dock the ship is parked at (the first one shown). Navigation buttons live in src/ui (Agent 5).
   let lastDockId = getDocksOfSystem(seed, current.id)[0]?.id ?? "";
