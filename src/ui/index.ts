@@ -5,7 +5,7 @@
 
 import "./theme.css";
 import { Game, createClock, tripFuelCost, type Arrival, type FreeArrival } from "../game";
-import { WORLD_SEED, getDock, getPlanet, getSystem, startDockOf } from "../universe";
+import { WORLD_SEED, getDock, getPlanet, getSystem, nearestSites, startDockOf } from "../universe";
 import { makeNavForMap } from "../mapsource";
 import type { RenderApi } from "../render";
 import {
@@ -132,6 +132,19 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     api.setMapRoute(plan?.target ? mapNav.route({ ...plan, target: plan.target }) : null);
   };
   pushMapRoute();
+  // NAV-2 testing aid ?mapto=far (or a system number): points the flight plan at a star far from the ship, WITHOUT saving it, so the
+  // line on the map can be looked at with a real plan from the game (clear it on the FLIGHT PLAN screen, or open the page without it).
+  const mapTo = new URLSearchParams(window.location.search).get("mapto");
+  if (mapTo) {
+    const here = getSystem(seed, game.currentSystemId())?.position;
+    const far = here ? nearestSites(seed, { x: here.x + 1100, y: here.y, z: here.z + 600 }, 1)[0]?.id : undefined;
+    const id = mapTo === "far" ? far : Number(mapTo);
+    if (id !== undefined && Number.isFinite(id)) {
+      navTarget = String(id);
+      routeKey = "";
+      pushMapRoute();
+    }
+  }
 
   // ------------------------------------------------------------ names
   const dockName = (dockId: string): string => getDock(seed, dockId)?.name ?? "Unknown dock";
