@@ -87,8 +87,8 @@ export const MAP_REACH_FALLBACK_LY = 35;
 
 // ---------------------------------------------------------------- the flight-plan line and place markers on the map (NAV-2)
 
-/** The look of the plan line: "line" (A, plain), "dashed" (B), "dots" (C, a dim line with dots moving to the target). `?mapline=a|b|c` tries one. */
-export const MAP_ROUTE_LOOK: "line" | "dashed" | "dots" = "line";
+/** The look of the plan line: "line" (A, plain), "dashed" (B, Andy chose B), "dots" (C, a dim line with dots moving to the target). `?mapline=a|b|c` tries one. */
+export const MAP_ROUTE_LOOK: "line" | "dashed" | "dots" = "dashed";
 /** Only the first this-many hops of a plan are drawn (the game gives at most 20). */
 export const MAP_ROUTE_MAX_HOPS = 40;
 /** "Show the plan" frames the ship and this many first hops. */
