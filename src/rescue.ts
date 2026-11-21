@@ -1,6 +1,6 @@
 // RESCUE START (hotfix 2026-11-21). Imported by src/main.ts right after the preview boot, so it runs before any heavy game code.
 //
-// Plain words: the game counts how many times in a row it started but did not keep running for 20 seconds (a crash, or the
+// Plain words: the game counts how many times in a row it started but did not keep running for 20 seconds or close normally (a crash, or the
 // phone closing it). After 2 such starts in a row, or when the address has ?rescue=1, the game does NOT start. Instead a small
 // SAFE START screen appears: it forgets only the flight plan destination (never the save), offers SAVE FILE DOWNLOAD to back
 // up the save, and a START GAME button. The installed iPhone app cannot type ?rescue=1, which is why the counter exists.
@@ -8,6 +8,7 @@
 import { exportSaveFile } from "./save/transfer";
 import type { StorageLike } from "./save/save";
 import { NAV_TARGET_KEY } from "./ui/navtarget";
+import { useNewestVersion } from "./ui/updatenote";
 
 /** Unfinished starts in a row. Reset to 0 once the game has run for BOOT_OK_MS. */
 export const BOOT_GUARD_KEY = "lazy-flight.boot-guard";
@@ -57,11 +58,18 @@ export function runBootGuard(
     safe(() => storage?.removeItem(NAV_TARGET_KEY), undefined);
     safe(() => storage?.removeItem(BOOT_GUARD_KEY), undefined);
     showRescueScreen(storage, session, parent, decision);
+    useNewestVersion();
     return true;
   }
-  // Count this start; it is taken back once the game has kept running for BOOT_OK_MS.
+  // Count this start; it is taken back once the game has kept running for BOOT_OK_MS, or when the page is left normally
+  // (reload, closing or switching away: "pagehide" / hidden). A crash does neither, so only crashes keep counting.
   safe(() => storage?.setItem(BOOT_GUARD_KEY, String(decision.failedStarts + 1)), undefined);
-  window.setTimeout(() => safe(() => storage?.removeItem(BOOT_GUARD_KEY), undefined), BOOT_OK_MS);
+  const clear = (): void => safe(() => storage?.removeItem(BOOT_GUARD_KEY), undefined);
+  window.setTimeout(clear, BOOT_OK_MS);
+  window.addEventListener("pagehide", clear);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") clear();
+  });
   return false;
 }
 

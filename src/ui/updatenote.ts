@@ -115,3 +115,32 @@ export function startOfflineApp(parent: HTMLElement, isSafe: () => boolean): voi
   if (document.readyState === "complete") register();
   else window.addEventListener("load", register); // after the game has loaded, so the first visit is never slowed down
 }
+
+/**
+ * On the SAFE START screen: ask the website for a newer game at once, and if one is (or becomes) ready, switch to it straight
+ * away, so START GAME opens the newest version instead of the stored one that kept failing. Never throws.
+ */
+export function useNewestVersion(): void {
+  try {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    const take = (w: ServiceWorker | null | undefined): void => {
+      if (w) w.postMessage({ type: "SKIP_WAITING" });
+    };
+    void navigator.serviceWorker
+      .getRegistration()
+      .then((reg) => {
+        if (!reg) return;
+        take(reg.waiting);
+        reg.addEventListener("updatefound", () => {
+          const w = reg.installing;
+          w?.addEventListener("statechange", () => {
+            if (w.state === "installed") take(w);
+          });
+        });
+        return reg.update();
+      })
+      .catch(() => undefined);
+  } catch {
+    // no offline helper here: nothing to do
+  }
+}

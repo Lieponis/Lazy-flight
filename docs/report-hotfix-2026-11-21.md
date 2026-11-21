@@ -33,6 +33,9 @@ Route planning was not the cause either: with his ship, it takes 50 to 100 ms.
 - He imported `lazy-flight-save-rebuilt-2026-11-21.json`, which I built from his 18 Nov save file (`tests/fixtures/old-saves/andy-live-2026-11-18.json`) plus what he reported: Crooked Cove Outpost, 26,054 CR, fuel 11. It was moved to universe v3 through migrateSave and checked with inspectImport and planStart. Jobs he did after 18 Nov are not counted. He confirmed it loads and runs at Crooked Cove.
 
 ## For the next agent
-- Offline play is OFF (`pwa-mode.txt` = `retire`). Turning it back `on` is a Lead and Andy decision. Since this fix, a crashing version shows SAFE START on its third start, and that screen still registers the helper, so updates can land.
-- Suggestion: the helper could check the network for a new version before serving the stored game page, so a version that crashes at start-up can still be replaced.
+- **2026-11-22: offline play is back ON** (Andy: "Offline version is a must"). Added with it:
+  - The offline helper now asks the website for a newer helper itself every time the game page opens (`scripts/pwa/sw.template.js`), without waiting for the page. Chromium already did this anyway; it is meant for iPhone, and I could not test it there.
+  - SAFE START switches straight to a newer version if one is ready (`useNewestVersion` in `src/ui/updatenote.ts`).
+  - The start counter is also cleared when the page is left normally (reload, close, switching away), so only real crashes count. Without this, the offline robot's quick reloads opened SAFE START.
+  - Checks: `npm run check` 1,353/1,353. Offline robot 8 of 9: check 4 is the known robot limit from 6h (no scenery planet found at sideways and desktop sizes), not a game fault. My SAFE START browser test passes 5/5.
 - Suggestion: the map still asks for 60,000 stars. Places far above the disc (1,500 ly or more) are now slow but not memory-heavy. Agent 3 could lower the count there.

@@ -116,6 +116,14 @@ self.addEventListener("fetch", (event) => {
     const page = url.origin + url.pathname;
     if (page === SCOPE || page === INDEX_URL) {
       event.respondWith(serveGamePage(request));
+      // HOTFIX 2026-11-22: every time the game page opens, this helper itself asks the website for a newer helper. It does not
+      // wait for the page, so even a stored game version that crashes at start-up can still be replaced (Andy, 2026-11-21).
+      try {
+        const reg = self.registration;
+        if (reg && typeof reg.update === "function") event.waitUntil(Promise.resolve(reg.update()).catch(() => undefined));
+      } catch (error) {
+        // no update check possible here: the game page is still served
+      }
     } else {
       // Developer pages and anything else: network only. Offline shows the friendly page, not the browser's error.
       event.respondWith(fetch(request).catch(() => offlineResponse()));
