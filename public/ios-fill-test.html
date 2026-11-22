@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- A test app (not the game): which way of drawing reaches the very top and bottom of an installed iPhone app?
+         Each coloured box below uses a different method; its label sits at the box's bottom edge. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="manifest" href="ios-fill-test.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Fill test" />
+    <meta name="theme-color" content="#ff8800" />
+    <title>Fill test</title>
+    <style>
+      html { background: #ff00ff; height: 100%; }
+      body { margin: 0; height: 100%; overflow: hidden; font: 15px/1.25 monospace; color: #fff; }
+      .box { position: fixed; left: 0; right: 0; top: 0; box-sizing: border-box; border-bottom: 6px solid; }
+      .lab { position: absolute; bottom: 0; padding: 0 4px; background: #000; }
+      #a { bottom: 0; background: rgba(255, 0, 0, 0.25); border-color: red; }
+      #a .lab { left: 0; }
+      #b { height: 100vh; background: rgba(255, 255, 0, 0.15); border-color: yellow; }
+      #b .lab { left: 25%; }
+      #c { height: 100lvh; background: rgba(0, 128, 255, 0.15); border-color: #39f; }
+      #c .lab { left: 50%; }
+      #d { background: rgba(0, 255, 0, 0.12); border-color: #0f0; }
+      #d .lab { left: 75%; }
+      #info { position: fixed; left: 8px; right: 8px; top: 40%; background: rgba(0, 0, 0, 0.8); padding: 6px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <div class="box" id="a"><span class="lab">A</span></div>
+    <div class="box" id="b"><span class="lab">B</span></div>
+    <div class="box" id="c"><span class="lab">C</span></div>
+    <div class="box" id="d"><span class="lab">D</span></div>
+    <div id="info"></div>
+    <script>
+      // D: a box as tall as the whole physical screen, sized by script.
+      const d = document.getElementById("d");
+      const probe = (h) => {
+        const p = document.createElement("div");
+        p.style.cssText = `position:fixed;top:0;height:${h};width:1px;visibility:hidden`;
+        document.body.append(p);
+        const v = p.getBoundingClientRect().height;
+        p.remove();
+        return Math.round(v);
+      };
+      const env = (side) => {
+        const p = document.createElement("div");
+        p.style.cssText = `position:fixed;top:0;height:env(safe-area-inset-${side},0px);width:1px;visibility:hidden`;
+        document.body.append(p);
+        const v = p.getBoundingClientRect().height;
+        p.remove();
+        return Math.round(v);
+      };
+      function show() {
+        const portrait = innerHeight >= innerWidth;
+        const screenH = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+        d.style.height = screenH + "px";
+        document.getElementById("info").textContent =
+          `A fixed inset 0 (red)   B 100vh (yellow)\nC 100lvh (blue)         D screen height (green)\n` +
+          `Pink = page background, orange = theme colour\n\n` +
+          `screen ${screen.width}x${screen.height}  inner ${innerWidth}x${innerHeight}\n` +
+          `visualViewport ${Math.round(visualViewport ? visualViewport.height : 0)}  clientHeight ${document.documentElement.clientHeight}\n` +
+          `vh ${probe("100vh")} lvh ${probe("100lvh")} svh ${probe("100svh")} dvh ${probe("100dvh")}\n` +
+          `safe top ${env("top")} bottom ${env("bottom")}\n` +
+          `standalone ${matchMedia("(display-mode: standalone)").matches} ${navigator.standalone === true}\n` +
+          `${navigator.userAgent.replace(/.*OS ([\d_]+).*/, "iOS $1")}`;
+      }
+      show();
+      addEventListener("resize", show);
+      setTimeout(show, 500);
+    </script>
+  </body>
+</html>
