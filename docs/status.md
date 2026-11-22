@@ -397,3 +397,6 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Sky turn from the end of a trip is kept in the arrival system (docked, floating): no snap at landing. Take-off starts from the docked sky and turns smoothly to the new trip's direction (A, default; ?skylaunch=B|C). Hops with no direction (same system, under 0.5 ly) unchanged. Reload remembers nothing (default sky).
 - 16 new tests. Limits: only pretend test trips checked (?skytrip=1), system view keeps its own sky, 3D backdrop dots not tied to trip direction.
 - Suggestions (not built, ask Andy): remember last trip heading in the save so reload matches; system view sky follows trip.
+
+## 3q: far place markers (Andy 2026-11-22) -> Agent 3, docs/briefs/agent-3q-brief.md
+- Andy: home / recent / starred markers that are far away slide along the screen edge; he wants them at their real relative position in the whole space, not clickable. Brief: true position, constant small dim glyph, not tappable; far flight-plan target keeps its edge marker (option B default); check zoom-out reach.
