@@ -41,7 +41,8 @@ import { mountNamePreview } from "./namepreview";
 import { FLOAT_DEFAULT_STYLE } from "./settings";
 import { parseWarpPreview, parseWarpStyle } from "./warpmath";
 import { orbitSecondsFor, parseStationDemo } from "./stationspin";
-import { parseTripHeading, pickByHeading } from "./skyheading";
+import { SkyMemory, parseLaunchMode, parseTripHeading, pickByHeading } from "./skyheading";
+import { mountSkyTrip, parseSkyTrip } from "./skytrip";
 
 export { StateStore } from "./state";
 export type { RenderState, ScreenName } from "./state";
@@ -152,7 +153,9 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
   // system the ship is in or heading for and reused. The system view has its own (prepared ahead for the star picked on the map).
   const stageSky = mapSource?.sky ? makeSystemSkyLayer(mapSource.sky) : null;
   const orbitSeconds = orbitSecondsFor(window.location.search); // how fast the planet under a station turns (?orbit=A|B|C|off tries speeds)
+  const skyMemory = new SkyMemory(); // the sky turn the last trip ended with: docked and floating there keep it, the next take-off starts from it
   const docked = new DockedScreen({
+    skyMemory,
     orbitSeconds,
     seed,
     host: canvas,
@@ -180,7 +183,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     systemView.prepareSky(want);
   });
 
-  const flight = new FlightScreen({ orbitSeconds, seed, host: canvas, hud, parent, skyLayer: stageSky });
+  const flight = new FlightScreen({ orbitSeconds, skyMemory, skyLaunch: parseLaunchMode(window.location.search) ?? undefined, seed, host: canvas, hud, parent, skyLayer: stageSky });
   docked.setShip(shipId);
   flight.setShip(shipId);
 
@@ -250,7 +253,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     startFlight(info: FlightInfo): void {
       if (info.shipId) api.setShip(info.shipId, info.livery);
       state.set({ floatingPlanetId: null });
-      flight.begin(info, docked.stationSeconds(info.originDockId));
+      flight.begin(info, docked.stationSeconds(info.originDockId), docked.currentSkyFrame(info.originDockId));
       state.set({ screen: "flight", selectedPlanetId: null });
       show(flight);
     },
@@ -303,6 +306,42 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
   window.addEventListener("resize", resize);
 
   api.showDocked(lastDockId); // the game starts in the docked view
+
+  // Testing aid for the sky (stage 3p): ?skytrip=1 gives TEST TRIP IN / OUT buttons: a pretend 40 second trip from the dock you are in to a real
+  // nearby system towards the centre or the rim, ending docked there. ?skylaunch=A|B|C picks what the sky does at take-off. Look only: nothing is saved.
+  if (parseSkyTrip(window.location.search)) {
+    mountSkyTrip(parent, (heading) => {
+      if (active === flight) return;
+      const here = getSystem(seed, parseDockId(lastDockId)?.systemId ?? -1);
+      if (!here) return;
+      const near = nearestSystems(seed, here.position, 400)
+        .map((n) => n.system)
+        .filter((s) => s.id !== here.id && getDocksOfSystem(seed, s.id).length > 0);
+      const target = pickByHeading(here.position, near, heading);
+      const dock = target ? getDocksOfSystem(seed, target.id)[0] : undefined;
+      if (!dock) return;
+      const startedAt = performance.now();
+      const total = 40_000;
+      let ended = false;
+      api.startFlight({
+        originDockId: lastDockId,
+        destinationDockId: dock.id,
+        destinationName: `TEST TRIP ${heading === "in" ? "TOWARDS THE CENTRE" : "TOWARDS THE RIM"}`,
+        speed: 1,
+        getProgress: () => {
+          const used = performance.now() - startedAt;
+          if (used >= total) {
+            if (!ended) {
+              ended = true;
+              window.setTimeout(() => api.endFlight(), 0);
+            }
+            return null;
+          }
+          return { fraction: used / total, remainingMs: total - used, totalMs: total };
+        },
+      });
+    });
+  }
 
   // Testing aid for the warp look: ?warppreview=1 goes straight into an endless warp with buttons to compare the looks.
   if (parseWarpPreview(window.location.search)) {

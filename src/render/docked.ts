@@ -66,6 +66,7 @@ import {
 } from "./settings";
 import { disposeAll, makePlanetMesh } from "./systemview";
 import { makeStationWorld, type StationWorld } from "./stationworld";
+import type { SkyMemory } from "./skyheading";
 
 const OUTPOST_LIMITS: CamLimits = {
   minDist: DOCKED_ZOOM_MIN,
@@ -78,6 +79,8 @@ const LIGHT = new THREE.Vector3(0.3, 0.85, -0.4).normalize(); // where the sun i
 const SHIP_LOOK_AT = new THREE.Vector3(0, 1, 0); // the camera in the bay looks at the middle of the ship
 
 export interface DockedOptions {
+  /** The sky turn the player last saw on a trip (stage 3p): docked in the system a trip ended in, the sky keeps that turn. */
+  skyMemory?: SkyMemory;
   /** Seconds for one trip of the station round its planet, as seen through the slot (0 = stands still). Left out: the game setting. */
   orbitSeconds?: number;
   seed: Seed;
@@ -187,6 +190,8 @@ export class DockedScreen implements Screen {
   private shipId = FALLBACK_SHIP_ID;
   private livery: string | undefined = undefined; // paint job id; undefined = standard
   private clockT = 0;
+  private skyBase: THREE.Quaternion | null = null; // the sky turn kept from the trip that ended here (null = the default sky)
+  private skyTurned = 0; // how far the station has gone round its planet (the sky turns with it)
   private visitT = 0; // seconds since this dock was opened (the station goes round its planet by it)
   private world: StationWorld | null = null; // the planet at a station: it, the stars and the sky turn together round the station
   private titleText = "";
@@ -203,6 +208,18 @@ export class DockedScreen implements Screen {
     this.scene.add(this.backdrop);
     this.scene.add(this.content);
     this.controls = new DockedControls(opts.host);
+  }
+
+  /** The sky turn for a station that has gone round its planet by `turned` radians: the kept trip turn, then the station's own turn (null = the default sky). */
+  private skyFrame(turned: number): THREE.Quaternion | null {
+    if (turned === 0) return this.skyBase;
+    const own = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -turned);
+    return this.skyBase ? this.skyBase.clone().multiply(own) : own;
+  }
+
+  /** The sky turn showing now in this dock (the flight view starts a launch from it, so take-off never jumps), or null for the default sky or another dock. */
+  currentSkyFrame(dockId: string): THREE.Quaternion | null {
+    return this.dockId === dockId ? this.skyFrame(this.skyTurned) : null;
   }
 
   /** Seconds since this dock was opened, or 0 for any other dock (the flight view starts a launch from the same moment of the trip round the planet). */
@@ -226,6 +243,8 @@ export class DockedScreen implements Screen {
     const planet = dock ? getPlanet(seed, dockId) : null;
     if (!planet || !dock) return false;
     const system = getSystem(seed, planet.systemId);
+    const kept = this.opts.skyMemory?.frameFor(planet.systemId) ?? null;
+    this.skyBase = kept ? new THREE.Quaternion(kept.x, kept.y, kept.z, kept.w) : null;
     reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, planet.systemId);
     this.skyAt = system ? system.position : null;
     if (this.skyAt) this.sky?.setPosition(this.skyAt); // the galaxy sky as seen from this system (built only when it is another sky cell)
@@ -335,7 +354,7 @@ export class DockedScreen implements Screen {
 
   exit(): void {
     this.controls.detach();
-    this.sky?.view.setTurn(0); // the sky is shared with other screens: give it back unturned
+    this.sky?.view.setSkyFrame(null); // the sky is shared with other screens: give it back unturned
     this.backdrop.rotation.x = 0;
   }
 
@@ -345,7 +364,8 @@ export class DockedScreen implements Screen {
     // A station going round its planet: the planet, the light on it, the stars and the faint sky all turn together about the sideways line.
     const turned = this.world ? this.world.setTime(this.visitT, this.opts.orbitSeconds ?? DOCKED_STATION_ORBIT_SECONDS) : 0;
     this.backdrop.rotation.x = turned;
-    this.sky?.view.setTurn(turned);
+    this.skyTurned = turned;
+    this.sky?.view.setSkyFrame(this.skyFrame(turned));
     this.controls.update(seconds);
     this.sky?.update(seconds, this.camera);
     this.ship?.update(this.clockT);

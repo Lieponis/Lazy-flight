@@ -133,3 +133,106 @@ export function pickByHeading<T extends { position: Vec3 }>(from: Vec3, list: re
   }
   return best;
 }
+
+// ------------------------------------------------------------------ keeping the sky when the ship lands and takes off (stage 3p)
+//
+// The sky turn belongs to the place you are in, not only to the flight. At the end of a trip the turn is remembered for the system you
+// arrived in, and the docked and floating screens there use it, so landing never changes the sky. The next launch starts from that turn and
+// moves to the new trip's turn (see LaunchMode). A trip with no direction (same system, tiny hop) leaves the turn exactly as it was.
+
+export const IDENTITY_QUAT: Quat = { x: 0, y: 0, z: 0, w: 1 };
+
+/** The turn that does `b` first and then `a` (the same order as multiplying quaternions: a * b). */
+export function multiplyQuat(a: Quat, b: Quat): Quat {
+  return {
+    w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+    x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+    y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+    z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+  };
+}
+
+/** The turn that undoes `q`. */
+export function inverseQuat(q: Quat): Quat {
+  return { x: -q.x, y: -q.y, z: -q.z, w: q.w };
+}
+
+/** The turn a fraction `t` of the way (0..1) from `a` to `b`, the short way round. */
+export function slerpQuat(a: Quat, b: Quat, t: number): Quat {
+  let bx = b.x;
+  let by = b.y;
+  let bz = b.z;
+  let bw = b.w;
+  let cos = a.x * bx + a.y * by + a.z * bz + a.w * bw;
+  if (cos < 0) {
+    cos = -cos;
+    bx = -bx;
+    by = -by;
+    bz = -bz;
+    bw = -bw;
+  }
+  let ka: number;
+  let kb: number;
+  if (cos > 0.9995) {
+    ka = 1 - t; // nearly the same: a straight blend is as good
+    kb = t;
+  } else {
+    const angle = Math.acos(Math.min(1, cos));
+    const sin = Math.sin(angle);
+    ka = Math.sin((1 - t) * angle) / sin;
+    kb = Math.sin(t * angle) / sin;
+  }
+  const x = a.x * ka + bx * kb;
+  const y = a.y * ka + by * kb;
+  const z = a.z * ka + bz * kb;
+  const w = a.w * ka + bw * kb;
+  const n = Math.hypot(x, y, z, w) || 1;
+  return { x: x / n, y: y / n, z: z / n, w: w / n };
+}
+
+/** How big the angle is between two turns (radians, 0 to pi). */
+export function angleBetween(a: Quat, b: Quat): number {
+  const d = Math.abs(a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w);
+  return 2 * Math.acos(Math.min(1, d));
+}
+
+/** What happens to the sky at take-off. A: it turns smoothly during the launch, from the docked sky to the trip's. B: the docked sky is kept for the whole trip. C: it jumps (the old way). */
+export type LaunchMode = "A" | "B" | "C";
+export const DEFAULT_LAUNCH_MODE: LaunchMode = "A";
+
+/** ?skylaunch=A, B or C in the web address (a testing aid). */
+export function parseLaunchMode(search: string): LaunchMode | null {
+  const m = /[?&]skylaunch=([a-z])\b/i.exec(search);
+  const v = m?.[1]?.toUpperCase();
+  return v === "A" || v === "B" || v === "C" ? v : null;
+}
+
+/**
+ * The sky turn on a trip. `start` = the turn the player had at take-off (null = the default, unturned sky), `trip` = the turn that matches the
+ * trip (null = the trip has no direction, so nothing changes). `p` = how far the launch is (0 at take-off, 1 when it is over and for the rest
+ * of the trip).
+ */
+export function tripSkyAt(start: Quat | null, trip: Quat | null, mode: LaunchMode, p: number): Quat | null {
+  if (!trip) return start; // a hop with no direction leaves the turn exactly as it was
+  if (mode === "B") return start;
+  if (mode === "C" || p >= 1) return trip;
+  const x = Math.max(0, Math.min(1, p));
+  return slerpQuat(start ?? IDENTITY_QUAT, trip, x * x * (3 - 2 * x)); // a smooth start and finish
+}
+
+/** The sky turn the player keeps in the place they arrive at: it belongs to a system, and is forgotten when they are somewhere else. */
+export class SkyMemory {
+  private frame: Quat | null = null;
+  private system: number | null = null;
+
+  /** A trip has ended in `systemId`: this is the turn the player last saw. */
+  remember(frame: Quat | null, systemId: number | null): void {
+    this.frame = frame;
+    this.system = systemId;
+  }
+
+  /** The turn to use while docked or floating in this system, or null for the default sky (nothing remembered, or another system). */
+  frameFor(systemId: number | null | undefined): Quat | null {
+    return systemId !== null && systemId !== undefined && systemId === this.system ? this.frame : null;
+  }
+}

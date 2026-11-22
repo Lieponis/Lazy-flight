@@ -112,7 +112,7 @@ import {
 } from "./settings";
 import { disposeAll, makePlanetMesh } from "./systemview";
 import { makeStationWorld, type StationWorld } from "./stationworld";
-import { headingQuaternion, tripDirection } from "./skyheading";
+import { DEFAULT_LAUNCH_MODE, headingQuaternion, tripDirection, tripSkyAt, type LaunchMode, type Quat, type SkyMemory } from "./skyheading";
 import { buildWarp } from "./warp";
 import { parseWarpStyle, type WarpStyle } from "./warpmath";
 import { flameFlicker, stepped } from "./lookmath";
@@ -171,6 +171,10 @@ interface Body {
 }
 
 export interface FlightScreenOptions {
+  /** The sky turn the player last saw (stage 3p): a trip ends by leaving it here for the docked and floating views, and starts from it. */
+  skyMemory?: SkyMemory;
+  /** What happens to the sky at take-off: A turns it smoothly during the launch (the default), B keeps the docked sky for the whole trip, C jumps. */
+  skyLaunch?: LaunchMode;
   /** Seconds for one trip of a station round its planet (0 = stands still). Left out: the game setting. */
   orbitSeconds?: number;
   seed: Seed;
@@ -223,6 +227,11 @@ export class FlightScreen implements Screen {
   private readonly sky: SkyLayer | null;
   private skyAt: Vec3 | null = null;
   private skyFrame: THREE.Quaternion | null = null; // how the ship's own axes lie in the galaxy (null = as always): what is ahead of the ship is what lies ahead on the trip
+  private skyStart: Quat | null = null; // the sky turn at take-off (what the player saw docked)
+  private skyTrip: Quat | null = null; // the turn that matches this trip (null = a hop with no direction: nothing changes)
+  private skyEnd: Quat | null = null; // the turn at the end of the trip: kept for the place we arrive in
+  private skyDest: number | null = null; // the system this trip ends in (null = not a trip: floating)
+  private skyProgress = -1; // how far the launch turn has got (the last value used)
 
   private flash = document.createElement("div");
   private hudRoot = document.createElement("div");
@@ -279,7 +288,7 @@ export class FlightScreen implements Screen {
   }
 
   /** Gets a new flight ready. Call before enter(). */
-  begin(info: FlightInfo, orbitStartSeconds = 0): void {
+  begin(info: FlightInfo, orbitStartSeconds = 0, dockedSky: THREE.Quaternion | null = null): void {
     this.flightCounter++;
     this.carrySpin = this.floating && this.floating.planetId === info.originDockId ? (this.clockT - this.floatT0) * FLOAT_SHIP_ORBIT_SPEED : 0;
     this.clearBodies();
@@ -290,7 +299,7 @@ export class FlightScreen implements Screen {
     // One sky for the whole flight: the system the ship is heading for (it is also the sky it floats under after arriving).
     reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, parseDockId(info.destinationDockId)?.systemId ?? null);
     this.pointSkyAt(parseDockId(info.destinationDockId)?.systemId ?? null);
-    this.pointSkyFrame(parseDockId(info.originDockId)?.systemId ?? null, parseDockId(info.destinationDockId)?.systemId ?? null);
+    this.pointSkyFrame(parseDockId(info.originDockId)?.systemId ?? null, parseDockId(info.destinationDockId)?.systemId ?? null, dockedSky);
     this.finishing = null;
     this.lastPlan = null;
     this.clockT = 0;
@@ -318,7 +327,10 @@ export class FlightScreen implements Screen {
     this.flightCounter++;
     reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, planet.systemId);
     this.pointSkyAt(planet.systemId);
-    this.skyFrame = null; // floating at a planet keeps its sky as it always was
+    this.skyStart = this.skyTrip = this.skyEnd = null;
+    this.skyDest = null;
+    const kept = this.opts.skyMemory?.frameFor(planet.systemId) ?? null; // the sky turn the trip that ended here left (null = the default sky)
+    this.skyFrame = kept ? new THREE.Quaternion(kept.x, kept.y, kept.z, kept.w) : null;
     this.clearBodies();
     this.resetLook();
     this.finishing = null;
@@ -425,6 +437,10 @@ export class FlightScreen implements Screen {
     const hidden = document.hidden || performance.now() - this.lastFrameMs > 1000;
     const plan = this.lastPlan;
     const leave = (): void => {
+      if (this.skyDest !== null) {
+        this.opts.skyMemory?.remember(this.skyEnd, this.skyDest); // the docked or floating view there keeps the sky as it is now
+        this.skyDest = null;
+      }
       const arrivedAt = this.dest?.scenery ? getPlanet(this.opts.seed, info?.destinationDockId ?? "") : null;
       if (arrivedAt && this.dest) {
         // A planet without a dock: the ship stays here, floating. The planet that grew during the approach is kept as the scene.
@@ -535,6 +551,7 @@ export class FlightScreen implements Screen {
     if (this.origin?.scenery) this.origin.scenery.sun.visible = this.origin.group.visible;
     if (this.dest?.scenery) this.dest.scenery.sun.visible = this.dest.group.visible;
     this.warp.group.visible = phase === "WARP";
+    this.turnSkyForLaunch(phase, p);
 
     // The docks slide past the ship. The ship's parking spot and the dock's parking spot are the same point at the two ends.
     if (phase === "LAUNCH" && this.origin?.scenery) {
@@ -777,11 +794,32 @@ export class FlightScreen implements Screen {
    * The faint sky follows the real direction of the trip (stage 3o, fix 3): what lies ahead of the ship (its nose points along -z) is what
    * lies in the galaxy from the system you left towards the system you are going to. A trip within one system keeps the sky as it was.
    */
-  private pointSkyFrame(fromSystem: number | null, toSystem: number | null): void {
+  private pointSkyFrame(fromSystem: number | null, toSystem: number | null, dockedSky: THREE.Quaternion | null): void {
     const from = fromSystem === null ? null : getSystem(this.opts.seed, fromSystem)?.position;
     const to = toSystem === null ? null : getSystem(this.opts.seed, toSystem)?.position;
-    const q = headingQuaternion(tripDirection(from, to));
+    // Take-off starts from the sky the player had docked (or floating): the docked screen's own turn, else the one kept for that system.
+    const start: Quat | null = dockedSky ?? this.opts.skyMemory?.frameFor(fromSystem) ?? null;
+    const mode = this.opts.skyLaunch ?? DEFAULT_LAUNCH_MODE;
+    this.skyStart = start;
+    this.skyTrip = headingQuaternion(tripDirection(from, to));
+    this.skyEnd = tripSkyAt(start, this.skyTrip, mode, 1);
+    this.skyDest = toSystem;
+    this.skyProgress = 0;
+    this.setSkyFrameTo(tripSkyAt(start, this.skyTrip, mode, 0));
+  }
+
+  private setSkyFrameTo(q: Quat | null): void {
     this.skyFrame = q ? new THREE.Quaternion(q.x, q.y, q.z, q.w) : null;
+  }
+
+  /** Option A: during the launch the sky turns smoothly from the docked sky to the trip's. The rest of the trip it stays put. */
+  private turnSkyForLaunch(phase: FlightPhase, p: number): void {
+    if (this.floating || !this.skyTrip || (this.opts.skyLaunch ?? DEFAULT_LAUNCH_MODE) !== "A") return;
+    const s = phase === "LAUNCH" ? p : 1;
+    if (s === this.skyProgress) return;
+    this.skyProgress = s;
+    this.setSkyFrameTo(tripSkyAt(this.skyStart, this.skyTrip, "A", s));
+    this.sky?.view.setSkyFrame(this.skyFrame);
   }
 
   /** Which warp look is shown (A, B or C). Used by the warp preview to compare them. */

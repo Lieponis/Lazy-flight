@@ -181,16 +181,7 @@ export class SkyView {
     this.starPoints.visible = dots;
   }
 
-  private turnBack = new THREE.Quaternion(); // the sky camera's extra turn (see setTurn and setSkyFrame); none = does nothing
-
-  /**
-   * Turns the whole sky about the sideways (x) line by `angle` radians, as a station going round its planet sees it (stage 3o).
-   * 0 = the sky as it always was. Whoever sets a turn must put it back to 0 when its screen is left, because screens can share one sky.
-   */
-  setTurn(angle: number): void {
-    if (angle === 0 || !Number.isFinite(angle)) this.turnBack.identity();
-    else this.turnBack.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -angle);
-  }
+  private turnBack = new THREE.Quaternion(); // the sky camera's extra turn (see setSkyFrame); none = does nothing
 
   /**
    * Sets how the screen's own directions lie in the galaxy (stage 3o, fix 3): the sky camera looks along `frame` applied to the way the screen's

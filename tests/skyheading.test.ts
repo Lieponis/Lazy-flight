@@ -154,12 +154,12 @@ describe("3o fix 3: the sky view and the flight screen", () => {
     expect(view.camera.quaternion.angleTo(camera.quaternion)).toBeCloseTo(0, 6);
   });
 
-  it("the flight screen sets the frame when it opens, gives it back when it closes, and leaves floating alone", () => {
+  it("the flight screen sets the frame when it opens, gives it back when it closes, and floating has no trip of its own", () => {
     const src = readFileSync("src/render/flight.ts", "utf8");
     expect(src).toContain("this.sky?.view.setSkyFrame(this.skyFrame);");
     expect(src).toContain("this.sky?.view.setSkyFrame(null);");
-    expect(src).toContain("this.pointSkyFrame(parseDockId(info.originDockId)?.systemId ?? null, parseDockId(info.destinationDockId)?.systemId ?? null);");
+    expect(src).toContain("this.pointSkyFrame(parseDockId(info.originDockId)?.systemId ?? null, parseDockId(info.destinationDockId)?.systemId ?? null, dockedSky);");
     const floatAt = src.indexOf("beginFloat(planetId: string)");
-    expect(src.slice(floatAt, floatAt + 700)).toContain("this.skyFrame = null;");
+    expect(src.slice(floatAt, floatAt + 1200)).toContain("this.skyTrip = this.skyEnd = null"); // floating has no trip of its own (3p: it keeps the sky the last trip left)
   });
 });

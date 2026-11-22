@@ -70,12 +70,12 @@ describe("3o fix 2: the sky turns with the planet", () => {
     const view = new SkyView();
     const camera = new THREE.PerspectiveCamera(50, 1.5, 0.1, 100);
     camera.quaternion.setFromEuler(new THREE.Euler(0.3, 1.1, 0));
-    view.setTurn(0.5);
+    view.setSkyFrame(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.5)); // what the docked view sets for a station that has gone round by 0.5
     view.follow(camera);
     const want = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.5).multiply(camera.quaternion);
     expect(view.camera.quaternion.angleTo(want)).toBeCloseTo(0, 6);
     expect(view.camera.quaternion.angleTo(camera.quaternion)).toBeCloseTo(0.5, 6);
-    view.setTurn(0);
+    view.setSkyFrame(null);
     view.follow(camera);
     expect(view.camera.quaternion.angleTo(camera.quaternion)).toBeCloseTo(0, 6);
   });
