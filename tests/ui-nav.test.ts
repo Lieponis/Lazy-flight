@@ -99,11 +99,14 @@ describe("FLIGHT PLAN words (Andy chose B: a big NEXT HOP card first)", () => {
     expect(planText(plan({ status: "no-such-place", target: null, hops: [], message: null })).title).toBe("UNKNOWN PLACE");
   });
 
-  it("MY PLACES and FLIGHT PLAN may open on the maps and when floating, never in flight", () => {
+  it("MY PLACES and FLIGHT PLAN may open on every screen, in flight too (MENU everywhere)", () => {
     expect(overlayAllowed("starmap", "places", false)).toBe("places");
     expect(overlayAllowed("system", "plan", false)).toBe("plan");
     expect(overlayAllowed("flight", "plan", false, true)).toBe("plan");
-    expect(overlayAllowed("flight", "places", true)).toBe("none");
+    expect(overlayAllowed("flight", "places", true)).toBe("places");
+    expect(overlayAllowed("flight", "menu", true)).toBe("menu");
+    expect(overlayAllowed("starmap", "ranks", false)).toBe("ranks");
+    expect(overlayAllowed("flight", "jobs", true)).toBe("none"); // the Jobs board stays a dock thing
   });
 
   it("a real plan from the start dock to a far place reads well", () => {

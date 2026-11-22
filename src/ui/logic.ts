@@ -327,10 +327,14 @@ export function visibleControls(screen: ScreenName, overlay: Overlay, flying: bo
   };
 }
 
-/** Which overlay may stay open on this screen (menus belong to the docked view, and some to floating in space). */
+/** Overlays that MENU opens; they may show on every screen, in flight (warp) too (Andy's wish, Nov 2026). */
+export const MENU_ANYWHERE: readonly Overlay[] = ["menu", "ranks", "savefile", "places", "plan"];
+
+/** Which overlay may stay open on this screen (MENU and what it opens: anywhere; the rest: docked, some floating). */
 export function overlayAllowed(screen: ScreenName, overlay: Overlay, flying: boolean, floating = false): Overlay {
+  // MENU is on every screen (Andy's wish, Nov 2026): the menu and what it opens work in flight and on the maps too.
+  if (MENU_ANYWHERE.includes(overlay)) return overlay;
   if (flying) return "none";
-  if (overlay === "places" || overlay === "plan") return overlay; // NAV-3: from the docked view, the maps and floating
   if (floating && screen === "flight") return overlay === "jobs" || overlay === "arrival" ? "none" : overlay; // no dock: no Jobs board
   if (screen !== "docked") return "none";
   return overlay === "whatnow" ? "none" : overlay;

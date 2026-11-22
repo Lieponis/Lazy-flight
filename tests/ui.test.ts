@@ -362,10 +362,10 @@ describe("ui 5c: ranks", () => {
     expect(rankUpLine({ kind: "TOUR", rankNumber: 2, rankName: "Tour Wrangler" })).toBe("RANK UP: Tour Wrangler (tours)");
   });
 
-  it("the ranks screen is a docked-only menu", () => {
+  it("the ranks screen opens from MENU on every screen, in flight too (Andy's wish, Nov 2026)", () => {
     expect(visibleControls("docked", "ranks", false).dockButtons).toBe(false);
     expect(overlayAllowed("docked", "ranks", false)).toBe("ranks");
-    expect(overlayAllowed("flight", "ranks", true)).toBe("none");
+    expect(overlayAllowed("flight", "ranks", true)).toBe("ranks");
   });
 });
 

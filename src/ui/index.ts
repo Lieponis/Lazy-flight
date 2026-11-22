@@ -477,7 +477,7 @@ export function startUi(api: RenderApi, parent: HTMLElement, start: StartInfo = 
     whatNow.showButton(controls.whatNow);
     installHint.update(controls.dockButtons); // only docked, no menu, no trip
     mapLegend.update(screen === "starmap" && overlay === "none"); // 5k: was "=== null" (never true), so the 5j legend never showed
-    strip.showMenuButton(controls.dockButtons); // MENU sits at the right end of the strip, docked only
+    strip.showMenuButton(true); // MENU sits at the right end of the strip, on every screen (Andy's wish)
     refreshStrip();
   }
 
