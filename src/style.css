@@ -27,9 +27,8 @@ body {
 /* The canvas is tiny (e.g. 320x180). CSS stretches it to fill the WHOLE window.
    "pixelated" means NO smoothing. Its shape is set in src/render/index.ts. */
 /* It fills #app, which is fixed to every edge of the screen (inset 0).
-   Installed iPhone app: the status bar stays "black" (index.html). "black-translucent" was tried (Nov 2026) and hit an
-   iOS 26/27 bug (WebKit 301994, 301108): the page then cannot reach the bottom 62 pt of the screen, leaving a black
-   strip there. Try it again only after Apple fixes that bug. */
+   Installed iPhone app: the status bar is see-through ("black-translucent", index.html), so the picture runs under the
+   clock; the HUD keeps clear with env(safe-area-inset-*). See the standalone rule at the end for the bottom edge. */
 #app canvas {
   display: block;
   width: 100%;
@@ -44,4 +43,21 @@ body {
   font-size: 16px;
   text-align: center;
   padding: 24px;
+}
+
+/* Installed app (standalone): edge to edge. Measured on Andy's iPhone (iOS 26.6, public/ios-fill-test.html, Nov 2026):
+   with html/body at height 100% and overflow hidden, iOS makes the whole page one status bar shorter (844 of 912 pt)
+   and leaves a strip at the bottom that nothing can draw on. When the page itself is as tall as the large viewport
+   (100lvh) and does not clip, iOS gives the full 912 pt and even "fixed, inset 0" reaches the bottom.
+   Browser tabs keep the rules above (no page scrolling there). */
+@media (display-mode: standalone) {
+  html,
+  body {
+    height: auto;
+    overflow: visible;
+  }
+
+  body {
+    min-height: 100lvh;
+  }
 }
