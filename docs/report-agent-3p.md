@@ -25,4 +25,4 @@ Live build: https://lieponis.github.io/Lazy-flight/ (main, CI green on `3p: the 
 - Seen only through Andy's answers, never on a real screen myself.
 - The **system view** keeps its own sky (it shows a star picked on the map, not the one you are in), so it is not turned by the trip. Suggestion: only if Andy wants it.
 - The 3D backdrop dots (the star points) are not tied to the trip direction; only the faint galaxy sky is.
-- Checked with the two test trips (in, out), not a real mission trip; it uses the same code.
+- Andy checked the landing with a pretend test trip and picked A after trying the options; a real mission trip was not checked (it uses the same code). He answered "A" without a separate "matches" for the take-off.
