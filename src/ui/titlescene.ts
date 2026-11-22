@@ -44,6 +44,7 @@ export class TitleScene {
   private size = { w: 1, h: 1 };
   private layout: TitleLayout = titleLayout(1);
   private onResize = (): void => this.resize();
+  private observer: ResizeObserver | null = null;
 
   constructor(private parent: HTMLElement, seed: Seed, dockId: string, systemId: number) {
     this.starCanvas.className = "ui-title-stars";
@@ -60,6 +61,11 @@ export class TitleScene {
     this.build(seed, dockId, systemId);
     this.resize();
     window.addEventListener("resize", this.onResize);
+    // iOS can grow the installed app's screen after start without a resize event: follow the box itself too.
+    if (typeof ResizeObserver !== "undefined") {
+      this.observer = new ResizeObserver(this.onResize);
+      this.observer.observe(parent);
+    }
     this.raf = requestAnimationFrame(this.frame);
   }
 
@@ -102,10 +108,14 @@ export class TitleScene {
     const { w, h } = this.size;
     this.starCanvas.width = w;
     this.starCanvas.height = h;
-    this.renderer?.setSize(w, h, false);
-    this.camera.aspect = w / h;
+    // The 3D picture starts below the clock and island (theme.css), so it can be shorter than the stars: size it from
+    // its own box, or the station looks stretched in the installed iPhone app.
+    const el3 = this.renderer?.domElement;
+    const s3 = el3 && el3.clientWidth > 0 && el3.clientHeight > 0 ? lowResSize(el3.clientWidth, el3.clientHeight) : this.size;
+    this.renderer?.setSize(s3.w, s3.h, false);
+    this.camera.aspect = s3.w / s3.h;
     this.camera.updateProjectionMatrix();
-    this.layout = titleLayout(w / h);
+    this.layout = titleLayout(s3.w / s3.h);
     this.stars = makeStars(Math.round((w * h) / 700), w, h);
     this.place();
   }
@@ -152,6 +162,7 @@ export class TitleScene {
   dispose(): void {
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this.onResize);
+    this.observer?.disconnect();
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
       m.geometry?.dispose();
