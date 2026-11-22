@@ -28,7 +28,7 @@ Live build: https://lieponis.github.io/Lazy-flight/ (main, CI green on `bac1357`
 
 ## Known issues and limits
 - Seen only through Andy's screenshots and answers, never on a real screen myself.
-- At speed A about 40 percent of each trip is the darkest shade; if it feels long, `STATION_SUN_ABOVE_ORBIT_DEG` and the tilt are single numbers in `settings.ts` (the day/night share itself is half and half by geometry).
+- About half of each trip round has the sun down (about 40 percent is the darkest shade), by geometry: at speed A that is about 2 minutes of dim ground. `STATION_SUN_ABOVE_ORBIT_DEG` only changes how bright the day is; a shorter night would need a different orbit design (for example a dawn-dusk path with the sun beside the path), which is a suggestion, not done.
 - The faint sky is faint: during a warp the streaks can hide it, so the heading is clearest in the cockpit view.
 - The planet at a station stands still during the launch and the arrival (only the docked view turns).
 - Not checked by Andy: a real mission trip (only the two preview trips); it uses the same code.
