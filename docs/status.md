@@ -383,3 +383,9 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 
 ## Three visual annoyances (Andy 2026-11-22) -> Agent 3, docs/briefs/agent-3o-brief.md
 - (1) outposts stand on the ice pole of every planet type (only Earth-likes are turned to a coast); (2) stations show a still planet while docked, should visibly orbit slowly; (3) warp/flight sky has a fixed angle, must match real direction origin -> destination (centre ahead when flying to the centre).
+
+## 3o DONE (Agent 3, report docs/report-agent-3o.md, main 26c99d6, deploy green; Andy "Matches" x3 on iPhone, Lead-checked 2026-11-22)
+- Outposts: pad on an ordinary spot (within ~30 deg of the equator, never in a cap) for every planet type; before 26/33 ICE and 8/15 OCEAN pads sat on a cap, now 0.
+- Station view: station goes round its planet (planet, light, stars, faint sky turn together), 300 s per trip (speed A; ?orbit=B|C|off), path tilted 25 deg so caps stay out of the opening, half of each trip is night (dim, not black), visits start in daylight. "Clouds faster" dropped.
+- Sky follows the trip: ahead = real direction origin -> destination (centre ahead inward, rim ahead outward); warp uses the same rule. Docked, floating, same-system hops unchanged.
+- 36 new tests. Known: faint sky can be hidden by warp streaks (clearest in cockpit view); only preview trips checked, not a real mission trip; shorter night needs a different orbit design (suggestion, not done).
