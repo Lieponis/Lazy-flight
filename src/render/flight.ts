@@ -165,12 +165,12 @@ interface Body {
   entry: ReturnType<typeof stationEntryState> | null;
   /** Stations: the room inside the bay, with the ship's parking spot as the middle (the camera is kept off its walls). */
   bayBox: Box | null;
-  /** Stations: the planet below, which turns slowly (the same as in the docked view). */
+  /** Stations: the planet below, posed as in the docked view (it is not turning during the flight). */
   world: StationWorld | null;
 }
 
 export interface FlightScreenOptions {
-  /** Seconds for one full turn of the planet beside a station (0 = stands still). Left out: the game setting. */
+  /** Seconds for one trip of a station round its planet (0 = stands still). Left out: the game setting. */
   orbitSeconds?: number;
   seed: Seed;
   host: HTMLElement; // the canvas (not used for input: you only watch)
@@ -277,7 +277,7 @@ export class FlightScreen implements Screen {
   }
 
   /** Gets a new flight ready. Call before enter(). */
-  begin(info: FlightInfo): void {
+  begin(info: FlightInfo, orbitStartSeconds = 0): void {
     this.flightCounter++;
     this.carrySpin = this.floating && this.floating.planetId === info.originDockId ? (this.clockT - this.floatT0) * FLOAT_SHIP_ORBIT_SPEED : 0;
     this.clearBodies();
@@ -295,6 +295,10 @@ export class FlightScreen implements Screen {
     this.lastFrameMs = performance.now();
     this.origin = this.makeBody(info.originDockId);
     this.dest = this.makeBody(info.destinationDockId);
+    // The planet beside a station stands where the docked view left it (the launch is a few seconds, so it does not turn); an arrival starts where a new visit starts.
+    const orbit = this.opts.orbitSeconds ?? DOCKED_STATION_ORBIT_SECONDS;
+    this.origin?.world?.setTime(orbitStartSeconds, orbit);
+    this.dest?.world?.setTime(0, orbit);
     this.addBody(this.origin);
     this.addBody(this.dest);
     // A planet without a dock: more time for the curves (the climb, straightening out, and the arrival). Docks are timed as before.
@@ -573,9 +577,6 @@ export class FlightScreen implements Screen {
     // Only what is on screen is updated: blinking lights and the spinning ring.
     this.ship.update(this.clockT);
     if (this.mode === "cockpit") this.cockpitModel.update(this.clockT); // the ~90 lights flash
-    const orbit = this.opts.orbitSeconds ?? DOCKED_STATION_ORBIT_SECONDS;
-    this.origin?.world?.setTime(this.clockT, orbit);
-    this.dest?.world?.setTime(this.clockT, orbit);
     if (phase === "LAUNCH") this.origin?.model?.update(this.clockT);
     else if (phase === "APPROACH" || phase === "DONE") this.dest?.model?.update(this.clockT);
 

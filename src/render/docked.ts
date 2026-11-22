@@ -78,7 +78,7 @@ const LIGHT = new THREE.Vector3(0.3, 0.85, -0.4).normalize(); // where the sun i
 const SHIP_LOOK_AT = new THREE.Vector3(0, 1, 0); // the camera in the bay looks at the middle of the ship
 
 export interface DockedOptions {
-  /** Seconds for one full turn of the planet seen through a station slot (0 = stands still). Left out: the game setting. */
+  /** Seconds for one trip of the station round its planet, as seen through the slot (0 = stands still). Left out: the game setting. */
   orbitSeconds?: number;
   seed: Seed;
   host: HTMLElement; // the canvas (drag and zoom listen here)
@@ -187,8 +187,8 @@ export class DockedScreen implements Screen {
   private shipId = FALLBACK_SHIP_ID;
   private livery: string | undefined = undefined; // paint job id; undefined = standard
   private clockT = 0;
-  private visitT = 0; // seconds since this dock was opened (the station planet turns by it)
-  private world: StationWorld | null = null; // the turning planet at a station
+  private visitT = 0; // seconds since this dock was opened (the station goes round its planet by it)
+  private world: StationWorld | null = null; // the planet at a station: it, the stars and the sky turn together round the station
   private titleText = "";
   private labelText = "";
   private tmp = new THREE.Vector3();
@@ -203,6 +203,11 @@ export class DockedScreen implements Screen {
     this.scene.add(this.backdrop);
     this.scene.add(this.content);
     this.controls = new DockedControls(opts.host);
+  }
+
+  /** Seconds since this dock was opened, or 0 for any other dock (the flight view starts a launch from the same moment of the trip round the planet). */
+  stationSeconds(dockId: string): number {
+    return this.dockId === dockId ? this.visitT : 0;
   }
 
   /** Which ship rests in the dock. Changing it swaps the model at once if a dock is showing. */
@@ -232,6 +237,7 @@ export class DockedScreen implements Screen {
     this.bay = null;
     this.world = null;
     this.visitT = 0;
+    this.backdrop.rotation.x = 0;
     this.dockId = dockId;
 
     const model = buildDockModel(dock.kind, dockId, planet);
@@ -329,12 +335,17 @@ export class DockedScreen implements Screen {
 
   exit(): void {
     this.controls.detach();
+    this.sky?.view.setTurn(0); // the sky is shared with other screens: give it back unturned
+    this.backdrop.rotation.x = 0;
   }
 
   update(seconds: number): void {
     this.clockT += seconds;
     this.visitT += seconds;
-    this.world?.setTime(this.visitT, this.opts.orbitSeconds ?? DOCKED_STATION_ORBIT_SECONDS);
+    // A station going round its planet: the planet, the light on it, the stars and the faint sky all turn together about the sideways line.
+    const turned = this.world ? this.world.setTime(this.visitT, this.opts.orbitSeconds ?? DOCKED_STATION_ORBIT_SECONDS) : 0;
+    this.backdrop.rotation.x = turned;
+    this.sky?.view.setTurn(turned);
     this.controls.update(seconds);
     this.sky?.update(seconds, this.camera);
     this.ship?.update(this.clockT);

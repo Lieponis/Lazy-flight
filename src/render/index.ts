@@ -249,7 +249,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     startFlight(info: FlightInfo): void {
       if (info.shipId) api.setShip(info.shipId, info.livery);
       state.set({ floatingPlanetId: null });
-      flight.begin(info);
+      flight.begin(info, docked.stationSeconds(info.originDockId));
       state.set({ screen: "flight", selectedPlanetId: null });
       show(flight);
     },

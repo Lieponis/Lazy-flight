@@ -181,9 +181,20 @@ export class SkyView {
     this.starPoints.visible = dots;
   }
 
+  private turnBack = new THREE.Quaternion(); // undoes the sky's own turn (see setTurn); no turn = does nothing
+
+  /**
+   * Turns the whole sky about the sideways (x) line by `angle` radians, as a station going round its planet sees it (stage 3o).
+   * 0 = the sky as it always was. Whoever sets a turn must put it back to 0 when its screen is left, because screens can share one sky.
+   */
+  setTurn(angle: number): void {
+    if (angle === 0 || !Number.isFinite(angle)) this.turnBack.identity();
+    else this.turnBack.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -angle);
+  }
+
   /** Copies the way the map camera is turned, so the sky looks the same way (the sky camera never moves). */
   follow(camera: THREE.PerspectiveCamera): void {
-    this.camera.quaternion.copy(camera.quaternion);
+    this.camera.quaternion.copy(this.turnBack).multiply(camera.quaternion);
     this.camera.fov = camera.fov;
     this.camera.aspect = camera.aspect;
     this.camera.updateProjectionMatrix();
