@@ -179,7 +179,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     systemView.prepareSky(want);
   });
 
-  const flight = new FlightScreen({ seed, host: canvas, hud, parent, skyLayer: stageSky, orbitSeconds });
+  const flight = new FlightScreen({ orbitSeconds, seed, host: canvas, hud, parent, skyLayer: stageSky });
   docked.setShip(shipId);
   flight.setShip(shipId);
 
