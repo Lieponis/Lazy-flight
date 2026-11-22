@@ -267,7 +267,7 @@ export function chooseLook(planet: PlanetForLook, earthStyle?: EarthStyle): Plan
 
 // ------------------------------------------------------------------ the colour of one patch of surface
 
-const CAP_COLOUR: Rgb = [0.93, 0.95, 1];
+export const CAP_COLOUR: Rgb = [0.93, 0.95, 1];
 const CLOUD_THRESHOLD = 0.62;
 
 /** The colour (before light and shadow) of the surface patch facing direction (nx, ny, nz), a unit vector. */
@@ -365,13 +365,17 @@ export const COAST_SEA_MAX = 0.24;
  * For an Earth-like: a direction on the planet that is land (green, brown-green or sand) with sea close by and away
  * from the ice caps. The same planet always gives the same spot. Null if the planet is not Earth-like or no spot exists.
  */
-export function coastSpot(type: string, look: PlanetLook): Vec3Like | null {
+export function coastSpot(type: string, look: PlanetLook, maxLat?: number): Vec3Like | null {
   if (!look.earth) return null;
-  const capLimit = look.caps > 0 ? look.caps - 0.12 : 0.9;
+  const capLimit = Math.min(maxLat ?? 0.9, look.caps > 0 ? look.caps - 0.12 : 0.9);
   const n = 900;
   const start = look.noiseSeed % n; // different planets start the search in different places
-  for (let k = 0; k < n; k++) {
-    const i = (start + k) % n;
+  // With a latitude band asked for (outposts, brief 3o) the search runs inside the band only, from the planet's own place in it, so planets
+  // spread over the whole band (not all of them at its edge). Without one it is the older search, exactly as before.
+  const lo = maxLat === undefined ? 0 : Math.ceil((n * (1 - capLimit)) / 2 - 0.5);
+  const span = maxLat === undefined ? n : Math.max(1, Math.floor((n * (1 + capLimit)) / 2 - 0.5) - lo + 1);
+  for (let k = 0; k < span; k++) {
+    const i = maxLat === undefined ? (start + k) % n : lo + (((start % span) + k) % span);
     const y = 1 - (2 * (i + 0.5)) / n;
     if (Math.abs(y) > capLimit) continue;
     const r = Math.sqrt(1 - y * y);
@@ -389,4 +393,57 @@ export function coastSpot(type: string, look: PlanetLook): Vec3Like | null {
     if (seaNear) return d;
   }
   return null;
+}
+
+// ------------------------------------------------------------------ where an outpost's pad stands on ANY planet (Agent 3, brief 3o)
+// The ground under a docked or floating outpost is a big ball whose TOP is under the pad. Before, only Earth-likes were turned
+// (to a coast); every other planet kept its pole at the top, and the ice cap started right there: Andy saw mostly white.
+// Now the pattern is turned so the pad stands on an ordinary spot of every planet: mid latitudes, far from the caps, on land where
+// the planet has land and sea, on the planet's own two ground colours (not a lake, a lava river, a crater or a dune).
+// The same planet always gives the same spot (it starts from the planet's own hash; no random numbers). Only the picture moves.
+
+/** The pad's spot is within this sine of latitude from the equator (0.5 = 30 degrees); the caps start at 0.75 (49 degrees) or higher. */
+export const OUTPOST_MAX_LAT = 0.5;
+
+function spiralPoint(i: number, n: number): Vec3Like {
+  const y = 1 - (2 * (i + 0.5)) / n;
+  const r = Math.sqrt(1 - y * y);
+  const a = i * 2.399963229728653; // golden angle: points spread evenly over the ball
+  return { x: Math.cos(a) * r, y, z: Math.sin(a) * r };
+}
+
+/** The pad's spot (a unit direction on the planet) for any planet type. Never null. */
+export function outpostSpot(type: string, look: PlanetLook): Vec3Like {
+  if (look.earth) {
+    const coast = coastSpot(type, look, OUTPOST_MAX_LAT) ?? coastSpot(type, look);
+    if (coast) return coast;
+  }
+  const n = 900;
+  // the points of the band, and the planet's own place in it (so planets spread over the band)
+  const lo = Math.ceil((n * (1 - OUTPOST_MAX_LAT)) / 2 - 0.5);
+  const span = Math.floor((n * (1 + OUTPOST_MAX_LAT)) / 2 - 0.5) - lo + 1;
+  const start = look.noiseSeed % span;
+  const colourAt = (v: Vec3Like): Rgb => surfaceColour(type, look, v.x, v.y, v.z);
+  /** The planet's own ground colour (not a cap, lake, lava river, crater or dune); on an ocean world only the land colour. */
+  const ground = (v: Vec3Like): boolean => {
+    const c = colourAt(v);
+    return type === "OCEAN" ? c === look.secondary : c === look.primary || c === look.secondary;
+  };
+  const anyGround = (v: Vec3Like): boolean => {
+    const c = colourAt(v);
+    return c === look.primary || c === look.secondary;
+  };
+  const wholePatch = (v: Vec3Like): boolean => {
+    if (!ground(v)) return false;
+    for (let j = 0; j < 6; j++) if (!ground(around(v, COAST_LAND_RADIUS, (j * Math.PI) / 3))) return false;
+    return true;
+  };
+  const passes: Array<(v: Vec3Like) => boolean> = [wholePatch, ground, anyGround, () => true];
+  for (const ok of passes) {
+    for (let k = 0; k < span; k++) {
+      const d = spiralPoint(lo + ((start + k) % span), n);
+      if (ok(d)) return d;
+    }
+  }
+  return spiralPoint(lo + start, n); // not reached: the last pass takes any spot in the band
 }

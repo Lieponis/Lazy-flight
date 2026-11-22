@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import { getDock, getPlanetsOfSystem, getSystem, type Dock, type Planet, type Seed } from "../universe";
 import { RENDER_HEIGHT, RENDER_WIDTH } from "../settings";
-import { chooseLook, coastSpot, hasCloud, surfaceColour, type EarthStyle, type PlanetLook } from "./planetlook";
+import { chooseLook, hasCloud, outpostSpot, surfaceColour, type EarthStyle, type PlanetLook } from "./planetlook";
 import {
   clamp,
   dockKindLabel,
@@ -87,8 +87,8 @@ export interface PlanetExtras {
   /** Only for the /planets.html comparison of Earth looks (7f); the game leaves it out (mix of A and C). */
   earthStyle?: EarthStyle;
   /**
-   * The ground under a docked outpost (7f): on an Earth-like, turn the pattern so a coast (land with sea nearby)
-   * is at the top, where the outpost stands. No effect on other planets.
+   * The ground under a docked outpost (7f, 3o): turn the pattern so an ordinary spot is at the top, where the outpost stands: a coast
+   * on an Earth-like, otherwise mid-latitude land on the planet's own ground colours, never an ice cap (see outpostSpot).
    */
   outpostGround?: boolean;
 }
@@ -100,8 +100,8 @@ export interface PlanetExtras {
  */
 export function makePlanetMesh(planet: Planet, radius: number, toStar: THREE.Vector3, detail = 2, extras: PlanetExtras = {}): THREE.Mesh {
   const look = chooseLook(planet, extras.earthStyle);
-  // Earth-like outpost ground: bring a coastal land spot to the top (the pattern turns; the ball does not).
-  const spot = extras.outpostGround ? coastSpot(planet.type, look) : null;
+  // Outpost ground: bring an ordinary spot (not a cap) to the top (the pattern turns; the ball does not).
+  const spot = extras.outpostGround ? outpostSpot(planet.type, look) : null;
   const turn = spot ? new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(spot.x, spot.y, spot.z)) : null;
   const pick = new THREE.Vector3();
   const geometry = new THREE.IcosahedronGeometry(radius, detail); // not indexed: every triangle has its own 3 corners
