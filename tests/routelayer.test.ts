@@ -53,13 +53,13 @@ describe("the plan line and markers layer", () => {
     expect(layer.extentLy()).toBe(45);
   });
 
-  it("pins a far target to the edge of the picture in its direction", () => {
-    const layer = new RouteLayer("line");
+  it("with option B pins a far target to the edge of the picture in its direction", () => {
+    const layer = new RouteLayer("line", "B");
     layer.setRoute(routeLine(ORIGIN, plan([[15, 0, 0]], [1240, 0, 0]), 40));
     const tag = layer.update(0.016, camera(), 200, W, H, FREE, 100); // the drawn stars end at 100 ly
     expect(tag?.side).toBe("right");
     expect(tag!.x).toBeGreaterThan(170);
-    const up = new RouteLayer("line");
+    const up = new RouteLayer("line", "B");
     up.setRoute(routeLine(ORIGIN, plan([], [0, 900, 0]), 40));
     const safe: SafeRect = { left: 8, top: 60, right: 8, bottom: 80 };
     const t2 = up.update(0.016, camera(), 200, W, H, safe, 100);
@@ -67,8 +67,8 @@ describe("the plan line and markers layer", () => {
     expect(t2!.y).toBeGreaterThanOrEqual(60); // not under the title
   });
 
-  it("pins a target behind the camera to the bottom edge", () => {
-    const layer = new RouteLayer("line");
+  it("with option B pins a target behind the camera to the bottom edge", () => {
+    const layer = new RouteLayer("line", "B");
     layer.setRoute(routeLine(ORIGIN, plan([], [0, 0, 600]), 40)); // the camera is at z = 200 looking towards -z: this is behind it
     const tag = layer.update(0.016, camera(), 200, W, H, FREE, 100);
     expect(tag?.side).toBe("bottom");

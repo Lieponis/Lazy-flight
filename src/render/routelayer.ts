@@ -6,7 +6,7 @@
 // Markers are drawn at a fixed size on the small picture, so they stay readable however far you zoom. A place that lies beyond the drawn
 // stars is drawn where it REALLY is (3q): a dimmer marker that moves with the sky exactly like the stars, never pushed to the edge, and only
 // while that spot is on the picture (turn the map to find it). It has no star under it and cannot be tapped. The plan's TARGET beyond the
-// drawn stars either does the same (option A) or keeps one marker on the edge with its name and distance (option B, the default).
+// drawn stars does the same (option A, the default Andy chose) or keeps one marker on the edge with its name and distance (option B).
 // Everything is a few dozen points and one line, rebuilt only when the plan, the zoom step or the look changes; nothing is built per frame
 // except the positions of the markers (at most about 60 of them).
 
@@ -325,7 +325,7 @@ export class RouteLayer {
 
     const line = this.line;
     if (line) {
-      // Option B (default): a far target (or one off the picture) keeps ONE marker on the edge. Option A: it is drawn only where it really is.
+      // Option A (default, Andy's choice): the target is drawn only where it really is, like every other marker. Option B: a far target (or one off the picture) keeps ONE marker on the edge.
       const put =
         this.targetMode === "B"
           ? this.put("target", line.target.x, line.target.y, line.target.z, camera, width, height, safe, line.targetLy > ballLy, true)

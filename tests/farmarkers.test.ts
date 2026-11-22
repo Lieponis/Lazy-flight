@@ -1,6 +1,6 @@
 // 3q: far place markers (home, outposts, starred, recent) sit at their TRUE place on the galaxy map, not pinned to the screen edge.
 // Real three.js, no screen: the finer marker layer is replaced by a recorder, so the exact spots can be compared with the projection.
-// Also: the plan's target under the two edge options (A: nothing at the edge, B: one edge marker, the default), far markers dimmer, and
+// Also: the plan's target under the two edge options (A: nothing at the edge, the default Andy chose; B: one edge marker), far markers dimmer, and
 // far markers cannot be tapped.
 
 import { readFileSync } from "node:fs";
@@ -183,8 +183,11 @@ describe("far places are drawn at their true place", () => {
 describe("the plan's target under the two edge options", () => {
   const farTarget = (x: number, y: number, z: number): MapRoute => ({ hops: [], target: { position: { x, y, z }, name: "HOME" } });
 
-  it("the default is B (the edge marker stays, as accepted in 3n)", () => {
-    expect(MAP_TARGET_MODE).toBe("B");
+  it("the default is A (Andy: the target also sits at its real place, nothing slides along the edge)", () => {
+    expect(MAP_TARGET_MODE).toBe("A");
+    const layer = new RouteLayer("line"); // no option given: the default
+    layer.setRoute(routeLine(ORIGIN, farTarget(1240, 0, 0), 40));
+    expect(layer.update(0.016, camera(), 200, W, H, FREE, BALL)).toBeNull();
   });
 
   it("B: a far target to the side still gets its edge marker with the words beside it", () => {

@@ -116,10 +116,11 @@ export const MAP_PLACE_MAX = 16;
 /** How strong a far place's marker is drawn next to a near one (1 = the same, 0 = invisible). Same pictures and colours, just dimmer. */
 export const MAP_FAR_MARK_OPACITY = 0.5;
 /**
- * What the flight-plan target does when it is off the picture or beyond the drawn stars (Andy picks, 3q): "A" = nothing at the edge, the target
- * is drawn only where it really is; "B" = it keeps ONE marker on the edge with its name and distance (default, accepted in 3n). `?maptarget=a|b` tries one.
+ * What the flight-plan target does when it is off the picture or beyond the drawn stars (Andy chose A, 3q): "A" = nothing at the edge, the target
+ * is drawn only where it really is (it moves with the sky like every other marker, with its name and distance beside it); "B" = it keeps ONE
+ * marker on the edge with its name and distance (the 3n look). `?maptarget=a|b` tries one.
  */
-export const MAP_TARGET_MODE: "A" | "B" = "B";
+export const MAP_TARGET_MODE: "A" | "B" = "A";
 /** Two markers closer than this (pixels of the small picture) are not both drawn (the less important one is left out). */
 export const MAP_MARKER_MIN_SEP_PX = 6;
 /** Free space kept at the left and right of the picture for edge markers (pixels of the small picture). */

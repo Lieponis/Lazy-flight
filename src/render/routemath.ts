@@ -39,7 +39,7 @@ export type RouteLook = "line" | "dashed" | "dots";
 
 /**
  * What the flight-plan TARGET does when it lies off the picture or beyond the drawn stars (Andy picks one, 3q):
- * "A" = nothing at the edge at all: the target is drawn only where it really is, and only when that is on the picture;
+ * "A" (the default, Andy chose it) = nothing at the edge at all: the target is drawn only where it really is, and only when that is on the picture;
  * "B" = the target keeps one marker on the edge of the picture, with its name and distance (as accepted in 3n).
  */
 export type TargetMode = "A" | "B";
