@@ -380,3 +380,6 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Also done: title 3D station sized from its own box (no stretch); phone status strip (line 1 CR, FUEL, speaker, MENU; line 2 place; fuel bar hidden under 380 px); MENU on every screen incl. warp (MENU_ANYWHERE; Jobs and Shipyard stay docked).
 - Reinstall note: status-bar style is read at install time (WebKit 316008); Andy's app was already re-added, so fine. Other iPhone players must remove and re-add the app once to get the new look.
 - Open: confirm the earlier small task (clear flight plan: X on map bar, CLEAR DESTINATION in MY PLACES, SHOW ON MAP not setting destination) is in; Agent 3: flight title still shows in flight (decided in 5h); fill-test page stays as a dev page (could be removed later); map still asks 60,000 stars far above the disc (suggestion for Agent 3).
+
+## Three visual annoyances (Andy 2026-11-22) -> Agent 3, docs/briefs/agent-3o-brief.md
+- (1) outposts stand on the ice pole of every planet type (only Earth-likes are turned to a coast); (2) stations show a still planet while docked, should visibly orbit slowly; (3) warp/flight sky has a fixed angle, must match real direction origin -> destination (centre ahead when flying to the centre).
