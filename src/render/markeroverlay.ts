@@ -7,6 +7,7 @@
 
 import { GLYPHS, glyphTexels, type GlyphName, type MarkSink } from "./routeglyphs";
 import { markerBox, type MarkerBox, type MarkerView } from "./routemath";
+import { MAP_FAR_MARK_OPACITY } from "./settings";
 import "./route.css";
 
 const MAX_MARKS = 64;
@@ -17,6 +18,7 @@ interface Mark {
   size: number;
   at: string;
   shown: boolean;
+  dim: boolean;
 }
 
 export class MarkerOverlay implements MarkSink {
@@ -48,7 +50,7 @@ export class MarkerOverlay implements MarkSink {
     }
   }
 
-  add(name: GlyphName, x: number, y: number): void {
+  add(name: GlyphName, x: number, y: number, dim = false): void {
     const view = this.view;
     if (!view || this.n >= MAX_MARKS) return;
     const url = this.urlOf(name);
@@ -64,6 +66,10 @@ export class MarkerOverlay implements MarkSink {
       mark.size = box.size;
       mark.el.style.width = `${box.size}px`;
       mark.el.style.height = `${box.size}px`;
+    }
+    if (mark.dim !== dim) {
+      mark.dim = dim;
+      mark.el.style.opacity = dim ? String(MAP_FAR_MARK_OPACITY) : "";
     }
     const at = `translate3d(${box.left}px, ${box.top}px, 0)`;
     if (mark.at !== at) {
@@ -114,7 +120,7 @@ export class MarkerOverlay implements MarkSink {
       el.draggable = false;
       el.style.display = "none";
       this.root.appendChild(el);
-      mark = { el, name: "", size: 0, at: "", shown: false };
+      mark = { el, name: "", size: 0, at: "", shown: false, dim: false };
       this.pool[i] = mark;
     }
     return mark;

@@ -3,8 +3,10 @@
 // Plain words: this is the part that puts things into the map's picture. The line goes from the ship through every stop of the plan
 // (A: plain, B: dashed, C: a dim line with little dots moving towards the target). A small marker sits on every stop (a ring where
 // the ship refuels), a bigger diamond on the target, and small pictures on my places (start dock, outposts, starred, recent).
-// Markers are drawn at a fixed size on the small picture, so they stay readable however far you zoom. A target or place that lies
-// beyond the drawn stars (or outside the picture) is pinned to the edge of the picture, in the direction you would turn to find it.
+// Markers are drawn at a fixed size on the small picture, so they stay readable however far you zoom. A place that lies beyond the drawn
+// stars is drawn where it REALLY is (3q): a dimmer marker that moves with the sky exactly like the stars, never pushed to the edge, and only
+// while that spot is on the picture (turn the map to find it). It has no star under it and cannot be tapped. The plan's TARGET beyond the
+// drawn stars either does the same (option A) or keeps one marker on the edge with its name and distance (option B, the default).
 // Everything is a few dozen points and one line, rebuilt only when the plan, the zoom step or the look changes; nothing is built per frame
 // except the positions of the markers (at most about 60 of them).
 
@@ -20,17 +22,19 @@ import {
   placeGlyphKind,
   quantizePeriod,
   tooClose,
+  trueSpot,
   type EdgeSide,
   type MapPlace,
   type MapPlaceKind,
   type RouteLine,
   type RouteLook,
   type SafeRect,
+  type TargetMode,
 } from "./routemath";
 import {
   MAP_MARKER_MIN_SEP_PX,
-  MAP_PLACE_EDGE_MAX,
   MAP_PLACE_MAX,
+  MAP_TARGET_MODE,
   MAP_ROUTE_DASH_PX,
   MAP_ROUTE_DASH_SHARE,
   MAP_ROUTE_DOT_GAP_PX,
@@ -81,6 +85,8 @@ export interface RouteCounts {
   outpost: number;
   starred: number;
   recent: number;
+  /** How many of the place markers above are far ones (drawn dim, at their true place). */
+  far: number;
   dashes: number;
   dots: number;
 }
@@ -126,6 +132,8 @@ export class RouteLayer {
   readonly group = new THREE.Group();
 
   private look: RouteLook;
+  private readonly targetMode: TargetMode;
+  private farN = 0;
   private line: RouteLine | null = null;
   private lineLength = 0;
   private lineVersion = 0;
@@ -153,8 +161,9 @@ export class RouteLayer {
   private readonly accY = new Float32Array(160);
   private accN = 0;
 
-  constructor(look: RouteLook) {
+  constructor(look: RouteLook, targetMode: TargetMode = MAP_TARGET_MODE) {
     this.look = look;
+    this.targetMode = targetMode;
     const dashGeometry = new THREE.BufferGeometry();
     dashGeometry.setAttribute("position", new THREE.BufferAttribute(this.dashBuffer, 3));
     dashGeometry.setDrawRange(0, 0);
@@ -257,6 +266,7 @@ export class RouteLayer {
     this.group.visible = any;
     if (!any) {
       this.sink?.clear();
+      this.farN = 0;
       for (const set of Object.values(this.sets)) {
         set.n = 0;
         set.points.visible = false;
@@ -281,6 +291,7 @@ export class RouteLayer {
       outpost: s.outpost.n,
       starred: s.starred.n,
       recent: s.recent.n,
+      far: this.farN,
       dashes: this.dashCount,
       dots: this.dotCount,
     };
@@ -297,7 +308,7 @@ export class RouteLayer {
     if (!this.refreshVisibility()) return null;
     if (ballLy !== this.lastBall) {
       this.lastBall = ballLy;
-      this.chosen = pickPlaces(this.places, ballLy, MAP_PLACE_MAX, MAP_PLACE_EDGE_MAX);
+      this.chosen = pickPlaces(this.places, ballLy, MAP_PLACE_MAX, MAP_PLACE_MAX); // far ones sit at their true place: no separate limit
     }
     camera.updateMatrixWorld();
     this.vp.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -309,19 +320,28 @@ export class RouteLayer {
 
     for (const set of Object.values(this.sets)) set.n = 0;
     this.accN = 0;
+    this.farN = 0;
     let tag: TargetTag | null = null;
 
     const line = this.line;
     if (line) {
-      const far = line.targetLy > ballLy;
-      const put = this.put("target", line.target.x, line.target.y, line.target.z, camera, width, height, safe, far, true);
+      // Option B (default): a far target (or one off the picture) keeps ONE marker on the edge. Option A: it is drawn only where it really is.
+      const put =
+        this.targetMode === "B"
+          ? this.put("target", line.target.x, line.target.y, line.target.z, camera, width, height, safe, line.targetLy > ballLy, true)
+          : this.putTrue("target", line.target.x, line.target.y, line.target.z, camera, width, height, false);
       if (put) tag = { x: put.x, y: put.y, side: put.side };
     }
     for (const index of this.chosen) {
       const place = this.places[index];
       if (!place) continue;
-      const far = place.distanceLy > ballLy;
-      this.put(PLACE_GLYPH[place.kind], place.x, place.y, place.z, camera, width, height, safe, far, far);
+      const name = PLACE_GLYPH[place.kind];
+      if (place.distanceLy > ballLy) {
+        // A far place: at its true place, dimmer, never pushed to the edge, left out while that spot is off the picture. No star under it, not tappable.
+        if (this.putTrue(name, place.x, place.y, place.z, camera, width, height, true)) this.farN++;
+      } else {
+        this.put(name, place.x, place.y, place.z, camera, width, height, safe, false, false);
+      }
     }
     if (line) {
       // Refuel stops first, then plain stops, so a crowd keeps the more important marker. Stops outside the picture are left out.
@@ -357,24 +377,57 @@ export class RouteLayer {
   ): { x: number; y: number; side: EdgeSide } | null {
     const set = this.sets[name];
     if (set.n * 3 >= set.positions.length || this.accN >= this.accX.length) return null;
+    const ndc = this.ndcOf(x, y, z);
+    const p = pinToSafeRect(ndc.x, ndc.y, ndc.behind, width, height, safe, forcePin);
+    if (p.pinned && !mayPin) return null;
+    return this.emit(name, set, p.x, p.y, p.side, camera, width, height, false);
+  }
+
+  /**
+   * Puts one marker at the REAL place of a point: the plain projection, no pushing to the edge. Returns where, or null when the point is
+   * behind the camera, outside the picture, or too close to another marker. `dim` = drawn fainter (a far place).
+   */
+  private putTrue(name: GlyphName, x: number, y: number, z: number, camera: THREE.PerspectiveCamera, width: number, height: number, dim: boolean): { x: number; y: number; side: EdgeSide } | null {
+    const set = this.sets[name];
+    if (set.n * 3 >= set.positions.length || this.accN >= this.accX.length) return null;
+    const ndc = this.ndcOf(x, y, z);
+    const spot = trueSpot(ndc.x, ndc.y, ndc.behind, width, height);
+    if (!spot) return null;
+    return this.emit(name, set, spot.x, spot.y, "inside", camera, width, height, dim);
+  }
+
+  /** Where a point (light years from the ship) lands on the picture, as clip coordinates turned into -1..1 (behind the camera: pushed far out). */
+  private ndcOf(x: number, y: number, z: number): { x: number; y: number; behind: boolean } {
     const e = this.vp.elements;
     const cx = e[0]! * x + e[4]! * y + e[8]! * z + e[12]!;
     const cy = e[1]! * x + e[5]! * y + e[9]! * z + e[13]!;
     const cw = e[3]! * x + e[7]! * y + e[11]! * z + e[15]!;
-    const ndc = ndcOfClip(cx, cy, cw);
-    const p = pinToSafeRect(ndc.x, ndc.y, ndc.behind, width, height, safe, forcePin);
-    if (p.pinned && !mayPin) return null;
+    return ndcOfClip(cx, cy, cw);
+  }
+
+  /** Writes the marker at (px, py) of the small picture (to the finer layer, or into the picture); null when it is too close to another. */
+  private emit(
+    name: GlyphName,
+    set: GlyphSet,
+    px: number,
+    py: number,
+    side: EdgeSide,
+    camera: THREE.PerspectiveCamera,
+    width: number,
+    height: number,
+    dim: boolean,
+  ): { x: number; y: number; side: EdgeSide } | null {
     // Drawn inside the small picture: sit on the middle of a pixel, so the little picture lands pixel for pixel (and does not shimmer).
     // Handed to the finer layer: keep the exact spot, that layer moves it smoothly.
     const sink = this.sink;
-    const sx = Math.min(width - 0.5, Math.max(0.5, sink ? p.x : Math.floor(p.x) + 0.5));
-    const sy = Math.min(height - 0.5, Math.max(0.5, sink ? p.y : Math.floor(p.y) + 0.5));
+    const sx = Math.min(width - 0.5, Math.max(0.5, sink ? px : Math.floor(px) + 0.5));
+    const sy = Math.min(height - 0.5, Math.max(0.5, sink ? py : Math.floor(py) + 0.5));
     if (tooClose(this.accX, this.accY, this.accN, sx, sy, MAP_MARKER_MIN_SEP_PX)) return null;
     this.accX[this.accN] = sx;
     this.accY[this.accN] = sy;
     this.accN++;
     if (sink) {
-      sink.add(name, sx, sy);
+      sink.add(name, sx, sy, dim);
     } else {
       this.tmp.set((sx / width) * 2 - 1, 1 - (sy / height) * 2, 0.5).unproject(camera);
       const o = set.n * 3;
@@ -383,7 +436,7 @@ export class RouteLayer {
       set.positions[o + 2] = this.tmp.z;
     }
     set.n++;
-    return { x: sx, y: sy, side: p.side };
+    return { x: sx, y: sy, side };
   }
 
   // ------------------------------------------------------------------ the look of the line

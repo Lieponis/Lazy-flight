@@ -13,6 +13,7 @@ import {
   ndcOfClip,
   parseMapLine,
   parseMapPlan,
+  parseMapTarget,
   pickPlaces,
   pinToSafeRect,
   placeGlyphKind,
@@ -23,6 +24,7 @@ import {
   tagPosition,
   targetTagText,
   tooClose,
+  trueSpot,
   type MapRoute,
   type SafeRect,
 } from "../src/render/routemath";
@@ -492,5 +494,42 @@ describe("what the map was told to draw (the app's plan and the made-up one)", (
     nav.setPlaces(mine);
     expect(nav.route()).toBe(realRoute);
     expect(nav.places()).toHaveLength(1);
+  });
+});
+
+describe("far places at their true spot (3q)", () => {
+  it("is the plain projection: the middle of the picture for (0, 0), the corners for +-1", () => {
+    expect(trueSpot(0, 0, false, 180, 320)).toEqual({ x: 90, y: 160 });
+    expect(trueSpot(-1, 1, false, 180, 320)).toEqual({ x: 0, y: 0 });
+    expect(trueSpot(1, -1, false, 180, 320)).toEqual({ x: 180, y: 320 });
+    const q = trueSpot(0.25, 0.5, false, 200, 100)!;
+    expect(q.x).toBeCloseTo(125, 9);
+    expect(q.y).toBeCloseTo(25, 9);
+  });
+
+  it("is not clamped: nothing is returned for a place off the picture or behind the camera", () => {
+    expect(trueSpot(1.01, 0, false, 180, 320)).toBeNull();
+    expect(trueSpot(0, -1.2, false, 180, 320)).toBeNull();
+    expect(trueSpot(0, 0, true, 180, 320)).toBeNull(); // behind the camera, even if the mirrored picture says "middle"
+    expect(trueSpot(Number.NaN, 0, false, 180, 320)).toBeNull();
+    // the old way pushed such a place onto the edge instead
+    expect(pinToSafeRect(3, 0, false, 180, 320, NO_INSET, true).pinned).toBe(true);
+  });
+
+  it("moves with the sky: a turn of the picture moves the spot by the same amount, no sliding along a border", () => {
+    const a = trueSpot(0.4, 0.1, false, 180, 320)!;
+    const b = trueSpot(0.4 - 0.2, 0.1, false, 180, 320)!;
+    expect(a.x - b.x).toBeCloseTo(0.2 * 90, 9);
+    expect(a.y).toBe(b.y);
+    expect(trueSpot(0.4 - 1.5, 0.1, false, 180, 320)).toBeNull(); // turned further: gone, not stuck on the edge
+  });
+
+  it("reads the testing word ?maptarget=a|b", () => {
+    expect(parseMapTarget("?maptarget=a")).toBe("A");
+    expect(parseMapTarget("?x=1&maptarget=B")).toBe("B");
+    expect(parseMapTarget("?maptarget=edge")).toBe("B");
+    expect(parseMapTarget("?maptarget=true")).toBe("A");
+    expect(parseMapTarget("")).toBeNull();
+    expect(parseMapTarget("?maptarget=green")).toBeNull();
   });
 });

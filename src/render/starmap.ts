@@ -47,6 +47,7 @@ import {
   type RouteLine,
   type RouteLook,
   type SafeRect,
+  type TargetMode,
 } from "./routemath";
 import { MarkerOverlay } from "./markeroverlay";
 import { RouteTag } from "./routetag";
@@ -58,6 +59,7 @@ import {
   MAP_REACH_FALLBACK_LY,
   MAP_ROUTE_FRAME_HOPS,
   MAP_ROUTE_LOOK,
+  MAP_TARGET_MODE,
   MAP_ROUTE_MAX_HOPS,
   MAP_SKY_BUDGET_MS,
   MAP_SKY_DOTS,
@@ -100,6 +102,8 @@ export interface StarMapOptions {
   testView?: string | null;
   /** The look of the flight-plan line (testing aid ?mapline=a|b|c; null = the setting MAP_ROUTE_LOOK). */
   routeLook?: RouteLook | null;
+  /** What the plan's target does when it is off the picture (testing aid ?maptarget=a|b; null = the setting MAP_TARGET_MODE). */
+  targetMode?: TargetMode | null;
   /** Testing aid ?mapplan=N: a made-up plan of N hops and some made-up places, until the app hands over real ones. */
   testPlan?: number | null;
   /** Milliseconds the camera takes to follow the finger (testing aid `?mapturn=`); null = the standard from settings. */
@@ -172,6 +176,7 @@ export class StarMapScreen implements Screen {
 
   /** The flight-plan line and the place markers (NAV-2), and the words next to the target. */
   private readonly route: RouteLayer;
+  private readonly targetMode: TargetMode;
   /** Made the first time a plan is shown (the page needs no extra element until then). */
   private routeTag: RouteTag | null = null;
   private marks: MarkerOverlay | null = null;
@@ -214,7 +219,8 @@ export class StarMapScreen implements Screen {
     this.selectionMarker.visible = false;
     this.scene.add(this.selectionMarker, this.currentMarker);
 
-    this.route = new RouteLayer(opts.routeLook ?? MAP_ROUTE_LOOK);
+    this.targetMode = opts.targetMode ?? MAP_TARGET_MODE;
+    this.route = new RouteLayer(opts.routeLook ?? MAP_ROUTE_LOOK, this.targetMode);
     this.scene.add(this.route.group);
     this.nav = new NavInput((opts.testPlan ?? 0) > 0);
 
@@ -623,7 +629,7 @@ export class StarMapScreen implements Screen {
     if (!shape && this.nav.places().length === 0) return `\nTURN EASING ${Math.round(this.view.turnSmoothSeconds * 1000)} ms`;
     const c = this.route.counts();
     const marks = c.hop + c.refuel + c.target + c.start + c.outpost + c.starred + c.recent;
-    return `\nPLAN ${shape ? shape.count - 1 : 0} hops, ${shape ? Math.round(shape.targetLy) : 0} ly to target; markers ${marks}, dashes ${c.dashes}, dots ${c.dots}; icons ${this.marks ? "fine" : "chunky"}; turn easing ${Math.round(this.view.turnSmoothSeconds * 1000)} ms`;
+    return `\nPLAN ${shape ? shape.count - 1 : 0} hops, ${shape ? Math.round(shape.targetLy) : 0} ly to target (edge option ${this.targetMode}); markers ${marks} (far ${c.far}), dashes ${c.dashes}, dots ${c.dots}; icons ${this.marks ? "fine" : "chunky"}; turn easing ${Math.round(this.view.turnSmoothSeconds * 1000)} ms`;
   }
 
   // ------------------------------------------------------------------ taps

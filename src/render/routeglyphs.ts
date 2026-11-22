@@ -13,8 +13,8 @@ export type GlyphName = "hop" | "refuel" | "target" | "start" | "outpost" | "sta
 export interface MarkSink {
   /** A new frame starts: forget last frame's markers. */
   begin(): void;
-  /** A marker whose middle is at (x, y) of the small picture. */
-  add(name: GlyphName, x: number, y: number): void;
+  /** A marker whose middle is at (x, y) of the small picture. `dim` = a far place (drawn fainter than the near ones). */
+  add(name: GlyphName, x: number, y: number, dim?: boolean): void;
   /** The frame is complete: hide what was not added again. */
   end(): void;
   /** Nothing to show at all. */

@@ -74,7 +74,7 @@ describe("the plan line and markers layer", () => {
     expect(tag?.side).toBe("bottom");
   });
 
-  it("marks at most a few places, the important kinds first", () => {
+  it("marks every place it is given up to the limit of 16, the important kinds first", () => {
     const layer = new RouteLayer("line");
     const kinds: MapPlaceKind[] = ["recent", "recent", "recent", "recent", "recent", "recent", "recent", "starred", "starred", "starred", "outpost", "start"];
     layer.setPlaces(kinds.map((k, i) => place(-40 + i * 6, k)), ORIGIN);
@@ -83,23 +83,32 @@ describe("the plan line and markers layer", () => {
     expect(c.start).toBe(1);
     expect(c.outpost).toBe(1);
     expect(c.starred).toBe(3);
-    expect(c.recent).toBe(3); // 8 in all
-    expect(c.start + c.outpost + c.starred + c.recent).toBe(8);
+    expect(c.recent).toBe(7); // all 12 fit
+    expect(c.start + c.outpost + c.starred + c.recent).toBe(12);
+    const many: MapPlaceKind[] = Array.from({ length: 30 }, (_, i) => (i === 29 ? "start" : "recent"));
+    // 30 places spread over the picture (10 columns, 3 rows, well apart): more than the limit.
+    layer.setPlaces(many.map((k, i) => ({ systemId: i, position: { x: -45 + (i % 10) * 10, y: (Math.floor(i / 10) - 1) * 25, z: 0 }, kinds: [k], name: "P" })), ORIGIN);
+    layer.update(0.016, camera(), 200, W, H, FREE, 500);
+    const d = layer.counts();
+    expect(d.start).toBe(1); // the most important kind is never the one dropped
+    expect(d.start + d.outpost + d.starred + d.recent).toBe(16);
   });
 
-  it("pins far places on the edge, at most four, and leaves out a near place that is off the picture", () => {
+  it("leaves out a near place that is off the picture, and draws a far place at its true place only while that is on the picture (see farmarkers.test.ts)", () => {
     const layer = new RouteLayer("line");
     const places: MapPlace[] = [];
-    for (let i = 0; i < 6; i++) places.push({ systemId: i, position: { x: 3000, y: i * 400 - 1000, z: 0 }, kinds: ["starred"], name: "F" });
-    places.push(place(-4000, "start")); // also far
+    for (let i = 0; i < 6; i++) places.push({ systemId: i, position: { x: 3000, y: i * 400 - 1000, z: 0 }, kinds: ["starred"], name: "F" }); // far, off to the side
+    places.push(place(-4000, "start")); // also far, off to the side
     places.push({ systemId: 99, position: { x: 0, y: 0, z: -90 }, kinds: ["outpost"], name: "N" }); // near, straight ahead of the ship, in the picture
+    places.push({ systemId: 98, position: { x: 400, y: 0, z: 0 }, kinds: ["recent"], name: "N2" }); // near (inside 500 ly), far to the right: off the picture
     layer.setPlaces(places, ORIGIN);
-    layer.update(0.016, camera(), 200, W, H, FREE, 150);
+    layer.update(0.016, camera(), 200, W, H, FREE, 450);
     const c = layer.counts();
-    const edge = c.start + c.starred;
-    expect(edge).toBeLessThanOrEqual(4);
-    expect(c.start).toBe(1);
+    expect(c.start).toBe(0); // nothing is pushed onto the edge any more
+    expect(c.starred).toBe(0);
+    expect(c.recent).toBe(0);
     expect(c.outpost).toBe(1);
+    expect(c.far).toBe(0);
   });
 
   it("takes the places relative to the ship's place", () => {

@@ -32,7 +32,7 @@ import { mountWarpPreview } from "./warppreview";
 import { parseFloatPreview, parseFloatStyle } from "./floatmath";
 import { floatCandidates } from "./floatpick";
 import { parseMapAt, parseReachParam } from "./starmapradius";
-import { parseMapIcons, parseMapLine, parseMapPlan, parseMapTurn, type MapPlace, type MapRoute } from "./routemath";
+import { parseMapIcons, parseMapLine, parseMapPlan, parseMapTarget, parseMapTurn, type MapPlace, type MapRoute } from "./routemath";
 import type { MapSource } from "./galaxy/mapdata";
 import { mountFloatPreview } from "./floatpreview";
 import { splitCodedName } from "./namefit";
@@ -143,6 +143,7 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     reachLy: forcedReach,
     testView: mapAt ? mapAt.name : null,
     routeLook: parseMapLine(window.location.search), // testing aid ?mapline=a|b|c: the look of the plan line
+    targetMode: parseMapTarget(window.location.search), // testing aid ?maptarget=a|b: nothing at the edge (a) or one edge marker for the plan's target (b)
     testPlan: parseMapPlan(window.location.search), // testing aid ?mapplan=N: a made-up plan of N hops and made-up places
     turnMs: parseMapTurn(window.location.search), // testing aid ?mapturn=MS: how softly the map follows the finger when turning
     iconsFine: parseMapIcons(window.location.search) !== "chunky", // testing aid ?mapicons=chunky: the markers inside the picture (as before)

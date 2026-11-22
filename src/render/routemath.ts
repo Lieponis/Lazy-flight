@@ -37,6 +37,13 @@ export interface MapPlace {
 /** The three looks of the plan line (Andy picks one: A plain, B dashed, C moving dots). */
 export type RouteLook = "line" | "dashed" | "dots";
 
+/**
+ * What the flight-plan TARGET does when it lies off the picture or beyond the drawn stars (Andy picks one, 3q):
+ * "A" = nothing at the edge at all: the target is drawn only where it really is, and only when that is on the picture;
+ * "B" = the target keeps one marker on the edge of the picture, with its name and distance (as accepted in 3n).
+ */
+export type TargetMode = "A" | "B";
+
 /** What the game's flight plan looks like, as far as the map cares (a structural copy of docs/nav-api.md, so no game import). */
 export interface PlanLike {
   status: string;
@@ -276,6 +283,15 @@ export function pinToSafeRect(ndcX: number, ndcY: number, behind: boolean, width
   return { x: cx + dx * s, y: cy + dy * s, pinned: true, side };
 }
 
+/**
+ * A far place drawn where it REALLY is (3q): the plain projection of its position, with no pushing to the edge. Returns pixels from the
+ * left and from the top of the picture, or null when the place is behind the camera or outside the picture (turn the map to find it).
+ */
+export function trueSpot(ndcX: number, ndcY: number, behind: boolean, width: number, height: number): { x: number; y: number } | null {
+  if (behind || !(ndcX >= -1 && ndcX <= 1 && ndcY >= -1 && ndcY <= 1)) return null;
+  return { x: (ndcX * 0.5 + 0.5) * width, y: (0.5 - ndcY * 0.5) * height };
+}
+
 /** Free area in window pixels (the same corners the title and the bottom bar leave free). */
 export interface CssBounds {
   left: number;
@@ -329,7 +345,8 @@ export function tooClose(xs: ArrayLike<number>, ys: ArrayLike<number>, count: nu
 
 /**
  * Which places get a marker: the most important first (start, outpost, starred, recent; nearer first inside one kind), at most
- * `maxTotal`, of which at most `maxFar` lie beyond the drawn ball (those become edge markers). Returns indices into `items`.
+ * `maxTotal`, of which at most `maxFar` lie beyond the drawn ball. Returns indices into `items`. (Since 3q the far ones are drawn at
+ * their true place, not on the edge, so the map passes `maxFar = maxTotal`; the limit stays for callers that want one.)
  */
 export function pickPlaces(items: readonly { kind: MapPlaceKind; distanceLy: number }[], ballLy: number, maxTotal: number, maxFar: number): number[] {
   const order = items.map((_, i) => i).sort((a, b) => {
@@ -530,6 +547,16 @@ export function parseMapLine(search: string): RouteLook | null {
   if (word === "a" || word === "line" || word === "plain") return "line";
   if (word === "b" || word === "dashed" || word === "dash") return "dashed";
   if (word === "c" || word === "dots" || word === "dot") return "dots";
+  return null;
+}
+
+/** `?maptarget=a|b` (or true | edge): what the plan's target does when it is off the picture, while Andy chooses (3q). Null = not given. */
+export function parseMapTarget(search: string): TargetMode | null {
+  const raw = new URLSearchParams(search).get("maptarget");
+  if (raw === null) return null;
+  const word = raw.trim().toLowerCase();
+  if (word === "a" || word === "true" || word === "none") return "A";
+  if (word === "b" || word === "edge" || word === "arrow") return "B";
   return null;
 }
 

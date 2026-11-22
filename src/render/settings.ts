@@ -108,9 +108,18 @@ export const MAP_ROUTE_DOT_SPEED = 0.6;
 /** Upper limits so the line never costs frame time: dashes and dots drawn at most. */
 export const MAP_ROUTE_MAX_DASHES = 1200;
 export const MAP_ROUTE_MAX_DOTS = 400;
-/** Place markers: at most this many at once, of which at most MAP_PLACE_EDGE_MAX far ones on the edge of the picture. */
-export const MAP_PLACE_MAX = 8;
-export const MAP_PLACE_EDGE_MAX = 4;
+/**
+ * Place markers: at most this many at once. Since 3q a place beyond the drawn stars is drawn where it REALLY is (dimmer, not tappable) and
+ * is not pushed to the edge, so there is no separate limit for far ones any more; the most important kinds come first.
+ */
+export const MAP_PLACE_MAX = 16;
+/** How strong a far place's marker is drawn next to a near one (1 = the same, 0 = invisible). Same pictures and colours, just dimmer. */
+export const MAP_FAR_MARK_OPACITY = 0.5;
+/**
+ * What the flight-plan target does when it is off the picture or beyond the drawn stars (Andy picks, 3q): "A" = nothing at the edge, the target
+ * is drawn only where it really is; "B" = it keeps ONE marker on the edge with its name and distance (default, accepted in 3n). `?maptarget=a|b` tries one.
+ */
+export const MAP_TARGET_MODE: "A" | "B" = "B";
 /** Two markers closer than this (pixels of the small picture) are not both drawn (the less important one is left out). */
 export const MAP_MARKER_MIN_SEP_PX = 6;
 /** Free space kept at the left and right of the picture for edge markers (pixels of the small picture). */
