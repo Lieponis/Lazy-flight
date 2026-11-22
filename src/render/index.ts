@@ -41,6 +41,7 @@ import { mountNamePreview } from "./namepreview";
 import { FLOAT_DEFAULT_STYLE } from "./settings";
 import { parseWarpPreview, parseWarpStyle } from "./warpmath";
 import { orbitSecondsFor, parseStationDemo } from "./stationspin";
+import { parseTripHeading, pickByHeading } from "./skyheading";
 
 export { StateStore } from "./state";
 export type { RenderState, ScreenName } from "./state";
@@ -306,10 +307,23 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
   // Testing aid for the warp look: ?warppreview=1 goes straight into an endless warp with buttons to compare the looks.
   if (parseWarpPreview(window.location.search)) {
     const docks = getDocksOfSystem(seed, current.id).map((d) => d.id);
+    // ?heading=in or ?heading=out (stage 3o, fix 3): a real trip from here to the nearby system that lies most towards the galaxy centre
+    // (in) or most towards the rim (out), so the sky ahead of the ship can be checked with a trip of each kind.
+    const heading = parseTripHeading(window.location.search);
+    const target = heading
+      ? pickByHeading(
+          current.position,
+          nearestSystems(seed, current.position, 400)
+            .map((n) => n.system)
+            .filter((s) => s.id !== current.id && getDocksOfSystem(seed, s.id).length > 0),
+          heading,
+        )
+      : null;
+    const targetDock = target ? getDocksOfSystem(seed, target.id)[0] : undefined;
     api.startFlight({
       originDockId: docks[0] ?? lastDockId,
-      destinationDockId: docks[1] ?? docks[0] ?? lastDockId,
-      destinationName: "WARP PREVIEW",
+      destinationDockId: targetDock?.id ?? docks[1] ?? docks[0] ?? lastDockId,
+      destinationName: heading && target ? `WARP PREVIEW ${heading === "in" ? "TOWARDS THE CENTRE" : "TOWARDS THE RIM"}` : "WARP PREVIEW",
       speed: 1,
       getProgress: () => ({ fraction: 0.5, remainingMs: 43_200_000, totalMs: 86_400_000 }),
     });

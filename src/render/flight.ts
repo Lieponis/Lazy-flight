@@ -112,6 +112,7 @@ import {
 } from "./settings";
 import { disposeAll, makePlanetMesh } from "./systemview";
 import { makeStationWorld, type StationWorld } from "./stationworld";
+import { headingQuaternion, tripDirection } from "./skyheading";
 import { buildWarp } from "./warp";
 import { parseWarpStyle, type WarpStyle } from "./warpmath";
 import { flameFlicker, stepped } from "./lookmath";
@@ -221,6 +222,7 @@ export class FlightScreen implements Screen {
   /** The faint galaxy sky behind everything, and where the flight's sky system is (so enter() can point the shared sky at it again). */
   private readonly sky: SkyLayer | null;
   private skyAt: Vec3 | null = null;
+  private skyFrame: THREE.Quaternion | null = null; // how the ship's own axes lie in the galaxy (null = as always): what is ahead of the ship is what lies ahead on the trip
 
   private flash = document.createElement("div");
   private hudRoot = document.createElement("div");
@@ -288,6 +290,7 @@ export class FlightScreen implements Screen {
     // One sky for the whole flight: the system the ship is heading for (it is also the sky it floats under after arriving).
     reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, parseDockId(info.destinationDockId)?.systemId ?? null);
     this.pointSkyAt(parseDockId(info.destinationDockId)?.systemId ?? null);
+    this.pointSkyFrame(parseDockId(info.originDockId)?.systemId ?? null, parseDockId(info.destinationDockId)?.systemId ?? null);
     this.finishing = null;
     this.lastPlan = null;
     this.clockT = 0;
@@ -315,6 +318,7 @@ export class FlightScreen implements Screen {
     this.flightCounter++;
     reseedBackdrop(this.backdrop, STARFIELD_COUNT, 450, planet.systemId);
     this.pointSkyAt(planet.systemId);
+    this.skyFrame = null; // floating at a planet keeps its sky as it always was
     this.clearBodies();
     this.resetLook();
     this.finishing = null;
@@ -446,6 +450,7 @@ export class FlightScreen implements Screen {
 
   enter(): void {
     if (this.skyAt) this.sky?.setPosition(this.skyAt);
+    this.sky?.view.setSkyFrame(this.skyFrame);
     const el = this.opts.host;
     el.addEventListener("pointerdown", this.onDown);
     el.addEventListener("pointermove", this.onMove);
@@ -460,6 +465,7 @@ export class FlightScreen implements Screen {
   }
 
   exit(): void {
+    this.sky?.view.setSkyFrame(null); // the sky is shared with other screens: give it back as it always was
     const el = this.opts.host;
     el.removeEventListener("pointerdown", this.onDown);
     el.removeEventListener("pointermove", this.onMove);
@@ -765,6 +771,17 @@ export class FlightScreen implements Screen {
     const system = systemId === null ? null : getSystem(this.opts.seed, systemId);
     this.skyAt = system ? system.position : null;
     if (this.skyAt) this.sky?.setPosition(this.skyAt);
+  }
+
+  /**
+   * The faint sky follows the real direction of the trip (stage 3o, fix 3): what lies ahead of the ship (its nose points along -z) is what
+   * lies in the galaxy from the system you left towards the system you are going to. A trip within one system keeps the sky as it was.
+   */
+  private pointSkyFrame(fromSystem: number | null, toSystem: number | null): void {
+    const from = fromSystem === null ? null : getSystem(this.opts.seed, fromSystem)?.position;
+    const to = toSystem === null ? null : getSystem(this.opts.seed, toSystem)?.position;
+    const q = headingQuaternion(tripDirection(from, to));
+    this.skyFrame = q ? new THREE.Quaternion(q.x, q.y, q.z, q.w) : null;
   }
 
   /** Which warp look is shown (A, B or C). Used by the warp preview to compare them. */
