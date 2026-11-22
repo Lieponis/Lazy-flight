@@ -389,3 +389,6 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Station view: station goes round its planet (planet, light, stars, faint sky turn together), 300 s per trip (speed A; ?orbit=B|C|off), path tilted 25 deg so caps stay out of the opening, half of each trip is night (dim, not black), visits start in daylight. "Clouds faster" dropped.
 - Sky follows the trip: ahead = real direction origin -> destination (centre ahead inward, rim ahead outward); warp uses the same rule. Docked, floating, same-system hops unchanged.
 - 36 new tests. Known: faint sky can be hidden by warp streaks (clearest in cockpit view); only preview trips checked, not a real mission trip; shorter night needs a different orbit design (suggestion, not done).
+
+## 3p: sky snaps when landing (Andy 2026-11-22) -> Agent 3, docs/briefs/agent-3p-brief.md
+- After 3o fix 3 the flight sky is turned to the trip direction but docked/floating views use the unturned sky, so it jumps on arrival. Wanted: keep the trip's sky turn after landing (and a smooth or no-jump launch, Andy picks A/B).
