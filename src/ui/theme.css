@@ -1578,17 +1578,30 @@ body.ui-whatnow-on .ui-toast {
 /* Narrow phones: the place gets its own full-width second line in the status strip, so long names (N3a) need less
    shortening. Credits, fuel, speaker and MENU stay on the first line. */
 @media (max-width: 520px) {
-  /* line 1: credits, fuel, speaker. line 2: the place, then MENU (when docked) */
+  /* line 1: credits, fuel, speaker, MENU (rightmost, Andy's wish). line 2: the place, full width */
   .ui-strip-speaker {
     margin-left: auto;
   }
   .ui-strip-loc {
     order: 10;
-    flex: 1 1 60%;
+    flex: 1 1 100%;
     text-align: left;
   }
+  .ui-strip {
+    column-gap: 10px;
+  }
+  .ui-fuelbar {
+    width: 36px;
+  }
   .ui-strip-menu {
-    order: 11;
+    margin-left: -4px; /* sits close to the speaker */
+  }
+}
+
+/* Very narrow phones: no room for the fuel bar on line 1 (the FUEL numbers stay). */
+@media (max-width: 379px) {
+  .ui-fuelbar {
+    display: none;
   }
 }
 
