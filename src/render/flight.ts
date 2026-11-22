@@ -69,6 +69,7 @@ import {
   DOCKED_BAY_MARGIN,
   DOCKED_GROUND_DETAIL,
   DOCKED_GROUND_RADIUS,
+  DOCKED_STATION_ORBIT_SECONDS,
   FLIGHT_STATION_PLANET_ALTITUDE,
   OUTPOST_EXIT,
   STATION_ENTRY,
@@ -110,6 +111,7 @@ import {
   FLOAT_PLANET_DETAIL,
 } from "./settings";
 import { disposeAll, makePlanetMesh } from "./systemview";
+import { makeStationWorld, type StationWorld } from "./stationworld";
 import { buildWarp } from "./warp";
 import { parseWarpStyle, type WarpStyle } from "./warpmath";
 import { flameFlicker, stepped } from "./lookmath";
@@ -123,7 +125,6 @@ const BASE_PHASES: PhaseSettings = {
 };
 
 const WORLD_LIGHT = new THREE.Vector3(0.3, 0.85, -0.4).normalize();
-const STATION_LIGHT = new THREE.Vector3(0.45, 0.5, 0.75).normalize(); // lights the planet next to a station
 const ORBIT_START_ANGLE = 2.0; // the orbit camera starts in front-right of the ship, so it is never behind a station wall while leaving
 
 const PHASE_NAMES: Record<FlightPhase, string> = {
@@ -164,9 +165,13 @@ interface Body {
   entry: ReturnType<typeof stationEntryState> | null;
   /** Stations: the room inside the bay, with the ship's parking spot as the middle (the camera is kept off its walls). */
   bayBox: Box | null;
+  /** Stations: the planet below, which turns slowly (the same as in the docked view). */
+  world: StationWorld | null;
 }
 
 export interface FlightScreenOptions {
+  /** Seconds for one full turn of the planet beside a station (0 = stands still). Left out: the game setting. */
+  orbitSeconds?: number;
   seed: Seed;
   host: HTMLElement; // the canvas (not used for input: you only watch)
   hud: Hud;
@@ -568,6 +573,9 @@ export class FlightScreen implements Screen {
     // Only what is on screen is updated: blinking lights and the spinning ring.
     this.ship.update(this.clockT);
     if (this.mode === "cockpit") this.cockpitModel.update(this.clockT); // the ~90 lights flash
+    const orbit = this.opts.orbitSeconds ?? DOCKED_STATION_ORBIT_SECONDS;
+    this.origin?.world?.setTime(this.clockT, orbit);
+    this.dest?.world?.setTime(this.clockT, orbit);
     if (phase === "LAUNCH") this.origin?.model?.update(this.clockT);
     else if (phase === "APPROACH" || phase === "DONE") this.dest?.model?.update(this.clockT);
 
@@ -945,20 +953,21 @@ export class FlightScreen implements Screen {
     const group = new THREE.Group();
     group.add(built.model.group);
     const isStation = dock.kind === "STATION";
+    let world: StationWorld | null = null;
     if (!isStation) {
       const ground = makePlanetMesh(planet, DOCKED_GROUND_RADIUS, WORLD_LIGHT, DOCKED_GROUND_DETAIL, { rings: false, clouds: false, outpostGround: true });
       ground.position.y = -DOCKED_GROUND_RADIUS - built.parking.y - 0.12;
       group.add(ground);
     } else {
-      const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, DOCKED_STATION_PLANET_DETAIL, { rings: false, cloudLift: 0.012 }) // clouds about 2 units up, well under the station;
+      world = makeStationWorld(planet, DOCKED_STATION_PLANET_RADIUS, DOCKED_STATION_PLANET_DETAIL);
       const c = stationPlanetCentre(DOCKED_STATION_PLANET_RADIUS, FLIGHT_STATION_PLANET_ALTITUDE, STATION_EXIT.straight);
-      world.position.set(c.x, c.y, c.z);
-      group.add(world);
+      world.group.position.set(c.x, c.y, c.z);
+      group.add(world.group);
     }
     group.visible = false;
     const entrance = built.model.anchors.dockEntrance?.pos;
     const bayBox = isStation && entrance ? bayBoxWorld(entrance, built.parking) : null;
-    return { group, model: built.model, scenery: null, isStation, bayCamera: isStation ? { ...FLIGHT_BAY_CAMERA } : null, slide: 0, entry: null, bayBox };
+    return { group, model: built.model, scenery: null, isStation, bayCamera: isStation ? { ...FLIGHT_BAY_CAMERA } : null, slide: 0, entry: null, bayBox, world };
   }
 
   /**
@@ -993,7 +1002,7 @@ export class FlightScreen implements Screen {
     sun.position.copy(sunStart);
     sun.visible = false;
     const scenery = { centre: { ...centre }, radius: layout.radius, sun, axis: new THREE.Vector3(n.x, n.y, n.z), turn, baseQuat: turn.quaternion.clone(), sunStart };
-    return { group, model: null, scenery, isStation: false, bayCamera: null, slide: 0, entry: null, bayBox: null };
+    return { group, model: null, scenery, isStation: false, bayCamera: null, slide: 0, entry: null, bayBox: null, world: null };
   }
 
   private clearBodies(): void {

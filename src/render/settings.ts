@@ -189,6 +189,8 @@ export const DOCKED_BAY_SWAY = 0.14; // how far (radians) the camera slowly sway
 export const DOCKED_STATION_PLANET_RADIUS = 150;
 export const DOCKED_STATION_PLANET_ALTITUDE = 8; // from the bay floor down to the planet's surface (small, so the planet shows low in the opening). The slot points along the surface.
 export const DOCKED_STATION_PLANET_DETAIL = 5; // facets of the planet (more = rounder)
+export const DOCKED_STATION_ORBIT_SECONDS = 300; // 3o: the planet under a station turns once in this many seconds (0 = stands still). Testing word ?orbit=A|B|C|off tries 300 / 150 / 60.
+export const STATION_ORBIT_CLOUD_EXTRA = 0.15; // the clouds turn this much more than the ground (a share of the planet's own turn), so they drift a touch faster
 export const FLIGHT_STATION_PLANET_ALTITUDE = 30; // the same in the flight view: higher, so the station never touches the planet
 
 /** System view: how big the dock models are drawn, as a fraction of the planet's drawn radius (clamped to the min and max). */

@@ -53,6 +53,7 @@ import {
   DOCKED_DRIFT_SPEED,
   DOCKED_GROUND_DETAIL,
   DOCKED_GROUND_RADIUS,
+  DOCKED_STATION_ORBIT_SECONDS,
   DOCKED_STATION_PLANET_ALTITUDE,
   DOCKED_STATION_PLANET_DETAIL,
   DOCKED_STATION_PLANET_RADIUS,
@@ -64,6 +65,7 @@ import {
   STATION_EXIT,
 } from "./settings";
 import { disposeAll, makePlanetMesh } from "./systemview";
+import { makeStationWorld, type StationWorld } from "./stationworld";
 
 const OUTPOST_LIMITS: CamLimits = {
   minDist: DOCKED_ZOOM_MIN,
@@ -73,10 +75,11 @@ const OUTPOST_LIMITS: CamLimits = {
 };
 
 const LIGHT = new THREE.Vector3(0.3, 0.85, -0.4).normalize(); // where the sun is, same as in the flight view
-const STATION_LIGHT = new THREE.Vector3(0.45, 0.5, 0.75).normalize(); // lights the planet seen through the slot
 const SHIP_LOOK_AT = new THREE.Vector3(0, 1, 0); // the camera in the bay looks at the middle of the ship
 
 export interface DockedOptions {
+  /** Seconds for one full turn of the planet seen through a station slot (0 = stands still). Left out: the game setting. */
+  orbitSeconds?: number;
   seed: Seed;
   host: HTMLElement; // the canvas (drag and zoom listen here)
   hud: Hud;
@@ -184,6 +187,8 @@ export class DockedScreen implements Screen {
   private shipId = FALLBACK_SHIP_ID;
   private livery: string | undefined = undefined; // paint job id; undefined = standard
   private clockT = 0;
+  private visitT = 0; // seconds since this dock was opened (the station planet turns by it)
+  private world: StationWorld | null = null; // the turning planet at a station
   private titleText = "";
   private labelText = "";
   private tmp = new THREE.Vector3();
@@ -225,6 +230,8 @@ export class DockedScreen implements Screen {
     this.content.clear();
     this.ship = null;
     this.bay = null;
+    this.world = null;
+    this.visitT = 0;
     this.dockId = dockId;
 
     const model = buildDockModel(dock.kind, dockId, planet);
@@ -293,11 +300,12 @@ export class DockedScreen implements Screen {
     if (!entrance || !bayCam) throw new Error(`${model.id} has no dockEntrance or bayCamera anchor`);
     this.bay = bayBoxWorld(entrance, model.parking);
 
-    // The planet lies below the station, so the slot points along its surface (a tangent), like in orbit.
-    const world = makePlanetMesh(planet, DOCKED_STATION_PLANET_RADIUS, STATION_LIGHT, DOCKED_STATION_PLANET_DETAIL, { rings: false, cloudLift: 0.012 }) // clouds about 2 units up, well under the station;
+    // The planet lies below the station, so the slot points along its surface (a tangent), like in orbit. It turns slowly (3o).
+    const world = makeStationWorld(planet, DOCKED_STATION_PLANET_RADIUS, DOCKED_STATION_PLANET_DETAIL);
     const c = stationPlanetCentre(DOCKED_STATION_PLANET_RADIUS, DOCKED_STATION_PLANET_ALTITUDE, STATION_EXIT.straight);
-    world.position.set(c.x, c.y, c.z);
-    this.content.add(world);
+    world.group.position.set(c.x, c.y, c.z);
+    this.content.add(world.group);
+    this.world = world;
 
     // The camera starts at the design's suggested spot in the back corner and may move around the ship, but only inside the bay.
     this.target.copy(SHIP_LOOK_AT);
@@ -325,6 +333,8 @@ export class DockedScreen implements Screen {
 
   update(seconds: number): void {
     this.clockT += seconds;
+    this.visitT += seconds;
+    this.world?.setTime(this.visitT, this.opts.orbitSeconds ?? DOCKED_STATION_ORBIT_SECONDS);
     this.controls.update(seconds);
     this.sky?.update(seconds, this.camera);
     this.ship?.update(this.clockT);

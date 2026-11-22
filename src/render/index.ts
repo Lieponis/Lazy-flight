@@ -40,6 +40,7 @@ import { WORST_DOCK_FULL, WORST_PLANET, parseNamePreview, pickSamples } from "./
 import { mountNamePreview } from "./namepreview";
 import { FLOAT_DEFAULT_STYLE } from "./settings";
 import { parseWarpPreview, parseWarpStyle } from "./warpmath";
+import { orbitSecondsFor, parseStationDemo } from "./stationspin";
 
 export { StateStore } from "./state";
 export type { RenderState, ScreenName } from "./state";
@@ -149,7 +150,9 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
   // The faint galaxy sky behind the docked and flight screens: one layer for both (they are never shown together), built once for the
   // system the ship is in or heading for and reused. The system view has its own (prepared ahead for the star picked on the map).
   const stageSky = mapSource?.sky ? makeSystemSkyLayer(mapSource.sky) : null;
+  const orbitSeconds = orbitSecondsFor(window.location.search); // how fast the planet under a station turns (?orbit=A|B|C|off tries speeds)
   const docked = new DockedScreen({
+    orbitSeconds,
     seed,
     host: canvas,
     hud,
@@ -176,14 +179,36 @@ export function startRender(renderer: THREE.WebGLRenderer, parent: HTMLElement, 
     systemView.prepareSky(want);
   });
 
-  const flight = new FlightScreen({ seed, host: canvas, hud, parent, skyLayer: stageSky });
+  const flight = new FlightScreen({ seed, host: canvas, hud, parent, skyLayer: stageSky, orbitSeconds });
   docked.setShip(shipId);
   flight.setShip(shipId);
+
+  // Testing aid ?stationdemo=1: when the ship is docked at an outpost, the docked view shows a station bay instead (the first station among
+  // the nearest stars), so the planet turning under a station can be looked at without travelling. Only the picture changes: the ship, the
+  // game state and the save stay as they are.
+  const stationDemo = parseStationDemo(window.location.search);
+  let demoDockId: string | null | undefined;
+  const lookDockFor = (dockId: string): string => {
+    if (!stationDemo) return dockId;
+    const here = parseDockId(dockId)?.systemId;
+    if (here !== undefined && getDocksOfSystem(seed, here).find((d) => d.id === dockId)?.kind === "STATION") return dockId; // already a station
+    if (demoDockId === undefined) {
+      demoDockId = null;
+      for (const near of nearestSystems(seed, current.position, 400)) {
+        const station = getDocksOfSystem(seed, near.system.id).find((d) => d.kind === "STATION");
+        if (station) {
+          demoDockId = station.id;
+          break;
+        }
+      }
+    }
+    return demoDockId ?? dockId;
+  };
 
   const api: RenderApi = {
     state,
     showDocked(dockId: string): void {
-      if (!docked.open(dockId)) {
+      if (!docked.open(lookDockFor(dockId))) {
         api.showStarmap(); // unknown dock: fall back to the map rather than a blank screen
         return;
       }
