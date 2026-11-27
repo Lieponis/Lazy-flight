@@ -34,3 +34,31 @@ explorer), Lakon Type-6 (explorer variant).
   - shapes flow from nose to tail: the bow narrows, the mid-body is widest, the stern ends in clear engine blocks.
 - **Colours seen:** mostly white or light grey hulls, dark glass, small orange accents (Dolphin), blue blueprint
   styling (only the sheet style, not the ship).
+
+## Batch 2 (2026-11-27): Andy: "reference these geometries for the top view of different types of ships; many nice elements."
+
+Two sheets of top-view silhouette studies (Star Racer, Niko Stupelo), 15 numbered shapes each, light grey hull with an
+orange underlayer showing at the edges and stern.
+
+- **Sheet 1:**
+  - **Needle and dart shapes** (1, 2, 3, 9, 14, 15): long pointed or rounded noses, widening to a compact orange
+    engine cluster at the back.
+  - **Teardrop and shield shapes** (7, 10, 14, 15): one smooth outline, the nose rounded or pointed.
+  - **Wide flying-wing and boomerang shapes** (4, 6, 8, 11, 12, 13): a central body with long swept wings, the wing
+    edges curved like a manta.
+  - **Arrowheads** (5, 7): wide triangular plans.
+- **Sheet 2:** stranger and more varied plans:
+  - **Bodies with booms or "legs"** (1, 3, 4, 14): a slim fuselage with angled side arms, or long trailing struts.
+  - **Twin-boom and U shapes** (6, 7, 13): two long arms with a pod between.
+  - **Boxy "H" shapes** (5, 12, 15): a central body between two flat side slabs or pods.
+  - **Swept deltas and chevrons** (8, 9, 10).
+  - **Rounded capsule** (11) and **teardrop with swept legs** (2).
+- **Recurring elements:**
+  - two-tone hulls: light grey top surfaces, with a warm orange lower layer that frames the edges and stern;
+  - thin orange racing stripes that follow the curves;
+  - a dark cockpit set into the centre spine, usually far back;
+  - engines grouped in a tight cluster at the stern;
+  - small fin or antenna spikes at the wing tips;
+  - clean, smooth, flowing outlines with few greebles (small surface details).
+- **Use:** a library of top-view outlines to give each ship type its own plan shape (Andy's words). Keep colours as a
+  possibility; confirm with Andy before using the grey and orange scheme.
