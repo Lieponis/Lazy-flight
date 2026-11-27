@@ -140,3 +140,36 @@ Six images.
   - wings and arches that form loops or hoops;
   - big canopies and window bands;
   - engines in clear side pods or nacelles.
+
+## Batch 5 (2026-11-27): Andy: "small short-range beginner ships; could be passenger, explorer or small cargo."
+
+Five images, for the small and short-range ships.
+
+- **Yellow bubble-canopy hopper:**
+  - a small, rounded, toy-like body with a big glass bubble canopy (two seats visible) and a short rounded nose;
+  - two big round ducted-fan engine pods on stub wings either side, and two upright tail fins;
+  - all bright yellow-orange with dark trim;
+  - friendly and fun, like a flying car.
+- **White sphere pod:**
+  - a perfectly round white ball, split by a thin dark seam;
+  - one big round porthole or window "eye" with a glowing interior;
+  - minimal, cute and clean, like a tiny pod or drone.
+- **White manta glider:**
+  - a soft, curvy manta-ray or stingray outline with long pointed curled wingtips and a small tail spike;
+  - a long oval dark glass canopy down the middle, with the cabin visible through it;
+  - white with thin panel lines;
+  - graceful and organic.
+- **Pale grey arrowhead (top view):**
+  - a sharp delta or arrow plan with a rounded nose tip, a narrow cockpit slit at the front and notched rear wing edges;
+  - clean panel lines, a single colour;
+  - shape only: it is labelled as a fighter, so take only the outline and keep any combat look out.
+- **White oval shuttle (above a planet):**
+  - a flat, rounded oval or saucer-like hull with a big bubble canopy set in the middle top;
+  - a long lit window band along the side, side vents, and a single bright engine flame from a split rear;
+  - white with grey seams;
+  - sleek but chubby.
+- **Common thread:**
+  - small, rounded and friendly;
+  - one big canopy or "eye" window;
+  - few parts, with simple strong silhouettes (ball, oval, manta, arrow, bubble car);
+  - mostly white, with one bright option (yellow).
