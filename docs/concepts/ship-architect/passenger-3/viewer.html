@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Lazy Flight — Passenger Ship 3 (concept)</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#dfe4e9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow:hidden; }
+  #canvas-wrap { position:absolute; inset:0; }
+  canvas { display:block; touch-action:none; }
+  #title { position:absolute; top:10px; left:12px; right:12px; color:#2c3540; font-size:15px; font-weight:600; text-shadow: 0 1px 2px rgba(255,255,255,0.6); pointer-events:none; }
+  #title small { display:block; font-weight:400; font-size:12px; color:#56616d; margin-top:2px; }
+  #panel { position:absolute; left:0; right:0; bottom:0; background:rgba(255,255,255,0.92); border-top:1px solid #c3cad1; padding:10px 10px calc(10px + env(safe-area-inset-bottom)); max-height:46vh; overflow-y:auto; box-shadow: 0 -4px 14px rgba(0,0,0,0.08); }
+  #panel h2 { margin:0 0 8px; font-size:13px; color:#44505a; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+  .part-row { display:flex; align-items:center; gap:8px; padding:8px 6px; border-radius:8px; }
+  .part-row:active { background:#eef1f4; }
+  .part-row + .part-row { border-top:1px solid #edf0f2; }
+  .part-name { flex:1; font-size:14px; color:#2c3540; }
+  .btn { border:none; border-radius:7px; padding:7px 10px; font-size:12px; font-weight:600; cursor:pointer; -webkit-tap-highlight-color: transparent; }
+  .btn-toggle { background:#e4e8eb; color:#2c3540; min-width:58px; }
+  .btn-toggle.off { background:#f6d9d9; color:#8a3a3a; }
+  .btn-highlight { background:#ffcf6b; color:#5a4100; min-width:66px; }
+  .btn-highlight.active { background:#ff9e2c; color:#402700; }
+  #controls-hint { position:absolute; bottom:calc(46vh + 10px); left:0; right:0; text-align:center; font-size:11px; color:#5c6670; pointer-events:none; }
+  #reset { position:absolute; top:10px; right:12px; background:rgba(255,255,255,0.85); border:1px solid #c3cad1; border-radius:8px; padding:6px 10px; font-size:12px; color:#2c3540; font-weight:600; }
+</style>
+</head>
+<body>
+<div id="canvas-wrap"></div>
+<div id="title">Passenger Ship 3 — concept shape (large)<small>Grey shape only — tap a part below to hide it or highlight it in orange</small></div>
+<div id="controls-hint">Drag to rotate &middot; pinch to zoom</div>
+<div id="panel">
+  <h2>Parts</h2>
+  <div id="part-list"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ============================================================
+// basic scene
+// ============================================================
+const wrap = document.getElementById("canvas-wrap");
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdfe4e9);
+
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.05, 200);
+const CAMERA_HOME = new THREE.Vector3(6.2, 3.0, 6.4);
+camera.position.copy(CAMERA_HOME);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+wrap.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.3, 0.2);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 1.8;
+controls.maxDistance = 22;
+controls.update();
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f94, 1.0));
+const key = new THREE.DirectionalLight(0xffffff, 1.1);
+key.position.set(3, 4, 2);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.45);
+fill.position.set(-3, 1, -2);
+scene.add(fill);
+
+// ============================================================
+// materials — one colour, flat shaded; DoubleSide throughout since
+// several parts here are hand-built loft/panel geometry where I'd
+// rather guarantee visibility than risk a stray winding order.
+// ============================================================
+const GREY = 0x9aa1a8;
+const HILITE = 0xff9e2c;
+const baseMat = new THREE.MeshStandardMaterial({ color: GREY, flatShading: true, roughness: 0.75, metalness: 0.05, side: THREE.DoubleSide });
+function partMaterial() { return baseMat.clone(); }
+
+const ship = new THREE.Group();
+ship.name = "Passenger Ship 3";
+scene.add(ship);
+
+const parts = [];
+function addPart(key, label, mesh) {
+  mesh.name = key;
+  ship.add(mesh);
+  parts.push({ key, label, mesh, visible: true, highlighted: false });
+  return mesh;
+}
+function addGroupPart(key, label, group, meshes) {
+  group.name = key;
+  ship.add(group);
+  parts.push({ key, label, mesh: group, visible: true, highlighted: false, multi: meshes });
+  return group;
+}
+
+// ============================================================
+// HULL: a long "submarine" liner (about 6:1). Broad, flat top deck
+// that stays level all the way to the stern; the belly rises toward
+// the tail (like the tanker reference), which lifts the tail end.
+// Cross-sections are rounded rectangles (superellipse, exponent 4).
+// ============================================================
+const RING_SEGMENTS = 64; // smooth enough that windows can sit right on the skin
+const SE_P = 4; // superellipse exponent: flat-ish sides, rounded corners
+const RING_UNIT = Array.from({ length: RING_SEGMENTS }, (_, i) => {
+  const theta = (i / RING_SEGMENTS) * Math.PI * 2;
+  const c = Math.cos(theta), s = Math.sin(theta);
+  return [Math.sign(c) * Math.abs(c) ** (2 / SE_P), Math.sign(s) * Math.abs(s) ** (2 / SE_P)];
+});
+// bow, shaped from Andy's side-view sketch: a long, sleek taper that
+// starts at the sail on top and at the front legs underneath, running
+// down to a low, rounded tip. Seen from the side, the top line curves
+// down gently and the belly line rises more gently still; seen from
+// above, the nose stays broad. Each line follows its own superellipse
+// curve (exponent sets how full or how gently it curves); t runs
+// 0 at the tip to 1 where the nose meets the full hull.
+const NOSE = { tipZ: -3.0, length: 1.85, tipY: -0.2, top: 0.4, bottom: -0.4, halfW: 0.5,
+  topExp: 1.6, bottomExp: 2.0, widthExp: 2.2, steps: 26 };
+const curveUp = (t, e) => (1 - (1 - t) ** e) ** (1 / e); // 0 at tip -> 1 at full section
+const NOSE_CAP = Array.from({ length: NOSE.steps }, (_, i) => {
+  const t = 1 - Math.cos((i / (NOSE.steps - 1)) * (Math.PI / 2)); // stations packed near the tip
+  const top = NOSE.tipY + (NOSE.top - NOSE.tipY) * curveUp(t, NOSE.topExp);
+  const bottom = NOSE.tipY + (NOSE.bottom - NOSE.tipY) * curveUp(t, NOSE.bottomExp);
+  return { z: NOSE.tipZ + NOSE.length * t, sx: NOSE.halfW * curveUp(t, NOSE.widthExp), sy: (top - bottom) / 2, cy: (top + bottom) / 2 };
+});
+const DECK_TOP = 0.4; // top deck height, constant to the stern (top = cy + sy)
+const tailStation = (z, sx, sy) => ({ z, sx, sy, cy: DECK_TOP - sy });
+const STATIONS = [
+  ...NOSE_CAP,                 // z -3.00 .. -1.15 (long sleek nose)
+  { z: -0.6, sx: 0.5, sy: 0.4, cy: 0 },
+  { z: 0.6, sx: 0.5, sy: 0.4, cy: 0 },
+  { z: 1.6, sx: 0.5, sy: 0.4, cy: 0 },
+  tailStation(2.1, 0.47, 0.37),
+  tailStation(2.5, 0.40, 0.31),
+  tailStation(2.85, 0.33, 0.27),
+  tailStation(3.1, 0.30, 0.24),
+  tailStation(3.3, 0.28, 0.22), // blunt stern: the engine ring mounts here
+];
+function hullExtentsAtZ(z) {
+  for (let i = 0; i < STATIONS.length - 1; i++) {
+    const a = STATIONS[i], b = STATIONS[i + 1];
+    if (z >= a.z && z <= b.z) {
+      const t = (z - a.z) / (b.z - a.z);
+      return { sx: a.sx + t * (b.sx - a.sx), sy: a.sy + t * (b.sy - a.sy), cy: a.cy + t * (b.cy - a.cy) };
+    }
+  }
+  const edge = z < STATIONS[0].z ? STATIONS[0] : STATIONS[STATIONS.length - 1];
+  return { sx: edge.sx, sy: edge.sy, cy: edge.cy };
+}
+function buildHullGeometry() {
+  const n = RING_UNIT.length, positions = [];
+  STATIONS.forEach((st) => RING_UNIT.forEach(([ux, uy]) => positions.push(ux * st.sx, uy * st.sy + st.cy, st.z)));
+  const noseC = STATIONS.length * n, tailC = noseC + 1;
+  const last = STATIONS[STATIONS.length - 1];
+  positions.push(0, STATIONS[0].cy, STATIONS[0].z, 0, last.cy, last.z);
+  const idx = [];
+  for (let s = 0; s < STATIONS.length - 1; s++) {
+    for (let j = 0; j < n; j++) {
+      const j2 = (j + 1) % n, a = s * n + j, b = s * n + j2, c = (s + 1) * n + j2, d = (s + 1) * n + j;
+      idx.push(a, b, d, b, c, d);
+    }
+  }
+  const base = (STATIONS.length - 1) * n;
+  for (let j = 0; j < n; j++) {
+    const j2 = (j + 1) % n;
+    idx.push(noseC, j, j2, tailC, base + j2, base + j);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+addPart("hull", "Hull (submarine liner)", new THREE.Mesh(buildHullGeometry(), partMaterial()));
+
+// ============================================================
+// SHARED: wrapping things onto the hull skin.
+// hullNorm = 1 exactly on the skin (same superellipse as the hull),
+// > 1 outside. Windows are snapped onto the skin, so they can never
+// sink in or float off.
+// ============================================================
+function hullNorm(x, y, e) {
+  return (Math.abs(x / e.sx) ** SE_P + Math.abs((y - e.cy) / e.sy) ** SE_P) ** (1 / SE_P);
+}
+function liftOff(x, y, z, lift) {
+  const e = hullExtentsAtZ(z);
+  const k = lift / (hullNorm(x, y, e) || 1e-6);
+  return [x * k, e.cy + (y - e.cy) * k, z];
+}
+function noseZ(x, y) {
+  const outside = (z) => hullNorm(x, y, hullExtentsAtZ(z)) >= 1;
+  let lo = STATIONS[0].z, hi = -0.9;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (outside(mid)) lo = mid; else hi = mid;
+  }
+  return lo;
+}
+function onNose(x, y, lift) { return liftOff(x, y, noseZ(x, y), lift); }
+function onSide(signX, y, z, lift) {
+  const e = hullExtentsAtZ(z);
+  const t = Math.min(Math.abs((y - e.cy) / e.sy), 0.999);
+  return liftOff(signX * e.sx * (1 - t ** SE_P) ** (1 / SE_P), y, z, lift);
+}
+// distance along a ray (in one cross-section at z) from an inside point to the skin
+function rayToSkin(ox, oy, dx, dy, z) {
+  const e = hullExtentsAtZ(z);
+  let lo = 0, hi = 3;
+  for (let i = 0; i < 48; i++) {
+    const mid = (lo + hi) / 2;
+    if (hullNorm(ox + dx * mid, oy + dy * mid, e) >= 1) hi = mid; else lo = mid;
+  }
+  return hi;
+}
+function sheetMesh(rows) {
+  const nv = rows.length, nu = rows[0].length, positions = [], idx = [];
+  rows.forEach((row) => row.forEach((p) => positions.push(...p)));
+  for (let j = 0; j < nv - 1; j++) for (let i = 0; i < nu - 1; i++) {
+    const a = j * nu + i, b = a + 1, c = a + nu + 1, d = a + nu;
+    idx.push(a, b, c, a, c, d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, partMaterial());
+}
+// one smooth frame/trim tube following a path of points that sit ON the skin
+// (tube centred on the skin = half buried, half showing: flush, no gap)
+function tubeAlong(points, closed, radius, radial = 6) {
+  const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)), closed, "centripetal");
+  const geo = new THREE.TubeGeometry(curve, Math.max(8, points.length * 2), radius, radial, closed);
+  return new THREE.Mesh(geo, partMaterial());
+}
+function strutBetween(p0, p1, radius) {
+  const dir = new THREE.Vector3().subVectors(p1, p0);
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, dir.length(), 10), partMaterial());
+  mesh.position.copy(p0).add(p1).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return mesh;
+}
+function groupOf(meshes) {
+  const g = new THREE.Group();
+  meshes.forEach((m) => g.add(m));
+  return g;
+}
+
+// ============================================================
+// COCKPIT WINDOWS: sleek A350-style "mask" wrapped around the blunt
+// bow — four slim panes (two front, two swept round the cheeks), a
+// lower edge that dips at the centre and sweeps up to the sides.
+// Glass hugs the skin; thin frame tubes sit ON the skin (flush).
+// ============================================================
+const GLASS_LIFT = 1.008;
+const FRAME_ON_SKIN = 1.0;
+// windscreen sits truly flush: glass a hair off the (now smoother) skin,
+// and a slim frame centred on the skin so it barely stands proud
+const MASK_GLASS_LIFT = 1.003;
+const MASK_FRAME_RADIUS = 0.006;
+const MASK_HALF = 0.40;
+const maskBottom = (ax) => 0.0 + 0.08 * (ax / MASK_HALF) ** 2; // set lower on the bow
+const maskHeight = (ax) => 0.085 - 0.03 * (ax / MASK_HALF);
+const MASK_U = 28, MASK_V = 8;
+function maskPoint(signX, x0, x1, u, v, lift) {
+  const ax = x0 + (x1 - x0) * u;
+  return onNose(signX * ax, maskBottom(ax) + v * maskHeight(ax), lift);
+}
+function maskPane(signX, x0, x1) {
+  const rows = [];
+  for (let j = 0; j <= MASK_V; j++) {
+    const row = [];
+    for (let i = 0; i <= MASK_U; i++) row.push(maskPoint(signX, x0, x1, i / MASK_U, j / MASK_V, MASK_GLASS_LIFT));
+    rows.push(row);
+  }
+  const edge = [];
+  for (let i = 0; i < MASK_U; i++) edge.push([i / MASK_U, 0]);
+  for (let j = 0; j < MASK_V; j++) edge.push([1, j / MASK_V]);
+  for (let i = MASK_U; i > 0; i--) edge.push([i / MASK_U, 1]);
+  for (let j = MASK_V; j > 0; j--) edge.push([0, j / MASK_V]);
+  const frame = tubeAlong(edge.map(([u, v]) => maskPoint(signX, x0, x1, u, v, FRAME_ON_SKIN)), true, MASK_FRAME_RADIUS);
+  return [sheetMesh(rows), frame];
+}
+const windscreenMeshes = [];
+[-1, 1].forEach((sx) => [[0.012, 0.18], [0.20, MASK_HALF]].forEach(([a, b]) => windscreenMeshes.push(...maskPane(sx, a, b))));
+addGroupPart("cockpitWindows", "Cockpit windows (A350-style mask)", groupOf(windscreenMeshes), windscreenMeshes);
+
+// ============================================================
+// PASSENGER WINDOWS, TWO DECKS — all wrapped flush onto the hull:
+//  upper deck: a long row of small rounded windows
+//  lower deck: fewer, large panoramic windows
+// ============================================================
+function sideWinPoint(signX, w, zc, r, theta, lift) {
+  const c = Math.cos(theta), s = Math.sin(theta), p = w.round;
+  const dz = Math.sign(c) * Math.abs(c) ** (2 / p), dy = Math.sign(s) * Math.abs(s) ** (2 / p);
+  return onSide(signX, w.yc + r * w.hy * dy, zc + r * w.hz * dz, lift);
+}
+function sideWindow(signX, w, zc) {
+  const rows = [];
+  for (let j = 0; j <= w.rings; j++) {
+    const row = [];
+    for (let i = 0; i <= w.segs; i++) row.push(sideWinPoint(signX, w, zc, j / w.rings, (i / w.segs) * Math.PI * 2, GLASS_LIFT));
+    rows.push(row);
+  }
+  const outline = [];
+  for (let i = 0; i < w.segs; i++) outline.push(sideWinPoint(signX, w, zc, 1, (i / w.segs) * Math.PI * 2, FRAME_ON_SKIN));
+  return [sheetMesh(rows), tubeAlong(outline, true, w.frame)];
+}
+const UPPER_WIN = { yc: 0.165, hy: 0.036, hz: 0.045, rings: 3, segs: 20, round: 3, frame: 0.007 };
+const LOWER_WIN = { yc: -0.075, hy: 0.065, hz: 0.19, rings: 4, segs: 32, round: 5, frame: 0.009 };
+const UPPER_Z = Array.from({ length: 28 }, (_, i) => -1.95 + i * 0.13);
+const LOWER_Z = Array.from({ length: 7 }, (_, i) => -1.65 + i * 0.5);
+const upperMeshes = [], lowerMeshes = [];
+[-1, 1].forEach((sx) => {
+  UPPER_Z.forEach((z) => upperMeshes.push(...sideWindow(sx, UPPER_WIN, z)));
+  LOWER_Z.forEach((z) => lowerMeshes.push(...sideWindow(sx, LOWER_WIN, z)));
+});
+addGroupPart("windowRowsUpper", "Passenger windows (upper deck)", groupOf(upperMeshes), upperMeshes);
+addGroupPart("windowRowsLower", "Passenger windows (lower deck, panoramic)", groupOf(lowerMeshes), lowerMeshes);
+
+// ============================================================
+// STABILISERS — long curved "scimitar" blades like the dark ship:
+// each has a curved, swept-back leading edge, a lens (airfoil-like)
+// cross-section, and tapers to a thin point. Roots are sunk just
+// below the skin so blades grow out of the hull with no gap.
+// ============================================================
+const BLADE_SECTION = [[0.15, 0.8], [0.35, 1.0], [0.6, 0.85], [0.85, 0.45]];
+function buildBlade(spec) {
+  const [dx, dy] = spec.dir, nx = -dy, ny = dx;
+  const N = spec.stations || 10;
+  const rings = [];
+  for (let k = 0; k <= N; k++) {
+    const s = k / N;
+    const le = spec.rootLE + (spec.tipLE - spec.rootLE) * s ** spec.curve;
+    const ch = spec.rootChord + (spec.tipChord - spec.rootChord) * s;
+    const halfT = (spec.thickRoot + (spec.thickTip - spec.thickRoot) * s) / 2;
+    const at = (f, side, rel) => {
+      const zr = spec.rootLE + f * spec.rootChord;
+      const [ox, oy] = spec.origin(zr);
+      const rho = rayToSkin(ox, oy, dx, dy, zr) - spec.sink + spec.span * s;
+      const h = side * halfT * rel;
+      return [ox + dx * rho + nx * h, oy + dy * rho + ny * h, le + f * ch];
+    };
+    const ring = [at(0, 0, 0)];
+    BLADE_SECTION.forEach(([f, rel]) => ring.push(at(f, 1, rel)));
+    ring.push(at(1, 0, 0));
+    [...BLADE_SECTION].reverse().forEach(([f, rel]) => ring.push(at(f, -1, rel)));
+    rings.push(ring);
+  }
+  const n = rings[0].length, positions = [];
+  rings.forEach((r) => r.forEach((p) => positions.push(...p)));
+  const centroid = (r) => [0, 1, 2].map((i) => r.reduce((a, p) => a + p[i], 0) / r.length);
+  positions.push(...centroid(rings[0]), ...centroid(rings[N]));
+  const rc = (N + 1) * n, tc = rc + 1, idx = [];
+  for (let k = 0; k < N; k++) for (let i = 0; i < n; i++) {
+    const i2 = (i + 1) % n, a = k * n + i, b = k * n + i2, c = (k + 1) * n + i2, d = (k + 1) * n + i;
+    idx.push(a, b, c, a, c, d);
+  }
+  for (let i = 0; i < n; i++) {
+    const i2 = (i + 1) % n;
+    idx.push(rc, i2, i, tc, N * n + i, N * n + i2);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, partMaterial());
+}
+// the X is centred ABOVE the hull's middle ("whole X raised up") so the
+// lower blades clear the ground on short legs
+const X_RAISE = 0.26;
+const xOrigin = (z) => [0, hullExtentsAtZ(z).cy + X_RAISE];
+const X_BLADE = { rootLE: 1.85, rootChord: 0.95, tipLE: 3.35, tipChord: 0.06, span: 0.62, thickRoot: 0.055, thickTip: 0.008, curve: 1.6, sink: 0.03 };
+const xBlades = [45, 135, 225, 315].map((deg) => {
+  const a = (deg * Math.PI) / 180;
+  return buildBlade({ ...X_BLADE, origin: xOrigin, dir: [Math.cos(a), Math.sin(a)] });
+});
+addGroupPart("xBlades", "X stabiliser blades (4)", groupOf(xBlades), xBlades);
+
+const topFin = buildBlade({
+  rootLE: 1.55, rootChord: 0.9, tipLE: 2.4, tipChord: 0.1, span: 0.55,
+  thickRoot: 0.05, thickTip: 0.01, curve: 1.5, sink: 0.03,
+  origin: (z) => [0, hullExtentsAtZ(z).cy], dir: [0, 1],
+});
+addPart("topFin", "Top fin", topFin);
+
+const midFins = [-1, 1].map((sx) => {
+  const a = (-15 * Math.PI) / 180;
+  return buildBlade({
+    rootLE: -0.1, rootChord: 0.5, tipLE: 0.32, tipChord: 0.1, span: 0.36,
+    thickRoot: 0.04, thickTip: 0.008, curve: 1.5, sink: 0.025,
+    origin: () => [0, -0.12], dir: [sx * Math.cos(a), Math.sin(a)],
+  });
+});
+addGroupPart("midFins", "Mid fins (side)", groupOf(midFins), midFins);
+
+// ============================================================
+// ENGINES: 8 hexagonal engine pods in a ring around the stern,
+// spaced between the X blades. Each pod: hexagonal housing (front
+// buried in the hull), two raised hex bands, a hex intake cap at the
+// front, a stepped hex exhaust nozzle and a round core at the back.
+// A short tail cone fills the middle of the ring.
+// ============================================================
+const POD = { r: 0.1, z0: 2.95, z1: 3.67, mountZ: 3.1, embed: 0.04 };
+function hexPrism(rTop, rBottom, length, z, cx, cy, spin) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBottom, length, 6), partMaterial());
+  m.rotation.set(Math.PI / 2, spin, 0, "XYZ");
+  m.position.set(cx, cy, z);
+  return m;
+}
+function makePod(deg) {
+  const a = (deg * Math.PI) / 180, dx = Math.cos(a), dy = Math.sin(a);
+  const e = hullExtentsAtZ(POD.mountZ);
+  const rho = rayToSkin(0, e.cy, dx, dy, POD.mountZ) + POD.r - POD.embed;
+  const cx = dx * rho, cy = e.cy + dy * rho;
+  const len = POD.z1 - POD.z0, mid = (POD.z0 + POD.z1) / 2;
+  const spin = a; // one hex corner points away from the hull
+  const meshes = [
+    hexPrism(POD.r, POD.r, len, mid, cx, cy, spin),                                // housing
+    hexPrism(POD.r * 1.08, POD.r * 1.08, 0.035, POD.z0 + 0.22, cx, cy, spin),       // band
+    hexPrism(POD.r * 1.08, POD.r * 1.08, 0.035, POD.z1 - 0.12, cx, cy, spin),       // band
+    hexPrism(POD.r, POD.r * 0.45, 0.12, POD.z0 - 0.06, cx, cy, spin),               // intake cap (front)
+    hexPrism(POD.r * 0.82, POD.r * 0.95, 0.08, POD.z1 + 0.04, cx, cy, spin),        // exhaust nozzle
+  ];
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.06, 12), partMaterial());
+  core.rotation.x = Math.PI / 2;
+  core.position.set(cx, cy, POD.z1 + 0.1);
+  meshes.push(core);
+  return meshes;
+}
+const podMeshes = [];
+for (let k = 0; k < 8; k++) podMeshes.push(...makePod(22.5 + k * 45));
+const tailE = hullExtentsAtZ(3.3);
+const tailCone = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.15, 0.22, 12), partMaterial());
+tailCone.rotation.x = Math.PI / 2;
+tailCone.position.set(0, tailE.cy, 3.38);
+podMeshes.push(tailCone);
+addGroupPart("engines", "Engine pods (8 hexagonal)", groupOf(podMeshes), podMeshes);
+
+// ============================================================
+// HULL DETAILS: deck panel seams across the top, a trim line
+// between the two decks, a keel strip under the belly, bow vent
+// slats, a boarding door each side, and a small dorsal sail +
+// antenna mast (a nod to the submarine). Trim lines sit ON the
+// skin, half buried, so they read as flush panel detail.
+// ============================================================
+const detailMeshes = [];
+function skinPath(fn, count) { return Array.from({ length: count + 1 }, (_, i) => fn(i / count)); }
+// transverse deck seams: over the top, from just above the upper windows on one side to the other
+[-1.65, -0.6, 0.45, 1.5].forEach((z) => {
+  const e = hullExtentsAtZ(z);
+  const pts = skinPath((t) => {
+    const ang = (20 + 140 * t) * (Math.PI / 180); // 20deg..160deg around the section
+    const ux = Math.cos(ang), uy = Math.sin(ang);
+    const rho = rayToSkin(0, e.cy, ux, uy, z); // exactly on the skin
+    return [ux * rho, e.cy + uy * rho, z];
+  }, 24);
+  detailMeshes.push(tubeAlong(pts, false, 0.005));
+});
+// trim line between the decks
+[-1, 1].forEach((sx) => detailMeshes.push(tubeAlong(skinPath((t) => onSide(sx, 0.055, -2.2 + 4.0 * t, 1.0), 40), false, 0.008)));
+// keel strip under the belly
+detailMeshes.push(tubeAlong(skinPath((t) => {
+  const z = -2.4 + 5.0 * t, e = hullExtentsAtZ(z);
+  return [0, e.cy - e.sy, z];
+}, 40), false, 0.014));
+// bow vent slats, low on each side near the front
+[-1, 1].forEach((sx) => [-0.2, -0.235, -0.27, -0.305].forEach((y) => {
+  detailMeshes.push(tubeAlong(skinPath((t) => onSide(sx, y, -2.25 + 0.32 * t, 1.0), 6), false, 0.006));
+}));
+// boarding door outline each side, behind the lower windows
+const DOOR = { yc: -0.07, hy: 0.1, hz: 0.1, round: 6 };
+[-1, 1].forEach((sx) => {
+  const outline = [];
+  for (let i = 0; i < 32; i++) outline.push(sideWinPoint(sx, DOOR, 1.85, 1, (i / 32) * Math.PI * 2, 1.0));
+  detailMeshes.push(tubeAlong(outline, true, 0.008));
+});
+// small dorsal sail and antenna mast (submarine nod)
+const sail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.3, 1, 1, 3), partMaterial());
+sail.position.set(0, DECK_TOP + 0.03, -1.2);
+const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.16, 8), partMaterial());
+mast.position.set(0, DECK_TOP + 0.13, -1.15);
+detailMeshes.push(sail, mast);
+addGroupPart("hullDetails", "Hull details (seams, trim, vents, door, sail)", groupOf(detailMeshes), detailMeshes);
+
+// ============================================================
+// LEGS: four short corner legs, main strut + diagonal brace, flat
+// pads. Struts start inside the hull; all pads at one height.
+// ============================================================
+const FOOT_Y = -0.66;
+function makeLeg(sx, z) {
+  const p0 = new THREE.Vector3(sx * 0.2, -0.26, z);
+  const foot = new THREE.Vector3(sx * 0.38, FOOT_Y, z);
+  const p0b = new THREE.Vector3(sx * 0.2, -0.26, z - Math.sign(z) * 0.3);
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.04, 12), partMaterial());
+  pad.position.set(foot.x, FOOT_Y - 0.02, z);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.013, 6, 16), partMaterial());
+  ring.rotation.x = Math.PI / 2;
+  ring.position.set(foot.x, FOOT_Y + 0.005, z);
+  return [strutBetween(p0, foot, 0.04), strutBetween(p0b, foot, 0.032), pad, ring];
+}
+const legMeshes = [];
+[[-1, -1.9], [1, -1.9], [-1, 1.5], [1, 1.5]].forEach(([sx, z]) => legMeshes.push(...makeLeg(sx, z)));
+addGroupPart("legs", "Legs (landing gear)", groupOf(legMeshes), legMeshes);
+
+ship.position.y = 0.3;
+
+// ============================================================
+// part list UI
+// ============================================================
+const listEl = document.getElementById("part-list");
+function setHighlight(p, on) {
+  p.highlighted = on;
+  const meshes = p.multi || [p.mesh];
+  meshes.forEach((m) => m.material.color.set(on ? HILITE : GREY));
+}
+function setVisible(p, on) {
+  p.visible = on;
+  p.mesh.visible = on;
+}
+parts.forEach((p) => {
+  const row = document.createElement("div");
+  row.className = "part-row";
+  const name = document.createElement("div");
+  name.className = "part-name";
+  name.textContent = p.label;
+  const hiBtn = document.createElement("button");
+  hiBtn.className = "btn btn-highlight";
+  hiBtn.textContent = "Highlight";
+  hiBtn.onclick = () => {
+    parts.forEach((other) => { if (other !== p && other.highlighted) { setHighlight(other, false); other._btn.classList.remove("active"); } });
+    const turningOn = !p.highlighted;
+    setHighlight(p, turningOn);
+    hiBtn.classList.toggle("active", turningOn);
+  };
+  p._btn = hiBtn;
+  const toggleBtn = document.createElement("button");
+  toggleBtn.className = "btn btn-toggle";
+  toggleBtn.textContent = "Shown";
+  toggleBtn.onclick = () => {
+    const turningOn = !p.visible;
+    setVisible(p, turningOn);
+    toggleBtn.textContent = turningOn ? "Shown" : "Hidden";
+    toggleBtn.classList.toggle("off", !turningOn);
+  };
+  row.appendChild(name);
+  row.appendChild(hiBtn);
+  row.appendChild(toggleBtn);
+  listEl.appendChild(row);
+});
+const resetBtn = document.createElement("button");
+resetBtn.id = "reset";
+resetBtn.textContent = "Reset view";
+resetBtn.onclick = () => { camera.position.copy(CAMERA_HOME); controls.target.set(0, 0.3, 0.2); controls.update(); };
+document.body.appendChild(resetBtn);
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener("resize", onResize);
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
