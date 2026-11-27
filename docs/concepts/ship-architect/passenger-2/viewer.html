@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Lazy Flight — Passenger Ship 2 (concept)</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#dfe4e9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow:hidden; }
+  #canvas-wrap { position:absolute; inset:0; }
+  canvas { display:block; touch-action:none; }
+  #title { position:absolute; top:10px; left:12px; right:12px; color:#2c3540; font-size:15px; font-weight:600; text-shadow: 0 1px 2px rgba(255,255,255,0.6); pointer-events:none; }
+  #title small { display:block; font-weight:400; font-size:12px; color:#56616d; margin-top:2px; }
+  #panel { position:absolute; left:0; right:0; bottom:0; background:rgba(255,255,255,0.92); border-top:1px solid #c3cad1; padding:10px 10px calc(10px + env(safe-area-inset-bottom)); max-height:46vh; overflow-y:auto; box-shadow: 0 -4px 14px rgba(0,0,0,0.08); }
+  #panel h2 { margin:0 0 8px; font-size:13px; color:#44505a; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+  .part-row { display:flex; align-items:center; gap:8px; padding:8px 6px; border-radius:8px; }
+  .part-row:active { background:#eef1f4; }
+  .part-row + .part-row { border-top:1px solid #edf0f2; }
+  .part-name { flex:1; font-size:14px; color:#2c3540; }
+  .btn { border:none; border-radius:7px; padding:7px 10px; font-size:12px; font-weight:600; cursor:pointer; -webkit-tap-highlight-color: transparent; }
+  .btn-toggle { background:#e4e8eb; color:#2c3540; min-width:58px; }
+  .btn-toggle.off { background:#f6d9d9; color:#8a3a3a; }
+  .btn-highlight { background:#ffcf6b; color:#5a4100; min-width:66px; }
+  .btn-highlight.active { background:#ff9e2c; color:#402700; }
+  #controls-hint { position:absolute; bottom:calc(46vh + 10px); left:0; right:0; text-align:center; font-size:11px; color:#5c6670; pointer-events:none; }
+  #reset { position:absolute; top:10px; right:12px; background:rgba(255,255,255,0.85); border:1px solid #c3cad1; border-radius:8px; padding:6px 10px; font-size:12px; color:#2c3540; font-weight:600; }
+</style>
+</head>
+<body>
+<div id="canvas-wrap"></div>
+<div id="title">Passenger Ship 2 — concept shape (medium)<small>Grey shape only — tap a part below to hide it or highlight it in orange</small></div>
+<div id="controls-hint">Drag to rotate &middot; pinch to zoom</div>
+<div id="panel">
+  <h2>Parts</h2>
+  <div id="part-list"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ============================================================
+// basic scene
+// ============================================================
+const wrap = document.getElementById("canvas-wrap");
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdfe4e9);
+
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.05, 100);
+const CAMERA_HOME = new THREE.Vector3(4.3, 2.1, 4.6);
+camera.position.copy(CAMERA_HOME);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+wrap.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0.15);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 1.8;
+controls.maxDistance = 12;
+controls.update();
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f94, 1.0));
+const key = new THREE.DirectionalLight(0xffffff, 1.1);
+key.position.set(3, 4, 2);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.45);
+fill.position.set(-3, 1, -2);
+scene.add(fill);
+
+// ============================================================
+// materials — one colour, flat shaded; DoubleSide throughout since
+// several parts here are hand-built loft/panel geometry where I'd
+// rather guarantee visibility than risk a stray winding order.
+// ============================================================
+const GREY = 0x9aa1a8;
+const HILITE = 0xff9e2c;
+const baseMat = new THREE.MeshStandardMaterial({ color: GREY, flatShading: true, roughness: 0.75, metalness: 0.05, side: THREE.DoubleSide });
+function partMaterial() { return baseMat.clone(); }
+
+const ship = new THREE.Group();
+ship.name = "Passenger Ship 2";
+scene.add(ship);
+
+const parts = [];
+function addPart(key, label, mesh) {
+  mesh.name = key;
+  ship.add(mesh);
+  parts.push({ key, label, mesh, visible: true, highlighted: false });
+  return mesh;
+}
+function addGroupPart(key, label, group, meshes) {
+  group.name = key;
+  ship.add(group);
+  parts.push({ key, label, mesh: group, visible: true, highlighted: false, multi: meshes });
+  return group;
+}
+
+// ============================================================
+// HULL: a "sleek bus" fuselage — a loft of rounded-rectangle
+// cross-sections from a near-point rounded nose to a blunt,
+// flattish tail where the nacelles attach. Flat-ish sides carry
+// the side windows; the front tapers down for the cockpit area.
+// ============================================================
+// one rounded-rectangle cross-section, generated (not hand-picked) so it's
+// dense and smooth rather than faceted — a superellipse, which gives flat-
+// ish sides with properly rounded corners.
+const RING_SEGMENTS = 28;
+const RING_UNIT = Array.from({ length: RING_SEGMENTS }, (_, i) => {
+  const theta = (i / RING_SEGMENTS) * Math.PI * 2;
+  const c = Math.cos(theta), s = Math.sin(theta);
+  const p = 4; // superellipse exponent — higher = squarer, 2 = a plain circle
+  return [Math.sign(c) * Math.abs(c) ** (2 / p), Math.sign(s) * Math.abs(s) ** (2 / p)];
+});
+// Stations run nose (-Z) to tail (+Z). The nose cap is generated, not hand-
+// picked: radius grows with a quarter-circle (sine) curve instead of a
+// straight line, which is what actually makes a tip read as a rounded dome
+// rather than a cone — a cone is what a *linear* taper to a point looks like,
+// no matter how small the tip radius is. The droop (cy) is strongest right at
+// the tip and eases off over the same curve, blending into the body.
+const NOSE_CAP = (() => {
+  const tipZ = -1.40, capLen = 0.40, maxSx = 0.46, maxSy = 0.34;
+  const droopTip = -0.18, droopBase = -0.02; // droopBase matches the next hand station, for a seamless blend
+  const steps = 6;
+  return Array.from({ length: steps }, (_, i) => {
+    const t = i / (steps - 1);
+    const angle = t * (Math.PI / 2);
+    const z = tipZ + capLen * (1 - Math.cos(angle));
+    const sx = maxSx * Math.sin(angle);
+    const sy = maxSy * Math.sin(angle);
+    const cy = droopBase + (droopTip - droopBase) * (1 - Math.sin(angle));
+    return { z, sx, sy, cy };
+  });
+})();
+const STATIONS = [
+  ...NOSE_CAP, // tip (z=-1.40) through z=-1.00, rounded + drooping
+  { z: -0.84, sx: 0.52, sy: 0.385, cy: -0.008 },
+  { z: -0.68, sx: 0.56, sy: 0.41, cy: 0 },
+  { z: -0.45, sx: 0.585, sy: 0.425, cy: 0 },
+  { z: -0.15, sx: 0.60, sy: 0.44, cy: 0 },      // cabin, full width
+  { z: 0.30, sx: 0.60, sy: 0.44, cy: 0 },
+  { z: 0.85, sx: 0.58, sy: 0.42, cy: 0 },       // cabin toward the tail
+  { z: 1.25, sx: 0.38, sy: 0.32, cy: 0 },       // blunt tail (nacelles attach here)
+];
+function hullExtentsAtZ(z) {
+  for (let i = 0; i < STATIONS.length - 1; i++) {
+    const a = STATIONS[i], b = STATIONS[i + 1];
+    if (z >= a.z && z <= b.z) {
+      const t = (z - a.z) / (b.z - a.z);
+      return { sx: a.sx + t * (b.sx - a.sx), sy: a.sy + t * (b.sy - a.sy), cy: a.cy + t * (b.cy - a.cy) };
+    }
+  }
+  const edge = z < STATIONS[0].z ? STATIONS[0] : STATIONS[STATIONS.length - 1];
+  return { sx: edge.sx, sy: edge.sy, cy: edge.cy };
+}
+
+function buildHullGeometry() {
+  const n = RING_UNIT.length;
+  const positions = [];
+  STATIONS.forEach((st) => {
+    RING_UNIT.forEach(([ux, uy]) => positions.push(ux * st.sx, uy * st.sy + (st.cy || 0), st.z));
+  });
+  const noseCapIdx = STATIONS.length * n;
+  const tailCapIdx = noseCapIdx + 1;
+  positions.push(0, STATIONS[0].cy || 0, STATIONS[0].z); // nose cap centre
+  positions.push(0, STATIONS[STATIONS.length - 1].cy || 0, STATIONS[STATIONS.length - 1].z); // tail cap centre
+
+  const idx = [];
+  for (let s = 0; s < STATIONS.length - 1; s++) {
+    for (let j = 0; j < n; j++) {
+      const j2 = (j + 1) % n;
+      const a = s * n + j, b = s * n + j2, c = (s + 1) * n + j2, d = (s + 1) * n + j;
+      idx.push(a, b, d, b, c, d);
+    }
+  }
+  for (let j = 0; j < n; j++) {
+    const j2 = (j + 1) % n;
+    idx.push(noseCapIdx, j, j2); // nose cap fan
+    const base = (STATIONS.length - 1) * n;
+    idx.push(tailCapIdx, base + j2, base + j); // tail cap fan
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+const hullMesh = new THREE.Mesh(buildHullGeometry(), partMaterial());
+addPart("hull", "Hull (bus fuselage)", hullMesh);
+
+// ============================================================
+// SHARED: wrapping things onto the hull skin.
+// The hull's cross-section is a superellipse (rounded rectangle, exponent 4),
+// NOT a plain oval — so "how far out is this point" uses the same measure.
+// hullNorm = 1 exactly on the skin, > 1 outside. Every window point is
+// snapped exactly onto the skin, then lifted a hair outward, so windows
+// wrap the hull like a sticker and can never sink inside it.
+// ============================================================
+const GLASS_LIFT = 1.03;  // glass: ~3% clear of the hull skin
+const FRAME_LIFT = 1.045; // thin frame bars: a little proud of the glass
+function hullNorm(x, y, e) {
+  return (Math.abs(x / e.sx) ** 4 + Math.abs((y - e.cy) / e.sy) ** 4) ** 0.25;
+}
+function liftOff(x, y, z, lift) {
+  const e = hullExtentsAtZ(z);
+  const k = lift / (hullNorm(x, y, e) || 1e-6);
+  return [x * k, e.cy + (y - e.cy) * k, z];
+}
+// nose: given a point "as seen from the front" (x, y), find where it meets
+// the nose skin (the nose only grows going aft, so bisection finds it)
+function noseZ(x, y) {
+  const outside = (z) => hullNorm(x, y, hullExtentsAtZ(z)) >= 1;
+  let lo = STATIONS[0].z, hi = -0.15;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (outside(mid)) lo = mid; else hi = mid;
+  }
+  return lo;
+}
+function onNose(x, y, lift) { return liftOff(x, y, noseZ(x, y), lift); }
+// cabin side: given a point "as seen from the side" (y, z), find the skin's x
+function onSide(signX, y, z, lift) {
+  const e = hullExtentsAtZ(z);
+  const t = Math.min(Math.abs((y - e.cy) / e.sy), 0.999);
+  return liftOff(signX * e.sx * (1 - t ** 4) ** 0.25, y, z, lift);
+}
+// a smooth glass sheet from a grid of 3D points: rows[v][u]
+function sheetMesh(rows) {
+  const nv = rows.length, nu = rows[0].length, positions = [], idx = [];
+  rows.forEach((row) => row.forEach((p) => positions.push(...p)));
+  for (let j = 0; j < nv - 1; j++) for (let i = 0; i < nu - 1; i++) {
+    const a = j * nu + i, b = a + 1, c = a + nu + 1, d = a + nu;
+    idx.push(a, b, c, a, c, d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const mat = partMaterial();
+  mat.side = THREE.DoubleSide; // safety net for hand-built geometry
+  return new THREE.Mesh(geo, mat);
+}
+// thin frame bars along a path of 3D points
+function frameAlong(points, closed, radius) {
+  const meshes = [];
+  const count = closed ? points.length : points.length - 1;
+  for (let k = 0; k < count; k++) {
+    const a = points[k], b = points[(k + 1) % points.length];
+    meshes.push(strutBetween(new THREE.Vector3(...a), new THREE.Vector3(...b), radius));
+  }
+  return meshes;
+}
+
+// ============================================================
+// COCKPIT WINDOWS: modern A350-style "mask" — four slim panes
+// (two front, two swept back around the cheeks), a smooth lower
+// edge that dips at the centre and sweeps up toward the sides,
+// and very thin frame bars. All wrapped onto the nose skin.
+// ============================================================
+const MASK_HALF = 0.47; // how far round the sides the mask reaches (as seen from the front)
+const maskBottom = (ax) => 0.06 + 0.10 * (ax / MASK_HALF) ** 2;   // dips at centre, sweeps up
+const maskHeight = (ax) => 0.095 - 0.035 * (ax / MASK_HALF);       // slim, tapering toward the sides
+const MASK_GRID_U = 28, MASK_GRID_V = 8; // fine grid so the glass hugs the nose closely
+// flush fit: glass sits a hair off the skin; frame bars are centred ON the
+// skin (half buried, half showing) and thick enough to cover the glass edge,
+// so there is no gap anywhere between hull, frame and glass
+const MASK_GLASS_LIFT = 1.012;
+const MASK_FRAME_LIFT = 1.0;
+const MASK_FRAME_RADIUS = 0.012;
+function maskPoint(signX, x0, x1, u, v, lift) {
+  const ax = x0 + (x1 - x0) * u;
+  return onNose(signX * ax, maskBottom(ax) + v * maskHeight(ax), lift);
+}
+function maskPane(signX, x0, x1) {
+  const rows = [];
+  for (let j = 0; j <= MASK_GRID_V; j++) {
+    const row = [];
+    for (let i = 0; i <= MASK_GRID_U; i++) row.push(maskPoint(signX, x0, x1, i / MASK_GRID_U, j / MASK_GRID_V, MASK_GLASS_LIFT));
+    rows.push(row);
+  }
+  const glass = sheetMesh(rows);
+  // frame: walk the pane's outline (bottom, outer side, top, inner side)
+  const edge = [];
+  for (let i = 0; i < MASK_GRID_U; i++) edge.push([i / MASK_GRID_U, 0]);
+  for (let j = 0; j < MASK_GRID_V; j++) edge.push([1, j / MASK_GRID_V]);
+  for (let i = MASK_GRID_U; i > 0; i--) edge.push([i / MASK_GRID_U, 1]);
+  for (let j = MASK_GRID_V; j > 0; j--) edge.push([0, j / MASK_GRID_V]);
+  const frame = frameAlong(edge.map(([u, v]) => maskPoint(signX, x0, x1, u, v, MASK_FRAME_LIFT)), true, MASK_FRAME_RADIUS);
+  return [glass, ...frame];
+}
+const MASK_PANES = [[0.012, 0.215], [0.235, MASK_HALF]]; // [front pane, swept side pane]; gaps = thin posts
+const windshieldMeshes = [];
+[-1, 1].forEach((signX) => MASK_PANES.forEach(([x0, x1]) => windshieldMeshes.push(...maskPane(signX, x0, x1))));
+addGroupPart("cockpitWindows", "Cockpit windows (A350-style mask)", (() => {
+  const g = new THREE.Group();
+  windshieldMeshes.forEach((m) => g.add(m));
+  return g;
+})(), windshieldMeshes);
+
+// ============================================================
+// SIDE WINDOWS: two larger rounded-rectangle passenger windows per
+// side, wrapped onto the cabin wall with a thin raised frame.
+// They sit above the side trim line.
+// ============================================================
+const SIDE_WIN = { yc: 0.13, hy: 0.085, hz: 0.16, rings: 5, segs: 36, roundness: 5 };
+function sideWinPoint(signX, zc, r, theta, lift) {
+  const c = Math.cos(theta), s = Math.sin(theta), p = SIDE_WIN.roundness;
+  const dz = Math.sign(c) * Math.abs(c) ** (2 / p), dy = Math.sign(s) * Math.abs(s) ** (2 / p);
+  return onSide(signX, SIDE_WIN.yc + r * SIDE_WIN.hy * dy, zc + r * SIDE_WIN.hz * dz, lift);
+}
+function sideWindow(signX, zc) {
+  const rows = [];
+  for (let j = 0; j <= SIDE_WIN.rings; j++) {
+    const row = [];
+    for (let i = 0; i <= SIDE_WIN.segs; i++) row.push(sideWinPoint(signX, zc, j / SIDE_WIN.rings, (i / SIDE_WIN.segs) * Math.PI * 2, GLASS_LIFT));
+    rows.push(row);
+  }
+  const glass = sheetMesh(rows);
+  const outline = [];
+  for (let i = 0; i < SIDE_WIN.segs; i++) outline.push(sideWinPoint(signX, zc, 1, (i / SIDE_WIN.segs) * Math.PI * 2, FRAME_LIFT));
+  const frame = frameAlong(outline, true, 0.009);
+  return [glass, ...frame];
+}
+const sideWindowMeshes = [];
+[-1, 1].forEach((signX) => [0.05, 0.48].forEach((z) => sideWindowMeshes.push(...sideWindow(signX, z))));
+addGroupPart("windowRows", "Side windows (passenger)", (() => {
+  const g = new THREE.Group();
+  sideWindowMeshes.forEach((m) => g.add(m));
+  return g;
+})(), sideWindowMeshes);
+
+// ============================================================
+// HULL DETAILS (structural/greeble): a nose probe, a small dorsal
+// blade antenna, and raised "cheat line" strips along both sides —
+// extra silhouette detail so the fuselage doesn't read as plain.
+// ============================================================
+const noseProbe = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.22, 8), partMaterial());
+noseProbe.rotation.x = Math.PI / 2;
+noseProbe.position.set(0, NOSE_CAP[0].cy, -1.47); // follows the drooped nose tip, base tucked inside it
+
+const antenna = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.09, 0.05), partMaterial());
+antenna.position.set(0, 0.40, -0.55); // small blade antenna, front-top of the cabin
+
+function cheatLine(signX) {
+  const z0 = -0.6, z1 = 1.0;
+  const mid = (z0 + z1) / 2;
+  const ext = hullExtentsAtZ(mid);
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, z1 - z0), partMaterial());
+  strip.position.set(signX * ext.sx * 0.99, 0.0, mid);
+  return strip;
+}
+const cheatL = cheatLine(-1);
+const cheatR = cheatLine(1);
+
+addGroupPart("hullDetails", "Hull details (probe, antenna, trim lines)", (() => {
+  const g = new THREE.Group();
+  g.add(noseProbe, antenna, cheatL, cheatR);
+  return g;
+})(), [noseProbe, antenna, cheatL, cheatR]);
+
+// ============================================================
+// V-TAIL: two medium, swept-back stabiliser fins on top of the
+// rear hull, opened wide (55 deg from upright each), sitting just
+// ahead of the engine nacelles. Each fin has an airfoil-like lens
+// cross-section, tapering from a thick root to a thin tip. The root
+// is sunk below the hull skin so the fin grows out of the hull with
+// no gap. The left fin is built with mirrored coordinates and
+// reversed triangle order (not a negative scale), so both sides
+// shade identically.
+// ============================================================
+const VTAIL = {
+  lean: (55 * Math.PI) / 180, // from straight up, outward
+  rootX: 0.07,                 // root sits just off the centreline on the flat top
+  rootLE: 0.58, rootChord: 0.46,
+  tipChord: 0.20, sweep: 0.26, // tip leading edge sits 0.26 further back
+  span: 0.42,
+  rootThick: 0.05, tipThick: 0.024,
+  sink: 0.035,                 // root ring sits this far below the hull skin
+};
+// chord fractions and relative half-thickness of the lens section
+const FIN_SECTION = [[0.15, 0.8], [0.35, 1.0], [0.6, 0.85], [0.85, 0.45]];
+function hullTopY(z) {
+  const e = hullExtentsAtZ(z);
+  const t = Math.min(Math.abs(VTAIL.rootX / e.sx), 0.999);
+  return e.cy + e.sy * (1 - t ** 4) ** 0.25;
+}
+function finRing(signX, isTip) {
+  const up = [signX * Math.sin(VTAIL.lean), Math.cos(VTAIL.lean), 0];
+  const nrm = [signX * Math.cos(VTAIL.lean), -Math.sin(VTAIL.lean), 0]; // thickness direction
+  const chord = isTip ? VTAIL.tipChord : VTAIL.rootChord;
+  const le = VTAIL.rootLE + (isTip ? VTAIL.sweep : 0);
+  const halfT = (isTip ? VTAIL.tipThick : VTAIL.rootThick) / 2;
+  const rootBaseLEy = hullTopY(VTAIL.rootLE) - VTAIL.sink;
+  const at = (f, side) => {
+    const z = le + f * chord;
+    const baseY = isTip ? rootBaseLEy : hullTopY(z) - VTAIL.sink;
+    const o = isTip ? VTAIL.span : 0;
+    const h = side * halfT * (FIN_SECTION.find(([ff]) => ff === f)?.[1] ?? 0.08);
+    return [signX * VTAIL.rootX + up[0] * o + nrm[0] * h, baseY + up[1] * o + nrm[1] * h, z];
+  };
+  const ring = [at(0, 0)];
+  FIN_SECTION.forEach(([f]) => ring.push(at(f, 1)));
+  ring.push(at(1, 0));
+  [...FIN_SECTION].reverse().forEach(([f]) => ring.push(at(f, -1)));
+  return ring; // 10 points: LE, upper x4, TE, lower x4
+}
+function makeFin(signX) {
+  const root = finRing(signX, false), tip = finRing(signX, true);
+  const n = root.length;
+  const positions = [...root.flat(), ...tip.flat()];
+  const centroid = (r) => [0, 1, 2].map((k) => r.reduce((a, p) => a + p[k], 0) / r.length);
+  positions.push(...centroid(root), ...centroid(tip));
+  const rc = 2 * n, tc = 2 * n + 1;
+  const tris = [];
+  for (let i = 0; i < n; i++) {
+    const i2 = (i + 1) % n;
+    tris.push([i, i2, n + i2], [i, n + i2, n + i]);
+    tris.push([rc, i2, i], [tc, n + i, n + i2]);
+  }
+  const idx = [];
+  tris.forEach(([a, b, c]) => (signX > 0 ? idx.push(a, b, c) : idx.push(a, c, b)));
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const mat = partMaterial();
+  mat.side = THREE.DoubleSide; // safety net for hand-built geometry
+  return new THREE.Mesh(geo, mat);
+}
+const finL = makeFin(-1);
+const finR = makeFin(1);
+addGroupPart("tailFins", "V-tail stabilisers", (() => {
+  const g = new THREE.Group();
+  g.add(finL, finR);
+  return g;
+})(), [finL, finR]);
+
+// ============================================================
+// ENGINES: two nacelles (one per side), each bundling 2 slotted
+// rectangular engines — a pylon bridges the nacelle to the hull.
+// ============================================================
+function makeNacelle(signX) {
+  const meshes = [];
+  const hullZ1 = hullExtentsAtZ(1.0);
+
+  const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.12, 0.30), partMaterial());
+  pylon.position.set(signX * (hullZ1.sx * 0.55 + 0.15), 0.0, 1.12);
+  meshes.push(pylon);
+
+  const shell = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.30, 0.55), partMaterial());
+  const shellX = signX * (hullExtentsAtZ(1.25).sx * 0.9 + 0.20);
+  shell.position.set(shellX, 0.0, 1.35);
+  meshes.push(shell);
+
+  // two thin raised ribs around the shell for a bit of panel-line detail
+  [1.15, 1.5].forEach((z) => {
+    const rib = new THREE.Mesh(new THREE.BoxGeometry(0.265, 0.305, 0.02), partMaterial());
+    rib.position.set(shellX, 0, z);
+    meshes.push(rib);
+  });
+
+  // two stacked "slotted" rectangular engine vents on the nacelle's aft face
+  [0.08, -0.08].forEach((y) => {
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.11, 0.03), partMaterial());
+    slot.position.set(shellX, y, 1.635);
+    meshes.push(slot);
+  });
+
+  const group = new THREE.Group();
+  meshes.forEach((m) => group.add(m));
+  return { group, meshes };
+}
+const nacL = makeNacelle(-1);
+const nacR = makeNacelle(1);
+addGroupPart("engineL", "Engine nacelle (left, 2 engines)", nacL.group, nacL.meshes);
+addGroupPart("engineR", "Engine nacelle (right, 2 engines)", nacR.group, nacR.meshes);
+
+// ============================================================
+// LEGS: four corner legs, each a main strut plus a diagonal brace
+// (forming a triangle, like a real shuttle's landing gear), ending
+// in a foot pad. Struts start embedded inside the hull. All four
+// pads share one common height.
+// ============================================================
+// foot halved from the original (0.44, -0.78) by scaling the whole strut
+// offset vector from p0 by 0.5, so the strut is exactly half as long
+const COMMON_FOOT_Y = -0.49;
+
+function strutBetween(p0, p1, radius) {
+  const dir = new THREE.Vector3().subVectors(p1, p0);
+  const length = dir.length();
+  const geo = new THREE.CylinderGeometry(radius, radius, length, 10);
+  const mesh = new THREE.Mesh(geo, partMaterial());
+  mesh.position.copy(p0).add(p1).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  return mesh;
+}
+
+function makeLeg(signX, z) {
+  const meshes = [];
+  const p0 = new THREE.Vector3(signX * 0.15, -0.20, z); // embedded inside the hull
+  const foot = new THREE.Vector3(signX * 0.295, COMMON_FOOT_Y, z);
+  const braceZ = z - Math.sign(z || 1) * 0.24; // braces toward the ship's centre
+  const p0b = new THREE.Vector3(signX * 0.15, -0.20, braceZ); // also embedded
+
+  const main = strutBetween(p0, foot, 0.035);
+  const brace = strutBetween(p0b, foot, 0.028);
+
+  const footGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.035, 12); // flat faces stay level regardless of strut angle
+  const footMesh = new THREE.Mesh(footGeo, partMaterial());
+  footMesh.position.copy(foot).add(new THREE.Vector3(0, -0.0175, 0));
+
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.065, 0.011, 6, 16), partMaterial());
+  ring.rotation.x = Math.PI / 2;
+  ring.position.copy(footMesh.position).add(new THREE.Vector3(0, 0.02, 0));
+
+  meshes.push(main, brace, footMesh, ring);
+  const group = new THREE.Group();
+  meshes.forEach((m) => group.add(m));
+  return { group, meshes };
+}
+
+const legsGroup = new THREE.Group();
+const legMeshes = [];
+const legSpecs = [
+  [-1, -0.55], [1, -0.55], // front corners
+  [-1, 0.95], [1, 0.95],   // rear corners
+];
+legSpecs.forEach(([signX, z]) => {
+  const { group, meshes } = makeLeg(signX, z);
+  legsGroup.add(group);
+  legMeshes.push(...meshes);
+});
+addGroupPart("legs", "Legs (landing gear)", legsGroup, legMeshes);
+
+ship.position.y = 0.05;
+
+// ============================================================
+// part list UI
+// ============================================================
+const listEl = document.getElementById("part-list");
+function setHighlight(p, on) {
+  p.highlighted = on;
+  const meshes = p.multi || [p.mesh];
+  meshes.forEach((m) => m.material.color.set(on ? HILITE : GREY));
+}
+function setVisible(p, on) {
+  p.visible = on;
+  p.mesh.visible = on;
+}
+parts.forEach((p) => {
+  const row = document.createElement("div");
+  row.className = "part-row";
+  const name = document.createElement("div");
+  name.className = "part-name";
+  name.textContent = p.label;
+  const hiBtn = document.createElement("button");
+  hiBtn.className = "btn btn-highlight";
+  hiBtn.textContent = "Highlight";
+  hiBtn.onclick = () => {
+    parts.forEach((other) => { if (other !== p && other.highlighted) { setHighlight(other, false); other._btn.classList.remove("active"); } });
+    const turningOn = !p.highlighted;
+    setHighlight(p, turningOn);
+    hiBtn.classList.toggle("active", turningOn);
+  };
+  p._btn = hiBtn;
+  const toggleBtn = document.createElement("button");
+  toggleBtn.className = "btn btn-toggle";
+  toggleBtn.textContent = "Shown";
+  toggleBtn.onclick = () => {
+    const turningOn = !p.visible;
+    setVisible(p, turningOn);
+    toggleBtn.textContent = turningOn ? "Shown" : "Hidden";
+    toggleBtn.classList.toggle("off", !turningOn);
+  };
+  row.appendChild(name);
+  row.appendChild(hiBtn);
+  row.appendChild(toggleBtn);
+  listEl.appendChild(row);
+});
+const resetBtn = document.createElement("button");
+resetBtn.id = "reset";
+resetBtn.textContent = "Reset view";
+resetBtn.onclick = () => { camera.position.copy(CAMERA_HOME); controls.target.set(0, 0, 0.15); controls.update(); };
+document.body.appendChild(resetBtn);
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener("resize", onResize);
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
