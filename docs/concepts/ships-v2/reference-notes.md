@@ -173,3 +173,34 @@ Five images, for the small and short-range ships.
   - one big canopy or "eye" window;
   - few parts, with simple strong silhouettes (ball, oval, manta, arrow, bubble car);
   - mostly white, with one bright option (yellow).
+
+## Andy: "That's all" (2026-11-27)
+
+- **Colours:** ignore all colour schemes in the references. Colours are decided in a later stage.
+
+### Style summary (what the designs will follow)
+
+1. **Shapes flow nose to tail:** a narrower bow, the widest point mid-body, and clear engine blocks or pods at the
+   stern. Silhouettes are strong and simple and read in one glance.
+2. **Two moods, mixed:**
+   - smooth, long, elegant hulls (teardrops, pebbles, airliner bodies with long canopies or window bands);
+   - crisp, chunky, faceted hulls (shield-fronted boxes, deltas, knife edges).
+   Fat or rounded bodies often meet sharp edges, fins and spikes.
+3. **Engines:** in separate side pods or nacelles (on pylons, in scooped recesses, big ducted fans, ring engines), or
+   a tight cluster at the stern.
+4. **Top views from the outline library:** darts, teardrops, shields, mantas, flying wings, arrowheads, booms and
+   U-shapes, H-shapes with side pods, loops and hoops.
+5. **Believable spaceship details, kept few:** landing legs, a flat-ish underside, a dark canopy or "eye", window
+   bands or rows, vents, small fins and antennas. No weapons or combat look.
+6. **Size feel:**
+   - small ships are round, toy-like and friendly (bubble car, ball, manta, oval);
+   - medium ships are compact workhorses or sleek yachts;
+   - large ships are very long and graceful (liners, the deep-space explorer).
+
+### Proposed plan per category (to confirm with Andy)
+
+| Category | Small (short range) | Medium | Large (long haul) |
+|---|---|---|---|
+| Cargo | Batch 5 shapes, small | Batch 1 shield-fronted chunky box | Not covered by the references: ask |
+| Passenger | Batch 5 oval or bubble shuttle | Batch 1 sleek teardrop / batch 4 yachts | Batch 3 long liners |
+| Explorer | Batch 5 sphere, manta or arrow | Batch 1 chunky explorer / batch 4 fat ships | Batch 1 long deep-space explorer / batch 4 ring ship |
