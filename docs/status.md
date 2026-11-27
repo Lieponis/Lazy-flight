@@ -400,3 +400,8 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 
 ## 3q: far place markers (Andy 2026-11-22) -> Agent 3, docs/briefs/agent-3q-brief.md
 - Andy: home / recent / starred markers that are far away slide along the screen edge; he wants them at their real relative position in the whole space, not clickable. Brief: true position, constant small dim glyph, not tappable; far flight-plan target keeps its edge marker (option B default); check zoom-out reach.
+
+## 3q DONE (Agent 3, report docs/report-agent-3q.md, main 16adc73 green; Andy "Matches" x2, picked A, Lead-checked 2026-11-27)
+- Far home/outpost/recent/starred markers sit at their true projected place, dim (50%), constant size, not tappable, no edge pinning, no names; up to 16 markers. Plan target also at its true place with label (option A, nothing at the edge; ?maptarget=b brings the old edge marker back).
+- Far places are found by turning the map, not zooming out (zoom-out limit ~50 ly). 60 fps measured, but with 0 far markers in view at that moment (limit stated honestly). Test farmarkers.test.ts.
+- Known: while the target is off the picture there is no cue and no distance (suggestion: only if Andy misses it); far markers have no names (suggestion).
