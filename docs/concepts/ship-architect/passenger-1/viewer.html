@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Lazy Flight — Passenger Ship 1 (concept)</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#dfe4e9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow:hidden; }
+  #canvas-wrap { position:absolute; inset:0; }
+  canvas { display:block; touch-action:none; }
+
+  #title {
+    position:absolute; top:10px; left:12px; right:12px;
+    color:#2c3540; font-size:15px; font-weight:600;
+    text-shadow: 0 1px 2px rgba(255,255,255,0.6);
+    pointer-events:none;
+  }
+  #title small { display:block; font-weight:400; font-size:12px; color:#56616d; margin-top:2px; }
+
+  #panel {
+    position:absolute; left:0; right:0; bottom:0;
+    background:rgba(255,255,255,0.92);
+    border-top:1px solid #c3cad1;
+    padding:10px 10px calc(10px + env(safe-area-inset-bottom));
+    max-height:46vh; overflow-y:auto;
+    box-shadow: 0 -4px 14px rgba(0,0,0,0.08);
+  }
+  #panel h2 { margin:0 0 8px; font-size:13px; color:#44505a; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+  .part-row {
+    display:flex; align-items:center; gap:8px;
+    padding:8px 6px; border-radius:8px;
+  }
+  .part-row:active { background:#eef1f4; }
+  .part-row + .part-row { border-top:1px solid #edf0f2; }
+  .part-name { flex:1; font-size:14px; color:#2c3540; }
+  .btn {
+    border:none; border-radius:7px; padding:7px 10px; font-size:12px;
+    font-weight:600; cursor:pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .btn-toggle { background:#e4e8eb; color:#2c3540; min-width:58px; }
+  .btn-toggle.off { background:#f6d9d9; color:#8a3a3a; }
+  .btn-highlight { background:#ffcf6b; color:#5a4100; min-width:66px; }
+  .btn-highlight.active { background:#ff9e2c; color:#402700; }
+
+  #controls-hint {
+    position:absolute; bottom:calc(46vh + 10px); left:0; right:0;
+    text-align:center; font-size:11px; color:#5c6670;
+    pointer-events:none;
+  }
+  #reset {
+    position:absolute; top:10px; right:12px;
+    background:rgba(255,255,255,0.85); border:1px solid #c3cad1; border-radius:8px;
+    padding:6px 10px; font-size:12px; color:#2c3540; font-weight:600;
+  }
+</style>
+</head>
+<body>
+<div id="canvas-wrap"></div>
+<div id="title">Passenger Ship 1 — concept shape (rev 4)<small>Grey shape only — tap a part below to hide it or highlight it in orange</small></div>
+<div id="controls-hint">Drag to rotate &middot; pinch to zoom</div>
+<div id="panel">
+  <h2>Parts</h2>
+  <div id="part-list"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ============================================================
+// basic scene
+// ============================================================
+const wrap = document.getElementById("canvas-wrap");
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdfe4e9);
+
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.05, 100);
+camera.position.set(3.4, 1.8, 3.7);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+wrap.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0.1);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 1.6;
+controls.maxDistance = 10;
+controls.update();
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f94, 1.0));
+const key = new THREE.DirectionalLight(0xffffff, 1.1);
+key.position.set(3, 4, 2);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.45);
+fill.position.set(-3, 1, -2);
+scene.add(fill);
+
+// ============================================================
+// ship materials (one colour, flat shaded — shape judged on silhouette alone)
+// ============================================================
+const GREY = 0x9aa1a8;
+const HILITE = 0xff9e2c;
+const baseMat = new THREE.MeshStandardMaterial({
+  color: GREY, flatShading: true, roughness: 0.75, metalness: 0.05
+});
+function partMaterial(doubleSide) {
+  const m = baseMat.clone();
+  if (doubleSide) m.side = THREE.DoubleSide;
+  return m;
+}
+
+const ship = new THREE.Group();
+ship.name = "Passenger Ship 1";
+scene.add(ship);
+
+const parts = []; // {key, label, mesh, visible, highlighted, multi?:[meshes]}
+
+function addPart(key, label, mesh) {
+  mesh.name = key;
+  ship.add(mesh);
+  parts.push({ key, label, mesh, visible: true, highlighted: false });
+  return mesh;
+}
+function addGroupPart(key, label, group, meshes) {
+  group.name = key;
+  ship.add(group);
+  parts.push({ key, label, mesh: group, visible: true, highlighted: false, multi: meshes });
+  return group;
+}
+
+// ============================================================
+// HULL: egg-shaped body, nose at -Z (narrower, rounder point),
+// tail at +Z (fuller, rounder end where the engines sit)
+// ============================================================
+const profilePts = [
+  new THREE.Vector2(0.0, -1.15),   // nose tip
+  new THREE.Vector2(0.18, -1.08),
+  new THREE.Vector2(0.34, -0.98),
+  new THREE.Vector2(0.52, -0.82),
+  new THREE.Vector2(0.67, -0.60),
+  new THREE.Vector2(0.78, -0.34),
+  new THREE.Vector2(0.85, -0.04),
+  new THREE.Vector2(0.88, 0.22),
+  new THREE.Vector2(0.885, 0.42),
+  new THREE.Vector2(0.86, 0.62),
+  new THREE.Vector2(0.77, 0.84),
+  new THREE.Vector2(0.58, 1.02),
+  new THREE.Vector2(0.30, 1.15),
+  new THREE.Vector2(0.0, 1.22),    // tail cap
+];
+const HULL_SCALE = new THREE.Vector3(0.95, 0.92, 0.72);
+const hullGeo = new THREE.LatheGeometry(profilePts, 22);
+hullGeo.rotateX(Math.PI / 2); // long axis -> Z (nose -Z, tail +Z)
+hullGeo.computeVertexNormals();
+const hullMesh = new THREE.Mesh(hullGeo, partMaterial());
+hullMesh.scale.copy(HULL_SCALE);
+addPart("hull", "Hull (egg body)", hullMesh);
+
+// radius of the hull's surface of revolution at a given *object-space* z,
+// used to seat other parts flush against the hull instead of guessing.
+function hullRadiusAtZ(z) {
+  const y = z / HULL_SCALE.z;
+  for (let i = 0; i < profilePts.length - 1; i++) {
+    const a = profilePts[i], b = profilePts[i + 1];
+    if (y >= a.y && y <= b.y) {
+      const t = (y - a.y) / (b.y - a.y);
+      const r = a.x + t * (b.x - a.x);
+      return r * (HULL_SCALE.x + HULL_SCALE.y) * 0.5;
+    }
+  }
+  return 0;
+}
+
+// ============================================================
+// COCKPIT WINDOW: one big round visor bulging from the nose,
+// plus a thin raised frame ring right where it meets the hull.
+// ============================================================
+const winCenterZ = -0.52;
+const winRadius = 0.5;
+const winZScale = 0.82;
+const windowGeo = new THREE.SphereGeometry(winRadius, 18, 14);
+windowGeo.scale(1, 1, winZScale);
+const windowMesh = new THREE.Mesh(windowGeo, partMaterial());
+windowMesh.position.set(0, 0.03, winCenterZ);
+
+const frameGeo = new THREE.TorusGeometry(winRadius * 0.98, 0.028, 8, 22);
+const frameMesh = new THREE.Mesh(frameGeo, partMaterial());
+frameMesh.position.set(0, 0.03, winCenterZ);
+
+addGroupPart("cockpitWindow", "Cockpit window (visor)", (() => {
+  const g = new THREE.Group();
+  g.add(windowMesh, frameMesh);
+  return g;
+})(), [windowMesh, frameMesh]);
+
+// ============================================================
+// WING geometry builder — shared shape, used for the two big
+// angled side wings and the smaller straight top fin.
+// Local axes before any rotation: X = span (root->tip),
+// Y = thickness, Z = chord (negative = leading edge).
+// ============================================================
+function buildWingGeometry(spec, signX) {
+  const { rootX, rootTopY, rootBotY, rootFrontZ, rootBackZ,
+          tipX, tipTopY, tipBotY, tipFrontZ, tipBackZ } = spec;
+  const raw = [
+    [rootX, rootTopY, rootFrontZ], // 0 root leading-top
+    [rootX, -rootBotY, rootFrontZ], // 1 root leading-bottom
+    [rootX, 0, rootBackZ],          // 2 root trailing
+    [tipX, tipTopY, tipFrontZ],     // 3 tip leading-top
+    [tipX, -tipBotY, tipFrontZ],    // 4 tip leading-bottom
+    [tipX, 0, tipBackZ],            // 5 tip trailing
+  ];
+  const verts = raw.map(([x, y, z]) => [x * signX, y, z]);
+  let tris = [
+    [0, 3, 5], [0, 5, 2], // top surface
+    [1, 2, 5], [1, 5, 4], // bottom surface
+    [0, 1, 4], [0, 4, 3], // leading edge
+    [3, 4, 5],            // tip cap
+  ];
+  if (signX < 0) tris = tris.map((t) => [t[0], t[2], t[1]]); // keep outward winding when mirrored
+
+  const positions = new Float32Array(verts.length * 3);
+  verts.forEach(([x, y, z], i) => { positions[i * 3] = x; positions[i * 3 + 1] = y; positions[i * 3 + 2] = z; });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geo.setIndex(tris.flat());
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// ---- big side wings: ~4x the earlier size, set at 45° with tips angled
+// DOWN and outward (an "A" shape seen from the front), per Andy's pick.
+const BIG_WING_SPEC = {
+  rootX: 0.033, rootTopY: 0.033, rootBotY: 0.027, rootFrontZ: -0.147, rootBackZ: 0.347,
+  tipX: 0.80, tipTopY: 0.02, tipBotY: 0.017, tipFrontZ: -0.013, tipBackZ: 0.28,
+};
+function makeWing(signX) {
+  const geo = buildWingGeometry(BIG_WING_SPEC, signX);
+  const mesh = new THREE.Mesh(geo, partMaterial(true)); // double-sided: safe against any stray winding
+  const wingZ = 0.15;
+  const rHull = hullRadiusAtZ(wingZ);
+  mesh.position.set(signX * rHull * 0.9, 0.0, wingZ);
+  mesh.rotation.z = -signX * ((25 * Math.PI) / 180); // 25° from horizontal, tip rotates downward on both sides
+  return mesh;
+}
+addPart("wingL", "Wing (left)", makeWing(1));
+addPart("wingR", "Wing (right)", makeWing(-1));
+
+// ---- top fin: same size as the side wings now, single, straight up on
+// the centreline — no angle.
+const TOP_FIN_SPEC = {
+  rootX: 0.033, rootTopY: 0.033, rootBotY: 0.027, rootFrontZ: -0.147, rootBackZ: 0.347,
+  tipX: 0.80, tipTopY: 0.02, tipBotY: 0.017, tipFrontZ: -0.013, tipBackZ: 0.28,
+};
+function makeTopFin() {
+  const geo = buildWingGeometry(TOP_FIN_SPEC, 1);
+  const mesh = new THREE.Mesh(geo, partMaterial(true));
+  const finZ = 0.28;
+  const rHull = hullRadiusAtZ(finZ);
+  mesh.position.set(0, rHull * 0.9, finZ);
+  mesh.rotation.z = Math.PI / 2; // turns the span from sideways to straight up — no extra tilt
+  return mesh;
+}
+addPart("topFin", "Top fin (centreline)", makeTopFin());
+
+// ============================================================
+// ENGINES: bigger, more sci-fi thruster pods at the tail — a
+// lathed nozzle body (narrow at the hull, bulging combustion
+// chamber, necked throat, wide flared bell), two greeble ribs,
+// four radial vanes around the flare, and a raised exhaust rim.
+// ============================================================
+function makeEngine(signX) {
+  const group = new THREE.Group();
+  const meshes = [];
+
+  // nozzle body: narrow hull end (-z) -> bulge -> neck -> throat -> wide flared bell (+z)
+  const nozzleProfile = [
+    new THREE.Vector2(0.10, -0.33), // hull attach
+    new THREE.Vector2(0.17, -0.20), // combustion bulge
+    new THREE.Vector2(0.15, -0.07), // neck
+    new THREE.Vector2(0.19, 0.10),  // throat
+    new THREE.Vector2(0.30, 0.23),  // bell starts flaring
+    new THREE.Vector2(0.34, 0.33),  // exhaust rim
+  ];
+  const bodyGeo = new THREE.LatheGeometry(nozzleProfile, 16);
+  bodyGeo.rotateX(Math.PI / 2); // wide/flared end faces +Z (exhaust), narrow end faces the hull
+  bodyGeo.computeVertexNormals();
+  const body = new THREE.Mesh(bodyGeo, partMaterial());
+  meshes.push(body);
+
+  // a lathe shape is hollow at both ends (it only closes where the profile
+  // touches the axis, which ours never does) — that left the exhaust end
+  // open, so looking at it from behind showed straight through to nothing.
+  // Cap both ends so the nozzle reads as solid from every angle.
+  const exhaustCap = new THREE.Mesh(new THREE.CircleGeometry(0.34, 16), partMaterial());
+  exhaustCap.position.z = 0.33;
+  const hullCap = new THREE.Mesh(new THREE.CircleGeometry(0.10, 12), partMaterial());
+  hullCap.position.z = -0.33;
+  hullCap.rotation.y = Math.PI; // face the opposite way, into the hull
+  meshes.push(exhaustCap, hullCap);
+
+  // greeble ribs at the neck and throat
+  const ribNeck = new THREE.Mesh(new THREE.TorusGeometry(0.155, 0.014, 6, 18), partMaterial());
+  ribNeck.position.z = -0.07;
+  const ribThroat = new THREE.Mesh(new THREE.TorusGeometry(0.195, 0.016, 6, 18), partMaterial());
+  ribThroat.position.z = 0.10;
+  meshes.push(ribNeck, ribThroat);
+
+  // four small radial vanes around the flare, evenly spaced
+  for (let i = 0; i < 4; i++) {
+    const angle = (i / 4) * Math.PI * 2;
+    const vaneGeo = new THREE.BoxGeometry(0.03, 0.09, 0.14);
+    const vane = new THREE.Mesh(vaneGeo, partMaterial());
+    const vr = 0.27; // sits against the bell, just inboard of its outer radius
+    vane.position.set(Math.cos(angle) * vr, Math.sin(angle) * vr, 0.22);
+    vane.rotation.z = angle;
+    meshes.push(vane);
+  }
+
+  // raised rim right at the exhaust face
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.335, 0.02, 7, 20), partMaterial());
+  rim.position.z = 0.335;
+  meshes.push(rim);
+
+  meshes.forEach((m) => group.add(m));
+
+  const engineZ = 0.78;
+  const rHull = hullRadiusAtZ(engineZ - 0.2);
+  group.position.set(signX * rHull * 0.62, -0.08, engineZ);
+  return { group, meshes };
+}
+const engL = makeEngine(-1);
+const engR = makeEngine(1);
+addGroupPart("engineL", "Engine (left)", engL.group, engL.meshes);
+addGroupPart("engineR", "Engine (right)", engR.group, engR.meshes);
+
+// ============================================================
+// LEGS: three — one nose leg at the front, two main legs at the
+// back (left/right), like a small plane's tricycle gear.
+//  - struts start INSIDE the hull (not just touching the surface)
+//    so there is no empty gap at the join.
+//  - all three foot pads sit at the exact same height (one plane).
+// ============================================================
+const COMMON_FOOT_Y = -0.95;
+
+function strutBetween(p0, p1, radius) {
+  const dir = new THREE.Vector3().subVectors(p1, p0);
+  const length = dir.length();
+  const geo = new THREE.CylinderGeometry(radius, radius, length, 10);
+  const mesh = new THREE.Mesh(geo, partMaterial());
+  mesh.position.copy(p0).add(p1).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  return mesh;
+}
+
+function makeLeg(signX, z, footZ) {
+  const meshes = [];
+  // p0: starts well INSIDE the solid hull (not at the surface), so the
+  // strut clearly continues into the body with no visible gap.
+  const p0 = new THREE.Vector3(signX * 0.18, -0.26, z);
+  // p1 (knee): just past the hull surface, where the leg bends outward.
+  const p1 = new THREE.Vector3(signX * (0.18 + 0.34), p0.y - 0.42, z + (signX === 0 ? 0 : 0.0));
+  // foot: same Y for every leg, so all three pads are coplanar.
+  const foot = new THREE.Vector3(signX * (0.18 + 0.34), COMMON_FOOT_Y, footZ);
+
+  const upper = strutBetween(p0, p1, 0.056); // 2x thicker
+  const actuator = strutBetween(
+    p0.clone().add(new THREE.Vector3(0, 0, 0.1)), // moved out a bit so the now-thicker struts don't clip each other
+    p1.clone().add(new THREE.Vector3(0, 0, 0.1)),
+    0.028 // 2x thicker
+  );
+  const knee = new THREE.Mesh(new THREE.SphereGeometry(0.084, 10, 8), partMaterial()); // scaled up to match the thicker struts
+  knee.position.copy(p1);
+  const lower = strutBetween(p1, foot, 0.042); // 2x thicker
+
+  const padRadius = 0.18; // 2x the earlier pad size
+  const padHeight = 0.064; // 2x the earlier pad size
+  const footGeo = new THREE.CylinderGeometry(padRadius, padRadius, padHeight, 12); // flat faces default to facing up/down — always level
+  const footMesh = new THREE.Mesh(footGeo, partMaterial());
+  footMesh.position.copy(foot).add(new THREE.Vector3(0, -padHeight / 2, 0));
+
+  const ringGeo = new THREE.TorusGeometry(padRadius * 0.58, 0.018, 6, 16);
+  ringGeo.rotateX(Math.PI / 2); // flat on top of the pad regardless of strut angle
+  const ring = new THREE.Mesh(ringGeo, partMaterial());
+  ring.position.copy(footMesh.position).add(new THREE.Vector3(0, padHeight / 2 + 0.002, 0));
+
+  meshes.push(upper, actuator, knee, lower, footMesh, ring);
+  const group = new THREE.Group();
+  group.add(upper, actuator, knee, lower, footMesh, ring);
+  return { group, meshes };
+}
+
+const legsGroup = new THREE.Group();
+const legMeshes = [];
+// nose leg: centreline (signX = 0), well forward; main gear: left/right, aft.
+const legSpecs = [
+  [0, -0.58, -0.5],   // nose leg
+  [1, 0.42, 0.42],    // right main gear
+  [-1, 0.42, 0.42],   // left main gear
+];
+legSpecs.forEach(([signX, z, footZ]) => {
+  const { group, meshes } = makeLeg(signX, z, footZ);
+  legsGroup.add(group);
+  legMeshes.push(...meshes);
+});
+addGroupPart("legs", "Legs (landing gear)", legsGroup, legMeshes);
+
+ship.position.y = 0.05;
+
+// ============================================================
+// part list UI
+// ============================================================
+const listEl = document.getElementById("part-list");
+
+function setHighlight(p, on) {
+  p.highlighted = on;
+  const meshes = p.multi || [p.mesh];
+  meshes.forEach((m) => m.material.color.set(on ? HILITE : GREY));
+}
+function setVisible(p, on) {
+  p.visible = on;
+  p.mesh.visible = on;
+}
+
+parts.forEach((p) => {
+  const row = document.createElement("div");
+  row.className = "part-row";
+
+  const name = document.createElement("div");
+  name.className = "part-name";
+  name.textContent = p.label;
+
+  const hiBtn = document.createElement("button");
+  hiBtn.className = "btn btn-highlight";
+  hiBtn.textContent = "Highlight";
+  hiBtn.onclick = () => {
+    parts.forEach((other) => {
+      if (other !== p && other.highlighted) { setHighlight(other, false); other._btn.classList.remove("active"); }
+    });
+    const turningOn = !p.highlighted;
+    setHighlight(p, turningOn);
+    hiBtn.classList.toggle("active", turningOn);
+  };
+  p._btn = hiBtn;
+
+  const toggleBtn = document.createElement("button");
+  toggleBtn.className = "btn btn-toggle";
+  toggleBtn.textContent = "Shown";
+  toggleBtn.onclick = () => {
+    const turningOn = !p.visible;
+    setVisible(p, turningOn);
+    toggleBtn.textContent = turningOn ? "Shown" : "Hidden";
+    toggleBtn.classList.toggle("off", !turningOn);
+  };
+
+  row.appendChild(name);
+  row.appendChild(hiBtn);
+  row.appendChild(toggleBtn);
+  listEl.appendChild(row);
+});
+
+const resetBtn = document.createElement("button");
+resetBtn.id = "reset";
+resetBtn.textContent = "Reset view";
+resetBtn.onclick = () => {
+  camera.position.set(3.4, 1.8, 3.7);
+  controls.target.set(0, 0, 0.1);
+  controls.update();
+};
+document.body.appendChild(resetBtn);
+
+// ============================================================
+// loop
+// ============================================================
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener("resize", onResize);
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
