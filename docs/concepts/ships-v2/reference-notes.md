@@ -62,3 +62,38 @@ orange underlayer showing at the edges and stern.
   - clean, smooth, flowing outlines with few greebles (small surface details).
 - **Use:** a library of top-view outlines to give each ship type its own plan shape (Andy's words). Keep colours as a
   possibility; confirm with Andy before using the grey and orange scheme.
+
+## Batch 3 (2026-11-27): Andy: "nice passenger super long haul ideas, shapes and proportions."
+
+Four images, for the heavy (super long haul) passenger ship.
+
+- **Sleek grey liner (line art on a grid):**
+  - a very long, pointed, knife-like hull with a raised spine;
+  - swept fins forward, and two big round engine discs (ring-shaped nacelles) on swept pylons at the rear;
+  - dark accent bands and panels along the hull;
+  - dynamic and fast-looking, with the length dominating.
+- **Smooth white capsule liner (3D render):**
+  - one huge smooth elongated pebble or egg hull with a rounded nose and a rounded tail;
+  - engine nacelles tucked into scooped-out recesses in the hull's flanks, with a blue engine glow;
+  - a dark stepped "lightning" groove running along the side;
+  - grid-panelled windows or solar panels on the top, rows of small lit windows along the sides;
+  - very clean and minimal.
+- **White flat-bottomed liner with landing gear (3D render):**
+  - a wide, low hull that rises like a pyramid or wedge to a small bridge tower near the back, with a round dome and antenna on top;
+  - a long ribbed window band along the side and three rounded hatches;
+  - a red pinstripe;
+  - long side sponsons running back to box engines with a vertical tail fin;
+  - visible landing legs and teal hover thrusters underneath;
+  - a mixture of yacht and spaceship.
+- **"L600 interplanetary space liner" (side profile):**
+  - a long white airliner-like body: a pointed, slightly droopy nose and two rows of small round windows;
+  - a big rounded belly bulge or keel underneath, with three hatches;
+  - two engine nacelles at the rear, one high on a swept pylon and one low on the side;
+  - bold red diagonal livery stripes and a red cheatline (the long stripe along the body);
+  - the outline seen from above is a long fuselage with a small cross-shaped tail.
+- **Common thread for big liners:**
+  - very long and smooth;
+  - white or light hulls with one bold accent colour (red or dark);
+  - rows of small windows;
+  - engines in separate rear nacelles on pylons;
+  - a calm, luxurious, airliner or cruise feel.
