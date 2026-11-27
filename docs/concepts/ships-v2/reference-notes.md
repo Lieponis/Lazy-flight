@@ -204,3 +204,59 @@ Five images, for the small and short-range ships.
 | Cargo | Batch 5 shapes, small | Batch 1 shield-fronted chunky box | Not covered by the references: ask |
 | Passenger | Batch 5 oval or bubble shuttle | Batch 1 sleek teardrop / batch 4 yachts | Batch 3 long liners |
 | Explorer | Batch 5 sphere, manta or arrow | Batch 1 chunky explorer / batch 4 fat ships | Batch 1 long deep-space explorer / batch 4 ring ship |
+
+## Batch 6 (2026-11-27): Andy: "Cargo ship references." (sent after "that's all": the answer for cargo)
+
+Eleven images.
+
+- **Small, flat hauler:** a low, wide, flat wedge slab with chunky edges, hazard-stripe panels, a dark nose with
+  lights, and a small raised cab on top.
+- **White shuttle-van model:** a rounded white van-like body on a thick black "bumper" ring around the bottom edge
+  (like a hovercraft skirt), cockpit windows at the front, and two round engine pods on top at the back. A friendly
+  utility shuttle.
+- **Lunar freighter (sketch):**
+  - a long boxy hull, bigger at the back, on many splayed truss legs with skid feet;
+  - a big cylindrical tank on the side;
+  - solar or radiator panels sticking up in rows;
+  - a rear loading ramp;
+  - white over a dark lower half: industrial and believable.
+- **"Medium Cargo Transport 01B":**
+  - a long cylindrical cargo body wrapped in a lattice or geodesic frame, with ring bands at intervals;
+  - a crew and engine module at one end, with radiator panel wings sticking out;
+  - pure space hardware, never lands.
+- **Yellow tug and stack ship:**
+  - a vertical, modular spine of stacked parts: a ring or habitat collar, a cylinder module, a cluster of white
+    spherical tanks, a box module and twin engine pipes;
+  - very modular, like a construction toy.
+- **Orange cargo "train" (in a hangar):**
+  - a long, rounded, tube-like body with a big flat dark windscreen front, like a train cab;
+  - wheels or landing gear underneath, and a small swept wing at the back.
+- **Jakob Eirich open-deck carrier:**
+  - a long flat open cargo deck carrying containers in stacks, with two small cranes on deck;
+  - a raised angular cockpit and bridge block at the back;
+  - downward-pointing engine pods (lift thrusters) along the sides;
+  - like a flying container barge.
+- **"Kulgata" container carrier (250 m):**
+  - a huge long rectangular block of colourful containers held by a structural frame;
+  - a "C" or hook-shaped spine runs over the top from the engine block at the back and down at the front;
+  - big engines at the back, antennas.
+- **Grey container ship sketch (two views):**
+  - a long faceted hull with an angular wedge nose and round ports;
+  - a long open bay of colourful container blocks along the top;
+  - a big cluster of square engine boxes with round nozzles at the stern (8 nozzles);
+  - the clearest "space container ship" shape.
+- **Grey cargo frame with modules:**
+  - a long frame packed with two rows of large X-braced cargo modules and a yellow truss between them;
+  - a separate command pod at the front, on struts, with a bubble window;
+  - four big angled engine pods at the corners (two at the front, two at the back).
+- **Yellow tug fleet:**
+  - a compact, chunky body with a row of four big square engine blocks at the rear and long flat fins or vanes behind
+    them;
+  - many small copies in formation;
+  - a heavy-duty tug look.
+- **Common thread for cargo:**
+  - modular and boxy;
+  - the cargo is visible (container stacks, modules, tanks) and held by a frame, spine or deck;
+  - a separate cab or command module at the front or back;
+  - many engines in clusters or corner pods, plus landing legs or lift thrusters;
+  - industrial, believable detail.
