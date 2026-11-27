@@ -97,3 +97,46 @@ Four images, for the heavy (super long haul) passenger ship.
   - rows of small windows;
   - engines in separate rear nacelles on pylons;
   - a calm, luxurious, airliner or cruise feel.
+
+## Batch 4 (2026-11-27): Andy: "these can be used for either passenger or explorer; fat, sleek, sometimes pointy and sharp."
+
+Six images.
+
+- **White flying wing (landed on a plain):**
+  - a big swept delta or boomerang with a sharp pointed nose and a thick central body;
+  - long dark window slots along the wing's leading edges;
+  - two small canted tail fins, vents on top, crisp facets and knife edges;
+  - all white with black accents.
+- **White sleek racer-yacht (number 300i):**
+  - a long, low, pointed nose with a big dark bubble canopy;
+  - the body flows back into a wide, flat, looped wing frame: the wings curve back and down and join the body again,
+    making open "hoops";
+  - white with dark pinstripes and a few blue glints;
+  - elegant and fast.
+- **Fat white hover-yacht (over a city):**
+  - a broad, rounded, puffy hull seen nose-on, with heavy curved shoulders;
+  - big side engine housings glowing light blue, a recessed dark nose "mouth" and a dark canopy slot on top;
+  - chunky, soft but strong.
+- **White and black shuttle over Earth:**
+  - a fat, rounded body with a small cockpit window at the front;
+  - straight thin wings set high, with black leading edges;
+  - big black engine and equipment boxes on the wing roots;
+  - a black underside and lower panels;
+  - industrial, NASA-like.
+- **White saucer shuttle (toy-like):**
+  - a round saucer-shaped front with a wide window band and a boarding stair;
+  - it tapers back into a narrower body with ribbed panels on top;
+  - two long cylindrical engine pods on swept pylons, with orange glowing tips;
+  - simple, friendly, retro sci-fi.
+- **Silver ring-hull ship (Tymen Muller):**
+  - a long, smooth silver body: a flat leaf or spoon-shaped forward hull;
+  - a big hoop or arch rising over the middle of the ship;
+  - a long neck back to a rear engine block with side nacelles;
+  - small red and orange markers, red pinstripes, tiny window dashes;
+  - elegant, unusual, memorable silhouette.
+- **Common thread:**
+  - mostly white or silver hulls with black or dark accents and small coloured markers (red, orange, blue glows);
+  - mixes of fat rounded bodies and sharp pointed edges;
+  - wings and arches that form loops or hoops;
+  - big canopies and window bands;
+  - engines in clear side pods or nacelles.
