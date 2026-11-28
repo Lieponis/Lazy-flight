@@ -2798,6 +2798,348 @@ ship.position.y = 0.37;
 
 
     },
+  },
+  {
+    slug: "explorer-2", name: "Wanderwedge", cat: "Explorer", size: "medium",
+    home: [-3.9, 2.3, -4.0], target: [0.0, 0.5, 0.0], minD: 1.2, maxD: 16.0,
+    build(THREE, ship, partMaterial, addPart, addGroupPart) {
+
+function polyMesh(positions) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, partMaterial());
+}
+// loft through rings of points (each ring = [x,y,z][]); caps both ends
+function loftRings(rings) {
+  const n = rings[0].length, pos = [], tri = (a, b, c) => pos.push(...a, ...b, ...c);
+  for (let r = 0; r < rings.length - 1; r++) for (let i = 0; i < n; i++) {
+    const a = rings[r][i], b = rings[r][(i + 1) % n], c = rings[r + 1][(i + 1) % n], d = rings[r + 1][i];
+    tri(a, b, c); tri(a, c, d);
+  }
+  [0, rings.length - 1].forEach((r) => {
+    const c = [0, 1, 2].map((k) => rings[r].reduce((s, p) => s + p[k], 0) / n);
+    for (let i = 0; i < n; i++) tri(c, rings[r][i], rings[r][(i + 1) % n]);
+  });
+  return polyMesh(pos);
+}
+const V = (a) => new THREE.Vector3(...a);
+function strutBetween(p0, p1, radius, segs = 10) {
+  const dir = new THREE.Vector3().subVectors(p1, p0);
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, dir.length(), segs), partMaterial());
+  m.position.copy(p0).add(p1).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return m;
+}
+function beamBetween(p0, p1, sx, sz) {
+  const dir = new THREE.Vector3().subVectors(p1, p0);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(sx, dir.length(), sz), partMaterial());
+  m.position.copy(p0).add(p1).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return m;
+}
+function lathe(profile, x, y, segs = 20) { // profile [r, z] along the ship's z
+  const m = new THREE.Mesh(new THREE.LatheGeometry(profile.map(([r, t]) => new THREE.Vector2(r, t)), segs), partMaterial());
+  m.rotation.x = Math.PI / 2;
+  m.position.set(x, y, 0);
+  return m;
+}
+function groupOf(meshes) { const g = new THREE.Group(); meshes.forEach((m) => g.add(m)); return g; }
+const MIRROR = [1, -1];
+
+
+const HEX = Array.from({ length: 6 }, (_, i) => { const a = (i / 6) * Math.PI * 2; return [Math.cos(a), Math.sin(a)]; });
+const hexRing = (cx, cy, rx, ry, z) => HEX.map(([ux, uy]) => [cx + ux * rx, cy + uy * ry, z]);
+function hexBulge(cx, cy, st, nz, scale) {
+  const meshes = [loftRings(st.map(([z, rx, ry]) => hexRing(cx, cy, rx, ry, z)))];
+  const [z0, rx0, ry0] = st[st.length - 1];
+  const s = scale;
+  meshes.push(loftRings([
+    hexRing(cx, cy, rx0 * 0.98, ry0 * 0.98, z0 - 0.02),
+    hexRing(cx, cy, rx0 * 1.14, ry0 * 1.14, z0 + 0.05 * s),
+    hexRing(cx, cy, rx0 * 1.06, ry0 * 1.06, z0 + 0.11 * s),
+    hexRing(cx, cy, rx0 * 0.78, ry0 * 0.78, z0 + 0.11 * s),
+    hexRing(cx, cy, rx0 * 0.72, ry0 * 0.72, z0 + 0.04 * s),
+    hexRing(cx, cy, rx0 * 0.25, ry0 * 0.25, z0 + 0.08 * s),
+  ]));
+  // raised hex band and two side strakes along the bulge
+  const bz = nz;
+  meshes.push(loftRings([hexRing(cx, cy, rx0 * 1.06, ry0 * 1.06, bz - 0.025), hexRing(cx, cy, rx0 * 1.06, ry0 * 1.06, bz + 0.025)]));
+  return meshes;
+}
+
+function planeBasis(pts, outwardFrom) {
+  const p0 = V(pts[0]);
+  const u = V(pts[1]).sub(p0).normalize();
+  let n = new THREE.Vector3();
+  for (let i = 2; i < pts.length && n.lengthSq() < 1e-10; i++) n = V(pts[1]).sub(p0).cross(V(pts[i]).sub(p0));
+  n.normalize();
+  const ctr = pts.reduce((a, p) => a.add(V(p)), new THREE.Vector3()).multiplyScalar(1 / pts.length);
+  if (n.dot(ctr.clone().sub(V(outwardFrom(ctr)))) < 0) n.negate();
+  return { p0, u, v: new THREE.Vector3().crossVectors(n, u), n };
+}
+const to2 = (B, p) => { const d = V(p).sub(B.p0); return [d.dot(B.u), d.dot(B.v)]; };
+const to3 = (B, q, lift = 0) => B.p0.clone().addScaledVector(B.u, q[0]).addScaledVector(B.v, q[1]).addScaledVector(B.n, lift);
+function insetPoly(pts, d) {
+  const n = pts.length, lines = [];
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
+    lines.push({ px: a[0] - (dy / L) * d, py: a[1] + (dx / L) * d, dx, dy });
+  }
+  return lines.map((l1, i) => {
+    const l0 = lines[(i - 1 + n) % n];
+    const t = ((l1.px - l0.px) * l1.dy - (l1.py - l0.py) * l1.dx) / (l0.dx * l1.dy - l0.dy * l1.dx);
+    return [l0.px + l0.dx * t, l0.py + l0.dy * t];
+  });
+}
+function planarPanel(pts3, { outer = 0, inner = 0.025, proud = 0.008, fill = false, fillLift = 0.002, outwardFrom = outFromBox } = {}) {
+  const B = planeBasis(pts3, outwardFrom);
+  let p2 = pts3.map((p) => to2(B, p));
+  const area = p2.reduce((a, p, i) => { const q = p2[(i + 1) % p2.length]; return a + p[0] * q[1] - q[0] * p[1]; }, 0);
+  if (area < 0) p2 = p2.reverse();
+  const o = insetPoly(p2, outer), ii = insetPoly(p2, inner), n = o.length, pos = [];
+  const push = (...qs) => qs.forEach((q) => pos.push(q.x, q.y, q.z));
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const oT0 = to3(B, o[i], proud), oT1 = to3(B, o[j], proud), iT0 = to3(B, ii[i], proud), iT1 = to3(B, ii[j], proud);
+    const oB0 = to3(B, o[i], -proud), oB1 = to3(B, o[j], -proud), iB0 = to3(B, ii[i], -proud), iB1 = to3(B, ii[j], -proud);
+    push(oT0, oT1, iT1, oT0, iT1, iT0);
+    push(oB0, oB1, oT1, oB0, oT1, oT0);
+    push(iT0, iT1, iB1, iT0, iB1, iB0);
+  }
+  const meshes = [polyMesh(pos)];
+  if (fill) {
+    const g = [], c = ii.reduce((a, q) => [a[0] + q[0] / n, a[1] + q[1] / n], [0, 0]);
+    for (let i = 0; i < n; i++) g.push(...[c, ii[i], ii[(i + 1) % n]].flatMap((q) => to3(B, q, fillLift).toArray()));
+    meshes.push(polyMesh(g));
+  }
+  return { meshes, B };
+}
+function faceBox(B, centre3, su, sv, depth, lift) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(su, sv, depth), partMaterial());
+  m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(B.u, B.v, B.n));
+  m.position.copy(V(centre3)).addScaledVector(B.n, lift);
+  return m;
+}
+
+// ============================================================
+// EXPLORER 2 (medium). Explorer-line rules: wings, the body works as a
+// wing, engines are BULGES in the hull, exotic sci-fi shapes, no floating
+// parts. Andy's specifics for this ship: one wide thick lifting body with
+// a sleek cornered nose, thick tapered FIVE-CORNERED wings, five-cornered
+// canards beside the cockpit, 4 thruster bulges in a row, a cockpit of
+// ANGLED WINDOWS (not a canopy), no fins, 4 legs. Original design.
+// ============================================================
+const Y0 = -0.02;
+// Faceted body (same 12-corner section family as Explorer 1, wider and
+// thicker): side edge, upper chine, flat raised spine, lower chine, keel.
+const BODY = [
+  { z: -2.0, w: 0.0, t1: 0.0, t2: 0.0, b1: 0.0, b2: 0.0 },
+  { z: -1.75, w: 0.1, t1: 0.04, t2: 0.08, b1: 0.04, b2: 0.05 },
+  { z: -1.3, w: 0.26, t1: 0.12, t2: 0.22, b1: 0.08, b2: 0.12 },
+  // cockpit stretch (-1.3 .. -0.3): spine-to-chine drop kept exactly proportional
+  // to width, so the chine facets there are perfectly FLAT and windows sit flush
+  { z: -0.8, w: 0.42, t1: 0.32 - 0.42 * (0.1 / 0.26), t2: 0.32, b1: 0.1, b2: 0.17 },
+  { z: -0.3, w: 0.62, t1: 0.36 - 0.62 * (0.1 / 0.26), t2: 0.36, b1: 0.12, b2: 0.2 },
+  { z: 0.3, w: 0.8, t1: 0.17, t2: 0.37, b1: 0.12, b2: 0.21 },
+  { z: 0.9, w: 0.84, t1: 0.16, t2: 0.35, b1: 0.12, b2: 0.2 },
+  { z: 1.4, w: 0.8, t1: 0.14, t2: 0.32, b1: 0.11, b2: 0.18 },
+];
+function bodyAt(z) {
+  for (let i = 0; i < BODY.length - 1; i++) {
+    const a = BODY[i], b = BODY[i + 1];
+    if (z >= a.z && z <= b.z) { const t = (z - a.z) / (b.z - a.z), L = (k) => a[k] + t * (b[k] - a[k]); return { z, w: L("w"), t1: L("t1"), t2: L("t2"), b1: L("b1"), b2: L("b2") }; }
+  }
+  return { ...(z < BODY[0].z ? BODY[0] : BODY[BODY.length - 1]), z };
+}
+const edgeHalf = (s) => Math.min(0.11, s.w * 0.22); // thick blunt side edge (matches the wing root)
+function bodyCorners(s) {
+  const e = edgeHalf(s), w = s.w;
+  return [[w, Y0 - e], [w, Y0 + e], [0.6 * w, Y0 + s.t1], [0.2 * w, Y0 + s.t2], [-0.2 * w, Y0 + s.t2], [-0.6 * w, Y0 + s.t1],
+    [-w, Y0 + e], [-w, Y0 - e], [-0.55 * w, Y0 - s.b1], [-0.15 * w, Y0 - s.b2], [0.15 * w, Y0 - s.b2], [0.55 * w, Y0 - s.b1]];
+}
+const bodyRing = (s) => bodyCorners(s).map(([x, y]) => [x, y, s.z]);
+function topY(x, z) {
+  const s = bodyAt(z), ax = Math.abs(x), w = s.w || 1e-6, e = edgeHalf(s);
+  if (ax <= 0.2 * w) return Y0 + s.t2;
+  if (ax <= 0.6 * w) return Y0 + s.t2 + ((ax - 0.2 * w) / (0.4 * w)) * (s.t1 - s.t2);
+  return Y0 + s.t1 + ((Math.min(ax, w) - 0.6 * w) / (0.4 * w)) * (e - s.t1);
+}
+function bottomY(x, z) {
+  const s = bodyAt(z), ax = Math.abs(x), w = s.w || 1e-6, e = edgeHalf(s);
+  if (ax <= 0.15 * w) return Y0 - s.b2;
+  if (ax <= 0.55 * w) return Y0 - s.b2 + ((ax - 0.15 * w) / (0.4 * w)) * (s.b2 - s.b1);
+  return Y0 - s.b1 + ((Math.min(ax, w) - 0.55 * w) / (0.45 * w)) * (s.b1 - e);
+}
+const outFromBox = (p) => [0, Y0 + 0.08, p.z];
+addPart("hull", "Hull (wide faceted lifting body)", loftRings(BODY.map(bodyRing)));
+
+// ============================================================
+// COCKPIT: ANGLED WINDOWS set into the flat facets of the nose — a
+// sloped windshield on the spine facet (split by a centre post), an
+// angled pane on each upper chine facet beside it, and a second row of
+// angled side panes behind. Thick frames, flush.
+// ============================================================
+const S_A = BODY[2], S_B = BODY[3];
+const corner3 = (s, i) => { const [x, y] = bodyCorners(s)[i]; return [x, y, s.z]; };
+// interpolate a section at z between two BODY stations (exact, since faces are flat between them)
+const sectionAt = (z) => bodyAt(z);
+const WIN = { outer: 0.025, inner: 0.055, proud: 0.007, fill: true };
+const cockpitMeshes = [];
+{
+  // windshield: spine facet between z -1.28 and -0.86, split into two panes
+  const za = -1.26, zb = -0.86, A = sectionAt(za), B = sectionAt(zb);
+  const yA = Y0 + A.t2, yB = Y0 + B.t2, xA = 0.2 * A.w, xB = 0.2 * B.w;
+  [[-1, 0], [0, 1]].forEach(([u0, u1]) => {
+    cockpitMeshes.push(...planarPanel([[u0 * xA, yA, za], [u1 * xA, yA, za], [u1 * xB, yB, zb], [u0 * xB, yB, zb]], WIN).meshes);
+  });
+  // angled side panes on the upper chine facets (front row and second row)
+  MIRROR.forEach((sx) => {
+    [[-1.26, -0.86], [-0.76, -0.42]].forEach(([z0, z1]) => {
+      const P = sectionAt(z0), Q = sectionAt(z1);
+      const p = (s, f) => { const x = 0.2 * s.w + f * 0.4 * s.w, y = Y0 + s.t2 + f * (s.t1 - s.t2); return [sx * x, y, s.z]; };
+      cockpitMeshes.push(...planarPanel([p(P, 0.08), p(Q, 0.08), p(Q, 0.92), p(P, 0.75)], WIN).meshes);
+    });
+  });
+}
+addGroupPart("cockpitWindows", "Cockpit (angled windows)", groupOf(cockpitMeshes), cockpitMeshes);
+
+// ============================================================
+// FIVE-CORNERED SLABS: wings and canards are flat five-cornered
+// planforms with thickness that tapers toward the tip, and bevelled
+// (faceted) edges all round. Built from three outlines — the full
+// planform at mid-thickness, and an inset outline on top and bottom.
+// ============================================================
+function pentaSlab(outline, thickAt, bevel) {
+  // outline: [x, z] corners, convex, any winding
+  let o = outline.slice();
+  const area = o.reduce((a, p, i) => { const q = o[(i + 1) % o.length]; return a + p[0] * q[1] - q[0] * p[1]; }, 0);
+  if (area < 0) o = o.reverse();
+  const inner = insetPoly(o, bevel);
+  const top = inner.map(([x, z]) => [x, Y0 + thickAt(x) / 2, z]);
+  const mid = o.map(([x, z]) => [x, Y0, z]);
+  const bot = inner.map(([x, z]) => [x, Y0 - thickAt(x) / 2, z]);
+  const pos = [], tri = (a, b, c) => pos.push(...a, ...b, ...c), n = o.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    tri(mid[i], mid[j], top[j]); tri(mid[i], top[j], top[i]);
+    tri(bot[i], bot[j], mid[j]); tri(bot[i], mid[j], mid[i]);
+  }
+  const cT = [0, 1, 2].map((k) => top.reduce((a, p) => a + p[k], 0) / n), cB = [0, 1, 2].map((k) => bot.reduce((a, p) => a + p[k], 0) / n);
+  for (let i = 0; i < n; i++) { tri(cT, top[i], top[(i + 1) % n]); tri(cB, bot[(i + 1) % n], bot[i]); }
+  return polyMesh(pos);
+}
+// WINGS: root follows inside the body edge; LE kink; outermost tip corner;
+// trailing-edge corner; root rear. Thickness 0.22 at the root -> 0.08 at the tip.
+const WING_TIP_X = 1.72;
+const wingMeshes = [];
+MIRROR.forEach((sx) => {
+  const r0 = bodyAt(-0.1).w - 0.06, r1 = bodyAt(1.2).w - 0.06;
+  const outline = [[r0, -0.1], [1.4, 0.3], [WING_TIP_X, 0.78], [1.52, 1.15], [r1, 1.2]].map(([x, z]) => [sx * x, z]);
+  const thick = (x) => { const f = Math.min(1, Math.max(0, (Math.abs(x) - 0.62) / (WING_TIP_X - 0.62))); return 0.22 - 0.14 * f; };
+  wingMeshes.push(pentaSlab(outline, thick, 0.06));
+  // raised panel strips on the wing top: two strips parallel to the leading edge, sunk into the surface
+  [[0.95, 0.24, 1.42, 0.5], [0.95, 0.58, 1.42, 0.84]].forEach(([x0, z0, x1, z1]) => {
+    const y0 = Y0 + thick(x0) / 2 - 0.004, y1 = Y0 + thick(x1) / 2 - 0.004;
+    wingMeshes.push(beamBetween(V([sx * x0, y0, z0]), V([sx * x1, y1, z1]), 0.035, 0.016));
+  });
+});
+addGroupPart("wings", "Wings (5-cornered, thick, tapered)", groupOf(wingMeshes), wingMeshes);
+
+// CANARDS: small five-cornered slabs low on the fuselage sides beside
+// the cockpit, roots sunk into the body edge.
+const canardMeshes = [];
+MIRROR.forEach((sx) => {
+  const r0 = bodyAt(-1.28).w - 0.04, r1 = bodyAt(-0.66).w - 0.04;
+  const outline = [[r0, -1.28], [0.62, -1.06], [0.78, -0.84], [0.68, -0.64], [r1, -0.66]].map(([x, z]) => [sx * x, z]);
+  canardMeshes.push(pentaSlab(outline, (x) => { const f = Math.min(1, Math.max(0, (Math.abs(x) - 0.3) / 0.48)); return 0.1 - 0.05 * f; }, 0.03));
+});
+addGroupPart("canards", "Canards (5-cornered, beside cockpit)", groupOf(canardMeshes), canardMeshes);
+
+// ============================================================
+// FOUR HEX THRUSTER BULGES IN A ROW: two inner ones higher (following
+// the body's raised spine) and two outer ones lower (following the
+// shoulders). Each rises out of the body and ends in a stepped hex
+// nozzle with a band (same family as Explorer 1).
+// ============================================================
+const engineMeshes = [];
+[[0.22, 0.27], [0.6, 0.16]].forEach(([x, cy], i) => MIRROR.forEach((sx) => {
+  engineMeshes.push(...hexBulge(sx * x, cy, [[0.0, 0.03, 0.03], [0.3, 0.12, 0.1], [0.6, 0.15, 0.13], [1.4, 0.15, 0.13], [1.58, 0.14, 0.12]], 1.2, 1.1));
+}));
+addGroupPart("engines", "Thruster bulges (4 in a row, hexagonal)", groupOf(engineMeshes), engineMeshes);
+
+// ============================================================
+// HULL DETAILS: raised trims along the chines and spine edges, a crew
+// hatch outline on the spine behind the cockpit, vent grilles on the
+// shoulders, a dorsal sensor mast with a small dish, a ventral sensor
+// blister, and a nose sensor probe.
+// ============================================================
+const detailMeshes = [];
+function trimAlong(fx, key, z0, z1, r) {
+  const pts = Array.from({ length: 9 }, (_, i) => { const z = z0 + ((z1 - z0) * i) / 8, s = bodyAt(z); return [fx * s.w, Y0 + s[key], z]; });
+  for (let i = 0; i < pts.length - 1; i++) detailMeshes.push(strutBetween(V(pts[i]), V(pts[i + 1]), r, 6));
+}
+MIRROR.forEach((sx) => {
+  trimAlong(sx * 0.6, "t1", -1.7, 1.38, 0.009);
+  trimAlong(sx * 0.2, "t2", -0.36, 0.0, 0.008);
+  // shoulder vent grille: framed panel on the upper chine facet with slats
+  const z0 = 0.05, z1 = 0.45, P = bodyAt(z0), Q = bodyAt(z1);
+  const p = (s, f) => [sx * (0.2 * s.w + f * 0.4 * s.w), Y0 + s.t2 + f * (s.t1 - s.t2), s.z];
+  const vent = planarPanel([p(P, 0.15), p(Q, 0.15), p(Q, 0.5), p(P, 0.5)], { inner: 0.02, proud: 0.007, fill: true, fillLift: 0.001 });
+  detailMeshes.push(...vent.meshes);
+  for (let i = 0; i < 4; i++) {
+    const z = z0 + 0.07 + i * 0.09, s = bodyAt(z), c = p(s, 0.325);
+    detailMeshes.push(faceBox(vent.B, c, 0.012, 0.13, 0.012, 0.004));
+  }
+});
+{
+  // crew hatch on the spine facet
+  const za = -0.25, zb = 0.15, A = bodyAt(za), B = bodyAt(zb);
+  const hw = 0.11;
+  detailMeshes.push(...planarPanel([[-hw, Y0 + A.t2, za], [hw, Y0 + A.t2, za], [hw, Y0 + B.t2, zb], [-hw, Y0 + B.t2, zb]], { inner: 0.018, proud: 0.006, outwardFrom: (q) => [q.x, q.y - 1, q.z] }).meshes);
+  // dorsal sensor mast + dish, standing on the spine between the inner bulges' fronts
+  const mz = 0.1, my = Y0 + bodyAt(mz).t2;
+  detailMeshes.push(strutBetween(V([0, my - 0.03, mz]), V([0, my + 0.2, mz]), 0.016, 8));
+  const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.03, 0.035, 12), partMaterial());
+  dish.position.set(0, my + 0.21, mz);
+  dish.rotation.x = -0.5;
+  detailMeshes.push(dish);
+  // ventral sensor blister (faceted)
+  const bz = -0.5, by = bottomY(0, bz);
+  detailMeshes.push(loftRings([hexRing(0, by + 0.01, 0.0, 0.0, bz - 0.22), hexRing(0, by - 0.02, 0.09, 0.05, bz - 0.12), hexRing(0, by - 0.02, 0.09, 0.05, bz + 0.12), hexRing(0, by + 0.01, 0.0, 0.0, bz + 0.22)]));
+  // nose probe with two collars
+  detailMeshes.push(strutBetween(V([0, Y0, -1.85]), V([0, Y0, -2.35]), 0.012, 8));
+  [-2.08, -2.22].forEach((z) => detailMeshes.push(lathe([[0, z - 0.014], [0.024, z - 0.014], [0.024, z + 0.014], [0, z + 0.014]], 0, Y0, 6)));
+}
+addGroupPart("hullDetails", "Hull details (trims, hatch, vents, sensors, probe)", groupOf(detailMeshes), detailMeshes);
+
+// ============================================================
+// LEGS: four short, thick legs (front pair and rear pair). Round
+// struts, knee, actuator, hex pads. Struts start inside the body;
+// all pads level.
+// ============================================================
+const FOOT_Y = -0.46;
+function makeLeg(top, foot) {
+  const knee = top.clone().lerp(foot, 0.5).add(V([0, 0, -0.035]));
+  const kj = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), partMaterial());
+  kj.position.copy(knee);
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.035, 6), partMaterial());
+  pad.position.set(foot.x, FOOT_Y - 0.0175, foot.z);
+  return [strutBetween(top, knee, 0.04), strutBetween(knee, foot, 0.032),
+    strutBetween(top.clone().add(V([0, 0, 0.06])), knee.clone().add(V([0, 0.02, 0.03])), 0.014, 6), kj, pad];
+}
+const legMeshes = [];
+[[0.32, -0.6, 0.42], [0.58, 1.0, 0.7]].forEach(([xt, z, xf]) => MIRROR.forEach((sx) => legMeshes.push(...makeLeg(V([sx * xt, -0.12, z]), V([sx * xf, FOOT_Y, z + 0.04])))));
+addGroupPart("legs", "Legs (4, short & thick)", groupOf(legMeshes), legMeshes);
+
+ship.position.y = 0.5;
+
+
+
+
+
+
+    },
   }
 ];
 

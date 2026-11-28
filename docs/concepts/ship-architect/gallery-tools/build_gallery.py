@@ -21,6 +21,7 @@ SHIPS = [
     ("cargo-2", "Haul Monty", "Cargo", "medium"),
     ("cargo-3", "Stacks McGee", "Cargo", "large"),
     ("explorer-1", "Pocket Rocket", "Explorer", "small"),
+    ("explorer-2", "Wanderwedge", "Explorer", "medium"),
 ]
 
 def extract(slug):
