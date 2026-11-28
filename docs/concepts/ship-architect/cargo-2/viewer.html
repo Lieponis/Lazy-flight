@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Lazy Flight — Cargo Ship 2 (concept)</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#dfe4e9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow:hidden; }
+  #canvas-wrap { position:absolute; inset:0; }
+  canvas { display:block; touch-action:none; }
+  #title { position:absolute; top:10px; left:12px; right:12px; color:#2c3540; font-size:15px; font-weight:600; text-shadow: 0 1px 2px rgba(255,255,255,0.6); pointer-events:none; }
+  #title small { display:block; font-weight:400; font-size:12px; color:#56616d; margin-top:2px; }
+  #panel { position:absolute; left:0; right:0; bottom:0; background:rgba(255,255,255,0.92); border-top:1px solid #c3cad1; padding:10px 10px calc(10px + env(safe-area-inset-bottom)); max-height:46vh; overflow-y:auto; box-shadow: 0 -4px 14px rgba(0,0,0,0.08); }
+  #panel h2 { margin:0 0 8px; font-size:13px; color:#44505a; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+  .part-row { display:flex; align-items:center; gap:8px; padding:8px 6px; border-radius:8px; }
+  .part-row:active { background:#eef1f4; }
+  .part-row + .part-row { border-top:1px solid #edf0f2; }
+  .part-name { flex:1; font-size:14px; color:#2c3540; }
+  .btn { border:none; border-radius:7px; padding:7px 10px; font-size:12px; font-weight:600; cursor:pointer; -webkit-tap-highlight-color: transparent; }
+  .btn-toggle { background:#e4e8eb; color:#2c3540; min-width:58px; }
+  .btn-toggle.off { background:#f6d9d9; color:#8a3a3a; }
+  .btn-highlight { background:#ffcf6b; color:#5a4100; min-width:66px; }
+  .btn-highlight.active { background:#ff9e2c; color:#402700; }
+  #controls-hint { position:absolute; bottom:calc(46vh + 10px); left:0; right:0; text-align:center; font-size:11px; color:#5c6670; pointer-events:none; }
+  #reset { position:absolute; top:10px; right:12px; background:rgba(255,255,255,0.85); border:1px solid #c3cad1; border-radius:8px; padding:6px 10px; font-size:12px; color:#2c3540; font-weight:600; }
+</style>
+</head>
+<body>
+<div id="canvas-wrap"></div>
+<div id="title">Cargo Ship 2 — concept shape (medium)<small>Grey shape only — tap a part below to hide it or highlight it in orange</small></div>
+<div id="controls-hint">Drag to rotate &middot; pinch to zoom</div>
+<div id="panel">
+  <h2>Parts</h2>
+  <div id="part-list"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ============================================================
+// basic scene
+// ============================================================
+const wrap = document.getElementById("canvas-wrap");
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdfe4e9);
+
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.05, 200);
+const CAMERA_HOME = new THREE.Vector3(-4.2, 2.6, -3.9);
+camera.position.copy(CAMERA_HOME);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+wrap.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.8, 0.1);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 1.2;
+controls.maxDistance = 16;
+controls.update();
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f94, 1.0));
+const key = new THREE.DirectionalLight(0xffffff, 1.1);
+key.position.set(3, 4, 2);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.45);
+fill.position.set(-3, 1, -2);
+scene.add(fill);
+
+// ============================================================
+// materials — one colour, flat shaded; DoubleSide throughout since
+// several parts here are hand-built loft/panel geometry where I'd
+// rather guarantee visibility than risk a stray winding order.
+// ============================================================
+const GREY = 0x9aa1a8;
+const HILITE = 0xff9e2c;
+const baseMat = new THREE.MeshStandardMaterial({ color: GREY, flatShading: true, roughness: 0.75, metalness: 0.05, side: THREE.DoubleSide });
+function partMaterial() { return baseMat.clone(); }
+
+const ship = new THREE.Group();
+ship.name = "Cargo Ship 2";
+scene.add(ship);
+
+const parts = [];
+function addPart(key, label, mesh) {
+  mesh.name = key;
+  ship.add(mesh);
+  parts.push({ key, label, mesh, visible: true, highlighted: false });
+  return mesh;
+}
+function addGroupPart(key, label, group, meshes) {
+  group.name = key;
+  ship.add(group);
+  parts.push({ key, label, mesh: group, visible: true, highlighted: false, multi: meshes });
+  return group;
+}
+
+// ============================================================
+// SHAPE LANGUAGE (same family as Cargo 1): every cross-section is an
+// octagon — a rectangle with 45-degree cut corners — so every face is
+// perfectly FLAT and panels, doors and plates sit exactly flush.
+// Two bodies: a long CARGO BOX, and a lower, narrower CAB module
+// bolted onto its front (its back end is buried inside the box).
+// ============================================================
+function octa(s) {
+  const { w, h, c, cy } = s;
+  return [[w, cy + h - c], [w - c, cy + h], [-(w - c), cy + h], [-w, cy + h - c],
+    [-w, cy - h + c], [-(w - c), cy - h], [w - c, cy - h], [w, cy - h + c]];
+}
+// faces k: 0 top-right chamfer, 1 top, 2 top-left chamfer, 3 left side,
+// 4 bottom-left chamfer, 5 bottom, 6 bottom-right chamfer, 7 right side
+const cornerOf = (s, k) => { const p = octa(s)[k % 8]; return [p[0], p[1], s.z]; };
+const faceQuad = (S, a, b, k) => [cornerOf(S[a], k), cornerOf(S[a], k + 1), cornerOf(S[b], k + 1), cornerOf(S[b], k)];
+function loftMesh(S, capFront = true, capBack = true) {
+  const pos = [], tri = (a, b, c) => pos.push(...a, ...b, ...c);
+  for (let s = 0; s < S.length - 1; s++) for (let k = 0; k < 8; k++) {
+    const [a, b, c, d] = faceQuad(S, s, s + 1, k);
+    tri(a, b, c); tri(a, c, d);
+  }
+  const caps = [];
+  if (capFront) caps.push(0);
+  if (capBack) caps.push(S.length - 1);
+  caps.forEach((si) => { const s = S[si]; for (let k = 0; k < 8; k++) tri([0, s.cy, s.z], cornerOf(s, k), cornerOf(s, k + 1)); });
+  return polyMesh(pos);
+}
+function polyMesh(positions) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, partMaterial());
+}
+const centreAt = (S) => (z) => {
+  if (z <= S[0].z) return S[0].cy;
+  for (let i = 0; i < S.length - 1; i++) if (z <= S[i + 1].z) {
+    const t = (z - S[i].z) / (S[i + 1].z - S[i].z);
+    return S[i].cy + t * (S[i + 1].cy - S[i].cy);
+  }
+  return S[S.length - 1].cy;
+};
+
+// CARGO BOX: 1.3 wide, 1.0 tall; flat belly slopes up at the stern (ramp)
+const BOX = [
+  { z: -1.25, w: 0.65, h: 0.5, c: 0.16, cy: 0 },
+  { z: 1.35, w: 0.65, h: 0.5, c: 0.16, cy: 0 },
+  { z: 1.9, w: 0.65, h: 0.4, c: 0.16, cy: 0.1 },
+];
+// CAB: lower and narrower; small front face, sloped windshield, buried back end
+const CAB = [
+  { z: -1.95, w: 0.36, h: 0.24, c: 0.09, cy: -0.18 }, // front face
+  { z: -1.75, w: 0.5, h: 0.34, c: 0.12, cy: -0.13 },  // windshield bottom
+  { z: -1.45, w: 0.55, h: 0.42, c: 0.14, cy: -0.06 }, // windshield top
+  { z: -1.15, w: 0.55, h: 0.42, c: 0.14, cy: -0.06 }, // buried inside the box
+];
+const boxMesh = loftMesh(BOX), cabMesh = loftMesh(CAB);
+addPart("hull", "Hull (cargo box)", boxMesh);
+addPart("cab", "Cab module", cabMesh);
+const outFromBox = (p) => [0, centreAt(BOX)(p.z), p.z];
+const outFromCab = (p) => [0, centreAt(CAB)(p.z), p.z];
+
+// ============================================================
+// SHARED: flat panels that sit flush on a flat face (from Cargo 1).
+// planarPanel: a frame ring centred ON the face (half buried, barely
+// proud) between the outline inset by `outer` and by `inner`, plus an
+// optional glass/plate filling the opening a hair off the face.
+// ============================================================
+const V = (a) => new THREE.Vector3(...a);
+function planeBasis(pts, outwardFrom) {
+  const p0 = V(pts[0]);
+  const u = V(pts[1]).sub(p0).normalize();
+  let n = new THREE.Vector3();
+  for (let i = 2; i < pts.length && n.lengthSq() < 1e-10; i++) n = V(pts[1]).sub(p0).cross(V(pts[i]).sub(p0));
+  n.normalize();
+  const ctr = pts.reduce((a, p) => a.add(V(p)), new THREE.Vector3()).multiplyScalar(1 / pts.length);
+  if (n.dot(ctr.clone().sub(V(outwardFrom(ctr)))) < 0) n.negate();
+  return { p0, u, v: new THREE.Vector3().crossVectors(n, u), n };
+}
+const to2 = (B, p) => { const d = V(p).sub(B.p0); return [d.dot(B.u), d.dot(B.v)]; };
+const to3 = (B, q, lift = 0) => B.p0.clone().addScaledVector(B.u, q[0]).addScaledVector(B.v, q[1]).addScaledVector(B.n, lift);
+function insetPoly(pts, d) {
+  const n = pts.length, lines = [];
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
+    lines.push({ px: a[0] - (dy / L) * d, py: a[1] + (dx / L) * d, dx, dy });
+  }
+  return lines.map((l1, i) => {
+    const l0 = lines[(i - 1 + n) % n];
+    const t = ((l1.px - l0.px) * l1.dy - (l1.py - l0.py) * l1.dx) / (l0.dx * l1.dy - l0.dy * l1.dx);
+    return [l0.px + l0.dx * t, l0.py + l0.dy * t];
+  });
+}
+function planarPanel(pts3, { outer = 0, inner = 0.025, proud = 0.008, fill = false, fillLift = 0.002, outwardFrom = outFromBox } = {}) {
+  const B = planeBasis(pts3, outwardFrom);
+  let p2 = pts3.map((p) => to2(B, p));
+  const area = p2.reduce((a, p, i) => { const q = p2[(i + 1) % p2.length]; return a + p[0] * q[1] - q[0] * p[1]; }, 0);
+  if (area < 0) p2 = p2.reverse();
+  const o = insetPoly(p2, outer), ii = insetPoly(p2, inner), n = o.length, pos = [];
+  const push = (...qs) => qs.forEach((q) => pos.push(q.x, q.y, q.z));
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const oT0 = to3(B, o[i], proud), oT1 = to3(B, o[j], proud), iT0 = to3(B, ii[i], proud), iT1 = to3(B, ii[j], proud);
+    const oB0 = to3(B, o[i], -proud), oB1 = to3(B, o[j], -proud), iB0 = to3(B, ii[i], -proud), iB1 = to3(B, ii[j], -proud);
+    push(oT0, oT1, iT1, oT0, iT1, iT0);
+    push(oB0, oB1, oT1, oB0, oT1, oT0);
+    push(iT0, iT1, iB1, iT0, iB1, iB0);
+  }
+  const meshes = [polyMesh(pos)];
+  if (fill) {
+    const g = [], c = ii.reduce((a, q) => [a[0] + q[0] / n, a[1] + q[1] / n], [0, 0]);
+    for (let i = 0; i < n; i++) g.push(...[c, ii[i], ii[(i + 1) % n]].flatMap((q) => to3(B, q, fillLift).toArray()));
+    meshes.push(polyMesh(g));
+  }
+  return { meshes, B };
+}
+function faceBox(B, centre3, su, sv, depth, lift) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(su, sv, depth), partMaterial());
+  m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(B.u, B.v, B.n));
+  m.position.copy(V(centre3)).addScaledVector(B.n, lift);
+  return m;
+}
+function strutBetween(p0, p1, radius, segs = 10) {
+  const dir = new THREE.Vector3().subVectors(p1, p0);
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, dir.length(), segs), partMaterial());
+  mesh.position.copy(p0).add(p1).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return mesh;
+}
+function groupOf(meshes) { const g = new THREE.Group(); meshes.forEach((m) => g.add(m)); return g; }
+const MIRROR = [1, -1];
+const boxSideQuad = (sx, z0, z1, y0, y1) => [[sx * BOX[0].w, y0, z0], [sx * BOX[0].w, y0, z1], [sx * BOX[0].w, y1, z1], [sx * BOX[0].w, y1, z0]];
+const ROOF_Y = BOX[0].cy + BOX[0].h;
+const roofQuad = (x0, x1, z0, z1) => [[x0, ROOF_Y, z0], [x1, ROOF_Y, z0], [x1, ROOF_Y, z1], [x0, ROOF_Y, z1]];
+
+// ============================================================
+// COCKPIT WINDOWS: angular TNL-style panes in the cab's flat sloped
+// faces — a big trapezoid on the top slope, a pane on each top
+// chamfer, and a triangular pane high on each side. Thick flush frames.
+// ============================================================
+const WS = { outer: 0.03, inner: 0.062, proud: 0.007, fill: true, outwardFrom: outFromCab };
+const cockpitMeshes = [];
+[1, 0, 2].forEach((k) => cockpitMeshes.push(...planarPanel(faceQuad(CAB, 1, 2, k), WS).meshes));
+MIRROR.forEach((sx) => {
+  const k = sx > 0 ? 0 : 3;
+  cockpitMeshes.push(...planarPanel([cornerOf(CAB[1], k), cornerOf(CAB[2], k), [sx * CAB[2].w, -0.02, CAB[2].z]], WS).meshes);
+});
+addGroupPart("cockpitWindows", "Cockpit windows (angular)", groupOf(cockpitMeshes), cockpitMeshes);
+
+// ============================================================
+// CAB DETAILS: a framed slatted grille and two headlight boxes on the
+// cab's front face, and a raised collar band where the cab meets the box.
+// ============================================================
+function offsetStation(s, d) { return { ...s, w: s.w + d, h: s.h + d, c: s.c + d * (2 - Math.SQRT2) }; }
+function band(S0, z0, z1, d) {
+  const out = offsetStation(S0, d), inn = offsetStation(S0, -0.02);
+  const pos = [], tri = (a, b, c) => pos.push(...a, ...b, ...c);
+  const P = (s, k, z) => { const p = octa(s)[k % 8]; return [p[0], p[1], z]; };
+  for (let k = 0; k < 8; k++) {
+    tri(P(out, k, z0), P(out, k + 1, z0), P(out, k + 1, z1)); tri(P(out, k, z0), P(out, k + 1, z1), P(out, k, z1));
+    [z0, z1].forEach((z) => { tri(P(inn, k, z), P(inn, k + 1, z), P(out, k + 1, z)); tri(P(inn, k, z), P(out, k + 1, z), P(out, k, z)); });
+  }
+  return polyMesh(pos);
+}
+const cabDetailMeshes = [];
+{
+  const f = CAB[0], fz = f.z, outFront = (p) => [p.x, p.y, p.z + 1];
+  const grille = planarPanel([[-0.22, f.cy - 0.14, fz], [0.22, f.cy - 0.14, fz], [0.22, f.cy + 0.06, fz], [-0.22, f.cy + 0.06, fz]],
+    { outer: 0, inner: 0.025, proud: 0.012, fill: true, fillLift: 0.002, outwardFrom: outFront });
+  cabDetailMeshes.push(...grille.meshes);
+  for (let i = 0; i < 4; i++) cabDetailMeshes.push(faceBox(grille.B, [0, f.cy - 0.1 + i * 0.04, fz], 0.36, 0.012, 0.02, 0.008));
+  MIRROR.forEach((sx) => cabDetailMeshes.push(faceBox(grille.B, [sx * 0.27, f.cy + 0.12, fz], 0.08, 0.05, 0.05, 0.01)));
+  cabDetailMeshes.push(band(CAB[2], -1.37, -1.29, 0.025));
+}
+addGroupPart("cabDetails", "Cab details (grille, lights, collar)", groupOf(cabDetailMeshes), cabDetailMeshes);
+
+// ============================================================
+// PILOT DOORS: a door outline on each side of the box right behind
+// the cab, with handle and step.
+// ============================================================
+const pilotMeshes = [];
+MIRROR.forEach((sx) => {
+  const d = planarPanel(boxSideQuad(sx, -1.13, -0.85, -0.3, 0.24), { inner: 0.018, proud: 0.006 });
+  pilotMeshes.push(...d.meshes);
+  pilotMeshes.push(faceBox(d.B, [sx * BOX[0].w, -0.02, -0.89], 0.02, 0.07, 0.03, 0.012));
+  pilotMeshes.push(faceBox(d.B, [sx * BOX[0].w, -0.33, -0.99], 0.24, 0.025, 0.09, 0.02));
+});
+addGroupPart("pilotDoors", "Pilot doors (outlines)", groupOf(pilotMeshes), pilotMeshes);
+
+// ============================================================
+// SIDE CARGO DOORS: a big double door on each side of the box —
+// outline, centre seam, hinge strips at both outer edges, two
+// handles and a lower guide rail.
+// ============================================================
+const sideDoorMeshes = [];
+MIRROR.forEach((sx) => {
+  const z0 = -0.25, z1 = 0.55, y0 = -0.3, y1 = 0.3, x = sx * BOX[0].w;
+  const d = planarPanel(boxSideQuad(sx, z0, z1, y0, y1), { inner: 0.022, proud: 0.007 });
+  sideDoorMeshes.push(...d.meshes);
+  const zm = (z0 + z1) / 2;
+  sideDoorMeshes.push(faceBox(d.B, [x, 0, zm], 0.012, y1 - y0 - 0.04, 0.012, 0.004));                 // centre seam
+  [z0 + 0.04, z1 - 0.04].forEach((z) => [-0.18, 0.0, 0.18].forEach((y) => sideDoorMeshes.push(faceBox(d.B, [x, y, z], 0.03, 0.07, 0.024, 0.01)))); // hinges
+  [zm - 0.05, zm + 0.05].forEach((z) => sideDoorMeshes.push(faceBox(d.B, [x, 0.0, z], 0.022, 0.12, 0.03, 0.014))); // handles
+  sideDoorMeshes.push(faceBox(d.B, [x, y0 - 0.035, zm], z1 - z0 + 0.1, 0.02, 0.03, 0.012));          // guide rail
+});
+addGroupPart("cargoDoorsSide", "Cargo doors (sides)", groupOf(sideDoorMeshes), sideDoorMeshes);
+
+// ============================================================
+// ARMOUR PLATES ("shield panels"): thick bevelled plates bolted onto
+// the box sides, either side of the cargo doors, with a row of bolt
+// heads along the top and bottom edges. Their backs are sunk into
+// the side so they sit tight against it.
+// ============================================================
+function armourPlate(B, centre3, su, sv, thick) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-su / 2, -sv / 2); shape.lineTo(su / 2, -sv / 2); shape.lineTo(su / 2, sv / 2); shape.lineTo(-su / 2, sv / 2); shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.014, bevelSegments: 1 });
+  const plate = new THREE.Mesh(geo, partMaterial());
+  plate.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(B.u, B.v, B.n));
+  plate.position.copy(V(centre3)).addScaledVector(B.n, -0.004);
+  const meshes = [plate];
+  const top = thick + 0.012 - 0.004;
+  const cols = Math.max(2, Math.round(su / 0.14));
+  for (let i = 0; i < cols; i++) [-1, 1].forEach((sy) => {
+    const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.016, 8), partMaterial());
+    bolt.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.n);
+    const uOff = -su / 2 + 0.04 + (i * (su - 0.08)) / (cols - 1);
+    bolt.position.copy(V(centre3)).addScaledVector(B.u, uOff).addScaledVector(B.v, sy * (sv / 2 - 0.035)).addScaledVector(B.n, top + 0.004);
+    meshes.push(bolt);
+  });
+  return meshes;
+}
+const armourMeshes = [];
+MIRROR.forEach((sx) => {
+  const B = planeBasis(boxSideQuad(sx, -0.8, -0.3, -0.3, 0.3), outFromBox);
+  [[-0.55, 0.42], [0.95, 0.66]].forEach(([zc, len]) => armourMeshes.push(...armourPlate(B, [sx * BOX[0].w, 0, zc], len, 0.54, 0.022)));
+});
+addGroupPart("armour", "Armour plates (bolted side shields)", groupOf(armourMeshes), armourMeshes);
+
+// ============================================================
+// ROOF: two cargo hatch outlines (each with a seam and two handles),
+// two long roof rails on posts (structural members), a small sensor
+// housing and an antenna.
+// ============================================================
+const roofMeshes = [];
+const outUp = (p) => [p.x, p.y - 1, p.z];
+[[-0.95, -0.3], [0.0, 0.65]].forEach(([z0, z1]) => {
+  const h = planarPanel(roofQuad(-0.3, 0.3, z0, z1), { inner: 0.022, proud: 0.007, outwardFrom: outUp });
+  roofMeshes.push(...h.meshes);
+  const zm = (z0 + z1) / 2;
+  roofMeshes.push(faceBox(h.B, [0, ROOF_Y, zm], 0.012, 0.56, 0.012, 0.004));
+  [-0.15, 0.15].forEach((x) => roofMeshes.push(faceBox(h.B, [x, ROOF_Y, zm + (x < 0 ? -0.07 : 0.07)], 0.12, 0.024, 0.03, 0.014)));
+});
+MIRROR.forEach((sx) => {
+  const x = sx * 0.42, yRail = ROOF_Y + 0.06;
+  roofMeshes.push(strutBetween(V([x, yRail, -1.15]), V([x, yRail, 1.75]), 0.016));
+  [-1.1, -0.65, -0.15, 0.4, 0.85, 1.3, 1.7].forEach((z) => roofMeshes.push(strutBetween(V([x, ROOF_Y - 0.02, z]), V([x, yRail, z]), 0.012, 8)));
+});
+{
+  const housing = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.07, 0.26), partMaterial());
+  housing.position.set(0, ROOF_Y + 0.025, 1.05);
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.02, 0.18), partMaterial());
+  lid.position.set(0, ROOF_Y + 0.07, 1.05);
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.009, 0.24, 6), partMaterial());
+  antenna.position.set(0.1, ROOF_Y + 0.12, 1.45);
+  roofMeshes.push(housing, lid, antenna);
+}
+addGroupPart("roof", "Roof hatches, rails & sensors", groupOf(roofMeshes), roofMeshes);
+
+// ============================================================
+// CARGO RAMP: rear loading ramp outline on the sloped rear belly,
+// with grip ribs and a hinge bar.
+// ============================================================
+const rampMeshes = [];
+{
+  const b1 = BOX[1], b2 = BOX[2];
+  const yAt = (z) => (b1.cy - b1.h) + ((z - b1.z) / (b2.z - b1.z)) * ((b2.cy - b2.h) - (b1.cy - b1.h));
+  const z0 = 1.41, z1 = 1.86, hw = 0.4;
+  const ramp = planarPanel([[-hw, yAt(z0), z0], [hw, yAt(z0), z0], [hw, yAt(z1), z1], [-hw, yAt(z1), z1]], { inner: 0.024, proud: 0.006 });
+  rampMeshes.push(...ramp.meshes);
+  [1.5, 1.59, 1.68, 1.77].forEach((z) => rampMeshes.push(faceBox(ramp.B, [0, yAt(z), z], 0.62, 0.014, 0.012, 0.004)));
+  const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.74, 10), partMaterial());
+  hinge.rotation.z = Math.PI / 2;
+  hinge.position.set(0, yAt(1.88) - 0.006, 1.88);
+  rampMeshes.push(hinge);
+}
+addGroupPart("cargoRamp", "Cargo ramp (rear, outline)", groupOf(rampMeshes), rampMeshes);
+
+// ============================================================
+// ENGINES: 5 round thrusters (two up top, one low in the centre, one
+// in each lower corner) on a wide mounting plate that covers nearly
+// the whole rear face — big cut corners at the top, small ones at the
+// bottom (Andy's sketch). The plate is held OFF the rear face by an
+// exposed frame (struts plus diagonal braces). Thrusters are closed
+// lathe profiles (no holes), each with a ring band. Sits above the ramp.
+// ============================================================
+const engineMeshes = [];
+const PLATE = { w: 0.6, top: 0.5, bot: -0.16, ct: 0.14, cb: 0.04 }, PZ0 = 2.05, PZ1 = 2.13, REAR = BOX[2].z;
+function plateOutline(P) {
+  return [[P.w, P.top - P.ct], [P.w - P.ct, P.top], [-(P.w - P.ct), P.top], [-P.w, P.top - P.ct],
+    [-P.w, P.bot + P.cb], [-(P.w - P.cb), P.bot], [P.w - P.cb, P.bot], [P.w, P.bot + P.cb]];
+}
+{
+  const pos = [], tri = (a, b, c) => pos.push(...a, ...b, ...c);
+  const ol = plateOutline(PLATE), cy = (PLATE.top + PLATE.bot) / 2;
+  for (let k = 0; k < 8; k++) {
+    const [xa, ya] = ol[k], [xb, yb] = ol[(k + 1) % 8];
+    tri([xa, ya, PZ0], [xb, yb, PZ0], [xb, yb, PZ1]); tri([xa, ya, PZ0], [xb, yb, PZ1], [xa, ya, PZ1]);
+    tri([0, cy, PZ0], [xb, yb, PZ0], [xa, ya, PZ0]); tri([0, cy, PZ1], [xa, ya, PZ1], [xb, yb, PZ1]);
+  }
+  engineMeshes.push(polyMesh(pos));
+  // a raised rim around the plate's rear face
+  engineMeshes.push(...planarPanel(ol.map(([x, y]) => [x, y, PZ1]), { inner: 0.03, proud: 0.01, outwardFrom: (q) => [q.x, q.y, q.z - 1] }).meshes);
+  // exposed mount frame: 8 struts from the rear face to the plate + 4 diagonal braces
+  const corners = plateOutline({ ...PLATE, w: PLATE.w - 0.05, top: PLATE.top - 0.05, bot: PLATE.bot + 0.05, ct: PLATE.ct - 0.02, cb: 0.02 });
+  corners.forEach(([x, y]) => engineMeshes.push(strutBetween(V([x, y, REAR - 0.03]), V([x, y, PZ0 + 0.02]), 0.018)));
+  [[0, 3], [1, 6], [2, 5], [4, 7]].forEach(([i, j]) => {
+    const [xa, ya] = corners[i], [xb, yb] = corners[j];
+    engineMeshes.push(strutBetween(V([xa, ya, REAR - 0.02]), V([xb, yb, PZ0 + 0.01]), 0.011, 8));
+  });
+}
+const THRUSTER = [[0, 0], [0.1, 0], [0.125, 0.045], [0.115, 0.095], [0.135, 0.17], [0.152, 0.32], [0.142, 0.335], [0.095, 0.31], [0.06, 0.29], [0, 0.29]];
+const THRUSTER_XY = [[-0.2, 0.32], [0.2, 0.32], [0, 0.03], [-0.43, 0.06], [0.43, 0.06]];
+THRUSTER_XY.forEach(([x, y]) => {
+  const m = new THREE.Mesh(new THREE.LatheGeometry(THRUSTER.map(([r, t]) => new THREE.Vector2(r, PZ0 + 0.03 + t)), 24), partMaterial());
+  m.rotation.x = Math.PI / 2;
+  m.position.set(x, y, 0);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.128, 0.011, 6, 22), partMaterial());
+  ring.position.set(x, y, PZ1 + 0.05);
+  engineMeshes.push(m, ring);
+});
+addGroupPart("engines", "Engines (5 thrusters + mount plate & frame)", groupOf(engineMeshes), engineMeshes);
+
+// ============================================================
+// STABILISERS: two angular fins on the lower rear chamfers (the 45-
+// degree cut corners under the back of the box), pointing straight
+// out of the chamfer — down and outward — and swept back so the tip
+// sits near the stern (Andy's sketch). Industrial look: flat faces with
+// bevelled leading/trailing edges rather than a smooth airfoil. Each
+// fin's root is sunk through a bolted mounting plate on the chamfer.
+// ============================================================
+function boxStationAt(z) {
+  const S = BOX;
+  if (z <= S[0].z) return { ...S[0], z };
+  for (let i = 0; i < S.length - 1; i++) if (z <= S[i + 1].z) {
+    const t = (z - S[i].z) / (S[i + 1].z - S[i].z), a = S[i], b = S[i + 1];
+    return { z, w: a.w + t * (b.w - a.w), h: a.h + t * (b.h - a.h), c: a.c + t * (b.c - a.c), cy: a.cy + t * (b.cy - a.cy) };
+  }
+  return { ...S[S.length - 1], z };
+}
+// midpoint of a lower chamfer (face 6 on the right, 4 on the left) at z
+function lowerChamferMid(sx, z) {
+  const st = boxStationAt(z), k = sx > 0 ? 6 : 4;
+  const a = cornerOf(st, k), b = cornerOf(st, k + 1);
+  return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, z];
+}
+const FIN = { rootLE: 1.3, rootChord: 0.56, tipLE: 1.8, tipChord: 0.12, span: 0.45, thickRoot: 0.05, thickTip: 0.034, sink: 0.03 };
+const FIN_SECTION = [[0.12, 1], [0.88, 1]]; // flat sides, bevelled edges
+function buildFin(sx) {
+  const dx = sx * Math.SQRT1_2, dy = -Math.SQRT1_2; // straight out of the chamfer
+  const nx = -dy, ny = dx;                          // across the fin's thickness
+  const rings = [], N = 6;
+  for (let k = 0; k <= N; k++) {
+    const s = k / N;
+    const le = FIN.rootLE + (FIN.tipLE - FIN.rootLE) * s, ch = FIN.rootChord + (FIN.tipChord - FIN.rootChord) * s;
+    const halfT = (FIN.thickRoot + (FIN.thickTip - FIN.thickRoot) * s) / 2;
+    const at = (f, side, rel) => {
+      const [bx, by] = lowerChamferMid(sx, FIN.rootLE + f * FIN.rootChord);
+      const out = -FIN.sink + FIN.span * s, h = side * halfT * rel;
+      return [bx + dx * out + nx * h, by + dy * out + ny * h, le + f * ch];
+    };
+    const ring = [at(0, 0, 0)];
+    FIN_SECTION.forEach(([f, rel]) => ring.push(at(f, 1, rel)));
+    ring.push(at(1, 0, 0));
+    [...FIN_SECTION].reverse().forEach(([f, rel]) => ring.push(at(f, -1, rel)));
+    rings.push(ring);
+  }
+  const n = rings[0].length, pos = [], P = (k, i) => rings[k][i % n];
+  const tri = (a, b, c) => pos.push(...a, ...b, ...c);
+  for (let k = 0; k < N; k++) for (let i = 0; i < n; i++) { tri(P(k, i), P(k, i + 1), P(k + 1, i + 1)); tri(P(k, i), P(k + 1, i + 1), P(k + 1, i)); }
+  [0, N].forEach((k) => { const c = [0, 1, 2].map((j) => rings[k].reduce((a, p) => a + p[j], 0) / n); for (let i = 0; i < n; i++) tri(c, P(k, i), P(k, i + 1)); });
+  return polyMesh(pos);
+}
+const finMeshes = [];
+MIRROR.forEach((sx) => {
+  finMeshes.push(buildFin(sx));
+  // a raised stiffening rib along the fin's outer face, from root to near the tip
+  const dx = sx * Math.SQRT1_2, dy = -Math.SQRT1_2, nx = -dy * sx, ny = dx * sx;
+  const r0 = lowerChamferMid(sx, 1.45), r1 = lowerChamferMid(sx, 1.82);
+  const p0 = V([r0[0] + dx * 0.02, r0[1] + dy * 0.02, 1.45]), p1 = V([r1[0] + dx * 0.36, r1[1] + dy * 0.36, 1.84]);
+  [1, -1].forEach((side) => {
+    const off = new THREE.Vector3(nx, ny, 0).multiplyScalar(side * 0.028);
+    finMeshes.push(strutBetween(p0.clone().add(off), p1.clone().add(off), 0.01, 6));
+  });
+  // bolted mounting plate on the chamfer under the fin root
+  const k = sx > 0 ? 6 : 4;
+  const quad = [cornerOf(BOX[1], k), cornerOf(BOX[2], k), cornerOf(BOX[2], k + 1), cornerOf(BOX[1], k + 1)];
+  const B = planeBasis(quad, outFromBox);
+  const mid = lowerChamferMid(sx, 1.56);
+  finMeshes.push(...armourPlate(B, mid, 0.7, 0.13, 0.016));
+});
+addGroupPart("stabilisers", "Stabilisers (2, on rear chamfers)", groupOf(finMeshes), finMeshes);
+
+// ============================================================
+// LEGS: six legs in three pairs along the belly, on the lower
+// chamfers. Each: upper strut, knee joint, actuator rod, lower
+// strut, flat pad. Struts start inside the box; all pads level.
+// ============================================================
+const FOOT_Y = -0.8;
+function makeLeg(top, foot) {
+  const knee = top.clone().lerp(foot, 0.5).add(new THREE.Vector3(0, 0, -0.05));
+  const kj = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 8), partMaterial());
+  kj.position.copy(knee);
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 12), partMaterial());
+  pad.position.set(foot.x, FOOT_Y - 0.02, foot.z);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.011, 6, 16), partMaterial());
+  ring.rotation.x = Math.PI / 2;
+  ring.position.set(foot.x, FOOT_Y + 0.004, foot.z);
+  return [
+    strutBetween(top, knee, 0.034), strutBetween(knee, foot, 0.027),
+    strutBetween(top.clone().add(new THREE.Vector3(0, 0, 0.07)), knee.clone().add(new THREE.Vector3(0, 0.03, 0.035)), 0.012, 6),
+    kj, pad, ring,
+  ];
+}
+const legMeshes = [];
+[-0.85, 0.15, 1.15].forEach((z) => MIRROR.forEach((sx) => legMeshes.push(...makeLeg(V([sx * 0.5, -0.4, z]), V([sx * 0.64, FOOT_Y, z + 0.04])))));
+addGroupPart("legs", "Legs (6, three pairs)", groupOf(legMeshes), legMeshes);
+
+ship.position.y = 0.8;
+
+
+
+// ============================================================
+// part list UI
+// ============================================================
+const listEl = document.getElementById("part-list");
+function setHighlight(p, on) {
+  p.highlighted = on;
+  const meshes = p.multi || [p.mesh];
+  meshes.forEach((m) => m.material.color.set(on ? HILITE : GREY));
+}
+function setVisible(p, on) {
+  p.visible = on;
+  p.mesh.visible = on;
+}
+parts.forEach((p) => {
+  const row = document.createElement("div");
+  row.className = "part-row";
+  const name = document.createElement("div");
+  name.className = "part-name";
+  name.textContent = p.label;
+  const hiBtn = document.createElement("button");
+  hiBtn.className = "btn btn-highlight";
+  hiBtn.textContent = "Highlight";
+  hiBtn.onclick = () => {
+    parts.forEach((other) => { if (other !== p && other.highlighted) { setHighlight(other, false); other._btn.classList.remove("active"); } });
+    const turningOn = !p.highlighted;
+    setHighlight(p, turningOn);
+    hiBtn.classList.toggle("active", turningOn);
+  };
+  p._btn = hiBtn;
+  const toggleBtn = document.createElement("button");
+  toggleBtn.className = "btn btn-toggle";
+  toggleBtn.textContent = "Shown";
+  toggleBtn.onclick = () => {
+    const turningOn = !p.visible;
+    setVisible(p, turningOn);
+    toggleBtn.textContent = turningOn ? "Shown" : "Hidden";
+    toggleBtn.classList.toggle("off", !turningOn);
+  };
+  row.appendChild(name);
+  row.appendChild(hiBtn);
+  row.appendChild(toggleBtn);
+  listEl.appendChild(row);
+});
+const resetBtn = document.createElement("button");
+resetBtn.id = "reset";
+resetBtn.textContent = "Reset view";
+resetBtn.onclick = () => { camera.position.copy(CAMERA_HOME); controls.target.set(0, 0.8, 0.1); controls.update(); };
+document.body.appendChild(resetBtn);
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener("resize", onResize);
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
