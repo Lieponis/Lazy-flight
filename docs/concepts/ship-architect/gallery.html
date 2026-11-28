@@ -3140,6 +3140,396 @@ ship.position.y = 0.5;
 
 
     },
+  },
+  {
+    slug: "explorer-3", name: "Halo There", cat: "Explorer", size: "large",
+    home: [-5.2, 3.0, -4.8], target: [0.0, 1.0, 0.2], minD: 1.2, maxD: 22.0,
+    build(THREE, ship, partMaterial, addPart, addGroupPart) {
+
+function polyMesh(positions) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, partMaterial());
+}
+// loft through rings of points (each ring = [x,y,z][]); caps both ends
+function loftRings(rings) {
+  const n = rings[0].length, pos = [], tri = (a, b, c) => pos.push(...a, ...b, ...c);
+  for (let r = 0; r < rings.length - 1; r++) for (let i = 0; i < n; i++) {
+    const a = rings[r][i], b = rings[r][(i + 1) % n], c = rings[r + 1][(i + 1) % n], d = rings[r + 1][i];
+    tri(a, b, c); tri(a, c, d);
+  }
+  [0, rings.length - 1].forEach((r) => {
+    const c = [0, 1, 2].map((k) => rings[r].reduce((s, p) => s + p[k], 0) / n);
+    for (let i = 0; i < n; i++) tri(c, rings[r][i], rings[r][(i + 1) % n]);
+  });
+  return polyMesh(pos);
+}
+const V = (a) => new THREE.Vector3(...a);
+function strutBetween(p0, p1, radius, segs = 10) {
+  const dir = new THREE.Vector3().subVectors(p1, p0);
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, dir.length(), segs), partMaterial());
+  m.position.copy(p0).add(p1).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return m;
+}
+function beamBetween(p0, p1, sx, sz) {
+  const dir = new THREE.Vector3().subVectors(p1, p0);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(sx, dir.length(), sz), partMaterial());
+  m.position.copy(p0).add(p1).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return m;
+}
+function lathe(profile, x, y, segs = 20) { // profile [r, z] along the ship's z
+  const m = new THREE.Mesh(new THREE.LatheGeometry(profile.map(([r, t]) => new THREE.Vector2(r, t)), segs), partMaterial());
+  m.rotation.x = Math.PI / 2;
+  m.position.set(x, y, 0);
+  return m;
+}
+function groupOf(meshes) { const g = new THREE.Group(); meshes.forEach((m) => g.add(m)); return g; }
+const MIRROR = [1, -1];
+
+
+const HEX = Array.from({ length: 6 }, (_, i) => { const a = (i / 6) * Math.PI * 2; return [Math.cos(a), Math.sin(a)]; });
+const hexRing = (cx, cy, rx, ry, z) => HEX.map(([ux, uy]) => [cx + ux * rx, cy + uy * ry, z]);
+function hexBulge(cx, cy, st, nz, scale) {
+  const meshes = [loftRings(st.map(([z, rx, ry]) => hexRing(cx, cy, rx, ry, z)))];
+  const [z0, rx0, ry0] = st[st.length - 1];
+  const s = scale;
+  meshes.push(loftRings([
+    hexRing(cx, cy, rx0 * 0.98, ry0 * 0.98, z0 - 0.02),
+    hexRing(cx, cy, rx0 * 1.14, ry0 * 1.14, z0 + 0.05 * s),
+    hexRing(cx, cy, rx0 * 1.06, ry0 * 1.06, z0 + 0.11 * s),
+    hexRing(cx, cy, rx0 * 0.78, ry0 * 0.78, z0 + 0.11 * s),
+    hexRing(cx, cy, rx0 * 0.72, ry0 * 0.72, z0 + 0.04 * s),
+    hexRing(cx, cy, rx0 * 0.25, ry0 * 0.25, z0 + 0.08 * s),
+  ]));
+  // raised hex band and two side strakes along the bulge
+  const bz = nz;
+  meshes.push(loftRings([hexRing(cx, cy, rx0 * 1.06, ry0 * 1.06, bz - 0.025), hexRing(cx, cy, rx0 * 1.06, ry0 * 1.06, bz + 0.025)]));
+  return meshes;
+}
+
+function planeBasis(pts, outwardFrom) {
+  const p0 = V(pts[0]);
+  const u = V(pts[1]).sub(p0).normalize();
+  let n = new THREE.Vector3();
+  for (let i = 2; i < pts.length && n.lengthSq() < 1e-10; i++) n = V(pts[1]).sub(p0).cross(V(pts[i]).sub(p0));
+  n.normalize();
+  const ctr = pts.reduce((a, p) => a.add(V(p)), new THREE.Vector3()).multiplyScalar(1 / pts.length);
+  if (n.dot(ctr.clone().sub(V(outwardFrom(ctr)))) < 0) n.negate();
+  return { p0, u, v: new THREE.Vector3().crossVectors(n, u), n };
+}
+const to2 = (B, p) => { const d = V(p).sub(B.p0); return [d.dot(B.u), d.dot(B.v)]; };
+const to3 = (B, q, lift = 0) => B.p0.clone().addScaledVector(B.u, q[0]).addScaledVector(B.v, q[1]).addScaledVector(B.n, lift);
+function insetPoly(pts, d) {
+  const n = pts.length, lines = [];
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
+    lines.push({ px: a[0] - (dy / L) * d, py: a[1] + (dx / L) * d, dx, dy });
+  }
+  return lines.map((l1, i) => {
+    const l0 = lines[(i - 1 + n) % n];
+    const t = ((l1.px - l0.px) * l1.dy - (l1.py - l0.py) * l1.dx) / (l0.dx * l1.dy - l0.dy * l1.dx);
+    return [l0.px + l0.dx * t, l0.py + l0.dy * t];
+  });
+}
+function planarPanel(pts3, { outer = 0, inner = 0.025, proud = 0.008, fill = false, fillLift = 0.002, outwardFrom = outFromBox } = {}) {
+  const B = planeBasis(pts3, outwardFrom);
+  let p2 = pts3.map((p) => to2(B, p));
+  const area = p2.reduce((a, p, i) => { const q = p2[(i + 1) % p2.length]; return a + p[0] * q[1] - q[0] * p[1]; }, 0);
+  if (area < 0) p2 = p2.reverse();
+  const o = insetPoly(p2, outer), ii = insetPoly(p2, inner), n = o.length, pos = [];
+  const push = (...qs) => qs.forEach((q) => pos.push(q.x, q.y, q.z));
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const oT0 = to3(B, o[i], proud), oT1 = to3(B, o[j], proud), iT0 = to3(B, ii[i], proud), iT1 = to3(B, ii[j], proud);
+    const oB0 = to3(B, o[i], -proud), oB1 = to3(B, o[j], -proud), iB0 = to3(B, ii[i], -proud), iB1 = to3(B, ii[j], -proud);
+    push(oT0, oT1, iT1, oT0, iT1, iT0);
+    push(oB0, oB1, oT1, oB0, oT1, oT0);
+    push(iT0, iT1, iB1, iT0, iB1, iB0);
+  }
+  const meshes = [polyMesh(pos)];
+  if (fill) {
+    const g = [], c = ii.reduce((a, q) => [a[0] + q[0] / n, a[1] + q[1] / n], [0, 0]);
+    for (let i = 0; i < n; i++) g.push(...[c, ii[i], ii[(i + 1) % n]].flatMap((q) => to3(B, q, fillLift).toArray()));
+    meshes.push(polyMesh(g));
+  }
+  return { meshes, B };
+}
+function faceBox(B, centre3, su, sv, depth, lift) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(su, sv, depth), partMaterial());
+  m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(B.u, B.v, B.n));
+  m.position.copy(V(centre3)).addScaledVector(B.n, lift);
+  return m;
+}
+
+// ============================================================
+// EXPLORER 3 (large) — v2, started from scratch.
+// Explorer-line rules: wings, the body works as a wing, exotic sci-fi,
+// details, nothing floating. Andy's choices for this ship:
+//  - ARROWHEAD LIFTING BODY with flush angled windows
+//  - TRI-STAR wings: three ARROWHEAD BLADES (one up, two down-and-out)
+//  - a HUGE HALO-THRUSTER RING around the body, joined to all three tips
+//  - parks NOSE-DOWN: rests on the bottom of the ring + a short nose leg
+// Original design. The ship is built level (flight pose), then the whole
+// ship is tilted nose-down into its parked pose at the end.
+// ============================================================
+const Y0 = 0.0;
+const R = 0.1 / 0.26; // spine-to-chine drop per unit width over the cockpit stretch (keeps those facets flat)
+const BODY = [
+  { z: -2.6, w: 0.0, t1: 0.0, t2: 0.0, b1: 0.0, b2: 0.0 },
+  { z: -2.3, w: 0.1, t1: 0.06 - 0.1 * R, t2: 0.06, b1: 0.03, b2: 0.045 },
+  { z: -1.7, w: 0.26, t1: 0.18 - 0.26 * R, t2: 0.18, b1: 0.06, b2: 0.09 },
+  { z: -1.0, w: 0.44, t1: 0.28 - 0.44 * R, t2: 0.28, b1: 0.08, b2: 0.13 },
+  { z: -0.3, w: 0.6, t1: 0.14, t2: 0.3, b1: 0.09, b2: 0.14 },
+  { z: 0.5, w: 0.72, t1: 0.14, t2: 0.29, b1: 0.09, b2: 0.14 },
+  { z: 1.2, w: 0.66, t1: 0.13, t2: 0.26, b1: 0.085, b2: 0.13 },
+  { z: 1.8, w: 0.46, t1: 0.1, t2: 0.21, b1: 0.07, b2: 0.11 },
+];
+function bodyAt(z) {
+  for (let i = 0; i < BODY.length - 1; i++) {
+    const a = BODY[i], b = BODY[i + 1];
+    if (z >= a.z && z <= b.z) { const t = (z - a.z) / (b.z - a.z), L = (k) => a[k] + t * (b[k] - a[k]); return { z, w: L("w"), t1: L("t1"), t2: L("t2"), b1: L("b1"), b2: L("b2") }; }
+  }
+  return { ...(z < BODY[0].z ? BODY[0] : BODY[BODY.length - 1]), z };
+}
+const edgeHalf = (s) => Math.min(0.05, s.w * 0.12);
+function bodyCorners(s) {
+  const e = edgeHalf(s), w = s.w;
+  return [[w, Y0 - e], [w, Y0 + e], [0.6 * w, Y0 + s.t1], [0.2 * w, Y0 + s.t2], [-0.2 * w, Y0 + s.t2], [-0.6 * w, Y0 + s.t1],
+    [-w, Y0 + e], [-w, Y0 - e], [-0.55 * w, Y0 - s.b1], [-0.15 * w, Y0 - s.b2], [0.15 * w, Y0 - s.b2], [0.55 * w, Y0 - s.b1]];
+}
+const bodyRing = (s) => bodyCorners(s).map(([x, y]) => [x, y, s.z]);
+function bottomY(x, z) {
+  const s = bodyAt(z), ax = Math.abs(x), w = s.w || 1e-6, e = edgeHalf(s);
+  if (ax <= 0.15 * w) return Y0 - s.b2;
+  if (ax <= 0.55 * w) return Y0 - s.b2 + ((ax - 0.15 * w) / (0.4 * w)) * (s.b2 - s.b1);
+  return Y0 - s.b1 + ((Math.min(ax, w) - 0.55 * w) / (0.45 * w)) * (s.b1 - e);
+}
+function rayToSkin(ox, oy, dx, dy, z) {
+  const c = bodyCorners(bodyAt(z)); let best = Infinity;
+  for (let i = 0; i < c.length; i++) {
+    const [ax, ay] = c[i], [bx, by] = c[(i + 1) % c.length], ex = bx - ax, ey = by - ay;
+    const den = dx * ey - dy * ex; if (Math.abs(den) < 1e-12) continue;
+    const t = ((ax - ox) * ey - (ay - oy) * ex) / den, u = ((ax - ox) * dy - (ay - oy) * dx) / den;
+    if (t > 0 && u >= 0 && u <= 1) best = Math.min(best, t);
+  }
+  return best;
+}
+const outFromBox = (p) => [0, Y0 + 0.05, p.z];
+addPart("hull", "Hull (arrowhead lifting body)", loftRings(BODY.map(bodyRing)));
+
+// ============================================================
+// HALO-THRUSTER RING: a huge faceted ring around the body (seen from
+// the front it circles the whole ship), centred on the body's axis.
+// Its 8-corner cross-section has a sharp intake lip at the front and a
+// wide exhaust face at the back. The ring IS the main thruster: a raised
+// intake rim at the front, inner and outer exhaust rims with 48 exhaust
+// vanes on the rear face, and raised ribs dividing the outer skin.
+// ============================================================
+const RING = { rIn: 1.25, rOut: 1.44, z0: 0.82, z1: 1.62, seg: 72 };
+const RING_SECTION = [ // [radius, z], going round the section
+  [RING.rIn + 0.05, RING.z0], [RING.rOut - 0.06, RING.z0 + 0.02], [RING.rOut, RING.z0 + 0.14], [RING.rOut, RING.z1 - 0.12],
+  [RING.rOut - 0.03, RING.z1], [RING.rIn + 0.03, RING.z1], [RING.rIn, RING.z1 - 0.14], [RING.rIn, RING.z0 + 0.12],
+];
+function revolve(section, seg, cx = 0, cy = Y0) {
+  const pos = [], n = section.length, P = (i, k) => {
+    const a = (i / seg) * Math.PI * 2, [r, z] = section[k % n];
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a), z];
+  };
+  for (let i = 0; i < seg; i++) for (let k = 0; k < n; k++) {
+    const a = P(i, k), b = P(i, k + 1), c = P(i + 1, k + 1), d = P(i + 1, k);
+    pos.push(...a, ...b, ...c, ...a, ...c, ...d);
+  }
+  return polyMesh(pos);
+}
+const ringMeshes = [revolve(RING_SECTION, RING.seg)];
+ringMeshes.push(revolve([[RING.rIn + 0.08, RING.z0 - 0.025], [RING.rOut - 0.08, RING.z0 - 0.025], [RING.rOut - 0.08, RING.z0 + 0.03], [RING.rIn + 0.08, RING.z0 + 0.03]], RING.seg));
+[[RING.rIn + 0.025, RING.rIn + 0.055], [RING.rOut - 0.065, RING.rOut - 0.035]].forEach(([r0, r1]) =>
+  ringMeshes.push(revolve([[r0, RING.z1 - 0.03], [r1, RING.z1 - 0.03], [r1, RING.z1 + 0.06], [r0, RING.z1 + 0.06]], RING.seg)));
+for (let i = 0; i < 48; i++) {
+  const a = (i / 48) * Math.PI * 2, rm = (RING.rIn + RING.rOut) / 2 - 0.005;
+  const vane = new THREE.Mesh(new THREE.BoxGeometry(0.012, RING.rOut - RING.rIn - 0.12, 0.07), partMaterial());
+  vane.position.set(rm * Math.cos(a), Y0 + rm * Math.sin(a), RING.z1 + 0.01);
+  vane.rotation.z = a - Math.PI / 2;
+  ringMeshes.push(vane);
+}
+for (let i = 0; i < 18; i++) {
+  const a = (i / 18) * Math.PI * 2 + Math.PI / 36;
+  const rib = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.025, RING.z1 - RING.z0 - 0.3), partMaterial());
+  rib.position.set((RING.rOut + 0.004) * Math.cos(a), Y0 + (RING.rOut + 0.004) * Math.sin(a), (RING.z0 + RING.z1) / 2);
+  rib.rotation.z = a - Math.PI / 2;
+  ringMeshes.push(rib);
+}
+addGroupPart("haloRing", "Halo-thruster ring (huge, around the body)", groupOf(ringMeshes), ringMeshes);
+
+// ============================================================
+// TRI-STAR ARROWHEAD WINGS: three blades 120 degrees apart (one up, two
+// down-and-out). Each root is sunk into the body skin along its chord;
+// the leading edge sweeps hard back and the blade tapers to a point
+// that runs INTO the ring. A collar clamps each tip to the ring; a
+// raised spar strip runs along each blade.
+// ============================================================
+const WING_SECTION = [[0.12, 0.8], [0.4, 1.0], [0.75, 0.7]];
+const WING_DIRS = [90, 210, 330].map((d) => [Math.cos((d * Math.PI) / 180), Math.sin((d * Math.PI) / 180)]);
+const WING = { rootLE: -0.2, rootChord: 1.75, tipLE: 1.12, tipChord: 0.05, thickRoot: 0.13, thickTip: 0.04, sink: 0.04 };
+const wingPoint = ([dx, dy], s, f, side, rel) => {
+  const nx = -dy, ny = dx;
+  const zr = WING.rootLE + f * WING.rootChord, rho0 = rayToSkin(0, Y0, dx, dy, zr) - WING.sink;
+  const rho = rho0 + (RING.rIn + 0.08 - rho0) * s;
+  const le = WING.rootLE + (WING.tipLE - WING.rootLE) * s ** 0.85, ch = WING.rootChord + (WING.tipChord - WING.rootChord) * s;
+  const halfT = (WING.thickRoot + (WING.thickTip - WING.thickRoot) * s) / 2;
+  return [dx * rho + nx * side * halfT * rel, Y0 + dy * rho + ny * side * halfT * rel, le + f * ch];
+};
+function arrowWing(dir) {
+  const N = 10, rings = [];
+  for (let k = 0; k <= N; k++) {
+    const s = k / N, at = (f, side, rel) => wingPoint(dir, s, f, side, rel);
+    const ring = [at(0, 0, 0)];
+    WING_SECTION.forEach(([f, rel]) => ring.push(at(f, 1, rel)));
+    ring.push(at(1, 0, 0));
+    [...WING_SECTION].reverse().forEach(([f, rel]) => ring.push(at(f, -1, rel)));
+    rings.push(ring);
+  }
+  return loftRings(rings);
+}
+const wingMeshes = [];
+WING_DIRS.forEach((dir) => {
+  wingMeshes.push(arrowWing(dir));
+  const side = dir[0] === 0 ? 1 : Math.sign(dir[0]);
+  wingMeshes.push(beamBetween(V(wingPoint(dir, 0.1, 0.45, side, 0.92)), V(wingPoint(dir, 0.8, 0.45, side, 0.92)), 0.03, 0.03));
+  const [dx, dy] = dir, a = Math.atan2(dy, dx), rc = RING.rIn - 0.02;
+  const collar = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.34), partMaterial());
+  collar.position.set(rc * dx, Y0 + rc * dy, 1.16);
+  collar.rotation.z = a - Math.PI / 2;
+  wingMeshes.push(collar);
+});
+addGroupPart("wings", "Tri-star arrowhead wings (3)", groupOf(wingMeshes), wingMeshes);
+
+// ============================================================
+// COCKPIT: flush angled windows in the flat nose facets — a windshield
+// on the spine split by a centre post, and an angled pane each side.
+// ============================================================
+const WIN = { outer: 0.024, inner: 0.052, proud: 0.007, fill: true };
+const cockpitMeshes = [];
+{
+  const za = -1.66, zb = -1.05, A = bodyAt(za), B = bodyAt(zb);
+  const yA = Y0 + A.t2, yB = Y0 + B.t2, xA = 0.2 * A.w, xB = 0.2 * B.w;
+  [[-1, 0], [0, 1]].forEach(([u0, u1]) => cockpitMeshes.push(...planarPanel([[u0 * xA, yA, za], [u1 * xA, yA, za], [u1 * xB, yB, zb], [u0 * xB, yB, zb]], WIN).meshes));
+  MIRROR.forEach((sx) => {
+    const p = (s, f) => [sx * (0.2 * s.w + f * 0.4 * s.w), Y0 + s.t2 + f * (s.t1 - s.t2), s.z];
+    cockpitMeshes.push(...planarPanel([p(A, 0.08), p(B, 0.08), p(B, 0.92), p(A, 0.75)], WIN).meshes);
+  });
+}
+addGroupPart("cockpitWindows", "Cockpit (angled windows)", groupOf(cockpitMeshes), cockpitMeshes);
+
+// ============================================================
+// HULL DETAILS: raised trims along the chines, a crew hatch and two
+// framed vent grilles behind the cockpit, three small hex attitude
+// nozzles set into the stern, a nose sensor plug, two antennas.
+// ============================================================
+const detailMeshes = [];
+function trimAlong(fx, key, z0, z1, r) {
+  const pts = Array.from({ length: 9 }, (_, i) => { const z = z0 + ((z1 - z0) * i) / 8, s = bodyAt(z); return [fx * s.w, Y0 + s[key], z]; });
+  for (let i = 0; i < pts.length - 1; i++) detailMeshes.push(strutBetween(V(pts[i]), V(pts[i + 1]), r, 6));
+}
+MIRROR.forEach((sx) => trimAlong(sx * 0.6, "t1", -2.25, 1.78, 0.009));
+{
+  const up = (q) => [q.x, q.y - 1, q.z];
+  const za = -0.75, zb = -0.4, A = bodyAt(za), B = bodyAt(zb), hw = 0.08;
+  detailMeshes.push(...planarPanel([[-hw, Y0 + A.t2, za], [hw, Y0 + A.t2, za], [hw, Y0 + B.t2, zb], [-hw, Y0 + B.t2, zb]], { inner: 0.016, proud: 0.006, outwardFrom: up }).meshes);
+  MIRROR.forEach((sx) => {
+    const z0 = -0.7, z1 = -0.25, P = bodyAt(z0), Q = bodyAt(z1);
+    const p = (s, f) => [sx * (0.2 * s.w + f * 0.4 * s.w), Y0 + s.t2 + f * (s.t1 - s.t2), s.z];
+    const vent = planarPanel([p(P, 0.25), p(Q, 0.25), p(Q, 0.6), p(P, 0.6)], { inner: 0.016, proud: 0.006, fill: true, fillLift: 0.001 });
+    detailMeshes.push(...vent.meshes);
+    for (let i = 0; i < 4; i++) { const z = z0 + 0.07 + i * 0.1, s = bodyAt(z); detailMeshes.push(faceBox(vent.B, p(s, 0.425), 0.012, 0.11, 0.016, 0.0)); } // sunk half into the facet
+  });
+  [[0, 0.1], [-0.2, -0.02], [0.2, -0.02]].forEach(([x, y]) => {
+    detailMeshes.push(loftRings([hexRing(x, y, 0.06, 0.05, 1.7), hexRing(x, y, 0.075, 0.065, 1.86), hexRing(x, y, 0.05, 0.042, 1.86), hexRing(x, y, 0.015, 0.012, 1.82)]));
+  });
+  detailMeshes.push(loftRings([hexRing(0, Y0, 0.0, 0.0, -2.72), hexRing(0, Y0, 0.028, 0.028, -2.62), hexRing(0, Y0, 0.028, 0.028, -2.52)]));
+  [[0.06, 0.4, 0.2], [-0.06, 0.6, 0.14]].forEach(([x, z, h]) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.008, h, 6), partMaterial());
+    m.position.set(x + 0.06 * Math.sign(x), Y0 + bodyAt(z).t2 - 0.02 + h / 2, z);
+    detailMeshes.push(m);
+  });
+}
+addGroupPart("hullDetails", "Hull details (trims, hatch, vents, stern nozzles, antennas)", groupOf(detailMeshes), detailMeshes);
+
+// ============================================================
+// PARKED POSE (nose-down). The whole ship is tilted nose-down by
+// PARK_PITCH. Two REAR STANDS hold the bottom of the ring off the
+// ground: each is a flat pad lying level on the ground with a triangle
+// of two struts rising from the pad's front and back ends to one anchor
+// sunk into the ring (Andy's sketch). A short, thick nose leg reaches
+// exactly the same ground level. Every pad is built flat in the parked pose.
+// ============================================================
+const PARK_PITCH = (20 * Math.PI) / 180;
+const STAND_H = 0.035; // the ring almost touches the ground (Andy)
+ship.rotation.x = -PARK_PITCH; // nose down
+ship.position.set(0, 0, 0);
+ship.updateMatrixWorld(true);
+const worldMinY = (meshes) => { const b = new THREE.Box3(); meshes.forEach((m) => b.expandByObject(m)); return b.min.y; };
+const GROUND = worldMinY(ringMeshes) - STAND_H;
+// directions in the ship's own frame that are world "down" and world "forward-level"
+const DOWN = V([0, -Math.cos(PARK_PITCH), -Math.sin(PARK_PITCH)]);
+const LEVEL_FWD = V([0, -Math.sin(PARK_PITCH), Math.cos(PARK_PITCH)]);
+const worldY = (p) => p.clone().applyMatrix4(ship.matrixWorld).y;
+const PAD_H = 0.04;
+// flat pad whose TOP centre is at `topCentre`; long side along `along`
+function flatPad(topCentre, w, len, along) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, PAD_H, len), partMaterial());
+  const up = DOWN.clone().negate(), side = new THREE.Vector3().crossVectors(up, along).normalize();
+  m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, up, along.clone().normalize()));
+  m.position.copy(topCentre.clone().addScaledVector(DOWN, PAD_H / 2));
+  return m;
+}
+// point straight below `p` (in the parked pose) at the given world height
+const dropTo = (p, y) => p.clone().addScaledVector(DOWN, worldY(p) - y);
+const legMeshes = [];
+[-16, 16].forEach((deg) => {
+  const a = ((270 + deg) * Math.PI) / 180, r = RING.rOut - 0.04;
+  const anchor = V([r * Math.cos(a), Y0 + r * Math.sin(a), (RING.z0 + RING.z1) / 2]); // sunk into the ring
+  const padTop = dropTo(anchor, GROUND + PAD_H);
+  legMeshes.push(flatPad(padTop, 0.14, 0.5, LEVEL_FWD));
+  [-0.2, 0.2].forEach((d) => legMeshes.push(strutBetween(anchor, padTop.clone().addScaledVector(LEVEL_FWD, d).addScaledVector(DOWN, 0.01), 0.032)));
+  const bar = padTop.clone().lerp(anchor, 0.45);
+  legMeshes.push(beamBetween(bar.clone().addScaledVector(LEVEL_FWD, -0.11), bar.clone().addScaledVector(LEVEL_FWD, 0.11), 0.03, 0.03)); // cross brace
+  const hub = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.12), partMaterial()); // anchor block on the ring
+  hub.position.copy(anchor.clone().addScaledVector(DOWN, 0.03));
+  hub.rotation.z = a - Math.PI / 2;
+  legMeshes.push(hub);
+});
+// nose leg: top inside the belly under the nose, straight down to the ground
+{
+  const zTop = -2.1, top = V([0, bottomY(0, zTop) + 0.05, zTop]);
+  const foot = dropTo(top, GROUND + PAD_H), L = worldY(top) - worldY(foot);
+  legMeshes.push(strutBetween(top, top.clone().addScaledVector(DOWN, L * 0.55), 0.05));
+  legMeshes.push(strutBetween(top.clone().addScaledVector(DOWN, L * 0.45), foot.clone().addScaledVector(DOWN, 0.01), 0.038));
+  const knee = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.062, 0.07, 8), partMaterial());
+  knee.position.copy(top.clone().addScaledVector(DOWN, L * 0.5));
+  knee.quaternion.setFromUnitVectors(V([0, 1, 0]), DOWN.clone().negate());
+  legMeshes.push(knee);
+  legMeshes.push(strutBetween(top.clone().add(V([0, 0, 0.14])), top.clone().addScaledVector(DOWN, L * 0.5).add(V([0, 0, 0.04])), 0.016, 6));
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, PAD_H, 6), partMaterial());
+  pad.position.copy(foot.clone().addScaledVector(DOWN, PAD_H / 2));
+  pad.quaternion.setFromUnitVectors(V([0, 1, 0]), DOWN.clone().negate());
+  legMeshes.push(pad);
+}
+addGroupPart("landing", "Landing (2 rear stands + nose leg, parks nose-down)", groupOf(legMeshes), legMeshes);
+
+// stand the parked ship on the ground (y = 0)
+ship.position.y = -GROUND;
+
+
+
+
+
+
+
+    },
   }
 ];
 
