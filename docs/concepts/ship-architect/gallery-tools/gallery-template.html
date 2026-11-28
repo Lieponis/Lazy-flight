@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Lazy Flight — Ship Gallery</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#dfe4e9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow:hidden; }
+  #canvas-wrap { position:absolute; inset:0; }
+  canvas { display:block; touch-action:none; }
+  #top { position:absolute; top:0; left:0; right:0; padding:10px 12px 8px; background:linear-gradient(#dfe4e9 70%, rgba(223,228,233,0)); }
+  #title { color:#2c3540; font-size:16px; font-weight:700; }
+  #title small { display:block; font-weight:500; font-size:12px; color:#56616d; margin-top:2px; }
+  .tabs { display:flex; gap:6px; overflow-x:auto; padding:8px 0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .tabs::-webkit-scrollbar { display:none; }
+  .cat { flex:none; align-self:center; font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#7a8590; padding:0 2px 0 4px; }
+  .tab { flex:none; border:1px solid #c3cad1; background:rgba(255,255,255,0.85); color:#2c3540; border-radius:999px; padding:7px 12px; font-size:13px; font-weight:600; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .tab small { font-weight:500; color:#6b7580; margin-left:4px; }
+  .tab.active { background:#2c3540; border-color:#2c3540; color:#fff; }
+  .tab.active small { color:#c9d1d8; }
+  #panel { position:absolute; left:0; right:0; bottom:0; background:rgba(255,255,255,0.94); border-top:1px solid #c3cad1; padding:10px 10px calc(10px + env(safe-area-inset-bottom)); max-height:40vh; overflow-y:auto; box-shadow: 0 -4px 14px rgba(0,0,0,0.08); }
+  #panel h2 { margin:0 0 8px; font-size:13px; color:#44505a; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+  .part-row { display:flex; align-items:center; gap:8px; padding:8px 6px; border-radius:8px; }
+  .part-row + .part-row { border-top:1px solid #edf0f2; }
+  .part-name { flex:1; font-size:14px; color:#2c3540; }
+  .btn { border:none; border-radius:7px; padding:7px 10px; font-size:12px; font-weight:600; cursor:pointer; -webkit-tap-highlight-color: transparent; }
+  .btn-toggle { background:#e4e8eb; color:#2c3540; min-width:58px; }
+  .btn-toggle.off { background:#f6d9d9; color:#8a3a3a; }
+  .btn-highlight { background:#ffcf6b; color:#5a4100; min-width:66px; }
+  .btn-highlight.active { background:#ff9e2c; color:#402700; }
+  #hint { position:absolute; bottom:calc(40vh + 8px); left:0; right:0; text-align:center; font-size:11px; color:#5c6670; pointer-events:none; }
+  #reset { position:absolute; right:12px; bottom:calc(40vh + 30px); background:rgba(255,255,255,0.9); border:1px solid #c3cad1; border-radius:8px; padding:6px 10px; font-size:12px; color:#2c3540; font-weight:600; }
+</style>
+</head>
+<body>
+<div id="canvas-wrap"></div>
+<div id="top">
+  <div id="title">Ship Gallery<small>Grey shapes only, approved concepts</small></div>
+  <div class="tabs" id="tabs"></div>
+</div>
+<div id="hint">Drag to rotate &middot; pinch to zoom</div>
+<button id="reset">Reset view</button>
+<div id="panel">
+  <h2>Parts</h2>
+  <div id="part-list"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ---------- scene ----------
+const wrap = document.getElementById("canvas-wrap");
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdfe4e9);
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.05, 200);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+wrap.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f94, 1.0));
+const key = new THREE.DirectionalLight(0xffffff, 1.1);
+key.position.set(3, 4, 2);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.45);
+fill.position.set(-3, 1, -2);
+scene.add(fill);
+
+// ---------- one grey, flat-shaded material for every part ----------
+const GREY = 0x9aa1a8, HILITE = 0xff9e2c;
+const baseMat = new THREE.MeshStandardMaterial({ color: GREY, flatShading: true, roughness: 0.75, metalness: 0.05, side: THREE.DoubleSide });
+const partMaterial = () => baseMat.clone();
+
+// ---------- every approved ship (code copied from its own viewer) ----------
+const SHIPS = [
+/*__SHIPS__*/
+];
+
+// ---------- switching ships ----------
+let ship = null, parts = [], current = -1;
+function disposeShip() {
+  if (!ship) return;
+  scene.remove(ship);
+  ship.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+}
+function loadShip(i) {
+  if (i === current) return;
+  disposeShip();
+  current = i;
+  const s = SHIPS[i];
+  ship = new THREE.Group();
+  ship.name = s.name;
+  parts = [];
+  const addPart = (key, label, mesh) => { mesh.name = key; ship.add(mesh); parts.push({ key, label, mesh, visible: true, highlighted: false }); return mesh; };
+  const addGroupPart = (key, label, group, meshes) => { group.name = key; ship.add(group); parts.push({ key, label, mesh: group, visible: true, highlighted: false, multi: meshes }); return group; };
+  s.build(THREE, ship, partMaterial, addPart, addGroupPart);
+  scene.add(ship);
+  document.getElementById("title").innerHTML = `${s.name}<small>${s.cat} ship &middot; ${s.size} &middot; approved concept, grey shape only</small>`;
+  controls.minDistance = s.minD;
+  controls.maxDistance = s.maxD;
+  resetView();
+  buildPartList();
+  document.querySelectorAll(".tab").forEach((t, k) => t.classList.toggle("active", Number(t.dataset.i) === i));
+  try { history.replaceState(null, "", "#" + s.slug); } catch (e) { /* not allowed here: fine */ }
+}
+function resetView() {
+  const s = SHIPS[current];
+  camera.position.set(...s.home);
+  controls.target.set(...s.target);
+  controls.update();
+}
+document.getElementById("reset").onclick = resetView;
+
+// ---------- tabs ----------
+const tabsEl = document.getElementById("tabs");
+let lastCat = "";
+SHIPS.forEach((s, i) => {
+  if (s.cat !== lastCat) {
+    const c = document.createElement("span");
+    c.className = "cat";
+    c.textContent = s.cat;
+    tabsEl.appendChild(c);
+    lastCat = s.cat;
+  }
+  const b = document.createElement("button");
+  b.className = "tab";
+  b.dataset.i = i;
+  b.innerHTML = `${s.name}<small>${s.size}</small>`;
+  b.onclick = () => loadShip(i);
+  tabsEl.appendChild(b);
+});
+
+// ---------- parts list (hide / highlight) ----------
+const listEl = document.getElementById("part-list");
+function setHighlight(p, on) {
+  p.highlighted = on;
+  (p.multi || [p.mesh]).forEach((m) => m.material.color.set(on ? HILITE : GREY));
+}
+function buildPartList() {
+  listEl.innerHTML = "";
+  parts.forEach((p) => {
+    const row = document.createElement("div");
+    row.className = "part-row";
+    const name = document.createElement("div");
+    name.className = "part-name";
+    name.textContent = p.label;
+    const hiBtn = document.createElement("button");
+    hiBtn.className = "btn btn-highlight";
+    hiBtn.textContent = "Highlight";
+    hiBtn.onclick = () => {
+      parts.forEach((o) => { if (o !== p && o.highlighted) { setHighlight(o, false); o._btn.classList.remove("active"); } });
+      const on = !p.highlighted;
+      setHighlight(p, on);
+      hiBtn.classList.toggle("active", on);
+    };
+    p._btn = hiBtn;
+    const tog = document.createElement("button");
+    tog.className = "btn btn-toggle";
+    tog.textContent = "Shown";
+    tog.onclick = () => {
+      p.visible = !p.visible;
+      p.mesh.visible = p.visible;
+      tog.textContent = p.visible ? "Shown" : "Hidden";
+      tog.classList.toggle("off", !p.visible);
+    };
+    row.append(name, hiBtn, tog);
+    listEl.appendChild(row);
+  });
+}
+
+// ---------- start on the ship named in the address (#cargo-2), else the first ----------
+const wanted = SHIPS.findIndex((s) => "#" + s.slug === location.hash);
+loadShip(wanted >= 0 ? wanted : 0);
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+(function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+})();
+</script>
+</body>
+</html>
