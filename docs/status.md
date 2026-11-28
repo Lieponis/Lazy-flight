@@ -409,3 +409,9 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 ## Agent 9 (Ship Architect) DONE: 9 ship concepts approved by Andy (report docs/report-agent-9.md, main 46f88a9 green, Lead-checked 2026-11-28)
 - Replaces the cancelled Agent 8 sketch task. 3 lines x 3 sizes: Passenger Eggspress / Droopliner / Snoozemarine; Cargo Crate Expectations / Haul Monty / Stacks McGee; Explorer Pocket Rocket / Wanderwedge / Halo There. Plain-grey 3D concepts from named parts, gallery docs/concepts/ship-architect/gallery.html, hand-over note per ship. No game files touched; live game unchanged.
 - Open decisions (Agent 9 report section 4): detail vs 1000-triangle ship budget (concepts 3.5k to 73k tris); how 9 ships fit the game (max 3 ships rule); sizes beyond 8 units; legs in a no-landing game; colours; funny touch.
+
+## DECISIONS 2026-11-28 (Andy) on the 9 ships
+- Detail: RAISE the ship limit (one detailed model per ship; Lead proposal 20,000 tris, 8 meshes, 4 materials for small ships, final only after an iPhone speed check).
+- Replace the current 3 ships. First ship = player's choice of the 3 SMALL new ships (Eggspress, Crate Expectations, Pocket Rocket); all others bought.
+- Large ships may exceed the old 8-unit limit; stations and outposts get upgraded later (future stage).
+- Plan: S1 Agent 8 rebuilds the 3 small ships (docs/briefs/agent-8-ships-s1-brief.md) without touching the game -> S2 wiring (Agents 3/4/5: start choice, shipyard, prices, SAVE MIGRATION of old ship ids, anchors) -> S3 medium and large ships -> S4 stations/outposts upgrade. Open: is "max 3 ships owned at once" still in force with 9 ships? Colours per ship picked by Andy A/B/C.
