@@ -405,3 +405,7 @@ v1: planet landing, multiplayer, voxel terrain, accounts/servers, monetization, 
 - Far home/outpost/recent/starred markers sit at their true projected place, dim (50%), constant size, not tappable, no edge pinning, no names; up to 16 markers. Plan target also at its true place with label (option A, nothing at the edge; ?maptarget=b brings the old edge marker back).
 - Far places are found by turning the map, not zooming out (zoom-out limit ~50 ly). 60 fps measured, but with 0 far markers in view at that moment (limit stated honestly). Test farmarkers.test.ts.
 - Known: while the target is off the picture there is no cue and no distance (suggestion: only if Andy misses it); far markers have no names (suggestion).
+
+## Agent 9 (Ship Architect) DONE: 9 ship concepts approved by Andy (report docs/report-agent-9.md, main 46f88a9 green, Lead-checked 2026-11-28)
+- Replaces the cancelled Agent 8 sketch task. 3 lines x 3 sizes: Passenger Eggspress / Droopliner / Snoozemarine; Cargo Crate Expectations / Haul Monty / Stacks McGee; Explorer Pocket Rocket / Wanderwedge / Halo There. Plain-grey 3D concepts from named parts, gallery docs/concepts/ship-architect/gallery.html, hand-over note per ship. No game files touched; live game unchanged.
+- Open decisions (Agent 9 report section 4): detail vs 1000-triangle ship budget (concepts 3.5k to 73k tris); how 9 ships fit the game (max 3 ships rule); sizes beyond 8 units; legs in a no-landing game; colours; funny touch.
