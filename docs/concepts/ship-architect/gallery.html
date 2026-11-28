@@ -2452,6 +2452,352 @@ ship.position.y = 0.455;
 
 
     },
+  },
+  {
+    slug: "explorer-1", name: "Pocket Rocket", cat: "Explorer", size: "small",
+    home: [-2.7, 1.6, -2.6], target: [0.0, 0.4, 0.0], minD: 1.2, maxD: 14.0,
+    build(THREE, ship, partMaterial, addPart, addGroupPart) {
+
+// ============================================================
+// EXPLORER LINE: winged, the body works as part of the wing, engines are
+// BULGES that are part of the hull, canopy cockpit.
+// Explorer 1 (v2, redone from scratch): small, agile, fighter-proportioned
+// scout with a FACETED ARROWHEAD LIFTING BODY — a flat, sharply faceted
+// arrowhead that is itself a wing, with a raised central spine. Hexagonal
+// engine bulges, faceted canopy, cranked wings with a notched trailing edge
+// and vertical tip plates (no tail). Original design.
+// ============================================================
+function polyMesh(positions) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, partMaterial());
+}
+// loft through rings of points (each ring = [x,y,z][]); caps both ends
+function loftRings(rings) {
+  const n = rings[0].length, pos = [], tri = (a, b, c) => pos.push(...a, ...b, ...c);
+  for (let r = 0; r < rings.length - 1; r++) for (let i = 0; i < n; i++) {
+    const a = rings[r][i], b = rings[r][(i + 1) % n], c = rings[r + 1][(i + 1) % n], d = rings[r + 1][i];
+    tri(a, b, c); tri(a, c, d);
+  }
+  [0, rings.length - 1].forEach((r) => {
+    const c = [0, 1, 2].map((k) => rings[r].reduce((s, p) => s + p[k], 0) / n);
+    for (let i = 0; i < n; i++) tri(c, rings[r][i], rings[r][(i + 1) % n]);
+  });
+  return polyMesh(pos);
+}
+const V = (a) => new THREE.Vector3(...a);
+function strutBetween(p0, p1, radius, segs = 10) {
+  const dir = new THREE.Vector3().subVectors(p1, p0);
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, dir.length(), segs), partMaterial());
+  m.position.copy(p0).add(p1).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return m;
+}
+function beamBetween(p0, p1, sx, sz) {
+  const dir = new THREE.Vector3().subVectors(p1, p0);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(sx, dir.length(), sz), partMaterial());
+  m.position.copy(p0).add(p1).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return m;
+}
+function lathe(profile, x, y, segs = 20) { // profile [r, z] along the ship's z
+  const m = new THREE.Mesh(new THREE.LatheGeometry(profile.map(([r, t]) => new THREE.Vector2(r, t)), segs), partMaterial());
+  m.rotation.x = Math.PI / 2;
+  m.position.set(x, y, 0);
+  return m;
+}
+function groupOf(meshes) { const g = new THREE.Group(); meshes.forEach((m) => g.add(m)); return g; }
+const MIRROR = [1, -1];
+
+// ============================================================
+// FACETED ARROWHEAD BODY. Each cross-section has 12 corners: a blunt
+// side edge, an upper chine, a flat raised spine on top, a lower chine
+// and a keel underneath — flat facets between them. In plan view the
+// body is an arrowhead: knife-sharp nose, widening to the wing roots,
+// cut in again at the rear.
+//   w  half-width     t1 upper chine height   t2 spine height
+//   b1 lower chine    b2 keel depth           (all from the centre y0)
+// ============================================================
+const Y0 = -0.02;
+const BODY = [
+  { z: -1.75, w: 0.0, t1: 0.0, t2: 0.0, b1: 0.0, b2: 0.0 },
+  { z: -1.5, w: 0.07, t1: 0.048, t2: 0.08, b1: 0.032, b2: 0.048 },
+  { z: -1.0, w: 0.2, t1: 0.112, t2: 0.192, b1: 0.064, b2: 0.096 },
+  { z: -0.5, w: 0.34, t1: 0.128, t2: 0.272, b1: 0.08, b2: 0.128 },
+  { z: 0.0, w: 0.5, t1: 0.128, t2: 0.304, b1: 0.08, b2: 0.144 },
+  { z: 0.5, w: 0.62, t1: 0.112, t2: 0.288, b1: 0.08, b2: 0.144 },
+  { z: 0.9, w: 0.6, t1: 0.096, t2: 0.256, b1: 0.072, b2: 0.128 },
+  { z: 1.3, w: 0.48, t1: 0.08, t2: 0.208, b1: 0.064, b2: 0.112 },
+];
+function bodyAt(z) {
+  for (let i = 0; i < BODY.length - 1; i++) {
+    const a = BODY[i], b = BODY[i + 1];
+    if (z >= a.z && z <= b.z) {
+      const t = (z - a.z) / (b.z - a.z), L = (k) => a[k] + t * (b[k] - a[k]);
+      return { z, w: L("w"), t1: L("t1"), t2: L("t2"), b1: L("b1"), b2: L("b2") };
+    }
+  }
+  return { ...(z < BODY[0].z ? BODY[0] : BODY[BODY.length - 1]), z };
+}
+const edgeHalf = (s) => Math.min(0.09, s.w * 0.25); // blunt, thick side edge (matches the thick wing root)
+function bodyRing(s) {
+  const e = edgeHalf(s), w = s.w;
+  return [
+    [w, Y0 - e], [w, Y0 + e], [0.6 * w, Y0 + s.t1], [0.2 * w, Y0 + s.t2], [-0.2 * w, Y0 + s.t2], [-0.6 * w, Y0 + s.t1],
+    [-w, Y0 + e], [-w, Y0 - e], [-0.55 * w, Y0 - s.b1], [-0.15 * w, Y0 - s.b2], [0.15 * w, Y0 - s.b2], [0.55 * w, Y0 - s.b1],
+  ].map(([x, y]) => [x, y, s.z]);
+}
+// height of the top skin at (x, z) — straight lines between the corners
+function topY(x, z) {
+  const s = bodyAt(z), ax = Math.abs(x), w = s.w || 1e-6, e = edgeHalf(s);
+  if (ax <= 0.2 * w) return Y0 + s.t2;
+  if (ax <= 0.6 * w) return Y0 + s.t2 + ((ax - 0.2 * w) / (0.4 * w)) * (s.t1 - s.t2);
+  return Y0 + s.t1 + ((Math.min(ax, w) - 0.6 * w) / (0.4 * w)) * (e - s.t1);
+}
+function bottomY(x, z) {
+  const s = bodyAt(z), ax = Math.abs(x), w = s.w || 1e-6, e = edgeHalf(s);
+  if (ax <= 0.15 * w) return Y0 - s.b2;
+  if (ax <= 0.55 * w) return Y0 - s.b2 + ((ax - 0.15 * w) / (0.4 * w)) * (s.b2 - s.b1);
+  return Y0 - s.b1 + ((Math.min(ax, w) - 0.55 * w) / (0.45 * w)) * (s.b1 - e);
+}
+addPart("hull", "Hull (faceted arrowhead lifting body)", loftRings(BODY.map(bodyRing)));
+
+// ============================================================
+// HEXAGONAL ENGINE BULGES (part of the hull): two on the upper body,
+// one on the spine. Each rises out of the body (its front is buried),
+// runs back past the rear edge and ends in a stepped hexagonal nozzle:
+// an outer flare, an inner lip, a recessed throat and a centre core.
+// ============================================================
+const HEX = Array.from({ length: 6 }, (_, i) => { const a = (i / 6) * Math.PI * 2; return [Math.cos(a), Math.sin(a)]; });
+const hexRing = (cx, cy, rx, ry, z) => HEX.map(([ux, uy]) => [cx + ux * rx, cy + uy * ry, z]);
+function hexBulge(cx, cy, st, nz, scale) {
+  const meshes = [loftRings(st.map(([z, rx, ry]) => hexRing(cx, cy, rx, ry, z)))];
+  const [z0, rx0, ry0] = st[st.length - 1];
+  const s = scale;
+  meshes.push(loftRings([
+    hexRing(cx, cy, rx0 * 0.98, ry0 * 0.98, z0 - 0.02),
+    hexRing(cx, cy, rx0 * 1.14, ry0 * 1.14, z0 + 0.05 * s),
+    hexRing(cx, cy, rx0 * 1.06, ry0 * 1.06, z0 + 0.11 * s),
+    hexRing(cx, cy, rx0 * 0.78, ry0 * 0.78, z0 + 0.11 * s),
+    hexRing(cx, cy, rx0 * 0.72, ry0 * 0.72, z0 + 0.04 * s),
+    hexRing(cx, cy, rx0 * 0.25, ry0 * 0.25, z0 + 0.08 * s),
+  ]));
+  // raised hex band and two side strakes along the bulge
+  const bz = nz;
+  meshes.push(loftRings([hexRing(cx, cy, rx0 * 1.06, ry0 * 1.06, bz - 0.025), hexRing(cx, cy, rx0 * 1.06, ry0 * 1.06, bz + 0.025)]));
+  return meshes;
+}
+const SIDE_BULGE = { cx: 0.3, cy: 0.14 };
+const engineMeshes = [];
+MIRROR.forEach((sx) => {
+  engineMeshes.push(...hexBulge(sx * SIDE_BULGE.cx, SIDE_BULGE.cy,
+    [[-0.35, 0.03, 0.03], [-0.05, 0.1, 0.1], [0.3, 0.13, 0.125], [1.2, 0.13, 0.125], [1.42, 0.12, 0.115]], 1.0, 1));
+  // strakes: thin fins along the outer side of each bulge
+  engineMeshes.push(beamBetween(V([sx * 0.43, 0.13, 0.35]), V([sx * 0.43, 0.13, 1.18]), 0.025, 0.012));
+});
+const SPINE_TOP = (z) => Y0 + bodyAt(z).t2;
+engineMeshes.push(...hexBulge(0, SPINE_TOP(0.6) - 0.01,
+  [[-0.1, 0.03, 0.02], [0.2, 0.08, 0.06], [1.1, 0.085, 0.065], [1.38, 0.075, 0.058]], 0.95, 0.7));
+addGroupPart("engines", "Engine bulges (2 side + 1 dorsal, hexagonal)", groupOf(engineMeshes), engineMeshes);
+
+// ============================================================
+// WINGS: cranked, faceted. Inner panel from the body's side edge to the
+// crank; the outer panel (sharper sweep) starts with a SHORTER chord, so
+// the trailing edge has a notch at the crank. Faceted lens sections.
+// The root follows the body edge (sunk slightly inside it) along its chord.
+// ============================================================
+const WING_SECTION = [[0.12, 0.8], [0.4, 1.0], [0.75, 0.7]];
+function panel({ rootAt, dir, nrm, rootLE, rootChord, tipLE, tipChord, span, thickRoot, thickTip, N = 4 }) {
+  const rings = [];
+  for (let k = 0; k <= N; k++) {
+    const s = k / N, le = rootLE + (tipLE - rootLE) * s, ch = rootChord + (tipChord - rootChord) * s;
+    const halfT = (thickRoot + (thickTip - thickRoot) * s) / 2;
+    const at = (f, side, rel) => {
+      const [rx, ry] = rootAt(rootLE + f * rootChord);
+      return [rx + dir[0] * span * s + nrm[0] * side * halfT * rel, ry + dir[1] * span * s + nrm[1] * side * halfT * rel, le + f * ch];
+    };
+    const ring = [at(0, 0, 0)];
+    WING_SECTION.forEach(([f, rel]) => ring.push(at(f, 1, rel)));
+    ring.push(at(1, 0, 0));
+    [...WING_SECTION].reverse().forEach(([f, rel]) => ring.push(at(f, -1, rel)));
+    rings.push(ring);
+  }
+  return loftRings(rings);
+}
+const CRANK_X = 0.8, TIP_X = 1.15;
+const wingMeshes = [];
+// inner panel: its root follows the body edge (0.03 inside it) at every
+// chord point, and its outer end meets the crank at a fixed x
+function innerPanel(sx) {
+  const N = 5, rings = [];
+  for (let k = 0; k <= N; k++) {
+    const s = k / N, le = -0.15 + 0.4 * s, ch = 1.0 - 0.4 * s, halfT = (0.18 - 0.03 * s) / 2;
+    const at = (f, side, rel) => {
+      const z = le + f * ch, rootX = bodyAt(-0.15 + f * 1.0).w - 0.03;
+      return [sx * (rootX + (CRANK_X - rootX) * s), Y0 + side * halfT * rel, z];
+    };
+    const ring = [at(0, 0, 0)];
+    WING_SECTION.forEach(([f, rel]) => ring.push(at(f, 1, rel)));
+    ring.push(at(1, 0, 0));
+    [...WING_SECTION].reverse().forEach(([f, rel]) => ring.push(at(f, -1, rel)));
+    rings.push(ring);
+  }
+  return loftRings(rings);
+}
+MIRROR.forEach((sx) => {
+  wingMeshes.push(innerPanel(sx));
+  wingMeshes.push(panel({
+    rootAt: () => [sx * (CRANK_X - 0.01), Y0], dir: [sx, 0], nrm: [0, 1],
+    rootLE: 0.25, rootChord: 0.48, tipLE: 0.66, tipChord: 0.18, span: TIP_X - CRANK_X + 0.01, thickRoot: 0.15, thickTip: 0.09,
+  }));
+  // a raised leading-edge strip on the inner panel
+  // sits on the upper facet just behind the leading edge, half sunk into it
+  wingMeshes.push(beamBetween(V([sx * 0.62, Y0 + 0.055, 0.06]), V([sx * (CRANK_X - 0.02), Y0 + 0.05, 0.3]), 0.035, 0.02));
+});
+addGroupPart("wings", "Wings (cranked, notched trailing edge)", groupOf(wingMeshes), wingMeshes);
+
+// ============================================================
+// TIP PLATES: tall vertical plates at the wing tips (they do the tail's
+// job). Faceted, swept leading edge, reaching above and below the wing.
+// ============================================================
+const plateMeshes = MIRROR.map((sx) => panel({
+  rootAt: () => [sx * (TIP_X + 0.02), Y0 - 0.15], dir: [0, 1], nrm: [1, 0],
+  rootLE: 0.52, rootChord: 0.42, tipLE: 0.76, tipChord: 0.2, span: 0.4, thickRoot: 0.07, thickTip: 0.045,
+}));
+addGroupPart("tipPlates", "Wingtip plates (vertical)", groupOf(plateMeshes), plateMeshes);
+
+// ============================================================
+// CANOPY: faceted canopy on the spine. Each section is a 6-sided arch
+// whose feet sit just under the top skin (flush, no gap); frame bars run
+// along every facet edge plus two cross bows.
+// ============================================================
+const CANOPY = [[-1.08, 0.03, 0.0], [-0.92, 0.09, 0.07], [-0.66, 0.12, 0.11], [-0.4, 0.125, 0.11], [-0.2, 0.11, 0.07], [-0.04, 0.05, 0.02]];
+const ARCH = [[1, 0], [0.85, 0.55], [0.4, 1], [-0.4, 1], [-0.85, 0.55], [-1, 0]];
+const canopyPt = (z, cw, ch, [ax, ay], lift = 0) => {
+  const x = cw * ax;
+  return [x * (1 + lift), topY(x, z) - 0.01 + ch * ay + lift * 0.4 * ay * ch + (ay > 0 ? lift * 0.01 : 0), z];
+};
+const canopyMeshes = [];
+{
+  const rows = CANOPY.map(([z, cw, ch]) => ARCH.map((a) => canopyPt(z, cw, ch, a)));
+  const pos = [];
+  for (let r = 0; r < rows.length - 1; r++) for (let i = 0; i < ARCH.length - 1; i++) {
+    const a = rows[r][i], b = rows[r][i + 1], c = rows[r + 1][i + 1], d = rows[r + 1][i];
+    pos.push(...a, ...b, ...c, ...a, ...c, ...d);
+  }
+  canopyMeshes.push(polyMesh(pos));
+  // frame bars along the facet edges
+  ARCH.forEach((a, i) => {
+    const pts = CANOPY.map(([z, cw, ch]) => canopyPt(z, cw, ch, a, i === 0 || i === ARCH.length - 1 ? 0 : 0.03));
+    for (let r = 0; r < pts.length - 1; r++) canopyMeshes.push(strutBetween(V(pts[r]), V(pts[r + 1]), i === 0 || i === ARCH.length - 1 ? 0.012 : 0.008, 6));
+  });
+  // two cross bows
+  [2, 3].forEach((r) => {
+    const [z, cw, ch] = CANOPY[r];
+    for (let i = 0; i < ARCH.length - 1; i++) canopyMeshes.push(strutBetween(V(canopyPt(z, cw, ch, ARCH[i], 0.03)), V(canopyPt(z, cw, ch, ARCH[i + 1], 0.03)), 0.009, 6));
+  });
+}
+addGroupPart("canopy", "Canopy (faceted, framed)", groupOf(canopyMeshes), canopyMeshes);
+
+// ============================================================
+// EXPLORER KIT: forward sensor rods on the tip plates, a long nose
+// probe with sensor collars, a faceted chin sensor, and a belly
+// camera pod on a short pylon.
+// ============================================================
+const kitMeshes = [];
+MIRROR.forEach((sx) => {
+  const x = sx * (TIP_X + 0.04), y = Y0 + 0.06;
+  kitMeshes.push(strutBetween(V([x, y, 0.62]), V([x, y, 0.08]), 0.011, 8));
+  kitMeshes.push(lathe([[0, 0.02], [0.022, 0.05], [0.022, 0.1], [0.014, 0.12], [0, 0.12]], x, y, 10));
+  kitMeshes.push(lathe([[0, 0.5], [0.026, 0.52], [0.026, 0.66], [0, 0.68]], x, y, 8));
+});
+kitMeshes.push(strutBetween(V([0, Y0, -1.55]), V([0, Y0, -2.12]), 0.01, 8));
+[-1.8, -1.95].forEach((z) => kitMeshes.push(lathe([[0, z - 0.012], [0.02, z - 0.012], [0.02, z + 0.012], [0, z + 0.012]], 0, Y0, 6)));
+kitMeshes.push(loftRings([hexRing(0, bottomY(0, -1.1) + 0.005, 0.0, 0.0, -1.22), hexRing(0, bottomY(0, -1.1) + 0.005, 0.05, 0.03, -1.12), hexRing(0, bottomY(0, -1.0) + 0.01, 0.05, 0.03, -0.98)]));
+{
+  const podY = bottomY(0, -0.1) - 0.045;
+  kitMeshes.push(loftRings([
+    hexRing(0, podY, 0.0, 0.0, -0.4), hexRing(0, podY, 0.05, 0.045, -0.37), hexRing(0, podY, 0.072, 0.065, -0.28),
+    hexRing(0, podY, 0.072, 0.065, 0.1), hexRing(0, podY, 0.04, 0.035, 0.22), hexRing(0, podY, 0.0, 0.0, 0.26),
+  ]));
+  kitMeshes.push(lathe([[0, -0.42], [0.032, -0.415], [0.032, -0.385], [0, -0.385]], 0, podY, 16));
+  const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.11, 0.26), partMaterial());
+  pylon.position.set(0, podY + 0.05, -0.07);
+  kitMeshes.push(pylon);
+}
+addGroupPart("explorerKit", "Explorer kit (sensor rods, nose probe, chin sensor, belly camera)", groupOf(kitMeshes), kitMeshes);
+
+// ============================================================
+// HULL DETAILS: raised trim lines along the upper chines and spine
+// edges (they emphasise the facets), vent grilles on the outer facets,
+// small antennas, and hex light/sensor plugs on the nose.
+// ============================================================
+const detailMeshes = [];
+function trimAlong(fx, fyKey, z0, z1, r) {
+  const pts = Array.from({ length: 9 }, (_, i) => { const z = z0 + ((z1 - z0) * i) / 8, s = bodyAt(z); return [fx * s.w, Y0 + s[fyKey], z]; });
+  for (let i = 0; i < pts.length - 1; i++) detailMeshes.push(strutBetween(V(pts[i]), V(pts[i + 1]), r, 6));
+}
+MIRROR.forEach((sx) => {
+  trimAlong(sx * 0.6, "t1", -1.45, 1.28, 0.007);
+  trimAlong(sx * 0.2, "t2", -0.02, 1.28, 0.006);
+  // vent grille: 4 slats on the outer upper facet, tilted to match it
+  const s = bodyAt(0.65), slope = Math.atan2(s.t1 - edgeHalf(s), 0.4 * s.w);
+  for (let i = 0; i < 4; i++) {
+    const x = sx * (0.66 * s.w + i * 0.035), y = topY(x, 0.65) + 0.004;
+    const slat = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.01, 0.2), partMaterial());
+    slat.position.set(x, y, 0.65);
+    slat.rotation.z = sx * -slope;
+    detailMeshes.push(slat);
+  }
+  // nose plugs
+  const z = -1.2, x = sx * 0.09;
+  detailMeshes.push(loftRings([hexRing(x, topY(x, z) - 0.006, 0.022, 0.012, z - 0.01), hexRing(x, topY(x, z) + 0.006, 0.02, 0.01, z)]));
+});
+[[0.06, 0.9, 0.14], [-0.06, 1.0, 0.1]].forEach(([x, z, h]) => {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.007, h, 6), partMaterial());
+  m.position.set(x, SPINE_TOP(z) + 0.07 + h / 2 - 0.02, z);
+  detailMeshes.push(m);
+});
+addGroupPart("hullDetails", "Hull details (facet trims, vents, antennas, plugs)", groupOf(detailMeshes), detailMeshes);
+
+// ============================================================
+// SHORTER: the whole ship (everything built so far) is squashed to 72%
+// of its length. Only the length changes, so the hexagons, wings and
+// canopy keep their cross-section shapes; the legs are built afterwards
+// at the squashed positions so their round parts stay round.
+// ============================================================
+const LEN = 0.72;
+ship.children.forEach((c) => c.scale.set(1, 1, LEN));
+
+// ============================================================
+// LANDING GEAR (struts, knee and pads 1.5x thicker per Andy): tricycle — nose leg on the centre line, two main legs
+// under the body sides. Round struts, knee, actuator, flat pads; struts
+// start inside the body; all pads level.
+// ============================================================
+const FOOT_Y = -0.34;
+function makeLeg(top, foot) {
+  const knee = top.clone().lerp(foot, 0.5).add(V([0, 0, -0.03]));
+  const kj = new THREE.Mesh(new THREE.SphereGeometry(0.042, 12, 8), partMaterial());
+  kj.position.copy(knee);
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.03, 6), partMaterial());
+  pad.position.set(foot.x, FOOT_Y - 0.015, foot.z);
+  return [strutBetween(top, knee, 0.033), strutBetween(knee, foot, 0.027),
+    strutBetween(top.clone().add(V([0, 0, 0.05])), knee.clone().add(V([0, 0.02, 0.025])), 0.012, 6), kj, pad];
+}
+const legMeshes = [
+  ...makeLeg(V([0, -0.06, -0.9 * LEN]), V([0, FOOT_Y, -0.95 * LEN])),
+  ...MIRROR.flatMap((sx) => makeLeg(V([sx * 0.4, -0.05, 0.55 * LEN]), V([sx * 0.5, FOOT_Y, 0.6 * LEN]))),
+];
+addGroupPart("legs", "Legs (tricycle landing gear)", groupOf(legMeshes), legMeshes);
+
+ship.position.y = 0.37;
+
+
+
+
+
+    },
   }
 ];
 
